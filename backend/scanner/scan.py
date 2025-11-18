@@ -1,0 +1,406 @@
+#!/usr/bin/env python3
+"""
+Hermes Media Scanner - Versió Completa i Funcional
+"""
+
+import os
+import re
+import sys
+import json
+import sqlite3
+import hashlib
+import subprocess
+import logging
+from pathlib import Path
+from typing import Dict, List, Optional
+
+# Configurar path
+sys.path.append(str(Path(__file__).parent.parent.parent))
+from config import settings
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+class HermesScanner:
+    """Scanner per detectar i catalogar media"""
+    
+    def __init__(self):
+        self.db_path = settings.DATABASE_PATH
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._init_database()
+        
+    def _init_database(self):
+        """Crea les taules necessàries"""
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        cursor = conn.cursor()
+        
+        # Habilitar WAL
+        cursor.execute("PRAGMA journal_mode=WAL")
+        
+        # Taula series/pel·lícules
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS series (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                path TEXT UNIQUE NOT NULL,
+                media_type TEXT DEFAULT 'series',
+                poster TEXT,
+                backdrop TEXT,
+                banner TEXT,
+                tvshow_nfo TEXT,
+                added_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Taula media_files
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS media_files (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_hash TEXT UNIQUE NOT NULL,
+                series_id INTEGER,
+                season_number INTEGER DEFAULT 1,
+                episode_number INTEGER,
+                title TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                file_size INTEGER,
+                duration REAL,
+                width INTEGER,
+                height INTEGER,
+                video_codec TEXT,
+                audio_tracks TEXT,
+                subtitle_tracks TEXT,
+                container TEXT,
+                media_type TEXT DEFAULT 'episode',
+                added_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (series_id) REFERENCES series(id)
+            )
+        ''')
+        
+        # Taula watch_progress
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS watch_progress (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER DEFAULT 1,
+                media_id INTEGER NOT NULL,
+                progress_seconds REAL,
+                total_seconds REAL,
+                completed BOOLEAN DEFAULT 0,
+                updated_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (media_id) REFERENCES media_files(id)
+            )
+        ''')
+        
+        conn.commit()
+        conn.close()
+        
+    def scan_directory(self, base_path: str, media_type: str = "series"):
+        """Escaneja un directori"""
+        base = Path(base_path)
+        if not base.exists():
+            logger.error(f"No existeix: {base_path}")
+            return
+            
+        logger.info(f"Escanejant {base_path} ({media_type})...")
+        
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        conn.execute("PRAGMA journal_mode=WAL")
+        cursor = conn.cursor()
+        
+        if media_type == "movies":
+            self._scan_movies(base, cursor, conn)
+        else:
+            self._scan_series(base, cursor, conn)
+            
+        conn.close()
+        logger.info("Escaneig completat!")
+        
+    def _scan_movies(self, base: Path, cursor, conn):
+        """Escaneja pel·lícules"""
+        for item in base.iterdir():
+            if item.is_file() and item.suffix.lower() in ['.mkv', '.mp4', '.avi']:
+                self._add_movie(item, cursor, conn)
+            elif item.is_dir():
+                # Buscar pel·lícula dins carpeta
+                for video_file in item.glob('*.mkv'):
+                    self._add_movie(video_file, cursor, conn, item)
+                for video_file in item.glob('*.mp4'):
+                    self._add_movie(video_file, cursor, conn, item)
+                    
+    def _add_movie(self, file_path: Path, cursor, conn, movie_dir: Path = None):
+        """Afegeix una pel·lícula"""
+        file_hash = self._generate_hash(file_path)
+        
+        cursor.execute('SELECT id FROM media_files WHERE file_hash = ?', (file_hash,))
+        if cursor.fetchone():
+            return
+            
+        # Metadata
+        base_dir = movie_dir or file_path.parent
+        poster = self._find_image(base_dir, ['folder.jpg', 'poster.jpg'])
+        backdrop = self._find_image(base_dir, ['backdrop.jpg', 'fanart.jpg'])
+        
+        movie_name = base_dir.name if movie_dir else file_path.stem
+        
+        # Inserir com a "movie"
+        cursor.execute('''
+            INSERT OR REPLACE INTO series (name, path, media_type, poster, backdrop)
+            VALUES (?, ?, 'movie', ?, ?)
+        ''', (movie_name, str(base_dir), str(poster) if poster else None,
+              str(backdrop) if backdrop else None))
+        
+        series_id = cursor.lastrowid
+        
+        # Obtenir info amb ffprobe
+        metadata = self.probe_file(file_path)
+        if metadata:
+            cursor.execute('''
+                INSERT INTO media_files (
+                    file_hash, series_id, title, file_path, file_size,
+                    duration, width, height, video_codec, audio_tracks,
+                    subtitle_tracks, container, media_type
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'movie')
+            ''', (
+                file_hash, series_id, movie_name, str(file_path),
+                metadata.get('size', 0), metadata.get('duration', 0),
+                metadata.get('width'), metadata.get('height'),
+                metadata.get('video_codec'),
+                json.dumps(metadata.get('audio_streams', [])),
+                json.dumps(metadata.get('subtitle_streams', [])),
+                metadata.get('format_name')
+            ))
+            conn.commit()
+            logger.info(f"  + Pel·lícula: {movie_name}")
+            
+    def _scan_series(self, base: Path, cursor, conn):
+        """Escaneja sèries"""
+        for series_dir in base.iterdir():
+            if not series_dir.is_dir():
+                continue
+                
+            logger.info(f"Processant: {series_dir.name}")
+            
+            # Metadata
+            poster = self._find_image(series_dir, ['folder.jpg', 'poster.jpg'])
+            backdrop = self._find_image(series_dir, ['backdrop.jpg', 'fanart.jpg'])
+            
+            # Inserir sèrie
+            cursor.execute('''
+                INSERT OR REPLACE INTO series (name, path, media_type, poster, backdrop)
+                VALUES (?, ?, 'series', ?, ?)
+            ''', (series_dir.name, str(series_dir),
+                  str(poster) if poster else None,
+                  str(backdrop) if backdrop else None))
+            
+            series_id = cursor.lastrowid
+            
+            # Buscar temporades
+            self._scan_seasons(series_dir, series_id, cursor, conn)
+            
+    def _scan_seasons(self, series_dir: Path, series_id: int, cursor, conn):
+        """Busca temporades o episodis directes"""
+        season_patterns = [
+            re.compile(r'^Season\s+(\d+)$', re.IGNORECASE),
+            re.compile(r'^Temporada\s+(\d+)$', re.IGNORECASE),
+            re.compile(r'^S(\d+)$', re.IGNORECASE),
+        ]
+        
+        seasons_found = False
+        
+        for item in series_dir.iterdir():
+            if item.is_dir():
+                season_num = None
+                
+                for pattern in season_patterns:
+                    match = pattern.match(item.name)
+                    if match:
+                        season_num = int(match.group(1))
+                        break
+                        
+                if season_num is not None:
+                    seasons_found = True
+                    logger.info(f"  Temporada {season_num}")
+                    self._scan_episodes(item, series_id, season_num, cursor, conn)
+                    
+        # Si no hi ha temporades, episodis a temporada 1
+        if not seasons_found:
+            self._scan_episodes(series_dir, series_id, 1, cursor, conn)
+            
+    def _scan_episodes(self, season_dir: Path, series_id: int, 
+                      season_number: int, cursor, conn):
+        """Escaneja episodis"""
+        episode_count = 0
+        
+        for ext in ['.mkv', '.mp4', '.avi']:
+            for video_file in season_dir.glob(f'*{ext}'):
+                episode_count += 1
+                
+                file_hash = self._generate_hash(video_file)
+                
+                cursor.execute('SELECT id FROM media_files WHERE file_hash = ?', 
+                             (file_hash,))
+                if cursor.fetchone():
+                    continue
+                    
+                episode_num = self._extract_episode_number(video_file.name)
+                if episode_num is None:
+                    episode_num = episode_count
+                    
+                metadata = self.probe_file(video_file)
+                if metadata:
+                    cursor.execute('''
+                        INSERT INTO media_files (
+                            file_hash, series_id, season_number, episode_number,
+                            title, file_path, file_size, duration, width, height,
+                            video_codec, audio_tracks, subtitle_tracks, container,
+                            media_type
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'episode')
+                    ''', (
+                        file_hash, series_id, season_number, episode_num,
+                        video_file.stem, str(video_file),
+                        metadata.get('size', 0), metadata.get('duration', 0),
+                        metadata.get('width'), metadata.get('height'),
+                        metadata.get('video_codec'),
+                        json.dumps(metadata.get('audio_streams', [])),
+                        json.dumps(metadata.get('subtitle_streams', [])),
+                        metadata.get('format_name')
+                    ))
+                    
+        if episode_count > 0:
+            conn.commit()
+            logger.info(f"    + {episode_count} episodis")
+            
+    def probe_file(self, file_path: Path) -> Optional[Dict]:
+        """Obté metadata amb ffprobe"""
+        try:
+            cmd = [
+                'ffprobe', '-v', 'quiet',
+                '-print_format', 'json',
+                '-show_format', '-show_streams',
+                str(file_path)
+            ]
+            
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                encoding="utf-8",
+                errors="ignore"
+            )
+
+            if result.returncode != 0:
+                return None
+                
+            data = json.loads(result.stdout)
+            
+            # Processar info
+            video_info = {}
+            audio_streams = []
+            subtitle_streams = []
+            
+            for stream in data.get('streams', []):
+                if stream.get('codec_type') == 'video' and not video_info:
+                    video_info = {
+                        'codec': stream.get('codec_name'),
+                        'width': stream.get('width'),
+                        'height': stream.get('height')
+                    }
+                elif stream.get('codec_type') == 'audio':
+                    audio_streams.append({
+                        'index': stream.get('index'),
+                        'codec': stream.get('codec_name'),
+                        'language': stream.get('tags', {}).get('language', 'und'),
+                        'title': stream.get('tags', {}).get('title', '')
+                    })
+                elif stream.get('codec_type') == 'subtitle':
+                    subtitle_streams.append({
+                        'index': stream.get('index'),
+                        'codec': stream.get('codec_name'),
+                        'language': stream.get('tags', {}).get('language', 'und'),
+                        'title': stream.get('tags', {}).get('title', '')
+                    })
+                    
+            format_info = data.get('format', {})
+            
+            return {
+                'duration': float(format_info.get('duration', 0)),
+                'size': int(format_info.get('size', 0)),
+                'format_name': format_info.get('format_name'),
+                'video_codec': video_info.get('codec'),
+                'width': video_info.get('width'),
+                'height': video_info.get('height'),
+                'audio_streams': audio_streams,
+                'subtitle_streams': subtitle_streams
+            }
+        except:
+            return None
+            
+    def _find_image(self, directory: Path, filenames: List[str]) -> Optional[Path]:
+        """Busca imatges"""
+        for filename in filenames:
+            path = directory / filename
+            if path.exists():
+                return path
+        return None
+        
+    def _generate_hash(self, file_path: Path) -> str:
+        """Genera hash únic"""
+        hash_str = f"{file_path.name}_{file_path.stat().st_size}"
+        return hashlib.md5(hash_str.encode()).hexdigest()
+        
+    def _extract_episode_number(self, filename: str) -> Optional[int]:
+        """Extreu número episodi"""
+        patterns = [
+            r'(\d+)x(\d+)',  # 01x01
+            r'[Ss](\d+)[Ee](\d+)',  # S01E01
+            r'[Ee](\d+)',  # E01
+            r'^(\d+)[^\d]',  # 01
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, filename)
+            if match:
+                return int(match.groups()[-1])
+        return None
+        
+    def get_stats(self) -> Dict:
+        """Obtenir estadístiques"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        stats = {}
+        
+        cursor.execute("SELECT COUNT(*) FROM series WHERE media_type = 'series'")
+        stats['series'] = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM series WHERE media_type = 'movie'")
+        stats['movies'] = cursor.fetchone()[0]
+        
+        cursor.execute('SELECT COUNT(*) FROM media_files')
+        stats['files'] = cursor.fetchone()[0]
+        
+        cursor.execute('SELECT SUM(duration) FROM media_files')
+        total_duration = cursor.fetchone()[0] or 0
+        stats['total_hours'] = round(total_duration / 3600, 1)
+        
+        conn.close()
+        return stats
+
+
+if __name__ == "__main__":
+    scanner = HermesScanner()
+    
+    for library in settings.MEDIA_LIBRARIES:
+        if Path(library["path"]).exists():
+            print(f"\nEscanejant: {library['name']}")
+            scanner.scan_directory(library["path"], library["type"])
+    
+    stats = scanner.get_stats()
+    print(f"\n{'='*50}")
+    print("ESTADÍSTIQUES")
+    print('='*50)
+    print(f"Sèries: {stats['series']}")
+    print(f"Pel·lícules: {stats['movies']}")
+    print(f"Arxius: {stats['files']}")
+    print(f"Hores: {stats['total_hours']}")

@@ -1,0 +1,337 @@
+#!/usr/bin/env python3
+"""
+Hermes Media Server - API Principal
+"""
+
+import os
+import sys
+import json
+import sqlite3
+import logging
+from pathlib import Path
+from typing import Optional, List, Dict
+from contextlib import contextmanager
+
+from fastapi import FastAPI, HTTPException, Depends, Query
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, StreamingResponse
+from pydantic import BaseModel
+
+# Afegir path per imports
+sys.path.append(str(Path(__file__).parent.parent))
+from config import settings
+from backend.scanner.scan import HermesScanner
+from backend.streaming.hls_engine import HermesStreamer
+
+# Configurar logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Crear app FastAPI
+app = FastAPI(
+    title="Hermes Media Server",
+    description="Sistema de streaming personal amb suport multi-pista",
+    version="1.0.0"
+)
+
+# Configurar CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"]
+)
+
+# === DATABASE ===
+@contextmanager
+def get_db():
+    """Context manager per connexions a la BD"""
+    conn = sqlite3.connect(
+        settings.DATABASE_PATH,
+        check_same_thread=False,
+        isolation_level=None
+    )
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+# === MODELS ===
+class ScanRequest(BaseModel):
+    libraries: Optional[List[str]] = None
+    force: bool = False
+
+class StreamRequest(BaseModel):
+    audio_index: Optional[int] = None
+    subtitle_index: Optional[int] = None
+    quality: str = "1080p"
+
+# === ENDPOINTS ===
+
+@app.get("/")
+async def root():
+    """Endpoint arrel"""
+    return {
+        "name": "Hermes Media Server",
+        "version": "1.0.0",
+        "status": "running"
+    }
+
+@app.get("/api/library/stats")
+async def get_stats():
+    """Retorna estadístiques de la biblioteca"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        # Series
+        cursor.execute("SELECT COUNT(*) FROM series WHERE media_type = 'series'")
+        series_count = cursor.fetchone()[0]
+        
+        # Pel·lícules
+        cursor.execute("SELECT COUNT(*) FROM series WHERE media_type = 'movie'")
+        movies_count = cursor.fetchone()[0]
+        
+        # Arxius
+        cursor.execute("SELECT COUNT(*) FROM media_files")
+        files_count = cursor.fetchone()[0]
+        
+        # Durada total
+        cursor.execute("SELECT SUM(duration) FROM media_files")
+        total_duration = cursor.fetchone()[0] or 0
+        
+        # Mida total
+        cursor.execute("SELECT SUM(file_size) FROM media_files")
+        total_size = cursor.fetchone()[0] or 0
+        
+        return {
+            "series": series_count,
+            "movies": movies_count,
+            "files": files_count,
+            "total_hours": round(total_duration / 3600, 1),
+            "total_gb": round(total_size / (1024**3), 2)
+        }
+
+@app.get("/api/library/series")
+async def get_series():
+    """Retorna totes les sèries"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT s.*, COUNT(DISTINCT m.season_number) as season_count,
+                       COUNT(m.id) as episode_count
+            FROM series s
+            LEFT JOIN media_files m ON s.id = m.series_id
+            WHERE s.media_type = 'series'
+            GROUP BY s.id
+            ORDER BY s.name
+        """)
+        
+        series = []
+        for row in cursor.fetchall():
+            series.append({
+                "id": row["id"],
+                "name": row["name"],
+                "path": row["path"],
+                "poster": row["poster"],
+                "backdrop": row["backdrop"],
+                "season_count": row["season_count"],
+                "episode_count": row["episode_count"]
+            })
+        
+        return series
+
+@app.get("/api/library/movies")
+async def get_movies():
+    """Retorna totes les pel·lícules"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT s.*, m.duration, m.file_size
+            FROM series s
+            LEFT JOIN media_files m ON s.id = m.series_id
+            WHERE s.media_type = 'movie'
+            ORDER BY s.name
+        """)
+        
+        movies = []
+        for row in cursor.fetchall():
+            movies.append({
+                "id": row["id"],
+                "name": row["name"],
+                "poster": row["poster"],
+                "backdrop": row["backdrop"],
+                "duration": row["duration"],
+                "file_size": row["file_size"]
+            })
+        
+        return movies
+
+@app.get("/api/series/{series_id}")
+async def get_series_detail(series_id: int):
+    """Retorna detalls d'una sèrie amb temporades"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        # Info de la sèrie
+        cursor.execute("SELECT * FROM series WHERE id = ?", (series_id,))
+        series = cursor.fetchone()
+        
+        if not series:
+            raise HTTPException(status_code=404, detail="Sèrie no trobada")
+        
+        # Temporades
+        cursor.execute("""
+            SELECT DISTINCT season_number, COUNT(*) as episode_count
+            FROM media_files
+            WHERE series_id = ?
+            GROUP BY season_number
+            ORDER BY season_number
+        """, (series_id,))
+        
+        seasons = []
+        for row in cursor.fetchall():
+            seasons.append({
+                "season_number": row["season_number"],
+                "episode_count": row["episode_count"]
+            })
+        
+        return {
+            "id": series["id"],
+            "name": series["name"],
+            "poster": series["poster"],
+            "backdrop": series["backdrop"],
+            "seasons": seasons
+        }
+
+@app.get("/api/series/{series_id}/season/{season_number}")
+async def get_season_episodes(series_id: int, season_number: int):
+    """Retorna episodis d'una temporada"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT * FROM media_files
+            WHERE series_id = ? AND season_number = ?
+            ORDER BY episode_number
+        """, (series_id, season_number))
+        
+        episodes = []
+        for row in cursor.fetchall():
+            episodes.append({
+                "id": row["id"],
+                "episode_number": row["episode_number"],
+                "title": row["title"],
+                "file_path": row["file_path"],
+                "duration": row["duration"],
+                "audio_tracks": json.loads(row["audio_tracks"] or "[]"),
+                "subtitle_tracks": json.loads(row["subtitle_tracks"] or "[]")
+            })
+        
+        return episodes
+
+@app.get("/api/stream/{media_id}/direct")
+async def stream_direct(media_id: int):
+    """Streaming directe del fitxer"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT file_path FROM media_files WHERE id = ?", (media_id,))
+        result = cursor.fetchone()
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="Arxiu no trobat")
+        
+        file_path = Path(result["file_path"])
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="Arxiu no existeix")
+        
+        return FileResponse(
+            path=file_path,
+            media_type="video/mp4",
+            filename=file_path.name
+        )
+
+@app.post("/api/stream/{media_id}/hls")
+async def stream_hls(media_id: int, request: StreamRequest):
+    """Inicia streaming HLS amb selecció de pistes"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM media_files WHERE id = ?", (media_id,))
+        media = cursor.fetchone()
+        
+        if not media:
+            raise HTTPException(status_code=404, detail="Media no trobat")
+        
+        streamer = HermesStreamer()
+        playlist_url = streamer.start_stream(
+            media_id=media_id,
+            file_path=media["file_path"],
+            audio_index=request.audio_index,
+            subtitle_index=request.subtitle_index,
+            quality=request.quality
+        )
+        
+        return {"playlist_url": playlist_url}
+
+@app.post("/api/library/scan")
+async def scan_library(request: ScanRequest = None):
+    """Escaneja la biblioteca"""
+    scanner = HermesScanner()
+    
+    for library in settings.MEDIA_LIBRARIES:
+        if Path(library["path"]).exists():
+            logger.info(f"Escanejant {library['name']}")
+            scanner.scan_directory(library["path"], library["type"])
+    
+    stats = scanner.get_stats()
+    return {
+        "status": "success",
+        "stats": stats
+    }
+
+@app.get("/api/image/poster/{item_id}")
+async def get_poster(item_id: int):
+    """Retorna el poster d'un item"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT poster FROM series WHERE id = ?", (item_id,))
+        result = cursor.fetchone()
+        
+        if result and result["poster"]:
+            poster_path = Path(result["poster"])
+            if poster_path.exists():
+                return FileResponse(poster_path)
+    
+    # Retornar placeholder si no hi ha poster
+    return {"error": "No poster available"}
+
+@app.get("/api/image/backdrop/{item_id}")
+async def get_backdrop(item_id: int):
+    """Retorna el backdrop d'un item"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT backdrop FROM series WHERE id = ?", (item_id,))
+        result = cursor.fetchone()
+        
+        if result and result["backdrop"]:
+            backdrop_path = Path(result["backdrop"])
+            if backdrop_path.exists():
+                return FileResponse(backdrop_path)
+    
+    return {"error": "No backdrop available"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "backend.main:app",
+        host=settings.API_HOST,
+        port=settings.API_PORT,
+        reload=True
+    )
