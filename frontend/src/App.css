@@ -55,22 +55,9 @@ a {
 }
 
 .loading-logo {
-  width: 120px;
-  height: 120px;
+  max-width: 200px;
+  height: auto;
   animation: pulse-logo 2s ease-in-out infinite;
-}
-
-.loading-text {
-  margin-top: 20px;
-  font-size: 24px;
-  font-weight: 600;
-  color: #328492;
-}
-
-.loading-tagline {
-  margin-top: 8px;
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.6);
 }
 
 @keyframes pulse-logo {
