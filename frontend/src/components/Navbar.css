@@ -1,4 +1,4 @@
-/* Navbar - Netflix Style */
+/* Navbar - Hermes Style */
 .navbar {
   position: fixed;
   top: 0;
@@ -6,13 +6,15 @@
   right: 0;
   z-index: 1000;
   padding: 0 4%;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.7) 0%, transparent 100%);
+  background: linear-gradient(to bottom, rgba(15, 23, 42, 0.9) 0%, transparent 100%);
   transition: background 0.3s;
 }
 
 .navbar.scrolled {
-  background: rgba(20, 20, 20, 0.95);
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(10px);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .navbar-inner {
@@ -35,8 +37,8 @@
 .logo-icon {
   width: 36px;
   height: 36px;
-  background: linear-gradient(135deg, #e50914, #b20710);
-  border-radius: 6px;
+  background: var(--accent-gradient);
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -48,7 +50,7 @@
 .logo-text {
   font-size: 1.25rem;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
 }
 
 /* Navigation Links */
@@ -59,7 +61,7 @@
 }
 
 .nav-link {
-  color: #b3b3b3;
+  color: var(--text-secondary);
   text-decoration: none;
   font-size: 0.9rem;
   font-weight: 500;
@@ -68,11 +70,11 @@
 }
 
 .nav-link:hover {
-  color: #e5e5e5;
+  color: var(--text-primary);
 }
 
 .nav-link.active {
-  color: white;
+  color: var(--text-primary);
   font-weight: 600;
 }
 
@@ -83,7 +85,7 @@
   left: 0;
   right: 0;
   height: 2px;
-  background: #e50914;
+  background: var(--accent-gradient);
   border-radius: 1px;
 }
 
@@ -106,8 +108,8 @@
   padding: 0;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 4px;
-  color: white;
+  border-radius: 8px;
+  color: var(--text-primary);
   font-size: 0.9rem;
   opacity: 0;
   transition: all 0.3s ease;
@@ -116,8 +118,8 @@
 .search-container.open .search-input {
   width: 200px;
   padding: 8px 36px 8px 12px;
-  background: rgba(0, 0, 0, 0.75);
-  border-color: #fff;
+  background: rgba(30, 41, 59, 0.9);
+  border-color: var(--accent-primary);
   opacity: 1;
 }
 
@@ -126,7 +128,7 @@
 }
 
 .search-container .search-input::placeholder {
-  color: #888;
+  color: var(--text-muted);
 }
 
 .search-btn {
@@ -134,16 +136,18 @@
   height: 36px;
   background: transparent;
   border: none;
-  color: white;
+  color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: color 0.2s;
+  border-radius: 50%;
 }
 
 .search-btn:hover {
-  color: #e5e5e5;
+  color: var(--text-primary);
+  background: rgba(11, 123, 134, 0.2);
 }
 
 .search-container.open .search-btn {
@@ -158,19 +162,20 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #b3b3b3;
+  color: var(--text-secondary);
   text-decoration: none;
-  border-radius: 4px;
+  border-radius: 8px;
   transition: all 0.2s;
 }
 
 .admin-btn:hover {
-  color: white;
-  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  background: rgba(11, 123, 134, 0.2);
 }
 
 .admin-btn.active {
-  color: #e50914;
+  color: var(--accent-light);
+  background: rgba(11, 123, 134, 0.2);
 }
 
 /* Mobile Toggle */
@@ -180,10 +185,15 @@
   height: 36px;
   background: transparent;
   border: none;
-  color: white;
+  color: var(--text-primary);
   cursor: pointer;
   align-items: center;
   justify-content: center;
+  border-radius: 8px;
+}
+
+.mobile-toggle:hover {
+  background: rgba(11, 123, 134, 0.2);
 }
 
 /* Mobile Menu */
@@ -194,13 +204,15 @@
   top: 64px;
   left: 0;
   right: 0;
-  background: rgba(20, 20, 20, 0.98);
+  background: rgba(15, 23, 42, 0.98);
+  backdrop-filter: blur(16px);
   padding: 1rem 4%;
   gap: 0.5rem;
   transform: translateY(-100%);
   opacity: 0;
   pointer-events: none;
   transition: all 0.3s;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .mobile-menu.open {
@@ -212,21 +224,21 @@
 .mobile-link {
   display: block;
   padding: 0.75rem 1rem;
-  color: #b3b3b3;
+  color: var(--text-secondary);
   text-decoration: none;
   font-size: 1rem;
-  border-radius: 4px;
+  border-radius: 8px;
   transition: all 0.2s;
 }
 
 .mobile-link:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
+  background: rgba(11, 123, 134, 0.2);
+  color: var(--text-primary);
 }
 
 .mobile-link.active {
-  color: white;
-  background: rgba(229, 9, 20, 0.2);
+  color: var(--text-primary);
+  background: rgba(11, 123, 134, 0.3);
 }
 
 /* Responsive */
