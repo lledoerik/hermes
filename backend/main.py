@@ -413,13 +413,201 @@ async def get_backdrop(item_id: int):
         cursor = conn.cursor()
         cursor.execute("SELECT backdrop FROM series WHERE id = ?", (item_id,))
         result = cursor.fetchone()
-        
+
         if result and result["backdrop"]:
             backdrop_path = Path(result["backdrop"])
             if backdrop_path.exists():
                 return FileResponse(backdrop_path)
-    
+
     return {"error": "No backdrop available"}
+
+
+# === ENDPOINTS COMPATIBILITAT FRONTEND ===
+
+@app.get("/api/library/series/{series_id}")
+async def get_library_series_detail(series_id: int):
+    """Alias per compatibilitat amb frontend - Detalls sèrie"""
+    return await get_series_detail(series_id)
+
+
+@app.get("/api/library/series/{series_id}/seasons")
+async def get_series_seasons(series_id: int):
+    """Retorna les temporades d'una sèrie"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Verificar que existeix la sèrie
+        cursor.execute("SELECT id FROM series WHERE id = ?", (series_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Sèrie no trobada")
+
+        cursor.execute("""
+            SELECT DISTINCT season_number, COUNT(*) as episode_count
+            FROM media_files
+            WHERE series_id = ?
+            GROUP BY season_number
+            ORDER BY season_number
+        """, (series_id,))
+
+        seasons = []
+        for row in cursor.fetchall():
+            seasons.append({
+                "id": row["season_number"],
+                "season_number": row["season_number"],
+                "episode_count": row["episode_count"]
+            })
+
+        return seasons
+
+
+@app.get("/api/library/series/{series_id}/seasons/{season_number}/episodes")
+async def get_library_season_episodes(series_id: int, season_number: int):
+    """Retorna episodis d'una temporada - format frontend"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT m.*, s.name as series_name, s.poster, s.backdrop
+            FROM media_files m
+            LEFT JOIN series s ON m.series_id = s.id
+            WHERE m.series_id = ? AND m.season_number = ?
+            ORDER BY m.episode_number
+        """, (series_id, season_number))
+
+        episodes = []
+        for row in cursor.fetchall():
+            episodes.append({
+                "id": row["id"],
+                "series_id": series_id,
+                "series_name": row["series_name"],
+                "season_number": row["season_number"],
+                "episode_number": row["episode_number"],
+                "name": row["title"],
+                "file_path": row["file_path"],
+                "duration": row["duration"],
+                "audio_tracks": row["audio_tracks"],
+                "subtitles": row["subtitle_tracks"],
+                "poster": row["poster"],
+                "backdrop": row["backdrop"],
+                "watch_progress": 0  # TODO: Implementar progress
+            })
+
+        return episodes
+
+
+@app.get("/api/library/movies/{movie_id}")
+async def get_library_movie_detail(movie_id: int):
+    """Detalls pel·lícula - format frontend"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT s.*, m.id as media_id, m.duration, m.file_size, m.width, m.height,
+                   m.video_codec, m.audio_tracks, m.subtitle_tracks, m.file_path
+            FROM series s
+            LEFT JOIN media_files m ON s.id = m.series_id
+            WHERE s.id = ? AND s.media_type = 'movie'
+        """, (movie_id,))
+        movie = cursor.fetchone()
+
+        if not movie:
+            raise HTTPException(status_code=404, detail="Pel·lícula no trobada")
+
+        return {
+            "id": movie["id"],
+            "media_id": movie["media_id"],
+            "name": movie["name"],
+            "poster": movie["poster"],
+            "backdrop": movie["backdrop"],
+            "duration": movie["duration"],
+            "file_size": movie["file_size"],
+            "width": movie["width"],
+            "height": movie["height"],
+            "video_codec": movie["video_codec"],
+            "audio_tracks": movie["audio_tracks"],
+            "subtitles": movie["subtitle_tracks"],
+            "file_path": movie["file_path"]
+        }
+
+
+@app.get("/api/library/episodes/{episode_id}")
+async def get_episode_detail(episode_id: int):
+    """Detalls d'un episodi individual"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT m.*, s.name as series_name, s.id as series_id, s.poster, s.backdrop
+            FROM media_files m
+            LEFT JOIN series s ON m.series_id = s.id
+            WHERE m.id = ?
+        """, (episode_id,))
+        episode = cursor.fetchone()
+
+        if not episode:
+            raise HTTPException(status_code=404, detail="Episodi no trobat")
+
+        return {
+            "id": episode["id"],
+            "series_id": episode["series_id"],
+            "series_name": episode["series_name"],
+            "name": episode["title"],
+            "season_number": episode["season_number"],
+            "episode_number": episode["episode_number"],
+            "file_path": episode["file_path"],
+            "duration": episode["duration"],
+            "audio_tracks": episode["audio_tracks"],
+            "subtitles": episode["subtitle_tracks"],
+            "poster": episode["poster"],
+            "backdrop": episode["backdrop"]
+        }
+
+
+@app.get("/api/stream/episode/{episode_id}")
+async def stream_episode(episode_id: int):
+    """Streaming directe d'un episodi"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT file_path FROM media_files WHERE id = ?", (episode_id,))
+        result = cursor.fetchone()
+
+        if not result:
+            raise HTTPException(status_code=404, detail="Episodi no trobat")
+
+        file_path = Path(result["file_path"])
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="Arxiu no existeix")
+
+        return FileResponse(
+            path=file_path,
+            media_type="video/mp4",
+            filename=file_path.name
+        )
+
+
+@app.get("/api/stream/movie/{movie_id}")
+async def stream_movie(movie_id: int):
+    """Streaming directe d'una pel·lícula"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT m.file_path FROM media_files m
+            JOIN series s ON m.series_id = s.id
+            WHERE s.id = ? AND s.media_type = 'movie'
+        """, (movie_id,))
+        result = cursor.fetchone()
+
+        if not result:
+            raise HTTPException(status_code=404, detail="Pel·lícula no trobada")
+
+        file_path = Path(result["file_path"])
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="Arxiu no existeix")
+
+        return FileResponse(
+            path=file_path,
+            media_type="video/mp4",
+            filename=file_path.name
+        )
+
 
 if __name__ == "__main__":
     import uvicorn
