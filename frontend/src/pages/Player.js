@@ -190,7 +190,7 @@ const getLanguageName = (lang) => {
     'rus': 'Rus', 'russian': 'Rus', 'ru': 'Rus',
   };
 
-  return names[normalizedLang] || lang;
+  return names[normalizedLang] || 'Desconegut';
 };
 
 function Player() {
@@ -459,7 +459,25 @@ function Player() {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
+  // Funció per sortir de fullscreen i desbloquejar orientació
+  const exitFullscreenMode = () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+    if (window.screen.orientation && window.screen.orientation.unlock) {
+      window.screen.orientation.unlock();
+    }
+  };
+
+  // Cleanup quan es desmunta el component
+  useEffect(() => {
+    return () => {
+      exitFullscreenMode();
+    };
+  }, []);
+
   const handleBack = () => {
+    exitFullscreenMode();
     if (item?.series_id) {
       navigate(`/series/${item.series_id}`);
     } else {
@@ -694,8 +712,7 @@ function Player() {
                             {selectedAudio === index && <span className="check-icon">&#10003;</span>}
                             <div className="track-info">
                               <span className="track-name">
-                                <span className="track-flag">{getLanguageFlag(track.language)}</span>
-                                {getLanguageName(track.language) || `Pista ${index + 1}`}
+                                {getLanguageName(track.language)}
                               </span>
                               {track.codec && (
                                 <span className="track-detail">
@@ -743,8 +760,7 @@ function Player() {
                           {selectedSubtitle === index && <span className="check-icon">&#10003;</span>}
                           <div className="track-info">
                             <span className="track-name">
-                              <span className="track-flag">{getLanguageFlag(track.language)}</span>
-                              {getLanguageName(track.language) || `Subtitol ${index + 1}`}
+                              {getLanguageName(track.language)}
                             </span>
                             {track.forced && <span className="track-detail">Forçat</span>}
                           </div>
