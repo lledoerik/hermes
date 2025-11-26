@@ -9,8 +9,7 @@ python -m venv venv
 call venv\Scripts\activate
 
 echo [2/5] Instal·lant dependencies Python...
-pip install --upgrade pip
-pip install -r requirements.txt
+python.exe -m pip install -r requirements.txt
 python.exe -m pip install --upgrade pip
 
 echo [3/5] Instal·lant dependencies React...
@@ -25,7 +24,9 @@ if not exist "storage\metadata" mkdir storage\metadata
 
 
 echo [5/5] Escannejant multimedia...
-./scan.bat
+cd backend\scanner
+call scan.bat
+cd ..
 
 echo.
 echo ====================================
