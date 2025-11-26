@@ -23,14 +23,18 @@ const PauseIcon = () => (
 );
 
 const SkipBackIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="12" cy="12" r="10"/>
+    <path d="M12 8l-4 4 4 4" strokeLinecap="round" strokeLinejoin="round"/>
+    <text x="14" y="14" fontSize="6" fill="currentColor" stroke="none" fontWeight="bold">10</text>
   </svg>
 );
 
 const SkipForwardIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="12" cy="12" r="10"/>
+    <path d="M12 8l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
+    <text x="6" y="14" fontSize="6" fill="currentColor" stroke="none" fontWeight="bold">10</text>
   </svg>
 );
 
@@ -244,16 +248,58 @@ function Player() {
     setDuration(videoRef.current.duration);
   };
 
-  const handleProgressClick = (e) => {
-    if (!progressRef.current || !videoRef.current) return;
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragTime, setDragTime] = useState(0);
+
+  const calculateTimeFromEvent = (e) => {
+    if (!progressRef.current || !duration) return 0;
     const rect = progressRef.current.getBoundingClientRect();
-    const percent = (e.clientX - rect.left) / rect.width;
+    const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    return percent * duration;
+  };
+
+  const handleProgressMouseDown = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+    const newTime = calculateTimeFromEvent(e);
+    setDragTime(newTime);
+  };
+
+  const handleProgressMouseMove = useCallback((e) => {
+    if (!isDragging) return;
+    const newTime = calculateTimeFromEvent(e);
+    setDragTime(newTime);
+  }, [isDragging, duration]);
+
+  const handleProgressMouseUp = useCallback((e) => {
+    if (!isDragging || !videoRef.current) return;
+    setIsDragging(false);
+    const newTime = calculateTimeFromEvent(e);
+    videoRef.current.currentTime = newTime;
+  }, [isDragging, duration]);
+
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleProgressMouseMove);
+      document.addEventListener('mouseup', handleProgressMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleProgressMouseMove);
+        document.removeEventListener('mouseup', handleProgressMouseUp);
+      };
+    }
+  }, [isDragging, handleProgressMouseMove, handleProgressMouseUp]);
+
+  const handleProgressClick = (e) => {
+    if (!progressRef.current || !videoRef.current || !duration) return;
+    const rect = progressRef.current.getBoundingClientRect();
+    const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     videoRef.current.currentTime = percent * duration;
   };
 
   const skip = (seconds) => {
     if (!videoRef.current) return;
-    videoRef.current.currentTime += seconds;
+    const newTime = Math.max(0, Math.min(duration, videoRef.current.currentTime + seconds));
+    videoRef.current.currentTime = newTime;
   };
 
   const handleVolumeChange = (e) => {
@@ -409,14 +455,12 @@ function Player() {
           <div className="player-center">
             <button className="center-btn skip-btn" onClick={() => skip(-10)}>
               <SkipBackIcon />
-              <span className="skip-text">10</span>
             </button>
             <button className="center-btn play-pause-btn" onClick={togglePlay}>
               {isPlaying ? <PauseIcon /> : <PlayIcon />}
             </button>
             <button className="center-btn skip-btn" onClick={() => skip(10)}>
               <SkipForwardIcon />
-              <span className="skip-text">10</span>
             </button>
           </div>
 
@@ -426,7 +470,8 @@ function Player() {
             <div className="progress-container">
               <div
                 ref={progressRef}
-                className="progress-bar"
+                className={`progress-bar ${isDragging ? 'dragging' : ''}`}
+                onMouseDown={handleProgressMouseDown}
                 onClick={handleProgressClick}
               >
                 <div
@@ -435,15 +480,15 @@ function Player() {
                 />
                 <div
                   className="progress-played"
-                  style={{ width: `${(currentTime / duration) * 100}%` }}
+                  style={{ width: `${((isDragging ? dragTime : currentTime) / duration) * 100}%` }}
                 />
                 <div
                   className="progress-handle"
-                  style={{ left: `${(currentTime / duration) * 100}%` }}
+                  style={{ left: `${((isDragging ? dragTime : currentTime) / duration) * 100}%` }}
                 />
               </div>
               <div className="time-display">
-                <span>{formatTime(currentTime)}</span>
+                <span>{formatTime(isDragging ? dragTime : currentTime)}</span>
                 <span>/</span>
                 <span>{formatTime(duration)}</span>
               </div>
