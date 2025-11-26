@@ -45,11 +45,12 @@ function Home() {
     return (
       <div className="loading-screen">
         <div className="loading-logo">
-          <span>H</span>
+          <img src="/img/hermes.png" alt="Hermes" className="hermes-loading-img" />
         </div>
         <div className="loading-bar">
           <div className="loading-progress"></div>
         </div>
+        <p className="loading-tagline">El transport mes rapid de l'olimp</p>
       </div>
     );
   }
@@ -130,27 +131,8 @@ function Home() {
         </section>
       )}
 
-      {/* Stats Bar */}
-      {stats && (
-        <div className="stats-bar">
-          <div className="stat">
-            <span className="stat-number">{stats.series}</span>
-            <span className="stat-label">Series</span>
-          </div>
-          <div className="stat">
-            <span className="stat-number">{stats.movies}</span>
-            <span className="stat-label">Pel·licules</span>
-          </div>
-          <div className="stat">
-            <span className="stat-number">{stats.files}</span>
-            <span className="stat-label">Arxius</span>
-          </div>
-          <div className="stat">
-            <span className="stat-number">{stats.total_hours}h</span>
-            <span className="stat-label">Contingut</span>
-          </div>
-        </div>
-      )}
+      {/* Stats Bar - Hidden from main page, moved to Admin */}
+      {/* Stats are now only visible in the Admin panel */}
 
       {/* Content Rows */}
       <div className="content-rows">
