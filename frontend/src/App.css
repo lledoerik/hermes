@@ -136,9 +136,68 @@ a {
   to { transform: translateX(0); opacity: 1; }
 }
 
-/* Responsive */
+/* Responsive - Portàtils i pantalles mitjanes (reduir bombolles) */
+@media (max-width: 1400px) {
+  .bubble-1 {
+    width: 200px;
+    height: 200px;
+  }
+
+  .bubble-2 {
+    width: 280px;
+    height: 280px;
+  }
+
+  .bubble-3 {
+    width: 240px;
+    height: 240px;
+  }
+}
+
+/* Responsive - Tablets */
+@media (max-width: 1024px) {
+  .bubble-1 {
+    width: 150px;
+    height: 150px;
+    left: 40px;
+    top: 40px;
+  }
+
+  .bubble-2 {
+    width: 200px;
+    height: 200px;
+    right: 40px;
+    bottom: 40px;
+  }
+
+  .bubble-3 {
+    width: 180px;
+    height: 180px;
+  }
+}
+
+/* Responsive - Mòbils */
 @media (max-width: 768px) {
   .main-content {
     padding-top: 60px;
+  }
+
+  .bubble-1 {
+    width: 120px;
+    height: 120px;
+    left: 20px;
+    top: 20px;
+  }
+
+  .bubble-2 {
+    width: 150px;
+    height: 150px;
+    right: 20px;
+    bottom: 20px;
+  }
+
+  .bubble-3 {
+    width: 130px;
+    height: 130px;
   }
 }

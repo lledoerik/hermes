@@ -37,19 +37,13 @@
             pointer-events: none;
         }
         #initial-loader img {
-            width: 100px;
-            height: 100px;
+            width: 200px;
+            height: auto;
             animation: pulse 2s ease-in-out infinite;
         }
-        #initial-loader h2 {
-            margin-top: 20px;
-            font-size: 28px;
-            font-weight: 700;
-            color: #328492;
-        }
         #initial-loader p {
-            margin-top: 8px;
-            font-size: 14px;
+            margin-top: 20px;
+            font-size: 16px;
             color: rgba(255, 255, 255, 0.6);
         }
         @keyframes pulse {
@@ -64,7 +58,6 @@
     <!-- Initial loader while React loads -->
     <div id="initial-loader">
         <img src="/img/hermes.png" alt="Hermes" />
-        <h2>Hermes</h2>
         <p>El transport més ràpid de l'Olimp</p>
     </div>
 
