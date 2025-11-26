@@ -334,8 +334,8 @@ function Player() {
       }
 
       // Intentar bloquejar orientació horitzontal (mòbil)
-      if (screen.orientation && screen.orientation.lock) {
-        screen.orientation.lock('landscape').catch(() => {
+      if (window.screen.orientation && window.screen.orientation.lock) {
+        window.screen.orientation.lock('landscape').catch(() => {
           // Si falla, no passa res (alguns navegadors no ho suporten)
         });
       }
