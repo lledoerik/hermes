@@ -13,16 +13,8 @@ Sistema de streaming personal amb control total sobre arxius MKV multi-pista.
    ```batch
    install.bat
    ```
-
-3. **Configuració:**
-   - Edita `config/settings.py` amb les teves rutes
-
-4. **Escaneig inicial:**
-   ```batch
-   start-scan.bat
-   ```
-
-5. **Iniciar sistema:**
+   
+3. **Iniciar sistema:**
    ```batch
    start-all.bat
    ```
