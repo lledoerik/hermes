@@ -9,7 +9,7 @@
   position: relative;
   min-height: calc(100vh - 70px);
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   overflow: hidden;
   padding: 20px;
@@ -60,14 +60,15 @@
   width: 100%;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  padding-top: 40px;
+  align-items: center;
 }
 
 /* Search Bar */
 .search-container {
-  margin-bottom: 4rem;
-  flex-shrink: 0;
+  margin-bottom: 3rem;
+  width: 100%;
+  display: flex;
+  justify-content: center;
 }
 
 .search-bar {
