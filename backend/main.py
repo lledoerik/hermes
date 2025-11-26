@@ -265,10 +265,10 @@ async def stream_hls(media_id: int, request: StreamRequest):
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM media_files WHERE id = ?", (media_id,))
         media = cursor.fetchone()
-        
+
         if not media:
             raise HTTPException(status_code=404, detail="Media no trobat")
-        
+
         streamer = HermesStreamer()
         playlist_url = streamer.start_stream(
             media_id=media_id,
@@ -277,8 +277,102 @@ async def stream_hls(media_id: int, request: StreamRequest):
             subtitle_index=request.subtitle_index,
             quality=request.quality
         )
-        
+
         return {"playlist_url": playlist_url}
+
+@app.get("/api/stream/hls/{stream_id}/playlist.m3u8")
+async def get_hls_playlist(stream_id: str):
+    """Serveix la playlist HLS"""
+    playlist_path = Path(f"storage/cache/hls/{stream_id}/playlist.m3u8")
+
+    if not playlist_path.exists():
+        raise HTTPException(status_code=404, detail="Playlist no trobada")
+
+    return FileResponse(
+        path=playlist_path,
+        media_type="application/vnd.apple.mpegurl",
+        headers={"Cache-Control": "no-cache"}
+    )
+
+@app.get("/api/stream/hls/{stream_id}/{segment}")
+async def get_hls_segment(stream_id: str, segment: str):
+    """Serveix segments HLS (.ts)"""
+    segment_path = Path(f"storage/cache/hls/{stream_id}/{segment}")
+
+    if not segment_path.exists():
+        raise HTTPException(status_code=404, detail="Segment no trobat")
+
+    return FileResponse(
+        path=segment_path,
+        media_type="video/mp2t"
+    )
+
+@app.get("/api/media/{media_id}")
+async def get_media_detail(media_id: int):
+    """Retorna detalls d'un fitxer media individual"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT m.*, s.name as series_name, s.poster, s.backdrop
+            FROM media_files m
+            LEFT JOIN series s ON m.series_id = s.id
+            WHERE m.id = ?
+        """, (media_id,))
+        media = cursor.fetchone()
+
+        if not media:
+            raise HTTPException(status_code=404, detail="Media no trobat")
+
+        return {
+            "id": media["id"],
+            "title": media["title"],
+            "series_name": media["series_name"],
+            "season_number": media["season_number"],
+            "episode_number": media["episode_number"],
+            "file_path": media["file_path"],
+            "duration": media["duration"],
+            "width": media["width"],
+            "height": media["height"],
+            "video_codec": media["video_codec"],
+            "audio_tracks": json.loads(media["audio_tracks"] or "[]"),
+            "subtitle_tracks": json.loads(media["subtitle_tracks"] or "[]"),
+            "poster": media["poster"],
+            "backdrop": media["backdrop"]
+        }
+
+@app.get("/api/movie/{movie_id}")
+async def get_movie_detail(movie_id: int):
+    """Retorna detalls d'una pel·lícula"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        # Primer obtenim la info de la pel·lícula
+        cursor.execute("""
+            SELECT s.*, m.id as media_id, m.duration, m.file_size, m.width, m.height,
+                   m.video_codec, m.audio_tracks, m.subtitle_tracks, m.file_path
+            FROM series s
+            LEFT JOIN media_files m ON s.id = m.series_id
+            WHERE s.id = ? AND s.media_type = 'movie'
+        """, (movie_id,))
+        movie = cursor.fetchone()
+
+        if not movie:
+            raise HTTPException(status_code=404, detail="Pel·lícula no trobada")
+
+        return {
+            "id": movie["id"],
+            "media_id": movie["media_id"],
+            "name": movie["name"],
+            "poster": movie["poster"],
+            "backdrop": movie["backdrop"],
+            "duration": movie["duration"],
+            "file_size": movie["file_size"],
+            "width": movie["width"],
+            "height": movie["height"],
+            "video_codec": movie["video_codec"],
+            "audio_tracks": json.loads(movie["audio_tracks"] or "[]"),
+            "subtitle_tracks": json.loads(movie["subtitle_tracks"] or "[]"),
+            "file_path": movie["file_path"]
+        }
 
 @app.post("/api/library/scan")
 async def scan_library(request: ScanRequest = None):
