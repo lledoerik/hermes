@@ -98,6 +98,91 @@ const BackIcon = () => (
   </svg>
 );
 
+// Mapa de banderes per idiomes
+const languageFlags = {
+  // Català - Senyera
+  'cat': '🇦🇩', // Andorra té la senyera, alternativa: usar emoji personalitzat
+  'catalan': '🇦🇩',
+  'català': '🇦🇩',
+  'ca': '🇦🇩',
+  // Espanyol
+  'spa': '🇪🇸',
+  'esp': '🇪🇸',
+  'spanish': '🇪🇸',
+  'español': '🇪🇸',
+  'castellano': '🇪🇸',
+  'es': '🇪🇸',
+  // Anglès
+  'eng': '🇬🇧',
+  'english': '🇬🇧',
+  'en': '🇬🇧',
+  // Japonès
+  'jap': '🇯🇵',
+  'jpn': '🇯🇵',
+  'japanese': '🇯🇵',
+  'ja': '🇯🇵',
+  // Francès
+  'fre': '🇫🇷',
+  'fra': '🇫🇷',
+  'french': '🇫🇷',
+  'fr': '🇫🇷',
+  // Alemany
+  'ger': '🇩🇪',
+  'deu': '🇩🇪',
+  'german': '🇩🇪',
+  'de': '🇩🇪',
+  // Italià
+  'ita': '🇮🇹',
+  'italian': '🇮🇹',
+  'it': '🇮🇹',
+  // Portuguès
+  'por': '🇵🇹',
+  'portuguese': '🇵🇹',
+  'pt': '🇵🇹',
+  // Coreà
+  'kor': '🇰🇷',
+  'korean': '🇰🇷',
+  'ko': '🇰🇷',
+  // Xinès
+  'chi': '🇨🇳',
+  'zho': '🇨🇳',
+  'chinese': '🇨🇳',
+  'zh': '🇨🇳',
+  // Rus
+  'rus': '🇷🇺',
+  'russian': '🇷🇺',
+  'ru': '🇷🇺',
+};
+
+// Funció per obtenir la bandera d'un idioma
+const getLanguageFlag = (lang) => {
+  if (!lang) return '🌐';
+  const normalizedLang = lang.toLowerCase().trim();
+  return languageFlags[normalizedLang] || '🌐';
+};
+
+// Funció per obtenir el nom de l'idioma
+const getLanguageName = (lang) => {
+  if (!lang) return 'Desconegut';
+  const normalizedLang = lang.toLowerCase().trim();
+
+  const names = {
+    'cat': 'Català', 'catalan': 'Català', 'català': 'Català', 'ca': 'Català',
+    'spa': 'Espanyol', 'esp': 'Espanyol', 'spanish': 'Espanyol', 'español': 'Espanyol', 'castellano': 'Espanyol', 'es': 'Espanyol',
+    'eng': 'Anglès', 'english': 'Anglès', 'en': 'Anglès',
+    'jap': 'Japonès', 'jpn': 'Japonès', 'japanese': 'Japonès', 'ja': 'Japonès',
+    'fre': 'Francès', 'fra': 'Francès', 'french': 'Francès', 'fr': 'Francès',
+    'ger': 'Alemany', 'deu': 'Alemany', 'german': 'Alemany', 'de': 'Alemany',
+    'ita': 'Italià', 'italian': 'Italià', 'it': 'Italià',
+    'por': 'Portuguès', 'portuguese': 'Portuguès', 'pt': 'Portuguès',
+    'kor': 'Coreà', 'korean': 'Coreà', 'ko': 'Coreà',
+    'chi': 'Xinès', 'zho': 'Xinès', 'chinese': 'Xinès', 'zh': 'Xinès',
+    'rus': 'Rus', 'russian': 'Rus', 'ru': 'Rus',
+  };
+
+  return names[normalizedLang] || lang;
+};
+
 function Player() {
   const { type, id } = useParams();
   const navigate = useNavigate();
@@ -229,7 +314,34 @@ function Player() {
     }
   };
 
-  const handleVideoPlay = () => setIsPlaying(true);
+  const [hasAutoFullscreen, setHasAutoFullscreen] = useState(false);
+
+  const handleVideoPlay = () => {
+    setIsPlaying(true);
+
+    // Auto fullscreen al primer play (especialment per mòbil)
+    if (!hasAutoFullscreen && !document.fullscreenElement) {
+      setHasAutoFullscreen(true);
+
+      // Intentar entrar a fullscreen
+      const elem = document.documentElement;
+      if (elem.requestFullscreen) {
+        elem.requestFullscreen().catch(() => {});
+      } else if (elem.webkitRequestFullscreen) {
+        elem.webkitRequestFullscreen();
+      } else if (elem.msRequestFullscreen) {
+        elem.msRequestFullscreen();
+      }
+
+      // Intentar bloquejar orientació horitzontal (mòbil)
+      if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('landscape').catch(() => {
+          // Si falla, no passa res (alguns navegadors no ho suporten)
+        });
+      }
+    }
+  };
+
   const handleVideoPause = () => setIsPlaying(false);
   const handleVideoWaiting = () => setVideoLoading(true);
   const handleVideoCanPlay = () => setVideoLoading(false);
@@ -609,7 +721,10 @@ function Player() {
                           >
                             {selectedAudio === index && <span className="check-icon">&#10003;</span>}
                             <div className="track-info">
-                              <span className="track-name">{track.language || `Pista ${index + 1}`}</span>
+                              <span className="track-name">
+                                <span className="track-flag">{getLanguageFlag(track.language)}</span>
+                                {getLanguageName(track.language) || `Pista ${index + 1}`}
+                              </span>
                               {track.codec && (
                                 <span className="track-detail">
                                   {track.codec} {track.channels ? `${track.channels}ch` : ''}
@@ -655,8 +770,11 @@ function Player() {
                         >
                           {selectedSubtitle === index && <span className="check-icon">&#10003;</span>}
                           <div className="track-info">
-                            <span className="track-name">{track.language || `Subtitol ${index + 1}`}</span>
-                            {track.forced && <span className="track-detail">Forcat</span>}
+                            <span className="track-name">
+                              <span className="track-flag">{getLanguageFlag(track.language)}</span>
+                              {getLanguageName(track.language) || `Subtitol ${index + 1}`}
+                            </span>
+                            {track.forced && <span className="track-detail">Forçat</span>}
                           </div>
                         </div>
                       ))}
