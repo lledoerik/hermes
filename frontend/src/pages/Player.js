@@ -53,6 +53,9 @@ function Player() {
   const controlsTimeoutRef = useRef(null);
   const savedTimeRef = useRef(0);
 
+  // Auto-play mode - start directly without asking for language
+  const [autoPlay, setAutoPlay] = useState(true);
+
   useEffect(() => {
     loadMediaInfo();
     return () => {
@@ -160,16 +163,22 @@ function Player() {
 
       // Set default audio based on preference (Catalan first)
       const preferredLang = localStorage.getItem(STORAGE_KEYS.audioLanguage) || DEFAULTS.audioLanguage;
+      let bestAudioIndex = 0;
+
       if (response.data.audio_tracks) {
         const catIndex = response.data.audio_tracks.findIndex(t => t.language === 'cat');
         const preferredIndex = response.data.audio_tracks.findIndex(t => t.language === preferredLang);
 
         if (catIndex >= 0) {
-          setSelectedAudio(catIndex);
+          bestAudioIndex = catIndex;
         } else if (preferredIndex >= 0) {
-          setSelectedAudio(preferredIndex);
+          bestAudioIndex = preferredIndex;
         }
+        setSelectedAudio(bestAudioIndex);
       }
+
+      // Default: no subtitles (as per user preference)
+      setSelectedSubtitle(null);
 
       // Load next episode if this is a series
       if (response.data.series_id && response.data.episode_number) {
@@ -181,11 +190,38 @@ function Player() {
       if (savedProgress) {
         savedTimeRef.current = parseFloat(savedProgress);
       }
+
+      // AUTO-PLAY: Start streaming automatically with preferences (like Netflix)
+      if (autoPlay) {
+        startStreamAuto(bestAudioIndex, null, response.data);
+      }
     } catch (err) {
       console.error('Error loading media:', err);
       setError('No s\'ha pogut carregar el contingut');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Start stream automatically with given settings
+  const startStreamAuto = async (audioIdx, subtitleIdx, mediaData) => {
+    setPreparing(true);
+    setError(null);
+
+    try {
+      const response = await axios.post(`${API_URL}${API_ENDPOINTS.streamHls(mediaId)}`, {
+        audio_index: audioIdx,
+        subtitle_index: subtitleIdx,
+        quality: quality,
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      setStreamUrl(`${API_URL}${response.data.playlist_url}`);
+    } catch (err) {
+      console.error('Error starting stream:', err);
+      setError('Error iniciant el streaming');
+    } finally {
+      setPreparing(false);
     }
   };
 
@@ -230,32 +266,49 @@ function Player() {
     setStreamUrl(`${API_URL}${API_ENDPOINTS.streamDirect(mediaId)}`);
   };
 
-  // Change audio/subtitle during playback
+  // Change audio/subtitle during playback - maintains position
   const changeTrack = async (type, index) => {
+    const newAudioIdx = type === 'audio' ? index : selectedAudio;
+    const newSubtitleIdx = type === 'subtitle' ? index : selectedSubtitle;
+
     if (type === 'audio') {
       setSelectedAudio(index);
+      // Save preference
+      const track = media?.audio_tracks?.[index];
+      if (track?.language) {
+        localStorage.setItem(STORAGE_KEYS.audioLanguage, track.language);
+      }
     } else {
       setSelectedSubtitle(index);
     }
 
-    // Save current time
+    // Save current time BEFORE changing anything
     const currentPos = videoRef.current?.currentTime || 0;
+    const wasPlaying = isPlaying;
 
-    // Restart stream with new track selection
+    // Set the saved time ref so it will be restored after loading
+    savedTimeRef.current = currentPos;
+
+    // Show loading overlay
     setPreparing(true);
+
     try {
       const response = await axios.post(`${API_URL}${API_ENDPOINTS.streamHls(mediaId)}`, {
-        audio_index: type === 'audio' ? index : selectedAudio,
-        subtitle_index: type === 'subtitle' ? index : selectedSubtitle,
+        audio_index: newAudioIdx,
+        subtitle_index: newSubtitleIdx,
         quality: quality,
       });
 
+      // Wait for HLS to prepare
       await new Promise(resolve => setTimeout(resolve, 1500));
 
+      // Update stream URL - this will trigger video reload
       setStreamUrl(`${API_URL}${response.data.playlist_url}`);
-      savedTimeRef.current = currentPos;
+
+      // The handleLoadedMetadata will restore the position from savedTimeRef
     } catch (err) {
       console.error('Error changing track:', err);
+      setError('Error canviant la pista');
     } finally {
       setPreparing(false);
     }
@@ -435,7 +488,7 @@ function Player() {
             autoPlay
           />
         ) : (
-          /* Pre-play screen */
+          /* Pre-play / Loading screen */
           <div className="pre-play-screen">
             {media?.backdrop && (
               <img
@@ -456,102 +509,109 @@ function Player() {
                 </p>
               )}
 
-              {/* Track Selection */}
-              <div className="track-selection">
-                {/* Audio Selection */}
-                {media?.audio_tracks && media.audio_tracks.length > 0 && (
-                  <div className="track-group">
-                    <label>Audio:</label>
-                    <select
-                      value={selectedAudio}
-                      onChange={(e) => setSelectedAudio(parseInt(e.target.value))}
-                      className="track-select"
-                    >
-                      {media.audio_tracks.map((track, index) => (
-                        <option key={index} value={index}>
-                          {getLanguageName(track.language)}
-                          {track.title && ` - ${track.title}`}
-                          ({track.codec})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {/* Subtitle Selection */}
-                {media?.subtitle_tracks && media.subtitle_tracks.length > 0 && (
-                  <div className="track-group">
-                    <label>Subtitols:</label>
-                    <select
-                      value={selectedSubtitle ?? ''}
-                      onChange={(e) => setSelectedSubtitle(e.target.value === '' ? null : parseInt(e.target.value))}
-                      className="track-select"
-                    >
-                      <option value="">Sense subtitols</option>
-                      {media.subtitle_tracks.map((track, index) => (
-                        <option key={index} value={index}>
-                          {getLanguageName(track.language)}
-                          ({track.codec})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {/* Quality Selection */}
-                <div className="track-group">
-                  <label>Qualitat:</label>
-                  <select
-                    value={quality}
-                    onChange={(e) => {
-                      setQuality(e.target.value);
-                      localStorage.setItem(STORAGE_KEYS.quality, e.target.value);
-                    }}
-                    className="track-select"
-                  >
-                    <option value="4k">4K (Original)</option>
-                    <option value="1080p">1080p</option>
-                    <option value="720p">720p</option>
-                    <option value="480p">480p</option>
-                  </select>
+              {/* Show loading when auto-playing */}
+              {(preparing || autoPlay) && !error ? (
+                <div className="auto-play-loading">
+                  <div className="spinner"></div>
+                  <p className="loading-text">Preparant reproducció...</p>
+                  <p className="loading-subtext">
+                    {media?.audio_tracks?.[selectedAudio]?.language === 'cat' ? 'Àudio en català' :
+                     getLanguageName(media?.audio_tracks?.[selectedAudio]?.language || 'und')}
+                    {selectedSubtitle === null ? ' • Sense subtítols' : ''}
+                  </p>
                 </div>
-              </div>
+              ) : (
+                /* Manual selection mode - shown only if autoPlay is disabled */
+                <>
+                  {/* Track Selection */}
+                  <div className="track-selection">
+                    {/* Audio Selection */}
+                    {media?.audio_tracks && media.audio_tracks.length > 0 && (
+                      <div className="track-group">
+                        <label>Audio:</label>
+                        <select
+                          value={selectedAudio}
+                          onChange={(e) => setSelectedAudio(parseInt(e.target.value))}
+                          className="track-select"
+                        >
+                          {media.audio_tracks.map((track, index) => (
+                            <option key={index} value={index}>
+                              {getLanguageName(track.language)}
+                              {track.title && ` - ${track.title}`}
+                              ({track.codec})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
 
-              {/* Play Buttons */}
-              <div className="play-buttons">
-                <button
-                  className="btn btn-primary play-btn"
-                  onClick={startStream}
-                  disabled={preparing}
-                >
-                  {preparing ? (
-                    <>
-                      <div className="spinner small"></div>
-                      Preparant...
-                    </>
-                  ) : (
-                    <>
+                    {/* Subtitle Selection */}
+                    {media?.subtitle_tracks && media.subtitle_tracks.length > 0 && (
+                      <div className="track-group">
+                        <label>Subtitols:</label>
+                        <select
+                          value={selectedSubtitle ?? ''}
+                          onChange={(e) => setSelectedSubtitle(e.target.value === '' ? null : parseInt(e.target.value))}
+                          className="track-select"
+                        >
+                          <option value="">Sense subtitols</option>
+                          {media.subtitle_tracks.map((track, index) => (
+                            <option key={index} value={index}>
+                              {getLanguageName(track.language)}
+                              ({track.codec})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Quality Selection */}
+                    <div className="track-group">
+                      <label>Qualitat:</label>
+                      <select
+                        value={quality}
+                        onChange={(e) => {
+                          setQuality(e.target.value);
+                          localStorage.setItem(STORAGE_KEYS.quality, e.target.value);
+                        }}
+                        className="track-select"
+                      >
+                        <option value="4k">4K (Original)</option>
+                        <option value="1080p">1080p</option>
+                        <option value="720p">720p</option>
+                        <option value="480p">480p</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Play Buttons */}
+                  <div className="play-buttons">
+                    <button
+                      className="btn btn-primary play-btn"
+                      onClick={startStream}
+                      disabled={preparing}
+                    >
                       <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                         <polygon points="5,3 19,12 5,21" />
                       </svg>
                       Reproduir
-                    </>
-                  )}
-                </button>
+                    </button>
 
-                <button
-                  className="btn btn-secondary play-btn"
-                  onClick={playDirect}
-                >
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
-                  </svg>
-                  Directe
-                </button>
-              </div>
+                    <button
+                      className="btn btn-secondary play-btn"
+                      onClick={playDirect}
+                    >
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                      </svg>
+                      Directe
+                    </button>
+                  </div>
 
-              {/* Keyboard shortcuts hint */}
-              <p className="shortcuts-hint">Prem ? per veure les dreceres de teclat</p>
+                  {/* Keyboard shortcuts hint */}
+                  <p className="shortcuts-hint">Prem ? per veure les dreceres de teclat</p>
+                </>
+              )}
             </div>
           </div>
         )}

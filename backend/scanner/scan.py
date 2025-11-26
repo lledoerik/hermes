@@ -212,6 +212,9 @@ class HermesScanner:
                       str(backdrop) if backdrop else None))
                 series_id = cursor.lastrowid
 
+            # Commit per assegurar que la sèrie existeix abans d'afegir episodis
+            conn.commit()
+
             # Buscar temporades
             self._scan_seasons(series_dir, series_id, cursor, conn)
             
@@ -244,26 +247,37 @@ class HermesScanner:
         if not seasons_found:
             self._scan_episodes(series_dir, series_id, 1, cursor, conn)
             
-    def _scan_episodes(self, season_dir: Path, series_id: int, 
+    def _scan_episodes(self, season_dir: Path, series_id: int,
                       season_number: int, cursor, conn):
         """Escaneja episodis"""
-        episode_count = 0
-        
+        new_episodes = 0
+        updated_episodes = 0
+
         for ext in ['.mkv', '.mp4', '.avi']:
             for video_file in season_dir.glob(f'*{ext}'):
-                episode_count += 1
-                
                 file_hash = self._generate_hash(video_file)
-                
-                cursor.execute('SELECT id FROM media_files WHERE file_hash = ?', 
+
+                # Comprovar si ja existeix
+                cursor.execute('SELECT id, series_id FROM media_files WHERE file_hash = ?',
                              (file_hash,))
-                if cursor.fetchone():
-                    continue
-                    
+                existing = cursor.fetchone()
+
                 episode_num = self._extract_episode_number(video_file.name)
                 if episode_num is None:
-                    episode_num = episode_count
-                    
+                    episode_num = new_episodes + updated_episodes + 1
+
+                if existing:
+                    # IMPORTANT: Actualitzar series_id si és diferent (fix per episodis orfes)
+                    if existing[1] != series_id:
+                        cursor.execute('''
+                            UPDATE media_files
+                            SET series_id = ?, season_number = ?, episode_number = ?
+                            WHERE id = ?
+                        ''', (series_id, season_number, episode_num, existing[0]))
+                        updated_episodes += 1
+                        logger.info(f"    ~ Actualitzat: {video_file.name} -> series_id={series_id}")
+                    continue
+
                 metadata = self.probe_file(video_file)
                 if metadata:
                     cursor.execute('''
@@ -283,10 +297,17 @@ class HermesScanner:
                         json.dumps(metadata.get('subtitle_streams', [])),
                         metadata.get('format_name')
                     ))
-                    
-        if episode_count > 0:
-            conn.commit()
-            logger.info(f"    + {episode_count} episodis")
+                    new_episodes += 1
+
+        # Fer commit després de processar cada temporada
+        conn.commit()
+
+        total = new_episodes + updated_episodes
+        if total > 0:
+            msg = f"    + {new_episodes} nous"
+            if updated_episodes > 0:
+                msg += f", {updated_episodes} actualitzats"
+            logger.info(msg)
             
     def probe_file(self, file_path: Path) -> Optional[Dict]:
         """Obté metadata amb ffprobe"""
