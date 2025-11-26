@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import MediaRow from '../components/MediaRow';
 import './Home.css';
 
 const API_URL = window.location.hostname === 'localhost'
@@ -52,29 +51,21 @@ const AudiobookIcon = () => (
 );
 
 function Home() {
-  const [series, setSeries] = useState([]);
-  const [movies, setMovies] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
-    loadLibrary();
+    loadStats();
   }, []);
 
-  const loadLibrary = async () => {
+  const loadStats = async () => {
     try {
-      const [seriesRes, moviesRes, statsRes] = await Promise.all([
-        axios.get('/api/library/series'),
-        axios.get('/api/library/movies'),
-        axios.get('/api/library/stats')
-      ]);
-      setSeries(seriesRes.data);
-      setMovies(moviesRes.data);
+      const statsRes = await axios.get('/api/library/stats');
       setStats(statsRes.data);
     } catch (error) {
-      console.error('Error carregant biblioteca:', error);
+      console.error('Error carregant estadistiques:', error);
     } finally {
       setLoading(false);
     }
@@ -91,8 +82,6 @@ function Home() {
     return (
       <div className="loading-screen">
         <img src="/img/hermes.png" alt="Hermes" className="loading-logo" />
-        <div className="loading-text">Hermes</div>
-        <div className="loading-tagline">El transport més ràpid de l'Olimp</div>
       </div>
     );
   }
@@ -116,7 +105,12 @@ function Home() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
-              <button type="submit">🔍</button>
+              <button type="submit">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+              </button>
             </form>
           </div>
 
@@ -220,40 +214,6 @@ function Home() {
         </div>
       </section>
 
-      {/* Content Section */}
-      <section className="content-section">
-        {/* Sèries */}
-        {series.length > 0 && (
-          <MediaRow
-            title="Sèries"
-            items={series}
-            type="series"
-            icon="📺"
-            onViewAll={() => navigate('/series')}
-          />
-        )}
-
-        {/* Pel·lícules */}
-        {movies.length > 0 && (
-          <MediaRow
-            title="Pel·lícules"
-            items={movies}
-            type="movies"
-            icon="🎬"
-            onViewAll={() => navigate('/movies')}
-          />
-        )}
-
-        {/* Afegides recentment */}
-        {(series.length > 0 || movies.length > 0) && (
-          <MediaRow
-            title="Afegides recentment"
-            items={[...movies, ...series].slice(0, 15)}
-            type="movies"
-            icon="✨"
-          />
-        )}
-      </section>
     </div>
   );
 }
