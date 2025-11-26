@@ -28,7 +28,6 @@ function SeriesDetail() {
       const response = await axios.get(`${API_URL}${API_ENDPOINTS.seriesDetail(id)}`);
       setSeries(response.data);
 
-      // Select first season by default
       if (response.data.seasons && response.data.seasons.length > 0) {
         setSelectedSeason(response.data.seasons[0].season_number);
       }
@@ -72,50 +71,61 @@ function SeriesDetail() {
       por: 'Portugues',
       und: 'Desconegut',
     };
-    return languages[code] || code || 'Desconegut';
+    return languages[code] || code || 'Desc.';
   };
 
   if (loading) {
     return (
-      <div className="loading-state">
-        <div className="spinner"></div>
-        <p className="loading-text">Carregant serie...</p>
+      <div className="detail-loading">
+        <div className="loader"></div>
+        <p>Carregant serie...</p>
       </div>
     );
   }
 
   if (!series) {
     return (
-      <div className="error-state">
+      <div className="detail-error">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
         <h2>Serie no trobada</h2>
-        <Link to="/series" className="btn btn-primary">Tornar a series</Link>
+        <Link to="/series" className="btn-back">Tornar a series</Link>
       </div>
     );
   }
 
+  const totalEpisodes = series.seasons?.reduce((acc, s) => acc + (s.episode_count || 0), 0) || 0;
+
   return (
-    <div className="series-detail-page">
-      {/* Backdrop */}
-      <div className="series-backdrop">
+    <div className="detail-page">
+      {/* Hero Backdrop */}
+      <div className="detail-hero">
         {series.backdrop && (
           <img
             src={`${API_URL}${API_ENDPOINTS.backdrop(series.id)}`}
             alt=""
+            className="hero-image"
+            onError={(e) => e.target.style.display = 'none'}
           />
         )}
-        <div className="backdrop-overlay"></div>
+        <div className="hero-overlay"></div>
       </div>
 
-      <div className="container">
-        {/* Header */}
-        <div className="series-header">
-          <button className="back-button" onClick={() => navigate(-1)}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
-          </button>
+      {/* Back Button */}
+      <button className="btn-nav-back" onClick={() => navigate(-1)}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M19 12H5M12 19l-7-7 7-7" />
+        </svg>
+      </button>
 
-          <div className="series-poster">
+      {/* Content */}
+      <div className="detail-content">
+        {/* Header Info */}
+        <div className="detail-header">
+          <div className="detail-poster">
             {series.poster ? (
               <img
                 src={`${API_URL}${API_ENDPOINTS.poster(series.id)}`}
@@ -123,7 +133,7 @@ function SeriesDetail() {
               />
             ) : (
               <div className="poster-placeholder">
-                <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor" opacity="0.3">
                   <rect x="2" y="4" width="20" height="14" rx="2" />
                   <path d="M8 21h8M12 18v3" stroke="currentColor" strokeWidth="2" fill="none" />
                 </svg>
@@ -131,85 +141,99 @@ function SeriesDetail() {
             )}
           </div>
 
-          <div className="series-info">
-            <h1 className="series-title">{series.name}</h1>
-            <div className="series-meta">
+          <div className="detail-info">
+            <span className="content-type">Serie</span>
+            <h1 className="detail-title">{series.name}</h1>
+            <div className="detail-meta">
               <span>{series.seasons?.length || 0} temporades</span>
+              <span className="separator">•</span>
+              <span>{totalEpisodes} episodis</span>
             </div>
+
+            {/* Quick Play Button */}
+            {episodes.length > 0 && (
+              <Link to={`/play/${episodes[0].id}`} className="btn-play-main">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="5,3 19,12 5,21" />
+                </svg>
+                Reproduir
+              </Link>
+            )}
           </div>
         </div>
 
         {/* Season Selector */}
         {series.seasons && series.seasons.length > 0 && (
-          <div className="seasons-bar">
-            <div className="seasons-tabs">
+          <div className="seasons-section">
+            <div className="seasons-scroll">
               {series.seasons.map((season) => (
                 <button
                   key={season.season_number}
-                  className={`season-tab ${selectedSeason === season.season_number ? 'active' : ''}`}
+                  className={`season-btn ${selectedSeason === season.season_number ? 'active' : ''}`}
                   onClick={() => setSelectedSeason(season.season_number)}
                 >
-                  <span className="season-name">Temporada {season.season_number}</span>
-                  <span className="season-count">{season.episode_count} ep.</span>
+                  <span className="season-label">Temporada {season.season_number}</span>
+                  <span className="season-episodes">{season.episode_count} ep.</span>
                 </button>
               ))}
             </div>
           </div>
         )}
 
-        {/* Episodes List */}
+        {/* Episodes */}
         <div className="episodes-section">
-          <h2 className="section-title">
+          <h2 className="episodes-title">
             Episodis
-            {selectedSeason && ` - Temporada ${selectedSeason}`}
+            {selectedSeason && <span> - Temporada {selectedSeason}</span>}
           </h2>
 
           {loadingEpisodes ? (
-            <div className="loading-episodes">
-              <div className="spinner"></div>
+            <div className="episodes-loading">
+              <div className="loader small"></div>
             </div>
           ) : episodes.length > 0 ? (
-            <div className="episodes-list">
+            <div className="episodes-grid">
               {episodes.map((episode) => (
                 <Link
                   key={episode.id}
                   to={`/play/${episode.id}`}
-                  className="episode-card glass"
+                  className="episode-item"
                 >
-                  <div className="episode-number">
-                    {episode.episode_number || '?'}
+                  <div className="episode-number-box">
+                    <span className="ep-num">{episode.episode_number || '?'}</span>
                   </div>
 
-                  <div className="episode-info">
-                    <h3 className="episode-title">
+                  <div className="episode-details">
+                    <h3 className="episode-name">
                       {episode.title || `Episodi ${episode.episode_number}`}
                     </h3>
-                    <div className="episode-meta">
-                      <span className="duration">{formatDuration(episode.duration)}</span>
-
+                    <div className="episode-info">
+                      {episode.duration && (
+                        <span className="ep-duration">{formatDuration(episode.duration)}</span>
+                      )}
                       {episode.audio_tracks && episode.audio_tracks.length > 0 && (
-                        <span className="audio-info">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <span className="ep-audio">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
                           </svg>
-                          {episode.audio_tracks.map(t => getLanguageName(t.language)).join(', ')}
+                          {episode.audio_tracks.slice(0, 2).map(t => getLanguageName(t.language)).join(', ')}
+                          {episode.audio_tracks.length > 2 && ` +${episode.audio_tracks.length - 2}`}
                         </span>
                       )}
-
                       {episode.subtitle_tracks && episode.subtitle_tracks.length > 0 && (
-                        <span className="subtitle-info">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <span className="ep-subs">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                             <rect x="2" y="4" width="20" height="16" rx="2" />
                             <path d="M6 10h4M6 14h8" stroke="white" strokeWidth="1.5" />
                           </svg>
-                          {episode.subtitle_tracks.length} sub.
+                          {episode.subtitle_tracks.length} sub
                         </span>
                       )}
                     </div>
                   </div>
 
-                  <div className="episode-play">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                  <div className="episode-play-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                       <polygon points="5,3 19,12 5,21" />
                     </svg>
                   </div>
@@ -217,7 +241,7 @@ function SeriesDetail() {
               ))}
             </div>
           ) : (
-            <div className="empty-state">
+            <div className="no-episodes">
               <p>No hi ha episodis disponibles per aquesta temporada</p>
             </div>
           )}

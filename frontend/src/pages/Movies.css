@@ -1,90 +1,170 @@
-/* Movies Page Styles */
-.movies-page {
-  padding-top: 100px;
-  padding-bottom: var(--spacing-2xl);
-  min-height: 100vh;
+/* Movies Page - Imports base styles from Series.css */
+/* Uses same .browse-page, .browse-header, .filters-container, etc. */
+
+/* Movie-specific cards use same patterns as series */
+.movie-card {
+  text-decoration: none;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #1a1a1a;
+  transition: transform 0.2s, box-shadow 0.2s;
 }
 
-.page-header {
-  margin-bottom: var(--spacing-xl);
+.movie-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
 }
 
-.page-title {
-  font-size: 2.5rem;
+.movie-card .card-image {
+  position: relative;
+  aspect-ratio: 2/3;
+  background: #222;
+  overflow: hidden;
+}
+
+.movie-card .card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s;
+}
+
+.movie-card:hover .card-image img {
+  transform: scale(1.05);
+}
+
+.movie-card .quality-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 3px 8px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #ffd700;
+  font-size: 0.7rem;
   font-weight: 700;
-  margin-bottom: var(--spacing-xs);
+  border-radius: 3px;
+  letter-spacing: 0.5px;
 }
 
-.page-subtitle {
-  color: var(--text-secondary);
-  font-size: 1rem;
-}
-
-.filters-bar {
+.movie-card .card-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-lg);
-  padding: var(--spacing-md) var(--spacing-lg);
-  border-radius: var(--radius-lg);
-  margin-bottom: var(--spacing-xl);
-  flex-wrap: wrap;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
 }
 
-.search-box {
+.movie-card:hover .card-overlay {
+  opacity: 1;
+}
+
+.movie-card .play-btn {
+  width: 56px;
+  height: 56px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 50%;
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
-  flex: 1;
-  max-width: 400px;
-  color: var(--text-muted);
+  justify-content: center;
+  color: #141414;
+  transform: scale(0.8);
+  transition: transform 0.2s;
 }
 
-.search-box .search-input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  color: var(--text-primary);
+.movie-card:hover .play-btn {
+  transform: scale(1);
+}
+
+.movie-card .card-details {
+  padding: 0.75rem;
+}
+
+.movie-card .card-title {
   font-size: 0.9rem;
+  font-weight: 500;
+  color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 0.25rem;
 }
 
-.search-box .search-input:focus {
-  outline: none;
-  box-shadow: none;
+.movie-card .card-meta {
+  font-size: 0.8rem;
+  color: #888;
 }
 
-.sort-box {
+/* List View */
+.movie-list-item {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: #1a1a1a;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: background 0.2s;
 }
 
-.sort-box label {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
+.movie-list-item:hover {
+  background: #252525;
+}
+
+.movie-list-item .list-poster {
+  width: 50px;
+  height: 75px;
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #222;
+}
+
+.movie-list-item .list-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.movie-list-item .list-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.movie-list-item .list-title {
+  font-size: 1rem;
+  font-weight: 500;
+  color: white;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.sort-box .select {
-  min-width: 150px;
+.movie-list-item .list-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #888;
+  margin-top: 0.25rem;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .page-title {
-    font-size: 1.75rem;
-  }
+.movie-list-item .list-meta .dot {
+  opacity: 0.5;
+}
 
-  .filters-bar {
-    flex-direction: column;
-    align-items: stretch;
-  }
+.movie-list-item .quality-text {
+  color: #ffd700;
+  font-weight: 600;
+}
 
-  .search-box {
-    max-width: none;
-  }
+.movie-list-item .list-action {
+  color: #666;
+  transition: color 0.2s;
+}
 
-  .sort-box {
-    justify-content: space-between;
-  }
+.movie-list-item:hover .list-action {
+  color: white;
 }

@@ -130,26 +130,35 @@ class HermesScanner:
     def _add_movie(self, file_path: Path, cursor, conn, movie_dir: Path = None):
         """Afegeix una pel·lícula"""
         file_hash = self._generate_hash(file_path)
-        
+
         cursor.execute('SELECT id FROM media_files WHERE file_hash = ?', (file_hash,))
         if cursor.fetchone():
             return
-            
+
         # Metadata
         base_dir = movie_dir or file_path.parent
         poster = self._find_image(base_dir, ['folder.jpg', 'poster.jpg'])
         backdrop = self._find_image(base_dir, ['backdrop.jpg', 'fanart.jpg'])
-        
+
         movie_name = base_dir.name if movie_dir else file_path.stem
-        
-        # Inserir com a "movie"
-        cursor.execute('''
-            INSERT OR REPLACE INTO series (name, path, media_type, poster, backdrop)
-            VALUES (?, ?, 'movie', ?, ?)
-        ''', (movie_name, str(base_dir), str(poster) if poster else None,
-              str(backdrop) if backdrop else None))
-        
-        series_id = cursor.lastrowid
+
+        # Comprovar si ja existeix per evitar perdre referències
+        cursor.execute('SELECT id FROM series WHERE path = ?', (str(base_dir),))
+        existing = cursor.fetchone()
+
+        if existing:
+            series_id = existing[0]
+            cursor.execute('''
+                UPDATE series SET poster = ?, backdrop = ?, updated_date = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', (str(poster) if poster else None, str(backdrop) if backdrop else None, series_id))
+        else:
+            cursor.execute('''
+                INSERT INTO series (name, path, media_type, poster, backdrop)
+                VALUES (?, ?, 'movie', ?, ?)
+            ''', (movie_name, str(base_dir), str(poster) if poster else None,
+                  str(backdrop) if backdrop else None))
+            series_id = cursor.lastrowid
         
         # Obtenir info amb ffprobe
         metadata = self.probe_file(file_path)
@@ -177,23 +186,32 @@ class HermesScanner:
         for series_dir in base.iterdir():
             if not series_dir.is_dir():
                 continue
-                
+
             logger.info(f"Processant: {series_dir.name}")
-            
+
             # Metadata
             poster = self._find_image(series_dir, ['folder.jpg', 'poster.jpg'])
             backdrop = self._find_image(series_dir, ['backdrop.jpg', 'fanart.jpg'])
-            
-            # Inserir sèrie
-            cursor.execute('''
-                INSERT OR REPLACE INTO series (name, path, media_type, poster, backdrop)
-                VALUES (?, ?, 'series', ?, ?)
-            ''', (series_dir.name, str(series_dir),
-                  str(poster) if poster else None,
-                  str(backdrop) if backdrop else None))
-            
-            series_id = cursor.lastrowid
-            
+
+            # Comprovar si ja existeix per evitar perdre referències d'episodis
+            cursor.execute('SELECT id FROM series WHERE path = ?', (str(series_dir),))
+            existing = cursor.fetchone()
+
+            if existing:
+                series_id = existing[0]
+                cursor.execute('''
+                    UPDATE series SET poster = ?, backdrop = ?, updated_date = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                ''', (str(poster) if poster else None, str(backdrop) if backdrop else None, series_id))
+            else:
+                cursor.execute('''
+                    INSERT INTO series (name, path, media_type, poster, backdrop)
+                    VALUES (?, ?, 'series', ?, ?)
+                ''', (series_dir.name, str(series_dir),
+                      str(poster) if poster else None,
+                      str(backdrop) if backdrop else None))
+                series_id = cursor.lastrowid
+
             # Buscar temporades
             self._scan_seasons(series_dir, series_id, cursor, conn)
             
