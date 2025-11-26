@@ -1,15 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import './Navbar.css';
 
 function Navbar() {
   const [scrolled, setScrolled] = useState(false);
-  const [searchExpanded, setSearchExpanded] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [showProfile, setShowProfile] = useState(false);
-  const searchRef = useRef(null);
   const location = useLocation();
-  const navigate = useNavigate();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -18,23 +14,6 @@ function Navbar() {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (searchRef.current && !searchRef.current.contains(e.target)) {
-        if (!searchQuery) setSearchExpanded(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [searchQuery]);
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
-    }
-  };
 
   const isActive = (path) => location.pathname === path;
 
@@ -67,31 +46,6 @@ function Navbar() {
         </div>
 
         <div className="navbar-right">
-          <form
-            ref={searchRef}
-            className={`navbar-search ${searchExpanded ? 'expanded' : ''}`}
-            onSubmit={handleSearch}
-          >
-            <input
-              type="text"
-              placeholder="Cercar..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            <span
-              className="search-icon"
-              onClick={() => {
-                if (searchExpanded && searchQuery) {
-                  handleSearch({ preventDefault: () => {} });
-                } else {
-                  setSearchExpanded(!searchExpanded);
-                }
-              }}
-            >
-              🔍
-            </span>
-          </form>
-
           <div
             className="profile-menu-container"
             onMouseEnter={() => setShowProfile(true)}

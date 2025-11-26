@@ -68,11 +68,15 @@
 .search-container {
   margin-bottom: 4rem;
   flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  width: 100%;
 }
 
 .search-bar {
   position: relative;
   display: inline-block;
+  text-align: center;
 }
 
 .search-bar input {
