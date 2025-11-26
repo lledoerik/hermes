@@ -1,21 +1,27 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { API_URL, API_ENDPOINTS, STORAGE_KEYS, DEFAULTS } from '../config';
 import './Player.css';
+
+// Opening detection constants (typical anime/series opening times)
+const OPENING_START = 60; // Typically starts around 1 minute
+const OPENING_END = 150; // Typically ends around 2:30
 
 function Player() {
   const { mediaId } = useParams();
   const navigate = useNavigate();
   const videoRef = useRef(null);
+  const playerContainerRef = useRef(null);
 
   const [media, setMedia] = useState(null);
+  const [nextEpisode, setNextEpisode] = useState(null);
   const [loading, setLoading] = useState(true);
   const [streamUrl, setStreamUrl] = useState(null);
   const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState(null);
 
-  // Track selection
+  // Track selection - can be changed during playback
   const [selectedAudio, setSelectedAudio] = useState(0);
   const [selectedSubtitle, setSelectedSubtitle] = useState(null);
   const [quality, setQuality] = useState(
@@ -26,14 +32,26 @@ function Player() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [buffered, setBuffered] = useState(0);
   const [volume, setVolume] = useState(
     parseFloat(localStorage.getItem(STORAGE_KEYS.volume)) || DEFAULTS.volume
   );
+  const [isMuted, setIsMuted] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
+  const [showTrackSelector, setShowTrackSelector] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
+
+  // Skip intro/opening state
+  const [showSkipIntro, setShowSkipIntro] = useState(false);
+  const [showNextEpisode, setShowNextEpisode] = useState(false);
+
+  // Keyboard shortcuts enabled
+  const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
 
   const controlsTimeoutRef = useRef(null);
+  const savedTimeRef = useRef(0);
 
   useEffect(() => {
     loadMediaInfo();
@@ -41,36 +59,148 @@ function Player() {
       if (controlsTimeoutRef.current) {
         clearTimeout(controlsTimeoutRef.current);
       }
+      // Save progress on unmount
+      if (videoRef.current && currentTime > 0) {
+        localStorage.setItem(`progress_${mediaId}`, currentTime.toString());
+      }
     };
   }, [mediaId]);
 
   useEffect(() => {
     if (videoRef.current) {
-      videoRef.current.volume = volume;
+      videoRef.current.volume = isMuted ? 0 : volume;
     }
     localStorage.setItem(STORAGE_KEYS.volume, volume.toString());
-  }, [volume]);
+  }, [volume, isMuted]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!streamUrl) return;
+
+      switch (e.key.toLowerCase()) {
+        case ' ':
+        case 'k':
+          e.preventDefault();
+          handlePlayPause();
+          break;
+        case 'arrowleft':
+          e.preventDefault();
+          skipTime(-10);
+          break;
+        case 'arrowright':
+          e.preventDefault();
+          skipTime(10);
+          break;
+        case 'j':
+          e.preventDefault();
+          skipTime(-10);
+          break;
+        case 'l':
+          e.preventDefault();
+          skipTime(10);
+          break;
+        case 'arrowup':
+          e.preventDefault();
+          setVolume(prev => Math.min(1, prev + 0.1));
+          break;
+        case 'arrowdown':
+          e.preventDefault();
+          setVolume(prev => Math.max(0, prev - 0.1));
+          break;
+        case 'm':
+          e.preventDefault();
+          setIsMuted(prev => !prev);
+          break;
+        case 'f':
+          e.preventDefault();
+          toggleFullscreen();
+          break;
+        case 's':
+          e.preventDefault();
+          if (showSkipIntro) skipOpening();
+          break;
+        case 'n':
+          e.preventDefault();
+          if (showNextEpisode && nextEpisode) goToNextEpisode();
+          break;
+        case 'escape':
+          setShowSettings(false);
+          setShowTrackSelector(false);
+          setShowShortcutsHelp(false);
+          break;
+        case '?':
+          setShowShortcutsHelp(prev => !prev);
+          break;
+        default:
+          // Speed controls
+          if (e.key === '>' && e.shiftKey) {
+            setPlaybackRate(prev => Math.min(2, prev + 0.25));
+          } else if (e.key === '<' && e.shiftKey) {
+            setPlaybackRate(prev => Math.max(0.25, prev - 0.25));
+          }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [streamUrl, showSkipIntro, showNextEpisode, nextEpisode]);
+
+  // Update playback rate
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.playbackRate = playbackRate;
+    }
+  }, [playbackRate]);
 
   const loadMediaInfo = async () => {
     try {
       const response = await axios.get(`${API_URL}${API_ENDPOINTS.mediaDetail(mediaId)}`);
       setMedia(response.data);
 
-      // Set default audio based on preference
+      // Set default audio based on preference (Catalan first)
       const preferredLang = localStorage.getItem(STORAGE_KEYS.audioLanguage) || DEFAULTS.audioLanguage;
       if (response.data.audio_tracks) {
-        const preferredIndex = response.data.audio_tracks.findIndex(
-          t => t.language === preferredLang
-        );
-        if (preferredIndex >= 0) {
+        const catIndex = response.data.audio_tracks.findIndex(t => t.language === 'cat');
+        const preferredIndex = response.data.audio_tracks.findIndex(t => t.language === preferredLang);
+
+        if (catIndex >= 0) {
+          setSelectedAudio(catIndex);
+        } else if (preferredIndex >= 0) {
           setSelectedAudio(preferredIndex);
         }
+      }
+
+      // Load next episode if this is a series
+      if (response.data.series_id && response.data.episode_number) {
+        loadNextEpisode(response.data.series_id, response.data.season_number, response.data.episode_number);
+      }
+
+      // Load saved progress
+      const savedProgress = localStorage.getItem(`progress_${mediaId}`);
+      if (savedProgress) {
+        savedTimeRef.current = parseFloat(savedProgress);
       }
     } catch (err) {
       console.error('Error loading media:', err);
       setError('No s\'ha pogut carregar el contingut');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadNextEpisode = async (seriesId, seasonNum, episodeNum) => {
+    try {
+      const response = await axios.get(
+        `${API_URL}${API_ENDPOINTS.seasonEpisodes(seriesId, seasonNum)}`
+      );
+      const episodes = response.data;
+      const nextEp = episodes.find(ep => ep.episode_number === episodeNum + 1);
+      if (nextEp) {
+        setNextEpisode(nextEp);
+      }
+    } catch (err) {
+      console.error('Error loading next episode:', err);
     }
   };
 
@@ -85,7 +215,6 @@ function Player() {
         quality: quality,
       });
 
-      // Wait a moment for FFmpeg to generate initial segments
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       setStreamUrl(`${API_URL}${response.data.playlist_url}`);
@@ -101,6 +230,37 @@ function Player() {
     setStreamUrl(`${API_URL}${API_ENDPOINTS.streamDirect(mediaId)}`);
   };
 
+  // Change audio/subtitle during playback
+  const changeTrack = async (type, index) => {
+    if (type === 'audio') {
+      setSelectedAudio(index);
+    } else {
+      setSelectedSubtitle(index);
+    }
+
+    // Save current time
+    const currentPos = videoRef.current?.currentTime || 0;
+
+    // Restart stream with new track selection
+    setPreparing(true);
+    try {
+      const response = await axios.post(`${API_URL}${API_ENDPOINTS.streamHls(mediaId)}`, {
+        audio_index: type === 'audio' ? index : selectedAudio,
+        subtitle_index: type === 'subtitle' ? index : selectedSubtitle,
+        quality: quality,
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      setStreamUrl(`${API_URL}${response.data.playlist_url}`);
+      savedTimeRef.current = currentPos;
+    } catch (err) {
+      console.error('Error changing track:', err);
+    } finally {
+      setPreparing(false);
+    }
+  };
+
   const handlePlayPause = () => {
     if (videoRef.current) {
       if (isPlaying) {
@@ -111,15 +271,58 @@ function Player() {
     }
   };
 
+  const skipTime = (seconds) => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = Math.max(0, Math.min(duration, videoRef.current.currentTime + seconds));
+    }
+  };
+
+  const skipOpening = () => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = OPENING_END;
+      setShowSkipIntro(false);
+    }
+  };
+
+  const goToNextEpisode = () => {
+    if (nextEpisode) {
+      navigate(`/play/${nextEpisode.id}`);
+    }
+  };
+
   const handleTimeUpdate = () => {
     if (videoRef.current) {
-      setCurrentTime(videoRef.current.currentTime);
+      const time = videoRef.current.currentTime;
+      setCurrentTime(time);
+
+      // Check if we're in the opening zone
+      if (time >= OPENING_START && time < OPENING_END) {
+        setShowSkipIntro(true);
+      } else {
+        setShowSkipIntro(false);
+      }
+
+      // Check if near the end for next episode prompt
+      if (duration > 0 && time >= duration - 30 && nextEpisode) {
+        setShowNextEpisode(true);
+      }
+
+      // Update buffered
+      if (videoRef.current.buffered.length > 0) {
+        setBuffered(videoRef.current.buffered.end(videoRef.current.buffered.length - 1));
+      }
     }
   };
 
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
       setDuration(videoRef.current.duration);
+
+      // Resume from saved position
+      if (savedTimeRef.current > 0) {
+        videoRef.current.currentTime = savedTimeRef.current;
+        savedTimeRef.current = 0;
+      }
     }
   };
 
@@ -132,19 +335,21 @@ function Player() {
   };
 
   const handleVolumeChange = (e) => {
-    setVolume(parseFloat(e.target.value));
+    const newVolume = parseFloat(e.target.value);
+    setVolume(newVolume);
+    setIsMuted(newVolume === 0);
   };
 
-  const toggleFullscreen = () => {
-    const container = document.querySelector('.player-container');
+  const toggleFullscreen = useCallback(() => {
+    const container = playerContainerRef.current;
+    if (!container) return;
+
     if (!document.fullscreenElement) {
-      container.requestFullscreen();
-      setIsFullscreen(true);
+      container.requestFullscreen().then(() => setIsFullscreen(true));
     } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
+      document.exitFullscreen().then(() => setIsFullscreen(false));
     }
-  };
+  }, []);
 
   const handleMouseMove = () => {
     setShowControls(true);
@@ -154,6 +359,8 @@ function Player() {
     controlsTimeoutRef.current = setTimeout(() => {
       if (isPlaying) {
         setShowControls(false);
+        setShowSettings(false);
+        setShowTrackSelector(false);
       }
     }, 3000);
   };
@@ -208,6 +415,7 @@ function Player() {
   return (
     <div className="player-page">
       <div
+        ref={playerContainerRef}
         className={`player-container ${showControls ? 'show-controls' : ''}`}
         onMouseMove={handleMouseMove}
         onMouseLeave={() => isPlaying && setShowControls(false)}
@@ -223,6 +431,7 @@ function Player() {
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
             onClick={handlePlayPause}
+            onDoubleClick={toggleFullscreen}
             autoPlay
           />
         ) : (
@@ -325,7 +534,7 @@ function Player() {
                       <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                         <polygon points="5,3 19,12 5,21" />
                       </svg>
-                      Reproduir (HLS)
+                      Reproduir
                     </>
                   )}
                 </button>
@@ -337,9 +546,12 @@ function Player() {
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
                   </svg>
-                  Directe (sense processar)
+                  Directe
                 </button>
               </div>
+
+              {/* Keyboard shortcuts hint */}
+              <p className="shortcuts-hint">Prem ? per veure les dreceres de teclat</p>
             </div>
           </div>
         )}
@@ -351,12 +563,41 @@ function Player() {
           </svg>
         </button>
 
+        {/* Skip Intro Button */}
+        {showSkipIntro && streamUrl && (
+          <button className="skip-intro-btn" onClick={skipOpening}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M5 4l10 8-10 8V4zM19 5h-2v14h2V5z" />
+            </svg>
+            Saltar intro
+          </button>
+        )}
+
+        {/* Next Episode Button */}
+        {showNextEpisode && nextEpisode && streamUrl && (
+          <div className="next-episode-prompt">
+            <span>Seguent episodi:</span>
+            <button className="next-episode-btn" onClick={goToNextEpisode}>
+              <span className="next-ep-title">
+                {nextEpisode.title || `Episodi ${nextEpisode.episode_number}`}
+              </span>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M5 4l10 8-10 8V4zM19 5h-2v14h2V5z" />
+              </svg>
+            </button>
+          </div>
+        )}
+
         {/* Player Controls */}
         {streamUrl && (
           <div className="player-controls">
             {/* Progress Bar */}
             <div className="progress-container" onClick={handleSeek}>
               <div className="progress-bar">
+                <div
+                  className="progress-buffered"
+                  style={{ width: `${(buffered / duration) * 100}%` }}
+                />
                 <div
                   className="progress-fill"
                   style={{ width: `${(currentTime / duration) * 100}%` }}
@@ -371,7 +612,8 @@ function Player() {
             <div className="controls-row">
               {/* Left Controls */}
               <div className="controls-left">
-                <button className="control-btn" onClick={handlePlayPause}>
+                {/* Play/Pause */}
+                <button className="control-btn" onClick={handlePlayPause} title="Play/Pausa (K o Espai)">
                   {isPlaying ? (
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                       <rect x="6" y="4" width="4" height="16" rx="1" />
@@ -384,11 +626,32 @@ function Player() {
                   )}
                 </button>
 
+                {/* Skip -10s */}
+                <button className="control-btn" onClick={() => skipTime(-10)} title="Retrocedir 10s (J o Fletxa esquerra)">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 8L8 12L12 16" />
+                    <text x="14" y="14" fontSize="8" fill="currentColor" stroke="none">10</text>
+                  </svg>
+                </button>
+
+                {/* Skip +10s */}
+                <button className="control-btn" onClick={() => skipTime(10)} title="Avancar 10s (L o Fletxa dreta)">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 8L16 12L12 16" />
+                    <text x="4" y="14" fontSize="8" fill="currentColor" stroke="none">10</text>
+                  </svg>
+                </button>
+
+                {/* Volume */}
                 <div className="volume-control">
-                  <button className="control-btn" onClick={() => setVolume(volume > 0 ? 0 : 1)}>
-                    {volume === 0 ? (
+                  <button className="control-btn" onClick={() => setIsMuted(!isMuted)} title="Silenciar (M)">
+                    {isMuted || volume === 0 ? (
                       <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M11 5L6 9H2v6h4l5 4V5zM23 9l-6 6M17 9l6 6" />
+                      </svg>
+                    ) : volume < 0.5 ? (
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M11 5L6 9H2v6h4l5 4V5zM15.54 8.46a5 5 0 010 7.07" />
                       </svg>
                     ) : (
                       <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
@@ -401,7 +664,7 @@ function Player() {
                     min="0"
                     max="1"
                     step="0.05"
-                    value={volume}
+                    value={isMuted ? 0 : volume}
                     onChange={handleVolumeChange}
                     className="volume-slider"
                   />
@@ -412,11 +675,48 @@ function Player() {
                 </span>
               </div>
 
+              {/* Center - Title */}
+              <div className="controls-center">
+                <span className="now-playing-title">
+                  {media?.series_name && `${media.series_name} - `}
+                  {media?.episode_number ? `E${media.episode_number}` : media?.title}
+                </span>
+              </div>
+
               {/* Right Controls */}
               <div className="controls-right">
+                {/* Playback Speed */}
+                <button
+                  className={`control-btn speed-btn ${playbackRate !== 1 ? 'active' : ''}`}
+                  onClick={() => setPlaybackRate(prev => prev === 2 ? 0.5 : prev + 0.25)}
+                  title="Velocitat de reproduccio"
+                >
+                  {playbackRate}x
+                </button>
+
+                {/* Audio/Subtitle selector */}
                 <button
                   className="control-btn"
-                  onClick={() => setShowSettings(!showSettings)}
+                  onClick={() => {
+                    setShowTrackSelector(!showTrackSelector);
+                    setShowSettings(false);
+                  }}
+                  title="Audio i subtitols"
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="2" y="4" width="20" height="16" rx="2" />
+                    <path d="M6 10h4M6 14h8" />
+                  </svg>
+                </button>
+
+                {/* Settings */}
+                <button
+                  className="control-btn"
+                  onClick={() => {
+                    setShowSettings(!showSettings);
+                    setShowTrackSelector(false);
+                  }}
+                  title="Configuracio"
                 >
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <circle cx="12" cy="12" r="3" />
@@ -424,7 +724,8 @@ function Player() {
                   </svg>
                 </button>
 
-                <button className="control-btn" onClick={toggleFullscreen}>
+                {/* Fullscreen */}
+                <button className="control-btn" onClick={toggleFullscreen} title="Pantalla completa (F)">
                   {isFullscreen ? (
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M8 3v3a2 2 0 01-2 2H3m18 0h-3a2 2 0 01-2-2V3m0 18v-3a2 2 0 012-2h3M3 16h3a2 2 0 012 2v3" />
@@ -440,13 +741,172 @@ function Player() {
           </div>
         )}
 
+        {/* Track Selector Panel */}
+        {showTrackSelector && streamUrl && (
+          <div className="track-panel glass">
+            <h3>Audio i Subtitols</h3>
+
+            {media?.audio_tracks && media.audio_tracks.length > 0 && (
+              <div className="track-section">
+                <h4>Audio</h4>
+                <div className="track-list">
+                  {media.audio_tracks.map((track, index) => (
+                    <button
+                      key={index}
+                      className={`track-option ${selectedAudio === index ? 'active' : ''}`}
+                      onClick={() => changeTrack('audio', index)}
+                    >
+                      <span className="track-lang">{getLanguageName(track.language)}</span>
+                      <span className="track-codec">{track.codec}</span>
+                      {selectedAudio === index && (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {media?.subtitle_tracks && media.subtitle_tracks.length > 0 && (
+              <div className="track-section">
+                <h4>Subtitols</h4>
+                <div className="track-list">
+                  <button
+                    className={`track-option ${selectedSubtitle === null ? 'active' : ''}`}
+                    onClick={() => changeTrack('subtitle', null)}
+                  >
+                    <span className="track-lang">Sense subtitols</span>
+                    {selectedSubtitle === null && (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                      </svg>
+                    )}
+                  </button>
+                  {media.subtitle_tracks.map((track, index) => (
+                    <button
+                      key={index}
+                      className={`track-option ${selectedSubtitle === index ? 'active' : ''}`}
+                      onClick={() => changeTrack('subtitle', index)}
+                    >
+                      <span className="track-lang">{getLanguageName(track.language)}</span>
+                      <span className="track-codec">{track.codec}</span>
+                      {selectedSubtitle === index && (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <p className="track-note">
+              El canvi de pista pot trigar uns segons a aplicar-se.
+            </p>
+          </div>
+        )}
+
         {/* Settings Panel */}
         {showSettings && streamUrl && (
           <div className="settings-panel glass">
             <h3>Configuracio</h3>
-            <p className="settings-note">
-              Per canviar l'audio o subtitols, torna enrere i selecciona de nou.
-            </p>
+
+            <div className="settings-group">
+              <label>Qualitat:</label>
+              <select
+                value={quality}
+                onChange={(e) => {
+                  setQuality(e.target.value);
+                  localStorage.setItem(STORAGE_KEYS.quality, e.target.value);
+                }}
+                className="settings-select"
+              >
+                <option value="4k">4K (Original)</option>
+                <option value="1080p">1080p</option>
+                <option value="720p">720p</option>
+                <option value="480p">480p</option>
+              </select>
+            </div>
+
+            <div className="settings-group">
+              <label>Velocitat:</label>
+              <div className="speed-options">
+                {[0.5, 0.75, 1, 1.25, 1.5, 2].map(speed => (
+                  <button
+                    key={speed}
+                    className={`speed-option ${playbackRate === speed ? 'active' : ''}`}
+                    onClick={() => setPlaybackRate(speed)}
+                  >
+                    {speed}x
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Keyboard Shortcuts Help */}
+        {showShortcutsHelp && (
+          <div className="shortcuts-modal glass" onClick={() => setShowShortcutsHelp(false)}>
+            <div className="shortcuts-content" onClick={e => e.stopPropagation()}>
+              <h3>Dreceres de teclat</h3>
+              <div className="shortcuts-grid">
+                <div className="shortcut-item">
+                  <kbd>Espai</kbd> / <kbd>K</kbd>
+                  <span>Play / Pausa</span>
+                </div>
+                <div className="shortcut-item">
+                  <kbd>J</kbd> / <kbd>Fletxa esquerra</kbd>
+                  <span>Retrocedir 10s</span>
+                </div>
+                <div className="shortcut-item">
+                  <kbd>L</kbd> / <kbd>Fletxa dreta</kbd>
+                  <span>Avancar 10s</span>
+                </div>
+                <div className="shortcut-item">
+                  <kbd>Fletxa amunt</kbd>
+                  <span>Pujar volum</span>
+                </div>
+                <div className="shortcut-item">
+                  <kbd>Fletxa avall</kbd>
+                  <span>Baixar volum</span>
+                </div>
+                <div className="shortcut-item">
+                  <kbd>M</kbd>
+                  <span>Silenciar</span>
+                </div>
+                <div className="shortcut-item">
+                  <kbd>F</kbd>
+                  <span>Pantalla completa</span>
+                </div>
+                <div className="shortcut-item">
+                  <kbd>S</kbd>
+                  <span>Saltar intro</span>
+                </div>
+                <div className="shortcut-item">
+                  <kbd>N</kbd>
+                  <span>Seguent episodi</span>
+                </div>
+                <div className="shortcut-item">
+                  <kbd>&lt;</kbd> / <kbd>&gt;</kbd>
+                  <span>Canviar velocitat</span>
+                </div>
+              </div>
+              <button className="close-shortcuts" onClick={() => setShowShortcutsHelp(false)}>
+                Tancar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Loading overlay when changing tracks */}
+        {preparing && streamUrl && (
+          <div className="loading-overlay">
+            <div className="spinner"></div>
+            <p>Canviant pista...</p>
           </div>
         )}
       </div>

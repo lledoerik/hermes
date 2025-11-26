@@ -1,7 +1,7 @@
-/* Detail Page - Series & Movies */
+/* Detail Page - Series & Movies - Hermes Style */
 .detail-page {
   min-height: 100vh;
-  background: #141414;
+  background: var(--bg-primary);
   position: relative;
 }
 
@@ -14,35 +14,41 @@
   align-items: center;
   justify-content: center;
   gap: 1rem;
-  background: #141414;
-  color: #888;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
 }
 
 .detail-error svg {
-  color: #e50914;
+  color: var(--accent-primary);
   margin-bottom: 0.5rem;
 }
 
 .detail-error h2 {
-  color: white;
+  color: var(--text-primary);
   font-size: 1.5rem;
 }
 
 .btn-back {
   padding: 0.75rem 1.5rem;
-  background: #e50914;
+  background: var(--accent-gradient);
   color: white;
   text-decoration: none;
-  border-radius: 4px;
+  border-radius: 8px;
   font-weight: 600;
   margin-top: 0.5rem;
+  transition: all 0.2s;
+}
+
+.btn-back:hover {
+  background: var(--accent-gradient-hover);
+  transform: translateY(-2px);
 }
 
 .loader {
   width: 40px;
   height: 40px;
-  border: 3px solid #333;
-  border-top-color: #e50914;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--accent-primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -80,9 +86,9 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(to top, #141414 0%, transparent 50%),
-    linear-gradient(to right, rgba(20, 20, 20, 0.9) 0%, transparent 50%),
-    linear-gradient(to bottom, rgba(20, 20, 20, 0.3) 0%, transparent 30%);
+    linear-gradient(to top, var(--bg-primary) 0%, transparent 50%),
+    linear-gradient(to right, rgba(15, 23, 42, 0.9) 0%, transparent 50%),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.3) 0%, transparent 30%);
 }
 
 /* Back Button */
@@ -92,8 +98,9 @@
   left: 20px;
   width: 44px;
   height: 44px;
-  background: rgba(20, 20, 20, 0.8);
-  border: none;
+  background: rgba(30, 41, 59, 0.8);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-color);
   border-radius: 50%;
   color: white;
   cursor: pointer;
@@ -105,7 +112,8 @@
 }
 
 .btn-nav-back:hover {
-  background: rgba(40, 40, 40, 0.9);
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
   transform: translateX(-3px);
 }
 
@@ -148,8 +156,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
-  color: #444;
+  background: linear-gradient(135deg, var(--bg-secondary), rgba(30, 41, 59, 0.8));
+  color: var(--text-muted);
 }
 
 .detail-info {
@@ -163,13 +171,13 @@
 .content-type {
   display: inline-block;
   padding: 0.25rem 0.75rem;
-  background: rgba(229, 9, 20, 0.9);
+  background: var(--accent-gradient);
   color: white;
   font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1px;
-  border-radius: 2px;
+  border-radius: 4px;
   margin-bottom: 0.75rem;
   width: fit-content;
 }
@@ -200,19 +208,21 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 2rem;
-  background: white;
-  color: #141414;
+  background: var(--accent-gradient);
+  color: white;
   text-decoration: none;
-  border-radius: 4px;
+  border-radius: 8px;
   font-size: 1rem;
   font-weight: 600;
   width: fit-content;
   transition: all 0.2s;
+  border: none;
 }
 
 .btn-play-main:hover {
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--accent-gradient-hover);
   transform: scale(1.02);
+  box-shadow: 0 4px 20px rgba(11, 123, 134, 0.4);
 }
 
 /* Seasons */
@@ -238,23 +248,25 @@
   flex-direction: column;
   align-items: center;
   padding: 0.75rem 1.5rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  color: #888;
+  background: var(--bg-glass);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-secondary);
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s;
 }
 
 .season-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(11, 123, 134, 0.2);
+  border-color: var(--accent-primary);
   color: white;
 }
 
 .season-btn.active {
-  background: #e50914;
-  border-color: #e50914;
+  background: var(--accent-gradient);
+  border-color: var(--accent-primary);
   color: white;
 }
 
@@ -270,8 +282,10 @@
 
 /* Episodes */
 .episodes-section {
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 8px;
+  background: var(--bg-glass);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
   padding: 1.5rem;
   margin-bottom: 2rem;
 }
@@ -305,22 +319,24 @@
   align-items: center;
   gap: 1rem;
   padding: 1rem;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 4px;
+  background: rgba(30, 41, 59, 0.3);
+  border: 1px solid transparent;
+  border-radius: 8px;
   text-decoration: none;
   transition: all 0.2s;
 }
 
 .episode-item:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(11, 123, 134, 0.15);
+  border-color: var(--accent-primary);
 }
 
 .episode-number-box {
   flex-shrink: 0;
   width: 48px;
   height: 48px;
-  background: #222;
-  border-radius: 4px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -329,7 +345,7 @@
 .ep-num {
   font-size: 1.25rem;
   font-weight: 700;
-  color: #888;
+  color: var(--accent-primary);
 }
 
 .episode-details {
@@ -373,20 +389,20 @@
   flex-shrink: 0;
   width: 36px;
   height: 36px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(11, 123, 134, 0.2);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--accent-light);
   opacity: 0;
   transition: all 0.2s;
 }
 
 .episode-item:hover .episode-play-icon {
   opacity: 1;
-  background: white;
-  color: #141414;
+  background: var(--accent-gradient);
+  color: white;
 }
 
 .no-episodes {
