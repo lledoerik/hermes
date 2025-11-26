@@ -23,18 +23,16 @@ const PauseIcon = () => (
 );
 
 const SkipBackIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <circle cx="12" cy="12" r="10"/>
-    <path d="M12 8l-4 4 4 4" strokeLinecap="round" strokeLinejoin="round"/>
-    <text x="14" y="14" fontSize="6" fill="currentColor" stroke="none" fontWeight="bold">10</text>
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+    <text x="12" y="15.5" fontSize="7" textAnchor="middle" fontWeight="bold" fontFamily="Arial">10</text>
   </svg>
 );
 
 const SkipForwardIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <circle cx="12" cy="12" r="10"/>
-    <path d="M12 8l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
-    <text x="6" y="14" fontSize="6" fill="currentColor" stroke="none" fontWeight="bold">10</text>
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/>
+    <text x="12" y="15.5" fontSize="7" textAnchor="middle" fontWeight="bold" fontFamily="Arial">10</text>
   </svg>
 );
 
@@ -86,12 +84,6 @@ const SpeedIcon = () => (
   </svg>
 );
 
-const QualityIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-8 12H9.5v-2h-2v2H6V9h1.5v2.5h2V9H11v6zm2-6h4c.55 0 1 .45 1 1v4c0 .55-.45 1-1 1h-4V9zm1.5 4.5h2v-3h-2v3z"/>
-  </svg>
-);
-
 const BackIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor">
     <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
@@ -100,22 +92,34 @@ const BackIcon = () => (
 
 // Mapa de banderes per idiomes
 const languageFlags = {
-  // Català - Senyera
-  'cat': '🇦🇩', // Andorra té la senyera, alternativa: usar emoji personalitzat
+  // Català - Senyera (Andorra)
+  'cat': '🇦🇩',
   'catalan': '🇦🇩',
   'català': '🇦🇩',
   'ca': '🇦🇩',
-  // Espanyol
+  // Castellà (Espanya)
   'spa': '🇪🇸',
   'esp': '🇪🇸',
   'spanish': '🇪🇸',
   'español': '🇪🇸',
   'castellano': '🇪🇸',
   'es': '🇪🇸',
-  // Anglès
-  'eng': '🇬🇧',
-  'english': '🇬🇧',
-  'en': '🇬🇧',
+  'cas': '🇪🇸',
+  // Espanyol Americà (Llatinoamèrica)
+  'spa-la': '🌎',
+  'es-la': '🌎',
+  'es-419': '🌎',
+  'spanish-latin': '🌎',
+  'lat': '🌎',
+  'latino': '🌎',
+  // Anglès (EEUU)
+  'eng': '🇺🇸',
+  'english': '🇺🇸',
+  'en': '🇺🇸',
+  'en-us': '🇺🇸',
+  // Anglès Britànic
+  'en-gb': '🇬🇧',
+  'british': '🇬🇧',
   // Japonès
   'jap': '🇯🇵',
   'jpn': '🇯🇵',
@@ -139,6 +143,9 @@ const languageFlags = {
   'por': '🇵🇹',
   'portuguese': '🇵🇹',
   'pt': '🇵🇹',
+  // Portuguès Brasiler
+  'pt-br': '🇧🇷',
+  'brazilian': '🇧🇷',
   // Coreà
   'kor': '🇰🇷',
   'korean': '🇰🇷',
@@ -168,13 +175,16 @@ const getLanguageName = (lang) => {
 
   const names = {
     'cat': 'Català', 'catalan': 'Català', 'català': 'Català', 'ca': 'Català',
-    'spa': 'Espanyol', 'esp': 'Espanyol', 'spanish': 'Espanyol', 'español': 'Espanyol', 'castellano': 'Espanyol', 'es': 'Espanyol',
-    'eng': 'Anglès', 'english': 'Anglès', 'en': 'Anglès',
+    'spa': 'Castellà', 'esp': 'Castellà', 'spanish': 'Castellà', 'español': 'Castellà', 'castellano': 'Castellà', 'es': 'Castellà', 'cas': 'Castellà',
+    'spa-la': 'Espanyol Americà', 'es-la': 'Espanyol Americà', 'es-419': 'Espanyol Americà', 'spanish-latin': 'Espanyol Americà', 'lat': 'Espanyol Americà', 'latino': 'Espanyol Americà',
+    'eng': 'Anglès', 'english': 'Anglès', 'en': 'Anglès', 'en-us': 'Anglès',
+    'en-gb': 'Anglès Britànic', 'british': 'Anglès Britànic',
     'jap': 'Japonès', 'jpn': 'Japonès', 'japanese': 'Japonès', 'ja': 'Japonès',
     'fre': 'Francès', 'fra': 'Francès', 'french': 'Francès', 'fr': 'Francès',
     'ger': 'Alemany', 'deu': 'Alemany', 'german': 'Alemany', 'de': 'Alemany',
     'ita': 'Italià', 'italian': 'Italià', 'it': 'Italià',
     'por': 'Portuguès', 'portuguese': 'Portuguès', 'pt': 'Portuguès',
+    'pt-br': 'Portuguès Brasiler', 'brazilian': 'Portuguès Brasiler',
     'kor': 'Coreà', 'korean': 'Coreà', 'ko': 'Coreà',
     'chi': 'Xinès', 'zho': 'Xinès', 'chinese': 'Xinès', 'zh': 'Xinès',
     'rus': 'Rus', 'russian': 'Rus', 'ru': 'Rus',
@@ -206,7 +216,6 @@ function Player() {
   const [showAudioMenu, setShowAudioMenu] = useState(false);
   const [showSubtitleMenu, setShowSubtitleMenu] = useState(false);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
-  const [showQualityMenu, setShowQualityMenu] = useState(false);
 
   // Track selections
   const [audioTracks, setAudioTracks] = useState([]);
@@ -214,10 +223,8 @@ function Player() {
   const [selectedAudio, setSelectedAudio] = useState(0);
   const [selectedSubtitle, setSelectedSubtitle] = useState(-1);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  const [quality, setQuality] = useState('auto');
 
   const speeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
-  const qualities = ['auto', '1080p', '720p', '480p', '360p'];
 
   // Preferences from localStorage
   const preferredAudioLang = localStorage.getItem('hermes_audio_lang') || 'cat';
@@ -285,7 +292,6 @@ function Player() {
     setShowAudioMenu(false);
     setShowSubtitleMenu(false);
     setShowSpeedMenu(false);
-    setShowQualityMenu(false);
   };
 
   const showControlsTemporarily = useCallback(() => {
@@ -487,11 +493,6 @@ function Player() {
     setShowSpeedMenu(false);
   };
 
-  const handleQualityChange = (q) => {
-    setQuality(q);
-    setShowQualityMenu(false);
-  };
-
   const getVideoUrl = () => {
     if (type === 'episode') {
       return `${API_URL}/api/stream/episode/${id}`;
@@ -662,35 +663,6 @@ function Player() {
                         >
                           {playbackSpeed === speed && <span className="check-icon">&#10003;</span>}
                           <span>{speed === 1 ? 'Normal' : `${speed}x`}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Quality Button */}
-                <div className="control-wrapper">
-                  <button
-                    className={`control-btn ${showQualityMenu ? 'active' : ''}`}
-                    onClick={() => {
-                      closeAllMenus();
-                      setShowQualityMenu(!showQualityMenu);
-                    }}
-                    title="Qualitat"
-                  >
-                    <QualityIcon />
-                  </button>
-                  {showQualityMenu && (
-                    <div className="control-menu">
-                      <div className="menu-header">Qualitat</div>
-                      {qualities.map((q) => (
-                        <div
-                          key={q}
-                          className={`menu-item ${quality === q ? 'selected' : ''}`}
-                          onClick={() => handleQualityChange(q)}
-                        >
-                          {quality === q && <span className="check-icon">&#10003;</span>}
-                          <span>{q === 'auto' ? 'Auto' : q}</span>
                         </div>
                       ))}
                     </div>
