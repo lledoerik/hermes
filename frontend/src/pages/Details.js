@@ -9,6 +9,84 @@ const API_URL = window.location.hostname === 'localhost'
 
 axios.defaults.baseURL = API_URL;
 
+// Mapa de banderes per idiomes
+const languageFlags = {
+  // Català - Senyera (Andorra)
+  'cat': '🇦🇩',
+  'catalan': '🇦🇩',
+  'català': '🇦🇩',
+  'ca': '🇦🇩',
+  // Castellà (Espanya)
+  'spa': '🇪🇸',
+  'esp': '🇪🇸',
+  'spanish': '🇪🇸',
+  'español': '🇪🇸',
+  'castellano': '🇪🇸',
+  'es': '🇪🇸',
+  'cas': '🇪🇸',
+  // Espanyol Americà (Llatinoamèrica)
+  'spa-la': '🌎',
+  'es-la': '🌎',
+  'es-419': '🌎',
+  'spanish-latin': '🌎',
+  'lat': '🌎',
+  'latino': '🌎',
+  // Anglès (EEUU)
+  'eng': '🇺🇸',
+  'english': '🇺🇸',
+  'en': '🇺🇸',
+  'en-us': '🇺🇸',
+  // Anglès Britànic
+  'en-gb': '🇬🇧',
+  'british': '🇬🇧',
+  // Japonès
+  'jap': '🇯🇵',
+  'jpn': '🇯🇵',
+  'japanese': '🇯🇵',
+  'ja': '🇯🇵',
+  // Francès
+  'fre': '🇫🇷',
+  'fra': '🇫🇷',
+  'french': '🇫🇷',
+  'fr': '🇫🇷',
+  // Alemany
+  'ger': '🇩🇪',
+  'deu': '🇩🇪',
+  'german': '🇩🇪',
+  'de': '🇩🇪',
+  // Italià
+  'ita': '🇮🇹',
+  'italian': '🇮🇹',
+  'it': '🇮🇹',
+  // Portuguès
+  'por': '🇵🇹',
+  'portuguese': '🇵🇹',
+  'pt': '🇵🇹',
+  // Portuguès Brasiler
+  'pt-br': '🇧🇷',
+  'brazilian': '🇧🇷',
+  // Coreà
+  'kor': '🇰🇷',
+  'korean': '🇰🇷',
+  'ko': '🇰🇷',
+  // Xinès
+  'chi': '🇨🇳',
+  'zho': '🇨🇳',
+  'chinese': '🇨🇳',
+  'zh': '🇨🇳',
+  // Rus
+  'rus': '🇷🇺',
+  'russian': '🇷🇺',
+  'ru': '🇷🇺',
+};
+
+// Funció per obtenir la bandera d'un idioma
+const getLanguageFlag = (lang) => {
+  if (!lang) return '🌐';
+  const normalizedLang = lang.toLowerCase().trim();
+  return languageFlags[normalizedLang] || '🌐';
+};
+
 function Details() {
   const { id } = useParams();
   const location = useLocation();
@@ -253,10 +331,10 @@ function Details() {
                   </div>
                   <div className="audio-badges">
                     {getAudioLanguages(episode).slice(0, 3).map((lang, i) => (
-                      <span key={i} className="badge audio">{lang}</span>
+                      <span key={i} className="badge audio">{getLanguageFlag(lang)}</span>
                     ))}
                     {getSubtitleLanguages(episode).slice(0, 2).map((lang, i) => (
-                      <span key={i} className="badge sub">Sub {lang}</span>
+                      <span key={i} className="badge sub">{getLanguageFlag(lang)}</span>
                     ))}
                   </div>
                 </div>
