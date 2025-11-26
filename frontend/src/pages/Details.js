@@ -9,82 +9,39 @@ const API_URL = window.location.hostname === 'localhost'
 
 axios.defaults.baseURL = API_URL;
 
-// Mapa de banderes per idiomes
-const languageFlags = {
-  // Català - Senyera (Andorra)
-  'cat': '🇦🇩',
-  'catalan': '🇦🇩',
-  'català': '🇦🇩',
-  'ca': '🇦🇩',
-  // Castellà (Espanya)
-  'spa': '🇪🇸',
-  'esp': '🇪🇸',
-  'spanish': '🇪🇸',
-  'español': '🇪🇸',
-  'castellano': '🇪🇸',
-  'es': '🇪🇸',
-  'cas': '🇪🇸',
-  // Espanyol Americà (Llatinoamèrica)
-  'spa-la': '🌎',
-  'es-la': '🌎',
-  'es-419': '🌎',
-  'spanish-latin': '🌎',
-  'lat': '🌎',
-  'latino': '🌎',
-  // Anglès (EEUU)
-  'eng': '🇺🇸',
-  'english': '🇺🇸',
-  'en': '🇺🇸',
-  'en-us': '🇺🇸',
-  // Anglès Britànic
-  'en-gb': '🇬🇧',
-  'british': '🇬🇧',
+// Mapa de codis d'idiomes
+const languageCodes = {
+  // Català
+  'cat': 'CAT', 'catalan': 'CAT', 'català': 'CAT', 'ca': 'CAT',
+  // Castellà
+  'spa': 'ESP', 'esp': 'ESP', 'spanish': 'ESP', 'español': 'ESP', 'castellano': 'ESP', 'es': 'ESP', 'cas': 'ESP',
+  // Hispanoamericà
+  'spa-la': 'HIS', 'es-la': 'HIS', 'es-419': 'HIS', 'spanish-latin': 'HIS', 'lat': 'HIS', 'latino': 'HIS',
+  // Anglès
+  'eng': 'ENG', 'english': 'ENG', 'en': 'ENG', 'en-us': 'ENG', 'en-gb': 'ENG', 'british': 'ENG',
   // Japonès
-  'jap': '🇯🇵',
-  'jpn': '🇯🇵',
-  'japanese': '🇯🇵',
-  'ja': '🇯🇵',
+  'jap': 'JAP', 'jpn': 'JAP', 'japanese': 'JAP', 'ja': 'JAP',
   // Francès
-  'fre': '🇫🇷',
-  'fra': '🇫🇷',
-  'french': '🇫🇷',
-  'fr': '🇫🇷',
+  'fre': 'FRA', 'fra': 'FRA', 'french': 'FRA', 'fr': 'FRA',
   // Alemany
-  'ger': '🇩🇪',
-  'deu': '🇩🇪',
-  'german': '🇩🇪',
-  'de': '🇩🇪',
+  'ger': 'ALE', 'deu': 'ALE', 'german': 'ALE', 'de': 'ALE',
   // Italià
-  'ita': '🇮🇹',
-  'italian': '🇮🇹',
-  'it': '🇮🇹',
+  'ita': 'ITA', 'italian': 'ITA', 'it': 'ITA',
   // Portuguès
-  'por': '🇵🇹',
-  'portuguese': '🇵🇹',
-  'pt': '🇵🇹',
-  // Portuguès Brasiler
-  'pt-br': '🇧🇷',
-  'brazilian': '🇧🇷',
+  'por': 'POR', 'portuguese': 'POR', 'pt': 'POR', 'pt-br': 'POR', 'brazilian': 'POR',
   // Coreà
-  'kor': '🇰🇷',
-  'korean': '🇰🇷',
-  'ko': '🇰🇷',
+  'kor': 'KOR', 'korean': 'KOR', 'ko': 'KOR',
   // Xinès
-  'chi': '🇨🇳',
-  'zho': '🇨🇳',
-  'chinese': '🇨🇳',
-  'zh': '🇨🇳',
+  'chi': 'XIN', 'zho': 'XIN', 'chinese': 'XIN', 'zh': 'XIN',
   // Rus
-  'rus': '🇷🇺',
-  'russian': '🇷🇺',
-  'ru': '🇷🇺',
+  'rus': 'RUS', 'russian': 'RUS', 'ru': 'RUS',
 };
 
-// Funció per obtenir la bandera d'un idioma
-const getLanguageFlag = (lang) => {
-  if (!lang) return '🌐';
+// Funció per obtenir el codi d'un idioma
+const getLanguageCode = (lang) => {
+  if (!lang) return '???';
   const normalizedLang = lang.toLowerCase().trim();
-  return languageFlags[normalizedLang] || '🌐';
+  return languageCodes[normalizedLang] || '???';
 };
 
 function Details() {
@@ -331,10 +288,10 @@ function Details() {
                   </div>
                   <div className="audio-badges">
                     {getAudioLanguages(episode).slice(0, 3).map((lang, i) => (
-                      <span key={i} className="badge audio">{getLanguageFlag(lang)}</span>
+                      <span key={i} className="badge audio">{getLanguageCode(lang)}</span>
                     ))}
                     {getSubtitleLanguages(episode).slice(0, 2).map((lang, i) => (
-                      <span key={i} className="badge sub">{getLanguageFlag(lang)}</span>
+                      <span key={i} className="badge sub">{getLanguageCode(lang)}</span>
                     ))}
                   </div>
                 </div>

@@ -90,84 +90,6 @@ const BackIcon = () => (
   </svg>
 );
 
-// Mapa de banderes per idiomes
-const languageFlags = {
-  // Català - Senyera (Andorra)
-  'cat': '🇦🇩',
-  'catalan': '🇦🇩',
-  'català': '🇦🇩',
-  'ca': '🇦🇩',
-  // Castellà (Espanya)
-  'spa': '🇪🇸',
-  'esp': '🇪🇸',
-  'spanish': '🇪🇸',
-  'español': '🇪🇸',
-  'castellano': '🇪🇸',
-  'es': '🇪🇸',
-  'cas': '🇪🇸',
-  // Espanyol Americà (Llatinoamèrica)
-  'spa-la': '🌎',
-  'es-la': '🌎',
-  'es-419': '🌎',
-  'spanish-latin': '🌎',
-  'lat': '🌎',
-  'latino': '🌎',
-  // Anglès (EEUU)
-  'eng': '🇺🇸',
-  'english': '🇺🇸',
-  'en': '🇺🇸',
-  'en-us': '🇺🇸',
-  // Anglès Britànic
-  'en-gb': '🇬🇧',
-  'british': '🇬🇧',
-  // Japonès
-  'jap': '🇯🇵',
-  'jpn': '🇯🇵',
-  'japanese': '🇯🇵',
-  'ja': '🇯🇵',
-  // Francès
-  'fre': '🇫🇷',
-  'fra': '🇫🇷',
-  'french': '🇫🇷',
-  'fr': '🇫🇷',
-  // Alemany
-  'ger': '🇩🇪',
-  'deu': '🇩🇪',
-  'german': '🇩🇪',
-  'de': '🇩🇪',
-  // Italià
-  'ita': '🇮🇹',
-  'italian': '🇮🇹',
-  'it': '🇮🇹',
-  // Portuguès
-  'por': '🇵🇹',
-  'portuguese': '🇵🇹',
-  'pt': '🇵🇹',
-  // Portuguès Brasiler
-  'pt-br': '🇧🇷',
-  'brazilian': '🇧🇷',
-  // Coreà
-  'kor': '🇰🇷',
-  'korean': '🇰🇷',
-  'ko': '🇰🇷',
-  // Xinès
-  'chi': '🇨🇳',
-  'zho': '🇨🇳',
-  'chinese': '🇨🇳',
-  'zh': '🇨🇳',
-  // Rus
-  'rus': '🇷🇺',
-  'russian': '🇷🇺',
-  'ru': '🇷🇺',
-};
-
-// Funció per obtenir la bandera d'un idioma
-const getLanguageFlag = (lang) => {
-  if (!lang) return '🌐';
-  const normalizedLang = lang.toLowerCase().trim();
-  return languageFlags[normalizedLang] || '🌐';
-};
-
 // Funció per obtenir el nom de l'idioma
 const getLanguageName = (lang) => {
   if (!lang) return 'Desconegut';
@@ -176,7 +98,7 @@ const getLanguageName = (lang) => {
   const names = {
     'cat': 'Català', 'catalan': 'Català', 'català': 'Català', 'ca': 'Català',
     'spa': 'Castellà', 'esp': 'Castellà', 'spanish': 'Castellà', 'español': 'Castellà', 'castellano': 'Castellà', 'es': 'Castellà', 'cas': 'Castellà',
-    'spa-la': 'Espanyol Americà', 'es-la': 'Espanyol Americà', 'es-419': 'Espanyol Americà', 'spanish-latin': 'Espanyol Americà', 'lat': 'Espanyol Americà', 'latino': 'Espanyol Americà',
+    'spa-la': 'Hispanoamericà', 'es-la': 'Hispanoamericà', 'es-419': 'Hispanoamericà', 'spanish-latin': 'Hispanoamericà', 'lat': 'Hispanoamericà', 'latino': 'Hispanoamericà',
     'eng': 'Anglès', 'english': 'Anglès', 'en': 'Anglès', 'en-us': 'Anglès',
     'en-gb': 'Anglès Britànic', 'british': 'Anglès Britànic',
     'jap': 'Japonès', 'jpn': 'Japonès', 'japanese': 'Japonès', 'ja': 'Japonès',
@@ -199,11 +121,16 @@ function Player() {
   const videoRef = useRef(null);
   const controlsTimeoutRef = useRef(null);
   const progressRef = useRef(null);
+  const lastTapRef = useRef(0);
+  const tapTimeoutRef = useRef(null);
+  const playerContainerRef = useRef(null);
 
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [videoLoading, setVideoLoading] = useState(true);
+  const [videoReady, setVideoReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [skipIndicator, setSkipIndicator] = useState(null); // 'left', 'right', 'center'
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [buffered, setBuffered] = useState(0);
@@ -233,10 +160,64 @@ function Player() {
   useEffect(() => {
     loadMedia();
     document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+    // Keyboard controls
+    const handleKeyDown = (e) => {
+      if (!videoRef.current || !videoReady) return;
+
+      switch (e.key) {
+        case ' ':
+        case 'Spacebar':
+          e.preventDefault();
+          togglePlay();
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          skip(10);
+          showSkipIndicator('right');
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          skip(-10);
+          showSkipIndicator('left');
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          if (videoRef.current) {
+            const newVol = Math.min(1, videoRef.current.volume + 0.1);
+            videoRef.current.volume = newVol;
+            setVolume(newVol);
+          }
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          if (videoRef.current) {
+            const newVol = Math.max(0, videoRef.current.volume - 0.1);
+            videoRef.current.volume = newVol;
+            setVolume(newVol);
+          }
+          break;
+        case 'f':
+        case 'F':
+          toggleFullscreen();
+          break;
+        case 'Escape':
+          if (document.fullscreenElement) {
+            document.exitFullscreen();
+          }
+          break;
+        default:
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [type, id]);
+  }, [type, id, videoReady]);
 
   const loadMedia = async () => {
     try {
@@ -350,7 +331,60 @@ function Player() {
 
   const handleVideoPause = () => setIsPlaying(false);
   const handleVideoWaiting = () => setVideoLoading(true);
-  const handleVideoCanPlay = () => setVideoLoading(false);
+  const handleVideoCanPlay = () => {
+    setVideoLoading(false);
+    setVideoReady(true);
+  };
+
+  // Funció per mostrar indicador de skip
+  const showSkipIndicator = (direction) => {
+    setSkipIndicator(direction);
+    setTimeout(() => setSkipIndicator(null), 500);
+  };
+
+  // Touch handling per doble toc
+  const handleTouchStart = (e) => {
+    if (!videoReady) return;
+
+    const now = Date.now();
+    const timeDiff = now - lastTapRef.current;
+    const touch = e.touches[0];
+    const containerWidth = playerContainerRef.current?.offsetWidth || window.innerWidth;
+    const touchX = touch.clientX;
+
+    // Determinar zona: esquerra (0-33%), centre (33-66%), dreta (66-100%)
+    const zone = touchX < containerWidth * 0.33 ? 'left' : touchX > containerWidth * 0.66 ? 'right' : 'center';
+
+    if (timeDiff < 300 && timeDiff > 0) {
+      // Doble toc
+      clearTimeout(tapTimeoutRef.current);
+      lastTapRef.current = 0;
+
+      if (zone === 'left') {
+        skip(-10);
+        showSkipIndicator('left');
+      } else if (zone === 'right') {
+        skip(10);
+        showSkipIndicator('right');
+      } else {
+        togglePlay();
+        showSkipIndicator('center');
+      }
+    } else {
+      // Primer toc - esperar per veure si és doble
+      lastTapRef.current = now;
+      tapTimeoutRef.current = setTimeout(() => {
+        // Un sol toc - toggle controls
+        if (showControls) {
+          setShowControls(false);
+          closeAllMenus();
+        } else {
+          showControlsTemporarily();
+        }
+        lastTapRef.current = 0;
+      }, 300);
+    }
+  };
 
   const handleTimeUpdate = () => {
     if (!videoRef.current) return;
@@ -536,13 +570,20 @@ function Player() {
 
   return (
     <div
+      ref={playerContainerRef}
       className="player-container"
       onMouseMove={handleMouseMove}
+      onTouchStart={handleTouchStart}
       onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          closeAllMenus();
+        // Només per desktop - evitar conflicte amb touch
+        if (e.target === e.currentTarget && !('ontouchstart' in window)) {
+          if (showControls) {
+            setShowControls(false);
+            closeAllMenus();
+          } else {
+            showControlsTemporarily();
+          }
         }
-        showControlsTemporarily();
       }}
     >
       <div className="player-wrapper">
@@ -557,7 +598,6 @@ function Player() {
           onCanPlay={handleVideoCanPlay}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
-          onClick={togglePlay}
         />
 
         {videoLoading && (
@@ -566,7 +606,18 @@ function Player() {
           </div>
         )}
 
-        <div className={`player-controls ${showControls ? 'visible' : 'hidden'}`}>
+        {/* Indicadors de skip/play per doble toc */}
+        {skipIndicator && (
+          <div className={`skip-indicator ${skipIndicator}`}>
+            {skipIndicator === 'left' && <><SkipBackIcon /> -10s</>}
+            {skipIndicator === 'right' && <><SkipForwardIcon /> +10s</>}
+            {skipIndicator === 'center' && (isPlaying ? <PauseIcon /> : <PlayIcon />)}
+          </div>
+        )}
+
+        {/* Controls només visibles quan el vídeo està llest */}
+        {videoReady && (
+          <div className={`player-controls ${showControls ? 'visible' : 'hidden'}`}>
           {/* Top Bar */}
           <div className="player-top-bar">
             <button className="back-btn" onClick={handleBack}>
@@ -780,7 +831,7 @@ function Player() {
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
