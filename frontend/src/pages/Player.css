@@ -758,3 +758,30 @@
     padding: var(--spacing-md);
   }
 }
+
+/* Auto-play Loading Screen */
+.auto-play-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-2xl);
+}
+
+.auto-play-loading .spinner {
+  width: 60px;
+  height: 60px;
+  border-width: 4px;
+}
+
+.auto-play-loading .loading-text {
+  font-size: 1.25rem;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.auto-play-loading .loading-subtext {
+  font-size: 0.9rem;
+  color: var(--accent-light);
+  opacity: 0.8;
+}

@@ -1,7 +1,7 @@
-/* Home Page - Netflix Style */
+/* Home Page - Hermes Style */
 .home-page {
   min-height: 100vh;
-  background: #0a0a0a;
+  background: var(--bg-primary);
 }
 
 /* Loading Screen */
@@ -11,7 +11,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: #0a0a0a;
+  background: var(--bg-primary);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -21,20 +21,23 @@
 }
 
 .loading-logo {
-  width: 80px;
-  height: 80px;
-  background: linear-gradient(135deg, #e50914, #b20710);
-  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: pulse 1.5s ease-in-out infinite;
+  animation: float 2s ease-in-out infinite;
 }
 
-.loading-logo span {
-  font-size: 3rem;
-  font-weight: 800;
-  color: white;
+.hermes-loading-img {
+  width: 120px;
+  height: auto;
+  filter: drop-shadow(0 4px 20px rgba(11, 123, 134, 0.4));
+}
+
+.loading-tagline {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  font-style: italic;
+  margin-top: 0.5rem;
 }
 
 .loading-bar {
@@ -48,7 +51,7 @@
 .loading-progress {
   width: 40%;
   height: 100%;
-  background: linear-gradient(90deg, #e50914, #b20710);
+  background: var(--accent-gradient);
   border-radius: 3px;
   animation: loading 1.5s ease-in-out infinite;
 }
@@ -58,9 +61,9 @@
   100% { transform: translateX(350%); }
 }
 
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
 }
 
 /* Error Screen */
@@ -82,7 +85,7 @@
 }
 
 .error-content svg {
-  color: #e50914;
+  color: var(--accent-primary);
   margin-bottom: 1.5rem;
 }
 
@@ -98,18 +101,20 @@
 
 .btn-retry {
   padding: 0.75rem 2rem;
-  background: #e50914;
+  background: var(--accent-gradient);
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 8px;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s;
 }
 
 .btn-retry:hover {
-  background: #f40612;
+  background: var(--accent-gradient-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(11, 123, 134, 0.4);
 }
 
 /* Hero Section */
@@ -146,9 +151,9 @@
   right: 0;
   bottom: 0;
   background:
-    linear-gradient(to top, #0a0a0a 0%, transparent 50%),
-    linear-gradient(to right, rgba(0, 0, 0, 0.8) 0%, transparent 60%),
-    linear-gradient(to bottom, rgba(0, 0, 0, 0.4) 0%, transparent 20%);
+    linear-gradient(to top, var(--bg-primary) 0%, transparent 50%),
+    linear-gradient(to right, rgba(15, 23, 42, 0.9) 0%, transparent 60%),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.4) 0%, transparent 20%);
 }
 
 .hero-content {
@@ -161,13 +166,13 @@
 .hero-badge {
   display: inline-block;
   padding: 0.25rem 0.75rem;
-  background: rgba(229, 9, 20, 0.9);
+  background: rgba(11, 123, 134, 0.9);
   color: white;
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1px;
-  border-radius: 2px;
+  border-radius: 4px;
   margin-bottom: 1rem;
 }
 
@@ -206,36 +211,41 @@
   padding: 0.75rem 1.5rem;
   font-size: 1rem;
   font-weight: 600;
-  border-radius: 4px;
+  border-radius: 8px;
   text-decoration: none;
   transition: all 0.2s;
 }
 
 .btn-play {
-  background: white;
-  color: #141414;
-}
-
-.btn-play:hover {
-  background: rgba(255, 255, 255, 0.85);
-}
-
-.btn-info {
-  background: rgba(109, 109, 110, 0.7);
+  background: var(--accent-gradient);
   color: white;
 }
 
-.btn-info:hover {
-  background: rgba(109, 109, 110, 0.5);
+.btn-play:hover {
+  background: var(--accent-gradient-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(11, 123, 134, 0.4);
 }
 
-/* Stats Bar */
+.btn-info {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+  color: white;
+  border: 1px solid var(--border-color);
+}
+
+.btn-info:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: var(--accent-primary);
+}
+
+/* Stats Bar - Hidden, moved to Admin */
 .stats-bar {
-  display: flex;
+  display: none; /* Hidden from home page */
   justify-content: center;
   gap: 3rem;
   padding: 1.5rem 4%;
-  background: linear-gradient(to bottom, #0a0a0a, #141414);
+  background: linear-gradient(to bottom, var(--bg-primary), var(--bg-secondary));
   margin-top: -5rem;
   position: relative;
   z-index: 2;

@@ -40,7 +40,7 @@ function Navbar() {
     <nav className={`navbar ${scrolled ? 'scrolled' : ''}`}>
       <div className="navbar-inner">
         <Link to="/" className="navbar-logo">
-          <div className="logo-icon">H</div>
+          <img src="/img/caduceus.png" alt="Hermes" className="logo-image" />
           <span className="logo-text">Hermes</span>
         </Link>
 
