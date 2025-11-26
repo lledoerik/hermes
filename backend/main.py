@@ -12,10 +12,11 @@ from pathlib import Path
 from typing import Optional, List, Dict
 from contextlib import contextmanager
 
-from fastapi import FastAPI, HTTPException, Depends, Query
+from fastapi import FastAPI, HTTPException, Depends, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse, Response
 from pydantic import BaseModel
+import mimetypes
 
 # Afegir path per imports
 sys.path.append(str(Path(__file__).parent.parent))
@@ -73,6 +74,82 @@ class StreamRequest(BaseModel):
     audio_index: Optional[int] = None
     subtitle_index: Optional[int] = None
     quality: str = "1080p"
+
+
+# === STREAMING AMB RANGE SUPPORT ===
+
+def get_range_header(range_header: str, file_size: int):
+    """Parseja la capçalera Range i retorna start, end"""
+    if not range_header:
+        return 0, file_size - 1
+
+    range_str = range_header.replace("bytes=", "")
+    parts = range_str.split("-")
+
+    start = int(parts[0]) if parts[0] else 0
+    end = int(parts[1]) if parts[1] else file_size - 1
+
+    # Limitar end a file_size - 1
+    end = min(end, file_size - 1)
+
+    return start, end
+
+
+def stream_file_range(file_path: Path, start: int, end: int, chunk_size: int = 1024 * 1024):
+    """Generator per streaming de rang de bytes"""
+    with open(file_path, "rb") as f:
+        f.seek(start)
+        remaining = end - start + 1
+        while remaining > 0:
+            chunk = f.read(min(chunk_size, remaining))
+            if not chunk:
+                break
+            remaining -= len(chunk)
+            yield chunk
+
+
+async def stream_video_with_range(file_path: Path, request: Request):
+    """Streaming de video amb suport Range requests per seek"""
+    file_size = file_path.stat().st_size
+    range_header = request.headers.get("range")
+
+    # Determinar el content type
+    content_type, _ = mimetypes.guess_type(str(file_path))
+    if not content_type:
+        content_type = "video/mp4"
+
+    if range_header:
+        start, end = get_range_header(range_header, file_size)
+        content_length = end - start + 1
+
+        headers = {
+            "Content-Range": f"bytes {start}-{end}/{file_size}",
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(content_length),
+            "Content-Type": content_type,
+        }
+
+        return StreamingResponse(
+            stream_file_range(file_path, start, end),
+            status_code=206,
+            headers=headers,
+            media_type=content_type
+        )
+    else:
+        # Sense Range header, retornar tot el fitxer
+        headers = {
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(file_size),
+            "Content-Type": content_type,
+        }
+
+        return StreamingResponse(
+            stream_file_range(file_path, 0, file_size - 1),
+            status_code=200,
+            headers=headers,
+            media_type=content_type
+        )
+
 
 # === ENDPOINTS ===
 
@@ -238,25 +315,21 @@ async def get_season_episodes(series_id: int, season_number: int):
         return episodes
 
 @app.get("/api/stream/{media_id}/direct")
-async def stream_direct(media_id: int):
-    """Streaming directe del fitxer"""
+async def stream_direct(media_id: int, request: Request):
+    """Streaming directe del fitxer amb suport Range"""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT file_path FROM media_files WHERE id = ?", (media_id,))
         result = cursor.fetchone()
-        
+
         if not result:
             raise HTTPException(status_code=404, detail="Arxiu no trobat")
-        
+
         file_path = Path(result["file_path"])
         if not file_path.exists():
             raise HTTPException(status_code=404, detail="Arxiu no existeix")
-        
-        return FileResponse(
-            path=file_path,
-            media_type="video/mp4",
-            filename=file_path.name
-        )
+
+        return await stream_video_with_range(file_path, request)
 
 @app.post("/api/stream/{media_id}/hls")
 async def stream_hls(media_id: int, request: StreamRequest):
@@ -562,8 +635,8 @@ async def get_episode_detail(episode_id: int):
 
 
 @app.get("/api/stream/episode/{episode_id}")
-async def stream_episode(episode_id: int):
-    """Streaming directe d'un episodi"""
+async def stream_episode(episode_id: int, request: Request):
+    """Streaming directe d'un episodi amb suport Range"""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT file_path FROM media_files WHERE id = ?", (episode_id,))
@@ -576,16 +649,12 @@ async def stream_episode(episode_id: int):
         if not file_path.exists():
             raise HTTPException(status_code=404, detail="Arxiu no existeix")
 
-        return FileResponse(
-            path=file_path,
-            media_type="video/mp4",
-            filename=file_path.name
-        )
+        return await stream_video_with_range(file_path, request)
 
 
 @app.get("/api/stream/movie/{movie_id}")
-async def stream_movie(movie_id: int):
-    """Streaming directe d'una pel·lícula"""
+async def stream_movie(movie_id: int, request: Request):
+    """Streaming directe d'una pel·lícula amb suport Range"""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -602,11 +671,7 @@ async def stream_movie(movie_id: int):
         if not file_path.exists():
             raise HTTPException(status_code=404, detail="Arxiu no existeix")
 
-        return FileResponse(
-            path=file_path,
-            media_type="video/mp4",
-            filename=file_path.name
-        )
+        return await stream_video_with_range(file_path, request)
 
 
 if __name__ == "__main__":
