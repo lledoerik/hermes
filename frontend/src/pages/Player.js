@@ -831,6 +831,7 @@ function Player() {
               </div>
             </div>
           </div>
+          </div>
         )}
       </div>
     </div>
