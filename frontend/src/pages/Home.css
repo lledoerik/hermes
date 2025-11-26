@@ -127,11 +127,25 @@
 /* Categories Grid */
 .categories-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 1.5rem;
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 20px;
+}
+
+/* En pantalles grans, 6 columnes per tenir-les totes en una fila */
+@media (min-width: 1200px) {
+  .categories-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+/* En pantalles mitjanes, 3 columnes (2 files de 3) */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .categories-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 /* Category Card */
@@ -306,8 +320,24 @@
   margin-bottom: 40px;
 }
 
-/* Responsive */
-@media (max-width: 1023px) {
+/* Responsive - Pantalles grans (6 columnes) */
+@media (min-width: 1200px) {
+  .category-card {
+    height: 220px;
+  }
+
+  .card-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .card-title {
+    font-size: 1.1rem;
+  }
+}
+
+/* Responsive - Pantalles mitjanes (3 columnes) */
+@media (min-width: 768px) and (max-width: 1199px) {
   .hero-section {
     min-height: 70vh;
   }
@@ -325,6 +355,7 @@
   }
 }
 
+/* Responsive - Mòbils (2 columnes) */
 @media (max-width: 767px) {
   .hero-section {
     min-height: 60vh;

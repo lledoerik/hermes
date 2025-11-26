@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import './Details.css';
 
@@ -10,8 +10,11 @@ const API_URL = window.location.hostname === 'localhost'
 axios.defaults.baseURL = API_URL;
 
 function Details() {
-  const { type, id } = useParams();
+  const { id } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
+  // Determinar el tipus segons la ruta
+  const type = location.pathname.startsWith('/movies') ? 'movies' : 'series';
   const [item, setItem] = useState(null);
   const [seasons, setSeasons] = useState([]);
   const [episodes, setEpisodes] = useState([]);
