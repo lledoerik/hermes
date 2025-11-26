@@ -1,0 +1,525 @@
+/* Player Page */
+.player-container {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 9999;
+}
+
+.player-wrapper {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+/* Video Element */
+.video-player {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+/* Controls Overlay */
+.player-controls {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  cursor: default;
+}
+
+.player-controls.visible {
+  opacity: 1;
+}
+
+.player-controls.hidden {
+  cursor: none;
+}
+
+/* Top Bar */
+.player-top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20px 30px;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%);
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 10px;
+  border-radius: 8px;
+  transition: background 0.3s;
+}
+
+.back-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.player-title {
+  text-align: center;
+  flex: 1;
+}
+
+.player-title h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.player-title span {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Center Controls */
+.player-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 60px;
+  flex: 1;
+}
+
+.center-btn {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.center-btn:hover {
+  transform: scale(1.1);
+}
+
+.skip-btn {
+  width: 50px;
+  height: 50px;
+  font-size: 20px;
+  opacity: 0.8;
+}
+
+.play-pause-btn {
+  width: 80px;
+  height: 80px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  font-size: 32px;
+  backdrop-filter: blur(10px);
+}
+
+.play-pause-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Bottom Bar */
+.player-bottom-bar {
+  padding: 0 30px 20px;
+  background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
+}
+
+/* Progress Bar */
+.progress-container {
+  position: relative;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  cursor: pointer;
+  position: relative;
+  transition: height 0.2s;
+}
+
+.progress-container:hover .progress-bar {
+  height: 6px;
+}
+
+.progress-buffered {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+}
+
+.progress-played {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: #328492;
+  border-radius: 2px;
+}
+
+.progress-handle {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  background: #328492;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity 0.2s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.progress-container:hover .progress-handle {
+  opacity: 1;
+}
+
+.progress-tooltip {
+  position: absolute;
+  bottom: 100%;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.9);
+  border-radius: 4px;
+  font-size: 13px;
+  transform: translateX(-50%);
+  margin-bottom: 10px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Time Display */
+.time-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  margin-left: 15px;
+  min-width: 120px;
+}
+
+/* Bottom Controls Row */
+.bottom-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.left-controls,
+.right-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.control-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 22px;
+  padding: 10px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.control-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Volume Slider */
+.volume-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.volume-slider {
+  width: 0;
+  opacity: 0;
+  transition: all 0.3s;
+}
+
+.volume-control:hover .volume-slider {
+  width: 80px;
+  opacity: 1;
+}
+
+.volume-slider input {
+  width: 100%;
+  height: 4px;
+  -webkit-appearance: none;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.volume-slider input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  background: white;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* Settings Popup */
+.settings-popup {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 15px;
+  background: rgba(20, 20, 20, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 8px;
+  min-width: 280px;
+  overflow: hidden;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  padding: 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 10px;
+}
+
+.settings-back-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 5px;
+}
+
+.settings-header h3 {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.settings-content {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.settings-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 15px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.settings-option:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.settings-option.selected {
+  background: rgba(50, 132, 146, 0.3);
+}
+
+.settings-option span:first-child {
+  font-size: 14px;
+}
+
+.settings-option span:last-child {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.settings-option.selected span:last-child {
+  color: #328492;
+}
+
+/* Track Selection */
+.track-item {
+  padding: 12px 15px;
+  cursor: pointer;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.track-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.track-item.selected {
+  background: rgba(50, 132, 146, 0.2);
+}
+
+.track-item .check {
+  color: #328492;
+  font-size: 16px;
+}
+
+.track-item .track-info {
+  flex: 1;
+}
+
+.track-item .track-name {
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.track-item .track-detail {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Next Episode */
+.next-episode-popup {
+  position: absolute;
+  bottom: 120px;
+  right: 30px;
+  background: rgba(20, 20, 20, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  padding: 15px;
+  display: flex;
+  gap: 15px;
+  max-width: 350px;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.next-episode-thumbnail {
+  width: 120px;
+  height: 68px;
+  background: #333;
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.next-episode-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.next-episode-info h4 {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 5px;
+}
+
+.next-episode-info h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.next-episode-btn {
+  padding: 8px 16px;
+  background: white;
+  color: black;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.next-episode-btn:hover {
+  background: #ddd;
+}
+
+/* Loading State */
+.player-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.loading-spinner {
+  width: 60px;
+  height: 60px;
+  border: 4px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #328492;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .player-top-bar,
+  .player-bottom-bar {
+    padding: 15px;
+  }
+
+  .player-center {
+    gap: 40px;
+  }
+
+  .play-pause-btn {
+    width: 60px;
+    height: 60px;
+    font-size: 24px;
+  }
+
+  .skip-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+  }
+
+  .control-btn {
+    font-size: 18px;
+    padding: 8px;
+  }
+
+  .settings-popup {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin: 0;
+    border-radius: 20px 20px 0 0;
+    max-height: 50vh;
+  }
+}
