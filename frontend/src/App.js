@@ -14,6 +14,7 @@ import Movies from './pages/Movies';
 import SeriesDetail from './pages/SeriesDetail';
 import MovieDetail from './pages/MovieDetail';
 import Player from './pages/Player';
+import Admin from './pages/Admin';
 
 // Layout component that conditionally shows navbar
 function Layout({ children }) {
@@ -38,6 +39,7 @@ function AppRoutes() {
         <Route path="/movies" element={<Movies />} />
         <Route path="/movie/:id" element={<MovieDetail />} />
         <Route path="/play/:mediaId" element={<Player />} />
+        <Route path="/admin" element={<Admin />} />
       </Routes>
     </Layout>
   );
