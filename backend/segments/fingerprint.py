@@ -54,6 +54,163 @@ class AudioFingerprinter:
             logger.warning("ffmpeg no trobat. La detecció d'intros no funcionarà.")
             raise RuntimeError("ffmpeg és necessari per la detecció d'intros")
 
+    def propagate_intro_to_episodes(self, reference_episode_id: int, intro_start: float, intro_end: float) -> Dict:
+        """
+        Propaga una intro marcada manualment a tots els episodis de la sèrie.
+
+        Busca on apareix l'àudio de la intro de referència a cada episodi individualment.
+        Això gestiona cold opens, variacions de timing, etc.
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        # Obtenir info de l'episodi de referència
+        cursor.execute("""
+            SELECT id, file_path, series_id, season_number, episode_number
+            FROM media_files WHERE id = ?
+        """, (reference_episode_id,))
+        ref_ep = cursor.fetchone()
+
+        if not ref_ep:
+            conn.close()
+            return {"status": "error", "message": "Episodi de referència no trobat"}
+
+        # Obtenir tots els episodis de la sèrie (mateixa temporada o totes)
+        cursor.execute("""
+            SELECT id, file_path, season_number, episode_number
+            FROM media_files
+            WHERE series_id = ? AND media_type = 'episode' AND id != ?
+            ORDER BY season_number, episode_number
+        """, (ref_ep["series_id"], reference_episode_id))
+
+        other_episodes = cursor.fetchall()
+
+        if not other_episodes:
+            conn.close()
+            return {"status": "error", "message": "No hi ha altres episodis a la sèrie"}
+
+        logger.info(f"Extraient fingerprint de la intro de referència ({intro_start}s - {intro_end}s)...")
+
+        # Extreure fingerprint de la intro de referència
+        intro_duration = intro_end - intro_start
+        ref_fingerprint = self._extract_fingerprint(
+            ref_ep["file_path"],
+            start=intro_start,
+            duration=intro_duration
+        )
+
+        if not ref_fingerprint:
+            conn.close()
+            return {"status": "error", "message": "No s'ha pogut extreure l'àudio de la intro de referència"}
+
+        results = {
+            "status": "success",
+            "reference_episode": reference_episode_id,
+            "episodes_processed": 0,
+            "episodes_found": 0,
+            "episodes_not_found": 0,
+            "details": []
+        }
+
+        # Buscar la intro a cada episodi
+        for ep in other_episodes:
+            logger.info(f"Buscant intro a T{ep['season_number']}E{ep['episode_number']}...")
+
+            # Extreure fingerprint dels primers minuts de l'episodi
+            ep_fingerprint = self._extract_fingerprint(
+                ep["file_path"],
+                start=0,
+                duration=self.SCAN_END  # Buscar als primers 3 minuts
+            )
+
+            if not ep_fingerprint:
+                results["details"].append({
+                    "episode_id": ep["id"],
+                    "season": ep["season_number"],
+                    "episode": ep["episode_number"],
+                    "status": "error",
+                    "message": "No s'ha pogut extreure àudio"
+                })
+                continue
+
+            results["episodes_processed"] += 1
+
+            # Buscar on apareix la intro de referència
+            found_position = self._find_intro_in_episode(ref_fingerprint, ep_fingerprint)
+
+            if found_position is not None:
+                # Convertir posició de chunks a segons
+                found_start = found_position * self.CHUNK_SECONDS
+                found_end = found_start + intro_duration
+
+                # Guardar el segment per aquest episodi específic
+                self._save_segment(
+                    cursor,
+                    ep["id"],
+                    ref_ep["series_id"],
+                    "intro",
+                    found_start,
+                    found_end,
+                    "propagated",
+                    confidence=0.9  # Alta confiança perquè ve de referència manual
+                )
+
+                results["episodes_found"] += 1
+                results["details"].append({
+                    "episode_id": ep["id"],
+                    "season": ep["season_number"],
+                    "episode": ep["episode_number"],
+                    "status": "found",
+                    "intro_start": found_start,
+                    "intro_end": found_end
+                })
+
+                logger.info(f"  ✓ Intro trobada: {found_start}s - {found_end}s")
+            else:
+                results["episodes_not_found"] += 1
+                results["details"].append({
+                    "episode_id": ep["id"],
+                    "season": ep["season_number"],
+                    "episode": ep["episode_number"],
+                    "status": "not_found",
+                    "message": "No s'ha trobat la intro (potser no en té o és diferent)"
+                })
+                logger.info(f"  ✗ Intro no trobada")
+
+        conn.commit()
+        conn.close()
+
+        return results
+
+    def _find_intro_in_episode(self, ref_fingerprint: List[float], ep_fingerprint: List[float]) -> Optional[int]:
+        """
+        Busca on apareix el fingerprint de referència dins d'un episodi.
+        Retorna la posició (chunk index) o None si no es troba.
+        """
+        ref_len = len(ref_fingerprint)
+        if ref_len > len(ep_fingerprint):
+            return None
+
+        best_pos = None
+        best_similarity = 0
+
+        # Buscar amb finestra lliscant
+        for i in range(len(ep_fingerprint) - ref_len + 1):
+            segment = ep_fingerprint[i:i + ref_len]
+            similarity = self._calculate_similarity(ref_fingerprint, segment)
+
+            if similarity > best_similarity:
+                best_similarity = similarity
+                best_pos = i
+
+        # Només retornar si la similitud és prou alta
+        if best_similarity >= 0.70:  # 70% similitud mínim
+            logger.debug(f"Millor match a posició {best_pos} amb similitud {best_similarity:.2f}")
+            return best_pos
+
+        return None
+
     def detect_intro_for_series(self, series_id: int, min_episodes: int = 2) -> Dict:
         """
         Detecta l'intro per tots els episodis d'una sèrie
