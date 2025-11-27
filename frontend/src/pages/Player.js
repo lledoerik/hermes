@@ -22,15 +22,17 @@ const PauseIcon = () => (
   </svg>
 );
 
-const SkipBackIcon = () => (
+const SkipBackIcon = ({ seconds }) => (
   <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M11.99 5V1l-5 4 5 4V5.5c3.25 0 6 2.75 6 6s-2.75 6-6 6-6-2.75-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+    <path d="M12.5 4V1l-5 4 5 4V6c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4.5c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+    <text x="12.5" y="14" textAnchor="middle" fontSize="7" fontWeight="bold" fill="currentColor">{seconds}</text>
   </svg>
 );
 
-const SkipForwardIcon = () => (
+const SkipForwardIcon = ({ seconds }) => (
   <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12.01 5V1l5 4-5 4V5.5c-3.25 0-6 2.75-6 6s2.75 6 6 6 6-2.75 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/>
+    <path d="M11.5 4V1l5 4-5 4V6c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/>
+    <text x="11.5" y="14" textAnchor="middle" fontSize="7" fontWeight="bold" fill="currentColor">{seconds}</text>
   </svg>
 );
 
@@ -706,8 +708,8 @@ function Player() {
         {/* Indicadors de skip/play per doble toc */}
         {skipIndicator && (
           <div className={`skip-indicator ${skipIndicator}`}>
-            {skipIndicator === 'left' && <SkipBackIcon />}
-            {skipIndicator === 'right' && <SkipForwardIcon />}
+            {skipIndicator === 'left' && <SkipBackIcon seconds={skipSeconds} />}
+            {skipIndicator === 'right' && <SkipForwardIcon seconds={skipSeconds} />}
             {skipIndicator === 'center' && (isPlaying ? <PauseIcon /> : <PlayIcon />)}
           </div>
         )}
@@ -798,13 +800,11 @@ function Player() {
                 <button className="control-btn" onClick={togglePlay}>
                   {isPlaying ? <PauseIcon /> : <PlayIcon />}
                 </button>
-                <button className="control-btn skip-time-btn" onClick={() => skip(-skipSeconds)}>
-                  <SkipBackIcon />
-                  <span className="skip-time-label">{skipSeconds}</span>
+                <button className="control-btn" onClick={() => skip(-skipSeconds)}>
+                  <SkipBackIcon seconds={skipSeconds} />
                 </button>
-                <button className="control-btn skip-time-btn" onClick={() => skip(skipSeconds)}>
-                  <SkipForwardIcon />
-                  <span className="skip-time-label">{skipSeconds}</span>
+                <button className="control-btn" onClick={() => skip(skipSeconds)}>
+                  <SkipForwardIcon seconds={skipSeconds} />
                 </button>
                 <div className="volume-control">
                   <button className="control-btn" onClick={toggleMute}>
