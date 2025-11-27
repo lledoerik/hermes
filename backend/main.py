@@ -703,13 +703,14 @@ async def get_media_segments(media_id: int):
 
         segments = []
         for row in cursor.fetchall():
+            row_dict = dict(row)
             segments.append({
-                "id": row["id"],
-                "segment_type": row["segment_type"],
-                "start_time": row["start_time"],
-                "end_time": row["end_time"],
-                "source": row["source"],
-                "confidence": row.get("confidence", 1.0)
+                "id": row_dict["id"],
+                "segment_type": row_dict["segment_type"],
+                "start_time": row_dict["start_time"],
+                "end_time": row_dict["end_time"],
+                "source": row_dict["source"],
+                "confidence": row_dict.get("confidence", 1.0)
             })
 
         # Si no hi ha segments específics, buscar per sèrie
@@ -727,13 +728,14 @@ async def get_media_segments(media_id: int):
                 """, (result["series_id"],))
 
                 for row in cursor.fetchall():
+                    row_dict = dict(row)
                     segments.append({
-                        "id": row["id"],
-                        "segment_type": row["segment_type"],
-                        "start_time": row["start_time"],
-                        "end_time": row["end_time"],
-                        "source": row["source"],
-                        "confidence": row.get("confidence", 1.0)
+                        "id": row_dict["id"],
+                        "segment_type": row_dict["segment_type"],
+                        "start_time": row_dict["start_time"],
+                        "end_time": row_dict["end_time"],
+                        "source": row_dict["source"],
+                        "confidence": row_dict.get("confidence", 1.0)
                     })
 
         return segments
