@@ -850,6 +850,55 @@ async def get_next_episode(episode_id: int):
         }
 
 
+@app.get("/api/library/episodes/{episode_id}/prev")
+async def get_prev_episode(episode_id: int):
+    """Retorna l'episodi anterior d'una sèrie"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Obtenir info de l'episodi actual
+        cursor.execute("""
+            SELECT series_id, season_number, episode_number
+            FROM media_files WHERE id = ?
+        """, (episode_id,))
+        current = cursor.fetchone()
+
+        if not current:
+            raise HTTPException(status_code=404, detail="Episodi no trobat")
+
+        # Buscar episodi anterior (mateixa temporada)
+        cursor.execute("""
+            SELECT id, season_number, episode_number, title
+            FROM media_files
+            WHERE series_id = ? AND season_number = ? AND episode_number < ?
+            ORDER BY episode_number DESC
+            LIMIT 1
+        """, (current["series_id"], current["season_number"], current["episode_number"]))
+
+        prev_ep = cursor.fetchone()
+
+        # Si no hi ha episodis anteriors en aquesta temporada, buscar últim de l'anterior
+        if not prev_ep:
+            cursor.execute("""
+                SELECT id, season_number, episode_number, title
+                FROM media_files
+                WHERE series_id = ? AND season_number < ?
+                ORDER BY season_number DESC, episode_number DESC
+                LIMIT 1
+            """, (current["series_id"], current["season_number"]))
+            prev_ep = cursor.fetchone()
+
+        if not prev_ep:
+            return None
+
+        return {
+            "id": prev_ep["id"],
+            "season_number": prev_ep["season_number"],
+            "episode_number": prev_ep["episode_number"],
+            "title": prev_ep["title"]
+        }
+
+
 # === AUTO-DETECTION DE SEGMENTS ===
 
 class TemplateRequest(BaseModel):
