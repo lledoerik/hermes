@@ -123,6 +123,9 @@ function Player() {
   const tapTimeoutRef = useRef(null);
   const playerContainerRef = useRef(null);
 
+  // Segons per avançar/retrocedir (configurable)
+  const skipSeconds = 10;
+
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [videoLoading, setVideoLoading] = useState(true);
@@ -177,12 +180,12 @@ function Player() {
           break;
         case 'ArrowRight':
           e.preventDefault();
-          skip(10);
+          skip(skipSeconds);
           showSkipIndicator('right');
           break;
         case 'ArrowLeft':
           e.preventDefault();
-          skip(-10);
+          skip(-skipSeconds);
           showSkipIndicator('left');
           break;
         case 'ArrowUp':
@@ -405,10 +408,10 @@ function Player() {
       lastTapRef.current = 0;
 
       if (zone === 'left') {
-        skip(-10);
+        skip(-skipSeconds);
         showSkipIndicator('left');
       } else if (zone === 'right') {
-        skip(10);
+        skip(skipSeconds);
         showSkipIndicator('right');
       } else {
         togglePlay();
@@ -752,16 +755,10 @@ function Player() {
             <div style={{ width: '100px' }}></div>
           </div>
 
-          {/* Center Controls */}
+          {/* Center Controls - només play/pause */}
           <div className="player-center">
-            <button className="center-btn skip-btn" onClick={() => skip(-10)}>
-              <SkipBackIcon />
-            </button>
             <button className="center-btn play-pause-btn" onClick={togglePlay}>
               {isPlaying ? <PauseIcon /> : <PlayIcon />}
-            </button>
-            <button className="center-btn skip-btn" onClick={() => skip(10)}>
-              <SkipForwardIcon />
             </button>
           </div>
 
@@ -801,11 +798,13 @@ function Player() {
                 <button className="control-btn" onClick={togglePlay}>
                   {isPlaying ? <PauseIcon /> : <PlayIcon />}
                 </button>
-                <button className="control-btn" onClick={() => skip(-10)}>
+                <button className="control-btn skip-time-btn" onClick={() => skip(-skipSeconds)}>
                   <SkipBackIcon />
+                  <span className="skip-time-label">{skipSeconds}</span>
                 </button>
-                <button className="control-btn" onClick={() => skip(10)}>
+                <button className="control-btn skip-time-btn" onClick={() => skip(skipSeconds)}>
                   <SkipForwardIcon />
+                  <span className="skip-time-label">{skipSeconds}</span>
                 </button>
                 <div className="volume-control">
                   <button className="control-btn" onClick={toggleMute}>
