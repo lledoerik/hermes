@@ -160,7 +160,9 @@ function Player() {
   const [prevEpisode, setPrevEpisode] = useState(null);
   const [seriesEpisodes, setSeriesEpisodes] = useState([]);
   const [activeSegment, setActiveSegment] = useState(null);
+  const [showSkipButton, setShowSkipButton] = useState(false);
   const [showNextEpisode, setShowNextEpisode] = useState(false);
+  const skipButtonTimerRef = useRef(null);
 
   // Track selections
   const [audioTracks, setAudioTracks] = useState([]);
@@ -475,8 +477,31 @@ function Player() {
       setBuffered(videoRef.current.buffered.end(videoRef.current.buffered.length - 1));
     }
 
-    // Detectar segment actiu (intro, recap, outro)
-    const active = segments.find(s => time >= s.start_time && time < s.end_time);
+    // Detectar segment actiu (intro) - només mostrar si té bona confiança
+    const active = segments.find(s =>
+      time >= s.start_time &&
+      time < s.end_time &&
+      s.segment_type === 'intro' &&
+      (!s.confidence || s.confidence >= 0.7) // Només si confiança >= 70%
+    );
+
+    // Gestionar el delay del botó skip (1.5 segons com Netflix)
+    if (active && !activeSegment) {
+      // Acaba d'entrar a un segment - iniciar timer
+      if (skipButtonTimerRef.current) {
+        clearTimeout(skipButtonTimerRef.current);
+      }
+      skipButtonTimerRef.current = setTimeout(() => {
+        setShowSkipButton(true);
+      }, 1500); // 1.5 segons de delay
+    } else if (!active && activeSegment) {
+      // Ha sortit del segment - amagar botó
+      if (skipButtonTimerRef.current) {
+        clearTimeout(skipButtonTimerRef.current);
+      }
+      setShowSkipButton(false);
+    }
+
     setActiveSegment(active || null);
 
     // Mostrar "Següent capítol" quan estem als últims 30 segons o després de l'outro
@@ -498,6 +523,10 @@ function Player() {
     if (!videoRef.current || !activeSegment) return;
     videoRef.current.currentTime = activeSegment.end_time;
     setActiveSegment(null);
+    setShowSkipButton(false);
+    if (skipButtonTimerRef.current) {
+      clearTimeout(skipButtonTimerRef.current);
+    }
   };
 
   const goToNextEpisode = () => {
@@ -618,6 +647,9 @@ function Player() {
   useEffect(() => {
     return () => {
       exitFullscreenMode();
+      if (skipButtonTimerRef.current) {
+        clearTimeout(skipButtonTimerRef.current);
+      }
     };
   }, []);
 
@@ -738,8 +770,8 @@ function Player() {
           </div>
         )}
 
-        {/* Botó Saltar Intro - només quan hi ha intro activa */}
-        {activeSegment && activeSegment.segment_type === 'intro' && (
+        {/* Botó Saltar Intro - amb delay de 1.5s com Netflix */}
+        {showSkipButton && activeSegment && (
           <button className="skip-segment-btn" onClick={skipIntro}>
             Saltar intro
             <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
