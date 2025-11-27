@@ -708,7 +708,8 @@ async def get_media_segments(media_id: int):
                 "segment_type": row["segment_type"],
                 "start_time": row["start_time"],
                 "end_time": row["end_time"],
-                "source": row["source"]
+                "source": row["source"],
+                "confidence": row.get("confidence", 1.0)
             })
 
         # Si no hi ha segments específics, buscar per sèrie
@@ -731,7 +732,8 @@ async def get_media_segments(media_id: int):
                         "segment_type": row["segment_type"],
                         "start_time": row["start_time"],
                         "end_time": row["end_time"],
-                        "source": row["source"]
+                        "source": row["source"],
+                        "confidence": row.get("confidence", 1.0)
                     })
 
         return segments
@@ -799,6 +801,70 @@ async def delete_segment(segment_id: int):
         cursor.execute("DELETE FROM media_segments WHERE id = ?", (segment_id,))
         conn.commit()
         return {"status": "success"}
+
+
+@app.delete("/api/segments/series/{series_id}")
+async def delete_series_segments(series_id: int):
+    """Elimina tots els segments d'una sèrie"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM media_segments WHERE series_id = ?", (series_id,))
+        cursor.execute("DELETE FROM media_segments WHERE media_id IN (SELECT id FROM media_files WHERE series_id = ?)", (series_id,))
+        deleted = cursor.rowcount
+        conn.commit()
+        return {"status": "success", "deleted": deleted}
+
+
+@app.post("/api/segments/series/{series_id}/detect")
+async def detect_series_segments(series_id: int, clear_existing: bool = True):
+    """Detecta intros per una sèrie usant audio fingerprinting"""
+    from backend.segments.fingerprint import AudioFingerprinter
+
+    # Opcionalment esborrar segments existents
+    if clear_existing:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM media_segments WHERE series_id = ?", (series_id,))
+            cursor.execute("DELETE FROM media_segments WHERE media_id IN (SELECT id FROM media_files WHERE series_id = ?)", (series_id,))
+            conn.commit()
+
+    try:
+        fingerprinter = AudioFingerprinter()
+        result = fingerprinter.detect_intro_for_series(series_id)
+        return result
+    except Exception as e:
+        logger.error(f"Error detectant intros: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@app.delete("/api/segments/cleanup")
+async def cleanup_segments(min_confidence: float = 0.7):
+    """Elimina tots els segments amb confiança baixa o duracions poc realistes"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Eliminar segments amb baixa confiança
+        cursor.execute("""
+            DELETE FROM media_segments
+            WHERE confidence < ? OR confidence IS NULL
+        """, (min_confidence,))
+        low_confidence = cursor.rowcount
+
+        # Eliminar segments amb duració poc realista (> 2 min o < 30s)
+        cursor.execute("""
+            DELETE FROM media_segments
+            WHERE (end_time - start_time) > 120
+               OR (end_time - start_time) < 30
+        """)
+        bad_duration = cursor.rowcount
+
+        conn.commit()
+        return {
+            "status": "success",
+            "deleted_low_confidence": low_confidence,
+            "deleted_bad_duration": bad_duration,
+            "total_deleted": low_confidence + bad_duration
+        }
 
 
 @app.get("/api/library/episodes/{episode_id}/next")
