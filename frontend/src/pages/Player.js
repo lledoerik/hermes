@@ -580,6 +580,13 @@ function Player() {
     };
   }, []);
 
+  // Focus el contenidor quan el vídeo està llest per permetre controls de teclat
+  useEffect(() => {
+    if (videoReady && playerContainerRef.current) {
+      playerContainerRef.current.focus();
+    }
+  }, [videoReady]);
+
   const handleBack = () => {
     exitFullscreenMode();
     if (item?.series_id) {
@@ -637,13 +644,6 @@ function Player() {
       </div>
     );
   }
-
-  // Focus el contenidor quan el vídeo està llest per permetre controls de teclat
-  useEffect(() => {
-    if (videoReady && playerContainerRef.current) {
-      playerContainerRef.current.focus();
-    }
-  }, [videoReady]);
 
   return (
     <div
@@ -818,8 +818,9 @@ function Player() {
                   <button
                     className={`control-btn ${showSpeedMenu ? 'active' : ''}`}
                     onClick={() => {
+                      const wasOpen = showSpeedMenu;
                       closeAllMenus();
-                      setShowSpeedMenu(!showSpeedMenu);
+                      if (!wasOpen) setShowSpeedMenu(true);
                     }}
                     title="Velocitat"
                   >
@@ -850,8 +851,9 @@ function Player() {
                   <button
                     className={`control-btn ${showAudioMenu ? 'active' : ''}`}
                     onClick={() => {
+                      const wasOpen = showAudioMenu;
                       closeAllMenus();
-                      setShowAudioMenu(!showAudioMenu);
+                      if (!wasOpen) setShowAudioMenu(true);
                     }}
                     title="Audio"
                   >
@@ -892,8 +894,9 @@ function Player() {
                   <button
                     className={`control-btn ${showSubtitleMenu ? 'active' : ''} ${selectedSubtitle >= 0 ? 'has-selection' : ''}`}
                     onClick={() => {
+                      const wasOpen = showSubtitleMenu;
                       closeAllMenus();
-                      setShowSubtitleMenu(!showSubtitleMenu);
+                      if (!wasOpen) setShowSubtitleMenu(true);
                     }}
                     title="Subtitols"
                   >
