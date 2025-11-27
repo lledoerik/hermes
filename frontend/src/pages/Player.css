@@ -104,6 +104,127 @@
   }
 }
 
+/* Skip Segment Button (Saltar intro/recap/outro) */
+.skip-segment-btn {
+  position: absolute;
+  bottom: 120px;
+  right: 30px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 24px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 100;
+  animation: slideInRight 0.3s ease-out;
+}
+
+.skip-segment-btn:hover {
+  background: rgba(255, 255, 255, 0.35);
+  transform: scale(1.05);
+}
+
+.skip-segment-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Next Episode Button */
+.next-episode-btn {
+  position: absolute;
+  bottom: 120px;
+  right: 30px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 24px;
+  background: rgba(50, 132, 146, 0.9);
+  backdrop-filter: blur(10px);
+  border: none;
+  border-radius: 12px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 100;
+  animation: slideInRight 0.3s ease-out;
+  max-width: 350px;
+}
+
+.next-episode-btn:hover {
+  background: rgba(50, 132, 146, 1);
+  transform: scale(1.02);
+}
+
+.next-episode-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  text-align: left;
+}
+
+.next-label {
+  font-size: 12px;
+  opacity: 0.8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.next-title {
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 250px;
+}
+
+.next-episode-btn svg {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+/* Responsive per mòbils */
+@media (max-width: 768px) {
+  .skip-segment-btn {
+    bottom: 100px;
+    right: 16px;
+    padding: 10px 18px;
+    font-size: 14px;
+  }
+
+  .next-episode-btn {
+    bottom: 100px;
+    right: 16px;
+    left: 16px;
+    max-width: none;
+    padding: 12px 16px;
+  }
+
+  .next-title {
+    max-width: calc(100vw - 120px);
+  }
+}
+
 /* Top Bar */
 .player-top-bar {
   display: flex;
