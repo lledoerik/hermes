@@ -27,14 +27,16 @@ logger = logging.getLogger(__name__)
 class AudioFingerprinter:
     """Detecta intros/outros usant comparació d'àudio"""
 
-    # Configuració per defecte
+    # Configuració més conservadora i realista
     SAMPLE_RATE = 8000  # Hz (baixa qualitat per processar més ràpid)
-    CHUNK_SECONDS = 2   # Segons per chunk d'anàlisi
-    MAX_INTRO_DURATION = 180  # Màxim 3 minuts d'intro
-    MIN_INTRO_DURATION = 30   # Mínim 30 segons
-    SIMILARITY_THRESHOLD = 0.75  # 75% similitud per considerar match
+    CHUNK_SECONDS = 1   # Segons per chunk (més precís)
+    MAX_INTRO_DURATION = 120  # Màxim 2 minuts d'intro (la majoria són 60-90s)
+    MIN_INTRO_DURATION = 40   # Mínim 40 segons (intros curtes són ~45s)
+    TYPICAL_INTRO_DURATION = 90  # Duració típica d'intro anime
+    SIMILARITY_THRESHOLD = 0.80  # 80% similitud (més estricte)
+    MIN_MATCH_RATIO = 0.85  # 85% dels episodis han de tenir match
     SCAN_START = 0      # On començar a buscar l'intro (segons)
-    SCAN_END = 240      # On acabar de buscar (4 minuts)
+    SCAN_END = 180      # On acabar de buscar (3 minuts - l'intro sempre és al principi)
 
     def __init__(self):
         self.db_path = settings.DATABASE_PATH
@@ -106,11 +108,20 @@ class AudioFingerprinter:
             }
 
         # Trobar el segment comú (l'intro)
-        intro_times = self._find_common_segment(fingerprints)
+        intro_result = self._find_common_segment(fingerprints)
 
-        if intro_times:
-            intro_start, intro_end = intro_times
-            logger.info(f"Intro detectada: {intro_start}s - {intro_end}s")
+        if intro_result:
+            intro_start, intro_end, confidence = intro_result
+            duration = intro_end - intro_start
+            logger.info(f"Intro detectada: {intro_start}s - {intro_end}s (duració: {duration}s, confiança: {confidence:.2f})")
+
+            # Validació extra: duració raonable
+            if duration < self.MIN_INTRO_DURATION or duration > self.MAX_INTRO_DURATION:
+                conn.close()
+                return {
+                    "status": "invalid",
+                    "message": f"Duració detectada ({duration}s) fora de rang ({self.MIN_INTRO_DURATION}-{self.MAX_INTRO_DURATION}s)"
+                }
 
             # Guardar per tots els episodis de la sèrie
             updated = 0
@@ -122,7 +133,8 @@ class AudioFingerprinter:
                     "intro",
                     intro_start,
                     intro_end,
-                    "fingerprint"
+                    "fingerprint",
+                    confidence
                 )
                 updated += 1
 
@@ -133,13 +145,15 @@ class AudioFingerprinter:
                 "status": "success",
                 "intro_start": intro_start,
                 "intro_end": intro_end,
+                "duration": duration,
+                "confidence": confidence,
                 "episodes_updated": updated
             }
         else:
             conn.close()
             return {
                 "status": "not_found",
-                "message": "No s'ha pogut detectar una intro consistent"
+                "message": "No s'ha pogut detectar una intro consistent (confiança insuficient)"
             }
 
     def _extract_fingerprint(self, file_path: str, start: float, duration: float) -> Optional[List[float]]:
@@ -243,11 +257,12 @@ class AudioFingerprinter:
             logger.error(f"Error llegint WAV: {e}")
             return []
 
-    def _find_common_segment(self, fingerprints: List[Dict]) -> Optional[Tuple[float, float]]:
+    def _find_common_segment(self, fingerprints: List[Dict]) -> Optional[Tuple[float, float, float]]:
         """
         Troba el segment comú entre múltiples fingerprints
 
         Busca el patró que es repeteix en tots els episodis
+        Retorna (start, end, confidence) o None
         """
         if len(fingerprints) < 2:
             return None
@@ -257,36 +272,85 @@ class AudioFingerprinter:
         if not ref:
             return None
 
-        # Per cada posició possible d'inici d'intro
         best_match = None
         best_score = 0
+        best_confidence = 0
 
-        # Buscar segments de diferents longituds
-        for duration_chunks in range(
-            self.MIN_INTRO_DURATION // self.CHUNK_SECONDS,
-            self.MAX_INTRO_DURATION // self.CHUNK_SECONDS + 1
-        ):
-            for start_chunk in range(len(ref) - duration_chunks):
+        # Prioritzar duracions típiques d'intro (60-90 segons)
+        typical_chunks = self.TYPICAL_INTRO_DURATION // self.CHUNK_SECONDS
+        min_chunks = self.MIN_INTRO_DURATION // self.CHUNK_SECONDS
+        max_chunks = self.MAX_INTRO_DURATION // self.CHUNK_SECONDS
+
+        # Ordenar duracions per prioritzar les típiques
+        duration_range = list(range(min_chunks, max_chunks + 1))
+        duration_range.sort(key=lambda x: abs(x - typical_chunks))
+
+        for duration_chunks in duration_range:
+            # Només buscar als primers 60 segons (intro sempre comença aviat)
+            max_start = min(60 // self.CHUNK_SECONDS, len(ref) - duration_chunks)
+
+            for start_chunk in range(max_start):
                 segment = ref[start_chunk:start_chunk + duration_chunks]
 
                 # Comprovar si aquest segment apareix en altres episodis
+                # i a una posició similar (l'intro hauria d'estar al mateix lloc)
                 matches = 0
+                position_matches = 0
+
                 for fp_data in fingerprints[1:]:
                     fp = fp_data["fingerprint"]
-                    if self._segment_exists_in(segment, fp):
+                    match_pos = self._find_segment_position(segment, fp)
+                    if match_pos is not None:
                         matches += 1
+                        # L'intro hauria d'estar a una posició similar (±10 segons)
+                        if abs(match_pos - start_chunk) <= 10:
+                            position_matches += 1
 
-                # Calcular score (preferim segments més llargs)
                 match_ratio = matches / (len(fingerprints) - 1)
-                if match_ratio >= self.SIMILARITY_THRESHOLD:
-                    score = match_ratio * duration_chunks  # Bonus per duració
+                position_ratio = position_matches / (len(fingerprints) - 1)
+
+                # Requerim alta coincidència i posició consistent
+                if match_ratio >= self.MIN_MATCH_RATIO and position_ratio >= 0.7:
+                    # Calcular score: preferim segments de duració típica
+                    duration_score = 1.0 - (abs(duration_chunks - typical_chunks) / typical_chunks) * 0.3
+                    score = match_ratio * position_ratio * duration_score
+
                     if score > best_score:
                         best_score = score
                         start_time = start_chunk * self.CHUNK_SECONDS
                         end_time = (start_chunk + duration_chunks) * self.CHUNK_SECONDS
-                        best_match = (start_time, end_time)
+                        # Confiança basada en match ratio i consistència de posició
+                        confidence = (match_ratio + position_ratio) / 2
+                        best_match = (start_time, end_time, confidence)
+                        best_confidence = confidence
 
-        return best_match
+        # Només retornar si la confiança és prou alta
+        if best_match and best_confidence >= 0.7:
+            return best_match
+        return None
+
+    def _find_segment_position(self, segment: List[float], fingerprint: List[float]) -> Optional[int]:
+        """
+        Troba la posició on un segment apareix en un fingerprint
+        Retorna la posició (chunk index) o None
+        """
+        if len(segment) > len(fingerprint):
+            return None
+
+        segment_len = len(segment)
+        best_pos = None
+        best_sim = 0
+
+        for i in range(len(fingerprint) - segment_len + 1):
+            similarity = self._calculate_similarity(
+                segment,
+                fingerprint[i:i + segment_len]
+            )
+            if similarity >= self.SIMILARITY_THRESHOLD and similarity > best_sim:
+                best_sim = similarity
+                best_pos = i
+
+        return best_pos
 
     def _segment_exists_in(self, segment: List[float], fingerprint: List[float]) -> bool:
         """
@@ -329,8 +393,9 @@ class AudioFingerprinter:
         return similarity
 
     def _save_segment(self, cursor, media_id: int, series_id: int,
-                      segment_type: str, start: float, end: float, source: str):
-        """Guarda un segment a la base de dades"""
+                      segment_type: str, start: float, end: float, source: str,
+                      confidence: float = 1.0):
+        """Guarda un segment a la base de dades amb confiança"""
         # Comprovar si ja existeix
         cursor.execute("""
             SELECT id FROM media_segments
@@ -342,16 +407,16 @@ class AudioFingerprinter:
             # Actualitzar
             cursor.execute("""
                 UPDATE media_segments
-                SET start_time = ?, end_time = ?, source = ?
+                SET start_time = ?, end_time = ?, source = ?, confidence = ?
                 WHERE id = ?
-            """, (start, end, source, existing["id"]))
+            """, (start, end, source, confidence, existing["id"]))
         else:
             # Inserir nou
             cursor.execute("""
                 INSERT INTO media_segments
-                (media_id, series_id, segment_type, start_time, end_time, source)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (media_id, series_id, segment_type, start, end, source))
+                (media_id, series_id, segment_type, start_time, end_time, source, confidence)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (media_id, series_id, segment_type, start, end, source, confidence))
 
 
 def detect_intros_for_all_series():
