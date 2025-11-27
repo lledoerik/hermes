@@ -23,16 +23,14 @@ const PauseIcon = () => (
 );
 
 const SkipBackIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
-    <text x="12" y="15.5" fontSize="7" textAnchor="middle" fontWeight="bold" fontFamily="Arial">10</text>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" fill="currentColor" stroke="none"/>
   </svg>
 );
 
 const SkipForwardIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/>
-    <text x="12" y="15.5" fontSize="7" textAnchor="middle" fontWeight="bold" fontFamily="Arial">10</text>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z" fill="currentColor" stroke="none"/>
   </svg>
 );
 
@@ -346,6 +344,14 @@ function Player() {
   const handleTouchStart = (e) => {
     if (!videoReady) return;
 
+    // Ignorar si el toc és sobre els controls (botons, menús, etc.)
+    const target = e.target;
+    const isControlElement = target.closest('.player-controls') ||
+                            target.closest('.control-btn') ||
+                            target.closest('.control-menu') ||
+                            target.closest('.back-btn');
+    if (isControlElement) return;
+
     const now = Date.now();
     const timeDiff = now - lastTapRef.current;
     const touch = e.touches[0];
@@ -356,7 +362,7 @@ function Player() {
     const zone = touchX < containerWidth * 0.33 ? 'left' : touchX > containerWidth * 0.66 ? 'right' : 'center';
 
     if (timeDiff < 300 && timeDiff > 0) {
-      // Doble toc
+      // Doble toc - NO mostrar la barra, només fer l'acció
       clearTimeout(tapTimeoutRef.current);
       lastTapRef.current = 0;
 
@@ -374,7 +380,7 @@ function Player() {
       // Primer toc - esperar per veure si és doble
       lastTapRef.current = now;
       tapTimeoutRef.current = setTimeout(() => {
-        // Un sol toc - toggle controls
+        // Un sol toc - toggle controls (només si no és doble toc)
         if (showControls) {
           setShowControls(false);
           closeAllMenus();
@@ -568,13 +574,25 @@ function Player() {
     );
   }
 
+  // Focus el contenidor quan el vídeo està llest per permetre controls de teclat
+  useEffect(() => {
+    if (videoReady && playerContainerRef.current) {
+      playerContainerRef.current.focus();
+    }
+  }, [videoReady]);
+
   return (
     <div
       ref={playerContainerRef}
       className="player-container"
+      tabIndex={0}
       onMouseMove={handleMouseMove}
       onTouchStart={handleTouchStart}
       onClick={(e) => {
+        // Assegurar focus per controls de teclat
+        if (playerContainerRef.current) {
+          playerContainerRef.current.focus();
+        }
         // Només per desktop - evitar conflicte amb touch
         if (e.target === e.currentTarget && !('ontouchstart' in window)) {
           if (showControls) {
@@ -609,8 +627,8 @@ function Player() {
         {/* Indicadors de skip/play per doble toc */}
         {skipIndicator && (
           <div className={`skip-indicator ${skipIndicator}`}>
-            {skipIndicator === 'left' && <><SkipBackIcon /> -10s</>}
-            {skipIndicator === 'right' && <><SkipForwardIcon /> +10s</>}
+            {skipIndicator === 'left' && <SkipBackIcon />}
+            {skipIndicator === 'right' && <SkipForwardIcon />}
             {skipIndicator === 'center' && (isPlaying ? <PauseIcon /> : <PlayIcon />)}
           </div>
         )}
