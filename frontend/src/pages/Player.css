@@ -468,27 +468,6 @@
   font-weight: 600;
 }
 
-/* Skip time buttons with number */
-.skip-time-btn {
-  position: relative;
-  flex-direction: column;
-  gap: 0;
-  width: auto;
-  padding: 4px 8px;
-}
-
-.skip-time-btn svg {
-  width: 20px;
-  height: 20px;
-}
-
-.skip-time-label {
-  font-size: 10px;
-  font-weight: 600;
-  margin-top: -2px;
-  opacity: 0.9;
-}
-
 /* Control Wrapper for Menus */
 .control-wrapper {
   position: relative;
