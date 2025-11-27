@@ -244,7 +244,23 @@ class HermesScanner:
 
             # Buscar temporades
             self._scan_seasons(series_dir, series_id, cursor, conn)
-            
+
+            # Detectar intros automàticament amb fingerprinting
+            self._detect_intros(series_id)
+
+    def _detect_intros(self, series_id: int):
+        """Detecta intros automàticament per una sèrie"""
+        try:
+            from backend.segments.fingerprint import AudioFingerprinter
+            fingerprinter = AudioFingerprinter()
+            result = fingerprinter.detect_intro_for_series(series_id)
+            if result.get("status") == "success":
+                logger.info(f"  → Intro detectada: {result['intro_start']}s - {result['intro_end']}s")
+            else:
+                logger.debug(f"  → No s'ha pogut detectar intro: {result.get('message', '')}")
+        except Exception as e:
+            logger.debug(f"  → Error detectant intros: {e}")
+
     def _scan_seasons(self, series_dir: Path, series_id: int, cursor, conn):
         """Busca temporades o episodis directes"""
         season_patterns = [

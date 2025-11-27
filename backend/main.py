@@ -862,36 +862,19 @@ class TemplateRequest(BaseModel):
 
 @app.post("/api/segments/detect/series/{series_id}")
 async def detect_segments_for_series(series_id: int):
-    """Detecta automàticament segments per tots els episodis d'una sèrie usant AniSkip"""
-    from backend.segments.detector import SegmentDetector
+    """Detecta automàticament intros per una sèrie usant audio fingerprinting"""
+    try:
+        from backend.segments.fingerprint import AudioFingerprinter
 
-    detector = SegmentDetector()
-    result = detector.detect_for_series(series_id)
+        fingerprinter = AudioFingerprinter()
+        result = fingerprinter.detect_intro_for_series(series_id)
 
-    return {
-        "status": "success",
-        "series_id": series_id,
-        "episodes_processed": result["success"] + result["failed"],
-        "success": result["success"],
-        "failed": result["failed"],
-        "details": result["episodes"]
-    }
-
-
-@app.post("/api/segments/detect/episode/{media_id}")
-async def detect_segments_for_episode(media_id: int):
-    """Detecta automàticament segments per un episodi específic usant AniSkip"""
-    from backend.segments.detector import SegmentDetector
-
-    detector = SegmentDetector()
-    segments = detector.detect_for_episode(media_id)
-
-    return {
-        "status": "success",
-        "media_id": media_id,
-        "segments_found": len(segments),
-        "segments": segments
-    }
+        return result
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error detectant intros: {e}")
+        raise HTTPException(status_code=500, detail="Error detectant intros")
 
 
 @app.post("/api/segments/template/series/{series_id}")

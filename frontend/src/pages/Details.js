@@ -55,8 +55,6 @@ function Details() {
   const [episodes, setEpisodes] = useState([]);
   const [selectedSeason, setSelectedSeason] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [detectingSegments, setDetectingSegments] = useState(false);
-  const [segmentStatus, setSegmentStatus] = useState(null);
 
   useEffect(() => {
     loadDetails();
@@ -107,38 +105,6 @@ function Details() {
       navigate(`/play/episode/${episodeId}`);
     } else if (episodes.length > 0) {
       navigate(`/play/episode/${episodes[0].id}`);
-    }
-  };
-
-  const detectSegments = async () => {
-    if (detectingSegments) return;
-
-    setDetectingSegments(true);
-    setSegmentStatus(null);
-
-    try {
-      const response = await axios.post(`/api/segments/detect/series/${id}`);
-      const data = response.data;
-
-      if (data.success > 0) {
-        setSegmentStatus({
-          type: 'success',
-          message: `Detectats segments per ${data.success} de ${data.episodes_processed} episodis`
-        });
-      } else {
-        setSegmentStatus({
-          type: 'warning',
-          message: 'No s\'han trobat segments automàtics. Potser no és anime o no està a la base de dades d\'AniSkip.'
-        });
-      }
-    } catch (error) {
-      console.error('Error detectant segments:', error);
-      setSegmentStatus({
-        type: 'error',
-        message: 'Error detectant segments. Prova-ho més tard.'
-      });
-    } finally {
-      setDetectingSegments(false);
     }
   };
 
@@ -256,22 +222,7 @@ function Details() {
               <button className="secondary-btn">
                 + La meva llista
               </button>
-              {type === 'series' && (
-                <button
-                  className={`secondary-btn ${detectingSegments ? 'loading' : ''}`}
-                  onClick={detectSegments}
-                  disabled={detectingSegments}
-                  title="Detectar timestamps d'intro/outro automàticament (per anime)"
-                >
-                  {detectingSegments ? '⏳ Detectant...' : '⏭️ Detectar intro/outro'}
-                </button>
-              )}
             </div>
-            {segmentStatus && (
-              <div className={`segment-status ${segmentStatus.type}`}>
-                {segmentStatus.message}
-              </div>
-            )}
           </div>
         </div>
       </div>
