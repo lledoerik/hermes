@@ -1,0 +1,1 @@
+# Segments detection module
