@@ -175,6 +175,8 @@ function Player() {
   const [introStart, setIntroStart] = useState(null);
   const [introEnd, setIntroEnd] = useState(null);
   const [savingIntro, setSavingIntro] = useState(false);
+  const [propagatingIntro, setPropagatingIntro] = useState(false);
+  const [propagateResult, setPropagateResult] = useState(null);
 
   // Track selections
   const [audioTracks, setAudioTracks] = useState([]);
@@ -636,6 +638,48 @@ function Player() {
     }
   };
 
+  const propagateIntroToAll = async () => {
+    if (introStart === null || introEnd === null || introStart >= introEnd) {
+      alert('Has de marcar inici i fi de la intro primer');
+      return;
+    }
+
+    if (!window.confirm(
+      'Això buscarà l\'àudio d\'aquesta intro a cada episodi de la sèrie i guardarà ' +
+      'temps individuals per cada un. Pot trigar uns minuts. Continuar?'
+    )) return;
+
+    setPropagatingIntro(true);
+    setPropagateResult(null);
+
+    try {
+      // Primer guardar la intro d'aquest episodi
+      await axios.post(`/api/segments/media/${id}`, {
+        segment_type: 'intro',
+        start_time: introStart,
+        end_time: introEnd
+      });
+
+      // Propagar a tots els episodis
+      const response = await axios.post(`/api/segments/episode/${id}/propagate`, {
+        intro_start: introStart,
+        intro_end: introEnd
+      });
+
+      setPropagateResult(response.data);
+
+      // Recarregar segments
+      const segmentsRes = await axios.get(`/api/segments/media/${id}`);
+      setSegments(segmentsRes.data || []);
+
+    } catch (error) {
+      console.error('Error propagant intro:', error);
+      setPropagateResult({ status: 'error', message: 'Error de connexió' });
+    } finally {
+      setPropagatingIntro(false);
+    }
+  };
+
   const goToNextEpisode = () => {
     if (!nextEpisode) return;
     navigate(`/play/episode/${nextEpisode.id}`);
@@ -902,7 +946,10 @@ function Player() {
           <div className="intro-editor">
             <div className="intro-editor-header">
               <h3>Editor d'Intro</h3>
-              <button className="close-editor" onClick={() => setShowIntroEditor(false)}>×</button>
+              <button className="close-editor" onClick={() => {
+                setShowIntroEditor(false);
+                setPropagateResult(null);
+              }}>×</button>
             </div>
 
             <div className="intro-editor-content">
@@ -940,17 +987,59 @@ function Player() {
                 <button onClick={() => saveIntro(false)} disabled={savingIntro}>
                   {savingIntro ? 'Guardant...' : 'Guardar'}
                 </button>
-                {item?.series_id && (
-                  <button onClick={() => saveIntro(true)} disabled={savingIntro}>
-                    Aplicar a tots
-                  </button>
-                )}
                 {segments.find(s => s.segment_type === 'intro') && (
                   <button onClick={deleteIntro} className="delete-btn">
                     Eliminar
                   </button>
                 )}
               </div>
+
+              {/* Propagació intel·ligent */}
+              {item?.series_id && (
+                <div className="intro-propagate-section">
+                  <div className="section-divider">Aplicar a tota la sèrie</div>
+                  <button
+                    onClick={propagateIntroToAll}
+                    disabled={propagatingIntro || introStart === null || introEnd === null}
+                    className="propagate-btn"
+                  >
+                    {propagatingIntro ? 'Buscant intro a cada episodi...' : 'Detectar en tots els episodis'}
+                  </button>
+                  <p className="propagate-help">
+                    Busca l'àudio d'aquesta intro a cada episodi i guarda temps individuals
+                    (gestiona cold opens i variacions)
+                  </p>
+
+                  {/* Resultats de propagació */}
+                  {propagateResult && (
+                    <div className={`propagate-result ${propagateResult.status}`}>
+                      {propagateResult.status === 'success' ? (
+                        <>
+                          <div className="result-summary">
+                            ✓ {propagateResult.episodes_found} trobats
+                            {propagateResult.episodes_not_found > 0 &&
+                              ` · ${propagateResult.episodes_not_found} sense intro`
+                            }
+                          </div>
+                          {propagateResult.details?.filter(d => d.status === 'not_found').length > 0 && (
+                            <div className="result-details">
+                              Sense intro: {propagateResult.details
+                                .filter(d => d.status === 'not_found')
+                                .map(d => `T${d.season}E${d.episode}`)
+                                .join(', ')
+                              }
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="result-error">
+                          Error: {propagateResult.message}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="intro-editor-help">
                 <p>Navega pel vídeo i marca l'inici i fi de la intro</p>
