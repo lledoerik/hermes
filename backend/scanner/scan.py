@@ -90,6 +90,33 @@ class HermesScanner:
                 FOREIGN KEY (media_id) REFERENCES media_files(id)
             )
         ''')
+
+        # Taula media_segments per saltar intro/recap/outro
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS media_segments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                media_id INTEGER,
+                series_id INTEGER,
+                segment_type TEXT NOT NULL,
+                start_time REAL NOT NULL,
+                end_time REAL NOT NULL,
+                source TEXT DEFAULT 'manual',
+                confidence REAL DEFAULT 1.0,
+                created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (media_id) REFERENCES media_files(id),
+                FOREIGN KEY (series_id) REFERENCES series(id)
+            )
+        ''')
+
+        # Index per cerques ràpides
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_segments_media
+            ON media_segments(media_id)
+        ''')
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_segments_series
+            ON media_segments(series_id)
+        ''')
         
         conn.commit()
         conn.close()

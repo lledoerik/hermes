@@ -75,6 +75,18 @@ class StreamRequest(BaseModel):
     subtitle_index: Optional[int] = None
     quality: str = "1080p"
 
+class SegmentRequest(BaseModel):
+    segment_type: str  # 'intro', 'recap', 'outro', 'credits', 'preview'
+    start_time: float
+    end_time: float
+    source: str = "manual"
+
+class SeriesSegmentRequest(BaseModel):
+    """Per aplicar segments a tota una sèrie"""
+    segment_type: str
+    start_time: float
+    end_time: float
+
 
 # === STREAMING AMB RANGE SUPPORT ===
 
@@ -672,6 +684,241 @@ async def stream_movie(movie_id: int, request: Request):
             raise HTTPException(status_code=404, detail="Arxiu no existeix")
 
         return await stream_video_with_range(file_path, request)
+
+
+# === SEGMENTS (INTRO/RECAP/OUTRO) ===
+
+@app.get("/api/segments/media/{media_id}")
+async def get_media_segments(media_id: int):
+    """Retorna els segments d'un fitxer media (episodi o pel·lícula)"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Obtenir segments específics per aquest media
+        cursor.execute("""
+            SELECT * FROM media_segments
+            WHERE media_id = ?
+            ORDER BY start_time
+        """, (media_id,))
+
+        segments = []
+        for row in cursor.fetchall():
+            segments.append({
+                "id": row["id"],
+                "segment_type": row["segment_type"],
+                "start_time": row["start_time"],
+                "end_time": row["end_time"],
+                "source": row["source"]
+            })
+
+        # Si no hi ha segments específics, buscar per sèrie
+        if not segments:
+            cursor.execute("""
+                SELECT series_id FROM media_files WHERE id = ?
+            """, (media_id,))
+            result = cursor.fetchone()
+
+            if result and result["series_id"]:
+                cursor.execute("""
+                    SELECT * FROM media_segments
+                    WHERE series_id = ? AND media_id IS NULL
+                    ORDER BY start_time
+                """, (result["series_id"],))
+
+                for row in cursor.fetchall():
+                    segments.append({
+                        "id": row["id"],
+                        "segment_type": row["segment_type"],
+                        "start_time": row["start_time"],
+                        "end_time": row["end_time"],
+                        "source": row["source"]
+                    })
+
+        return segments
+
+
+@app.post("/api/segments/media/{media_id}")
+async def save_media_segment(media_id: int, segment: SegmentRequest):
+    """Guarda un segment per a un fitxer media específic"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Verificar que existeix el media
+        cursor.execute("SELECT id FROM media_files WHERE id = ?", (media_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Media no trobat")
+
+        # Eliminar segment existent del mateix tipus
+        cursor.execute("""
+            DELETE FROM media_segments
+            WHERE media_id = ? AND segment_type = ?
+        """, (media_id, segment.segment_type))
+
+        # Inserir nou segment
+        cursor.execute("""
+            INSERT INTO media_segments (media_id, segment_type, start_time, end_time, source)
+            VALUES (?, ?, ?, ?, ?)
+        """, (media_id, segment.segment_type, segment.start_time, segment.end_time, segment.source))
+
+        conn.commit()
+        return {"status": "success", "message": f"Segment {segment.segment_type} guardat"}
+
+
+@app.post("/api/segments/series/{series_id}")
+async def save_series_segment(series_id: int, segment: SeriesSegmentRequest):
+    """Guarda un segment per a tota una sèrie (s'aplica a tots els episodis)"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Verificar que existeix la sèrie
+        cursor.execute("SELECT id FROM series WHERE id = ?", (series_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Sèrie no trobada")
+
+        # Eliminar segment existent del mateix tipus per la sèrie
+        cursor.execute("""
+            DELETE FROM media_segments
+            WHERE series_id = ? AND media_id IS NULL AND segment_type = ?
+        """, (series_id, segment.segment_type))
+
+        # Inserir nou segment per la sèrie
+        cursor.execute("""
+            INSERT INTO media_segments (series_id, segment_type, start_time, end_time, source)
+            VALUES (?, ?, ?, ?, 'manual')
+        """, (series_id, segment.segment_type, segment.start_time, segment.end_time))
+
+        conn.commit()
+        return {"status": "success", "message": f"Segment {segment.segment_type} guardat per la sèrie"}
+
+
+@app.delete("/api/segments/{segment_id}")
+async def delete_segment(segment_id: int):
+    """Elimina un segment"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM media_segments WHERE id = ?", (segment_id,))
+        conn.commit()
+        return {"status": "success"}
+
+
+@app.get("/api/library/episodes/{episode_id}/next")
+async def get_next_episode(episode_id: int):
+    """Retorna el següent episodi d'una sèrie"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Obtenir info de l'episodi actual
+        cursor.execute("""
+            SELECT series_id, season_number, episode_number
+            FROM media_files WHERE id = ?
+        """, (episode_id,))
+        current = cursor.fetchone()
+
+        if not current:
+            raise HTTPException(status_code=404, detail="Episodi no trobat")
+
+        # Buscar següent episodi (mateixa temporada)
+        cursor.execute("""
+            SELECT id, season_number, episode_number, title
+            FROM media_files
+            WHERE series_id = ? AND season_number = ? AND episode_number > ?
+            ORDER BY episode_number
+            LIMIT 1
+        """, (current["series_id"], current["season_number"], current["episode_number"]))
+
+        next_ep = cursor.fetchone()
+
+        # Si no hi ha més episodis en aquesta temporada, buscar primera de la següent
+        if not next_ep:
+            cursor.execute("""
+                SELECT id, season_number, episode_number, title
+                FROM media_files
+                WHERE series_id = ? AND season_number > ?
+                ORDER BY season_number, episode_number
+                LIMIT 1
+            """, (current["series_id"], current["season_number"]))
+            next_ep = cursor.fetchone()
+
+        if not next_ep:
+            return None
+
+        return {
+            "id": next_ep["id"],
+            "season_number": next_ep["season_number"],
+            "episode_number": next_ep["episode_number"],
+            "title": next_ep["title"]
+        }
+
+
+# === AUTO-DETECTION DE SEGMENTS ===
+
+class TemplateRequest(BaseModel):
+    """Per aplicar template de segments a una sèrie"""
+    intro_start: Optional[float] = None
+    intro_end: Optional[float] = None
+    outro_start: Optional[float] = None  # Pot ser negatiu (des del final)
+    outro_end: Optional[float] = None
+
+
+@app.post("/api/segments/detect/series/{series_id}")
+async def detect_segments_for_series(series_id: int):
+    """Detecta automàticament segments per tots els episodis d'una sèrie usant AniSkip"""
+    from backend.segments.detector import SegmentDetector
+
+    detector = SegmentDetector()
+    result = detector.detect_for_series(series_id)
+
+    return {
+        "status": "success",
+        "series_id": series_id,
+        "episodes_processed": result["success"] + result["failed"],
+        "success": result["success"],
+        "failed": result["failed"],
+        "details": result["episodes"]
+    }
+
+
+@app.post("/api/segments/detect/episode/{media_id}")
+async def detect_segments_for_episode(media_id: int):
+    """Detecta automàticament segments per un episodi específic usant AniSkip"""
+    from backend.segments.detector import SegmentDetector
+
+    detector = SegmentDetector()
+    segments = detector.detect_for_episode(media_id)
+
+    return {
+        "status": "success",
+        "media_id": media_id,
+        "segments_found": len(segments),
+        "segments": segments
+    }
+
+
+@app.post("/api/segments/template/series/{series_id}")
+async def apply_segment_template(series_id: int, template: TemplateRequest):
+    """Aplica una plantilla de timestamps a tots els episodis d'una sèrie
+
+    Útil quan l'intro sempre comença i acaba al mateix temps.
+    Exemple: intro_start=0, intro_end=90 per una intro de 90 segons
+    Per l'outro, es poden usar valors negatius per indicar des del final:
+    outro_start=-90, outro_end=0 significa els últims 90 segons
+    """
+    from backend.segments.detector import SegmentDetector
+
+    detector = SegmentDetector()
+    updated = detector.apply_template_to_series(
+        series_id,
+        intro_start=template.intro_start,
+        intro_end=template.intro_end,
+        outro_start=template.outro_start,
+        outro_end=template.outro_end
+    )
+
+    return {
+        "status": "success",
+        "series_id": series_id,
+        "episodes_updated": updated
+    }
 
 
 if __name__ == "__main__":
