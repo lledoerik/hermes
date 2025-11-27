@@ -23,14 +23,14 @@ const PauseIcon = () => (
 );
 
 const SkipBackIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" fill="currentColor" stroke="none"/>
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M11.99 5V1l-5 4 5 4V5.5c3.25 0 6 2.75 6 6s-2.75 6-6 6-6-2.75-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
   </svg>
 );
 
 const SkipForwardIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z" fill="currentColor" stroke="none"/>
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12.01 5V1l5 4-5 4V5.5c-3.25 0-6 2.75-6 6s2.75 6 6 6 6-2.75 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/>
   </svg>
 );
 
@@ -305,13 +305,14 @@ function Player() {
     if (controlsTimeoutRef.current) {
       clearTimeout(controlsTimeoutRef.current);
     }
-    if (isPlaying) {
+    // No amagar si hi ha algun menú obert o si el vídeo està pausat
+    if (isPlaying && !showAudioMenu && !showSubtitleMenu && !showSpeedMenu) {
       controlsTimeoutRef.current = setTimeout(() => {
         setShowControls(false);
         closeAllMenus();
       }, 3000);
     }
-  }, [isPlaying]);
+  }, [isPlaying, showAudioMenu, showSubtitleMenu, showSpeedMenu]);
 
   const handleMouseMove = () => {
     showControlsTemporarily();
@@ -319,10 +320,11 @@ function Player() {
 
   const togglePlay = () => {
     if (!videoRef.current) return;
-    if (isPlaying) {
-      videoRef.current.pause();
-    } else {
+    // Utilitzar videoRef.current.paused directament és més fiable que l'estat
+    if (videoRef.current.paused) {
       videoRef.current.play();
+    } else {
+      videoRef.current.pause();
     }
   };
 
@@ -376,8 +378,17 @@ function Player() {
     const isControlElement = target.closest('.player-controls') ||
                             target.closest('.control-btn') ||
                             target.closest('.control-menu') ||
-                            target.closest('.back-btn');
-    if (isControlElement) return;
+                            target.closest('.back-btn') ||
+                            target.closest('.skip-segment-btn') ||
+                            target.closest('.next-episode-btn');
+
+    if (isControlElement) {
+      // Si toquem un control, cancel·lar qualsevol timeout d'amagar
+      if (controlsTimeoutRef.current) {
+        clearTimeout(controlsTimeoutRef.current);
+      }
+      return;
+    }
 
     const now = Date.now();
     const timeDiff = now - lastTapRef.current;
@@ -389,7 +400,7 @@ function Player() {
     const zone = touchX < containerWidth * 0.33 ? 'left' : touchX > containerWidth * 0.66 ? 'right' : 'center';
 
     if (timeDiff < 300 && timeDiff > 0) {
-      // Doble toc - NO mostrar la barra, només fer l'acció
+      // Doble toc - fer l'acció sense mostrar/amagar la barra
       clearTimeout(tapTimeoutRef.current);
       lastTapRef.current = 0;
 
@@ -403,6 +414,7 @@ function Player() {
         togglePlay();
         showSkipIndicator('center');
       }
+      // NO canviar l'estat de showControls en doble toc
     } else {
       // Primer toc - esperar per veure si és doble
       lastTapRef.current = now;
