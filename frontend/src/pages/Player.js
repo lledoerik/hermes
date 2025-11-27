@@ -90,6 +90,12 @@ const BackIcon = () => (
   </svg>
 );
 
+const EpisodesIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2z"/>
+  </svg>
+);
+
 // Funció per obtenir el nom de l'idioma
 const getLanguageName = (lang) => {
   if (!lang) return 'Desconegut';
@@ -146,10 +152,13 @@ function Player() {
   const [showAudioMenu, setShowAudioMenu] = useState(false);
   const [showSubtitleMenu, setShowSubtitleMenu] = useState(false);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+  const [showEpisodesMenu, setShowEpisodesMenu] = useState(false);
 
   // Segments (intro, recap, outro) i next episode
   const [segments, setSegments] = useState([]);
   const [nextEpisode, setNextEpisode] = useState(null);
+  const [prevEpisode, setPrevEpisode] = useState(null);
+  const [seriesEpisodes, setSeriesEpisodes] = useState([]);
   const [activeSegment, setActiveSegment] = useState(null);
   const [showNextEpisode, setShowNextEpisode] = useState(false);
 
@@ -279,13 +288,33 @@ function Player() {
         console.log('No hi ha segments definits');
       }
 
-      // Carregar següent episodi (només per sèries)
-      if (type === 'episode') {
+      // Carregar navegació d'episodis (només per sèries)
+      if (type === 'episode' && response.data.series_id) {
+        const seriesId = response.data.series_id;
+        const seasonNum = response.data.season_number;
+
+        // Carregar següent episodi
         try {
           const nextRes = await axios.get(`/api/library/episodes/${id}/next`);
           setNextEpisode(nextRes.data);
         } catch (e) {
           console.log('No hi ha següent episodi');
+        }
+
+        // Carregar episodi anterior
+        try {
+          const prevRes = await axios.get(`/api/library/episodes/${id}/prev`);
+          setPrevEpisode(prevRes.data);
+        } catch (e) {
+          console.log('No hi ha episodi anterior');
+        }
+
+        // Carregar tots els episodis de la temporada
+        try {
+          const episodesRes = await axios.get(`/api/library/series/${seriesId}/seasons/${seasonNum}/episodes`);
+          setSeriesEpisodes(episodesRes.data || []);
+        } catch (e) {
+          console.log('No s\'han pogut carregar els episodis');
         }
       }
     } catch (error) {
@@ -303,6 +332,7 @@ function Player() {
     setShowAudioMenu(false);
     setShowSubtitleMenu(false);
     setShowSpeedMenu(false);
+    setShowEpisodesMenu(false);
   };
 
   const showControlsTemporarily = useCallback(() => {
@@ -464,7 +494,7 @@ function Player() {
   };
 
   // Funcions per saltar segments
-  const skipSegment = () => {
+  const skipIntro = () => {
     if (!videoRef.current || !activeSegment) return;
     videoRef.current.currentTime = activeSegment.end_time;
     setActiveSegment(null);
@@ -475,16 +505,10 @@ function Player() {
     navigate(`/play/episode/${nextEpisode.id}`);
   };
 
-  // Obtenir el text del botó segons el tipus de segment
-  const getSkipButtonText = (segmentType) => {
-    switch (segmentType) {
-      case 'intro': return 'Saltar intro';
-      case 'recap': return 'Saltar resum';
-      case 'outro': return 'Saltar crèdits';
-      case 'credits': return 'Saltar crèdits';
-      case 'preview': return 'Saltar preview';
-      default: return 'Saltar';
-    }
+  const goToPrevEpisode = () => {
+    // Implementar navegació a episodi anterior
+    if (!item?.series_id) return;
+    // Buscar episodi anterior via API
   };
 
   const [isDragging, setIsDragging] = useState(false);
@@ -714,25 +738,20 @@ function Player() {
           </div>
         )}
 
-        {/* Botons de saltar segments (intro, recap, outro) */}
-        {activeSegment && (
-          <button className="skip-segment-btn" onClick={skipSegment}>
-            {getSkipButtonText(activeSegment.segment_type)}
+        {/* Botó Saltar Intro - només quan hi ha intro activa */}
+        {activeSegment && activeSegment.segment_type === 'intro' && (
+          <button className="skip-segment-btn" onClick={skipIntro}>
+            Saltar intro
             <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
               <path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/>
             </svg>
           </button>
         )}
 
-        {/* Botó següent capítol */}
+        {/* Botó següent capítol - visible quan s'acosta al final */}
         {showNextEpisode && nextEpisode && (
           <button className="next-episode-btn" onClick={goToNextEpisode}>
-            <div className="next-episode-info">
-              <span className="next-label">Següent capítol</span>
-              <span className="next-title">
-                T{nextEpisode.season_number} E{nextEpisode.episode_number}: {nextEpisode.title}
-              </span>
-            </div>
+            Següent capítol
             <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
               <path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/>
             </svg>
@@ -944,6 +963,46 @@ function Player() {
                     </div>
                   )}
                 </div>
+
+                {/* Episodes Button (només per sèries) */}
+                {type === 'episode' && seriesEpisodes.length > 0 && (
+                  <div className="control-wrapper">
+                    <button
+                      className={`control-btn ${showEpisodesMenu ? 'active' : ''}`}
+                      onClick={() => {
+                        const wasOpen = showEpisodesMenu;
+                        closeAllMenus();
+                        if (!wasOpen) setShowEpisodesMenu(true);
+                      }}
+                      title="Capítols"
+                    >
+                      <EpisodesIcon />
+                    </button>
+                    {showEpisodesMenu && (
+                      <div className="control-menu episodes-menu">
+                        <div className="menu-header">
+                          Temporada {item?.season_number}
+                        </div>
+                        {seriesEpisodes.map((ep) => (
+                          <div
+                            key={ep.id}
+                            className={`menu-item ${ep.id === parseInt(id) ? 'selected current' : ''}`}
+                            onClick={() => {
+                              if (ep.id !== parseInt(id)) {
+                                navigate(`/play/episode/${ep.id}`);
+                              }
+                              setShowEpisodesMenu(false);
+                            }}
+                          >
+                            {ep.id === parseInt(id) && <span className="check-icon">▶</span>}
+                            <span className="episode-num">{ep.episode_number}.</span>
+                            <span className="episode-title">{ep.title || `Episodi ${ep.episode_number}`}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Fullscreen Button */}
                 <button className="control-btn" onClick={toggleFullscreen}>
