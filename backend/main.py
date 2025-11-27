@@ -850,6 +850,77 @@ async def get_next_episode(episode_id: int):
         }
 
 
+# === AUTO-DETECTION DE SEGMENTS ===
+
+class TemplateRequest(BaseModel):
+    """Per aplicar template de segments a una sèrie"""
+    intro_start: Optional[float] = None
+    intro_end: Optional[float] = None
+    outro_start: Optional[float] = None  # Pot ser negatiu (des del final)
+    outro_end: Optional[float] = None
+
+
+@app.post("/api/segments/detect/series/{series_id}")
+async def detect_segments_for_series(series_id: int):
+    """Detecta automàticament segments per tots els episodis d'una sèrie usant AniSkip"""
+    from backend.segments.detector import SegmentDetector
+
+    detector = SegmentDetector()
+    result = detector.detect_for_series(series_id)
+
+    return {
+        "status": "success",
+        "series_id": series_id,
+        "episodes_processed": result["success"] + result["failed"],
+        "success": result["success"],
+        "failed": result["failed"],
+        "details": result["episodes"]
+    }
+
+
+@app.post("/api/segments/detect/episode/{media_id}")
+async def detect_segments_for_episode(media_id: int):
+    """Detecta automàticament segments per un episodi específic usant AniSkip"""
+    from backend.segments.detector import SegmentDetector
+
+    detector = SegmentDetector()
+    segments = detector.detect_for_episode(media_id)
+
+    return {
+        "status": "success",
+        "media_id": media_id,
+        "segments_found": len(segments),
+        "segments": segments
+    }
+
+
+@app.post("/api/segments/template/series/{series_id}")
+async def apply_segment_template(series_id: int, template: TemplateRequest):
+    """Aplica una plantilla de timestamps a tots els episodis d'una sèrie
+
+    Útil quan l'intro sempre comença i acaba al mateix temps.
+    Exemple: intro_start=0, intro_end=90 per una intro de 90 segons
+    Per l'outro, es poden usar valors negatius per indicar des del final:
+    outro_start=-90, outro_end=0 significa els últims 90 segons
+    """
+    from backend.segments.detector import SegmentDetector
+
+    detector = SegmentDetector()
+    updated = detector.apply_template_to_series(
+        series_id,
+        intro_start=template.intro_start,
+        intro_end=template.intro_end,
+        outro_start=template.outro_start,
+        outro_end=template.outro_end
+    )
+
+    return {
+        "status": "success",
+        "series_id": series_id,
+        "episodes_updated": updated
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
