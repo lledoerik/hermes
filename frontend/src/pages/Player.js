@@ -96,6 +96,12 @@ const EpisodesIcon = () => (
   </svg>
 );
 
+const EditIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+  </svg>
+);
+
 // Funció per obtenir el nom de l'idioma
 const getLanguageName = (lang) => {
   if (!lang) return 'Desconegut';
@@ -163,6 +169,12 @@ function Player() {
   const [showSkipButton, setShowSkipButton] = useState(false);
   const [showNextEpisode, setShowNextEpisode] = useState(false);
   const skipButtonTimerRef = useRef(null);
+
+  // Editor d'intros manual
+  const [showIntroEditor, setShowIntroEditor] = useState(false);
+  const [introStart, setIntroStart] = useState(null);
+  const [introEnd, setIntroEnd] = useState(null);
+  const [savingIntro, setSavingIntro] = useState(false);
 
   // Track selections
   const [audioTracks, setAudioTracks] = useState([]);
@@ -529,6 +541,101 @@ function Player() {
     }
   };
 
+  // Funcions per l'editor d'intros
+  const toggleIntroEditor = () => {
+    if (!showIntroEditor) {
+      // Obrir editor - carregar intro existent si n'hi ha
+      const existingIntro = segments.find(s => s.segment_type === 'intro');
+      if (existingIntro) {
+        setIntroStart(existingIntro.start_time);
+        setIntroEnd(existingIntro.end_time);
+      } else {
+        setIntroStart(null);
+        setIntroEnd(null);
+      }
+    }
+    setShowIntroEditor(!showIntroEditor);
+    closeAllMenus();
+  };
+
+  const markIntroStart = () => {
+    if (videoRef.current) {
+      setIntroStart(Math.floor(videoRef.current.currentTime * 10) / 10);
+    }
+  };
+
+  const markIntroEnd = () => {
+    if (videoRef.current) {
+      setIntroEnd(Math.floor(videoRef.current.currentTime * 10) / 10);
+    }
+  };
+
+  const previewIntro = () => {
+    if (videoRef.current && introStart !== null) {
+      videoRef.current.currentTime = introStart;
+    }
+  };
+
+  const saveIntro = async (applyToAll = false) => {
+    if (introStart === null || introEnd === null || introStart >= introEnd) {
+      alert('Has de marcar inici i fi de la intro (fi > inici)');
+      return;
+    }
+
+    setSavingIntro(true);
+    try {
+      if (applyToAll && item?.series_id) {
+        // Guardar per tota la sèrie
+        await axios.post(`/api/segments/series/${item.series_id}`, {
+          segment_type: 'intro',
+          start_time: introStart,
+          end_time: introEnd
+        });
+      } else {
+        // Guardar només per aquest episodi
+        await axios.post(`/api/segments/media/${id}`, {
+          segment_type: 'intro',
+          start_time: introStart,
+          end_time: introEnd
+        });
+      }
+
+      // Recarregar segments
+      const segmentsRes = await axios.get(`/api/segments/media/${id}`);
+      setSegments(segmentsRes.data || []);
+
+      setShowIntroEditor(false);
+      alert(applyToAll ? 'Intro guardada per tots els episodis!' : 'Intro guardada!');
+    } catch (error) {
+      console.error('Error guardant intro:', error);
+      alert('Error guardant la intro');
+    } finally {
+      setSavingIntro(false);
+    }
+  };
+
+  const deleteIntro = async () => {
+    if (!window.confirm('Segur que vols eliminar la intro d\'aquest episodi?')) return;
+
+    try {
+      const existingIntro = segments.find(s => s.segment_type === 'intro');
+      if (existingIntro) {
+        await axios.delete(`/api/segments/${existingIntro.id}`);
+
+        // Recarregar segments
+        const segmentsRes = await axios.get(`/api/segments/media/${id}`);
+        setSegments(segmentsRes.data || []);
+
+        setIntroStart(null);
+        setIntroEnd(null);
+        alert('Intro eliminada!');
+      }
+    } catch (error) {
+      console.error('Error eliminant intro:', error);
+      alert('Error eliminant la intro');
+    }
+  };
+
   const goToNextEpisode = () => {
     if (!nextEpisode) return;
     navigate(`/play/episode/${nextEpisode.id}`);
@@ -790,6 +897,68 @@ function Player() {
           </button>
         )}
 
+        {/* Editor d'intros */}
+        {showIntroEditor && (
+          <div className="intro-editor">
+            <div className="intro-editor-header">
+              <h3>Editor d'Intro</h3>
+              <button className="close-editor" onClick={() => setShowIntroEditor(false)}>×</button>
+            </div>
+
+            <div className="intro-editor-content">
+              <div className="intro-times">
+                <div className="time-field">
+                  <label>Inici:</label>
+                  <span className="time-value">
+                    {introStart !== null ? formatTime(introStart) : '--:--'}
+                  </span>
+                  <button onClick={markIntroStart} className="mark-btn">
+                    Marcar actual
+                  </button>
+                </div>
+                <div className="time-field">
+                  <label>Fi:</label>
+                  <span className="time-value">
+                    {introEnd !== null ? formatTime(introEnd) : '--:--'}
+                  </span>
+                  <button onClick={markIntroEnd} className="mark-btn">
+                    Marcar actual
+                  </button>
+                </div>
+              </div>
+
+              {introStart !== null && introEnd !== null && (
+                <div className="intro-duration">
+                  Duració: {formatTime(introEnd - introStart)}
+                </div>
+              )}
+
+              <div className="intro-editor-actions">
+                <button onClick={previewIntro} disabled={introStart === null}>
+                  Previsualitzar
+                </button>
+                <button onClick={() => saveIntro(false)} disabled={savingIntro}>
+                  {savingIntro ? 'Guardant...' : 'Guardar'}
+                </button>
+                {item?.series_id && (
+                  <button onClick={() => saveIntro(true)} disabled={savingIntro}>
+                    Aplicar a tots
+                  </button>
+                )}
+                {segments.find(s => s.segment_type === 'intro') && (
+                  <button onClick={deleteIntro} className="delete-btn">
+                    Eliminar
+                  </button>
+                )}
+              </div>
+
+              <div className="intro-editor-help">
+                <p>Navega pel vídeo i marca l'inici i fi de la intro</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Controls només visibles quan el vídeo està llest */}
         {videoReady && (
           <div className={`player-controls ${showControls ? 'visible' : 'hidden'}`}>
@@ -1034,6 +1203,17 @@ function Player() {
                       </div>
                     )}
                   </div>
+                )}
+
+                {/* Edit Intro Button (només per episodis) */}
+                {type === 'episode' && (
+                  <button
+                    className={`control-btn ${showIntroEditor ? 'active' : ''}`}
+                    onClick={toggleIntroEditor}
+                    title="Editar intro"
+                  >
+                    <EditIcon />
+                  </button>
                 )}
 
                 {/* Fullscreen Button */}
