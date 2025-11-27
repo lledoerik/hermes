@@ -142,6 +142,12 @@ function Player() {
   const [showSubtitleMenu, setShowSubtitleMenu] = useState(false);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
 
+  // Segments (intro, recap, outro) i next episode
+  const [segments, setSegments] = useState([]);
+  const [nextEpisode, setNextEpisode] = useState(null);
+  const [activeSegment, setActiveSegment] = useState(null);
+  const [showNextEpisode, setShowNextEpisode] = useState(false);
+
   // Track selections
   const [audioTracks, setAudioTracks] = useState([]);
   const [subtitleTracks, setSubtitleTracks] = useState([]);
@@ -254,6 +260,27 @@ function Player() {
           }
         } catch (e) {
           console.error('Error parsing subtitles:', e);
+        }
+      }
+
+      // Carregar segments (intro, recap, outro)
+      try {
+        const mediaId = type === 'episode' ? id : response.data.media_id;
+        if (mediaId) {
+          const segmentsRes = await axios.get(`/api/segments/media/${mediaId}`);
+          setSegments(segmentsRes.data || []);
+        }
+      } catch (e) {
+        console.log('No hi ha segments definits');
+      }
+
+      // Carregar següent episodi (només per sèries)
+      if (type === 'episode') {
+        try {
+          const nextRes = await axios.get(`/api/library/episodes/${id}/next`);
+          setNextEpisode(nextRes.data);
+        } catch (e) {
+          console.log('No hi ha següent episodi');
         }
       }
     } catch (error) {
@@ -394,16 +421,53 @@ function Player() {
 
   const handleTimeUpdate = () => {
     if (!videoRef.current) return;
-    setCurrentTime(videoRef.current.currentTime);
+    const time = videoRef.current.currentTime;
+    setCurrentTime(time);
 
     if (videoRef.current.buffered.length > 0) {
       setBuffered(videoRef.current.buffered.end(videoRef.current.buffered.length - 1));
+    }
+
+    // Detectar segment actiu (intro, recap, outro)
+    const active = segments.find(s => time >= s.start_time && time < s.end_time);
+    setActiveSegment(active || null);
+
+    // Mostrar "Següent capítol" quan estem als últims 30 segons o després de l'outro
+    if (duration > 0 && nextEpisode) {
+      const outroSegment = segments.find(s => s.segment_type === 'outro' || s.segment_type === 'credits');
+      const isInOutro = outroSegment && time >= outroSegment.start_time;
+      const isNearEnd = time >= duration - 30;
+      setShowNextEpisode(isInOutro || isNearEnd);
     }
   };
 
   const handleLoadedMetadata = () => {
     if (!videoRef.current) return;
     setDuration(videoRef.current.duration);
+  };
+
+  // Funcions per saltar segments
+  const skipSegment = () => {
+    if (!videoRef.current || !activeSegment) return;
+    videoRef.current.currentTime = activeSegment.end_time;
+    setActiveSegment(null);
+  };
+
+  const goToNextEpisode = () => {
+    if (!nextEpisode) return;
+    navigate(`/play/episode/${nextEpisode.id}`);
+  };
+
+  // Obtenir el text del botó segons el tipus de segment
+  const getSkipButtonText = (segmentType) => {
+    switch (segmentType) {
+      case 'intro': return 'Saltar intro';
+      case 'recap': return 'Saltar resum';
+      case 'outro': return 'Saltar crèdits';
+      case 'credits': return 'Saltar crèdits';
+      case 'preview': return 'Saltar preview';
+      default: return 'Saltar';
+    }
   };
 
   const [isDragging, setIsDragging] = useState(false);
@@ -631,6 +695,31 @@ function Player() {
             {skipIndicator === 'right' && <SkipForwardIcon />}
             {skipIndicator === 'center' && (isPlaying ? <PauseIcon /> : <PlayIcon />)}
           </div>
+        )}
+
+        {/* Botons de saltar segments (intro, recap, outro) */}
+        {activeSegment && (
+          <button className="skip-segment-btn" onClick={skipSegment}>
+            {getSkipButtonText(activeSegment.segment_type)}
+            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+              <path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/>
+            </svg>
+          </button>
+        )}
+
+        {/* Botó següent capítol */}
+        {showNextEpisode && nextEpisode && (
+          <button className="next-episode-btn" onClick={goToNextEpisode}>
+            <div className="next-episode-info">
+              <span className="next-label">Següent capítol</span>
+              <span className="next-title">
+                T{nextEpisode.season_number} E{nextEpisode.episode_number}: {nextEpisode.title}
+              </span>
+            </div>
+            <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+              <path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/>
+            </svg>
+          </button>
         )}
 
         {/* Controls només visibles quan el vídeo està llest */}
