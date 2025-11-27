@@ -867,6 +867,34 @@ async def cleanup_segments(min_confidence: float = 0.7):
         }
 
 
+class PropagateIntroRequest(BaseModel):
+    intro_start: float
+    intro_end: float
+
+
+@app.post("/api/segments/episode/{episode_id}/propagate")
+async def propagate_intro(episode_id: int, request: PropagateIntroRequest, background_tasks: BackgroundTasks):
+    """
+    Propaga una intro marcada manualment a tots els episodis de la sèrie.
+
+    Busca l'àudio de la intro de referència a cada episodi individualment,
+    gestionant cold opens i variacions de timing.
+    """
+    from backend.segments.fingerprint import AudioFingerprinter
+
+    try:
+        fingerprinter = AudioFingerprinter()
+        result = fingerprinter.propagate_intro_to_episodes(
+            episode_id,
+            request.intro_start,
+            request.intro_end
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error propagant intro: {e}")
+        return {"status": "error", "message": str(e)}
+
+
 @app.get("/api/library/episodes/{episode_id}/next")
 async def get_next_episode(episode_id: int):
     """Retorna el següent episodi d'una sèrie"""
