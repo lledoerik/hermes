@@ -190,8 +190,11 @@ function Admin() {
       });
       const r = response.data.results;
       if (r) {
-        addLog('success', `Pel·lícules: ${r.movies?.updated || 0} actualitzades`);
-        addLog('success', `Sèries: ${r.series?.updated || 0} actualitzades`);
+        if (!r.tmdb_configured) {
+          addLog('warning', 'Clau TMDB no configurada - no es descarregaran posters de pel·lícules/sèries');
+        }
+        addLog('success', `Pel·lícules: ${r.movies?.updated || 0} actualitzades (${r.movies?.processed || 0} processades)`);
+        addLog('success', `Sèries: ${r.series?.updated || 0} actualitzades (${r.series?.processed || 0} processades)`);
         addLog('success', `Llibres: ${r.books?.updated || 0} actualitzats`);
         addLog('success', `Audiollibres: ${r.audiobooks?.updated || 0} actualitzats`);
         const errors = (r.movies?.errors || 0) + (r.series?.errors || 0) + (r.books?.errors || 0) + (r.audiobooks?.errors || 0);
