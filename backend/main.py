@@ -2017,7 +2017,11 @@ async def fetch_all_metadata(request: MetadataRequest, background_tasks: Backgro
         ol_client = OpenLibraryClient()
         try:
             with get_db() as conn:
-                books = conn.execute("SELECT id, title, author_name, file_path FROM books").fetchall()
+                books = conn.execute("""
+                    SELECT b.id, b.title, b.file_path, a.name as author_name
+                    FROM books b
+                    LEFT JOIN authors a ON b.author_id = a.id
+                """).fetchall()
                 for book in books:
                     results["books"]["processed"] += 1
                     try:
@@ -2040,7 +2044,11 @@ async def fetch_all_metadata(request: MetadataRequest, background_tasks: Backgro
                         logger.error(f"Error fetching book metadata: {e}")
 
                 # Fetch for audiobooks
-                audiobooks = conn.execute("SELECT id, title, author_name, path FROM audiobooks").fetchall()
+                audiobooks = conn.execute("""
+                    SELECT ab.id, ab.title, ab.path, a.name as author_name
+                    FROM audiobooks ab
+                    LEFT JOIN authors a ON ab.author_id = a.id
+                """).fetchall()
                 for ab in audiobooks:
                     results["audiobooks"]["processed"] += 1
                     try:
@@ -2181,7 +2189,11 @@ async def fetch_books_metadata():
     try:
         with get_db() as conn:
             # Books
-            books = conn.execute("SELECT id, title, author_name, file_path FROM books").fetchall()
+            books = conn.execute("""
+                SELECT b.id, b.title, b.file_path, a.name as author_name
+                FROM books b
+                LEFT JOIN authors a ON b.author_id = a.id
+            """).fetchall()
             for book in books:
                 try:
                     book_path = Path(book["file_path"]).parent
@@ -2200,7 +2212,11 @@ async def fetch_books_metadata():
                     logger.error(f"Error fetching book metadata: {e}")
 
             # Audiobooks
-            audiobooks = conn.execute("SELECT id, title, author_name, path FROM audiobooks").fetchall()
+            audiobooks = conn.execute("""
+                SELECT ab.id, ab.title, ab.path, a.name as author_name
+                FROM audiobooks ab
+                LEFT JOIN authors a ON ab.author_id = a.id
+            """).fetchall()
             for ab in audiobooks:
                 try:
                     ab_path = Path(ab["path"])
@@ -2343,6 +2359,126 @@ async def save_tmdb_key(api_key: str = Query(...)):
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(api_key)
     return {"status": "success", "message": "API key guardada"}
+
+
+# ============================================================
+# THUMBNAILS PER EPISODIS
+# ============================================================
+
+import subprocess
+
+THUMBNAILS_DIR = settings.METADATA_DIR / "thumbnails"
+THUMBNAILS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def generate_thumbnail(video_path: Path, output_path: Path, time_percent: int = 20) -> bool:
+    """
+    Genera un thumbnail d'un vídeo a un percentatge específic de la durada.
+
+    Args:
+        video_path: Path al fitxer de vídeo
+        output_path: Path on guardar el thumbnail
+        time_percent: Percentatge de la durada del vídeo (per defecte 20%)
+
+    Returns:
+        True si s'ha generat correctament
+    """
+    try:
+        # Primer obtenim la durada del vídeo
+        probe_cmd = [
+            'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+            '-of', 'default=noprint_wrappers=1:nokey=1', str(video_path)
+        ]
+        result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=30)
+        duration = float(result.stdout.strip())
+
+        # Calculem el temps on extreure el frame
+        seek_time = (duration * time_percent) / 100
+
+        # Generem el thumbnail
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        cmd = [
+            'ffmpeg', '-y',
+            '-ss', str(seek_time),
+            '-i', str(video_path),
+            '-vframes', '1',
+            '-q:v', '3',
+            '-vf', 'scale=480:-1',
+            str(output_path)
+        ]
+
+        subprocess.run(cmd, capture_output=True, timeout=60)
+        return output_path.exists()
+
+    except Exception as e:
+        logger.error(f"Error generant thumbnail: {e}")
+        return False
+
+
+@app.get("/api/media/{media_id}/thumbnail")
+async def get_media_thumbnail(media_id: int):
+    """Retorna el thumbnail d'un episodi/pel·lícula"""
+    thumbnail_path = THUMBNAILS_DIR / f"{media_id}.jpg"
+
+    # Si existeix, retornar-lo
+    if thumbnail_path.exists():
+        return FileResponse(thumbnail_path, media_type="image/jpeg")
+
+    # Si no existeix, intentar generar-lo
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT file_path FROM media_files WHERE id = ?", (media_id,))
+        result = cursor.fetchone()
+
+        if not result:
+            raise HTTPException(status_code=404, detail="Media no trobat")
+
+        video_path = Path(result["file_path"])
+        if not video_path.exists():
+            raise HTTPException(status_code=404, detail="Fitxer no existeix")
+
+        # Generar thumbnail
+        if generate_thumbnail(video_path, thumbnail_path):
+            return FileResponse(thumbnail_path, media_type="image/jpeg")
+        else:
+            raise HTTPException(status_code=500, detail="Error generant thumbnail")
+
+
+@app.post("/api/thumbnails/generate-all")
+async def generate_all_thumbnails(background_tasks: BackgroundTasks):
+    """Genera thumbnails per tots els episodis/pel·lícules que no en tinguin"""
+
+    async def do_generate():
+        generated = 0
+        errors = 0
+        skipped = 0
+
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, file_path FROM media_files")
+
+            for row in cursor.fetchall():
+                thumbnail_path = THUMBNAILS_DIR / f"{row['id']}.jpg"
+
+                if thumbnail_path.exists():
+                    skipped += 1
+                    continue
+
+                video_path = Path(row["file_path"])
+                if not video_path.exists():
+                    errors += 1
+                    continue
+
+                if generate_thumbnail(video_path, thumbnail_path):
+                    generated += 1
+                else:
+                    errors += 1
+
+        logger.info(f"Thumbnails generats: {generated}, errors: {errors}, omesos: {skipped}")
+
+    background_tasks.add_task(do_generate)
+    return {"status": "started", "message": "Generació de thumbnails iniciada en segon pla"}
 
 
 if __name__ == "__main__":
