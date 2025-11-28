@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 import './Home.css';
 
 const API_URL = window.location.hostname === 'localhost'
@@ -29,13 +30,6 @@ const SeriesIcon = () => (
   </svg>
 );
 
-const TVIcon = () => (
-  <svg className="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect>
-    <polyline points="17 2 12 7 7 2"></polyline>
-  </svg>
-);
-
 const BookIcon = () => (
   <svg className="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
@@ -50,20 +44,61 @@ const AudiobookIcon = () => (
   </svg>
 );
 
+const PlayIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+  </svg>
+);
+
+// Missatges de benvinguda
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 6) return 'Bona nit';
+  if (hour < 12) return 'Bon dia';
+  if (hour < 20) return 'Bona tarda';
+  return 'Bona nit';
+};
+
+const getWelcomeMessage = (name) => {
+  const messages = [
+    `${getGreeting()}, ${name}! Què vols veure avui?`,
+    `Hola ${name}! Tens ganes de maratonar alguna cosa?`,
+    `${getGreeting()}, ${name}! Hermes et dona la benvinguda`,
+    `Ei ${name}! Preparat per una bona sessió?`,
+    `${getGreeting()}! Què et ve de gust, ${name}?`
+  ];
+  return messages[Math.floor(Math.random() * messages.length)];
+};
+
 function Home() {
+  const { user, isAuthenticated } = useAuth();
   const [stats, setStats] = useState(null);
+  const [continueWatching, setContinueWatching] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [welcomeMessage] = useState(() =>
+    user ? getWelcomeMessage(user.display_name || user.username) : ''
+  );
   const navigate = useNavigate();
 
   useEffect(() => {
-    loadStats();
-  }, []);
+    loadData();
+  }, [isAuthenticated]);
 
-  const loadStats = async () => {
+  const loadData = async () => {
     try {
       const statsRes = await axios.get('/api/library/stats');
       setStats(statsRes.data);
+
+      // Carregar "Continuar veient" si està autenticat
+      if (isAuthenticated) {
+        try {
+          const continueRes = await axios.get('/api/user/continue-watching');
+          setContinueWatching(continueRes.data);
+        } catch (e) {
+          console.error('Error carregant continue watching:', e);
+        }
+      }
     } catch (error) {
       console.error('Error carregant estadistiques:', error);
     } finally {
@@ -78,6 +113,14 @@ function Home() {
     }
   };
 
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    if (mins < 60) return `${mins} min`;
+    const hours = Math.floor(mins / 60);
+    const remainMins = mins % 60;
+    return `${hours}h ${remainMins}m`;
+  };
+
   if (loading) {
     return (
       <div className="loading-screen">
@@ -88,6 +131,73 @@ function Home() {
 
   return (
     <div className="home-container">
+      {/* Welcome Section for logged in users */}
+      {isAuthenticated && (
+        <section className="welcome-section">
+          <div className="welcome-content">
+            <h1 className="welcome-title">{welcomeMessage}</h1>
+            {!isAuthenticated && (
+              <Link to="/login" className="login-prompt">
+                Inicia sessió per guardar el teu progrés →
+              </Link>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* Continue Watching Section */}
+      {continueWatching.length > 0 && (
+        <section className="continue-watching-section">
+          <h2 className="section-title">
+            <span className="title-icon">▶</span>
+            Continuar veient
+          </h2>
+          <div className="continue-watching-grid">
+            {continueWatching.map((item) => (
+              <div
+                key={item.id}
+                className="continue-card"
+                onClick={() => navigate(`/play/episode/${item.id}`)}
+              >
+                <div className="continue-thumbnail">
+                  {item.backdrop || item.poster ? (
+                    <img
+                      src={`${API_URL}/api/images/series/${item.series_id}/${item.backdrop ? 'backdrop' : 'poster'}`}
+                      alt={item.series_name}
+                    />
+                  ) : (
+                    <div className="thumbnail-placeholder">
+                      <SeriesIcon />
+                    </div>
+                  )}
+                  <div className="continue-overlay">
+                    <button className="play-btn">
+                      <PlayIcon />
+                    </button>
+                  </div>
+                  <div className="progress-bar">
+                    <div
+                      className="progress-fill"
+                      style={{ width: `${item.progress_percentage}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="continue-info">
+                  <h3 className="continue-title">{item.series_name}</h3>
+                  <p className="continue-episode">
+                    T{item.season_number} E{item.episode_number}
+                    {item.title && ` - ${item.title}`}
+                  </p>
+                  <span className="continue-time">
+                    {formatTime(item.total_seconds - item.progress_seconds)} restants
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Hero Section */}
       <section className="hero-section">
         <div className="hero-bg">
@@ -148,23 +258,8 @@ function Home() {
               <div className="hover-border"></div>
             </Link>
 
-            {/* Programes */}
-            <div className="category-card inactive">
-              <div className="card-glass"></div>
-              <div className="hover-bubbles">
-                <div className="floating-bubble bubble-1 gradient-programs"></div>
-                <div className="floating-bubble bubble-2 gradient-programs"></div>
-                <div className="floating-bubble bubble-3 gradient-programs"></div>
-              </div>
-              <div className="card-content">
-                <TVIcon />
-                <h3 className="card-title">Programes</h3>
-                <span className="coming-soon">Properament</span>
-              </div>
-            </div>
-
             {/* Llibres */}
-            <div className="category-card inactive">
+            <Link to="/books" className="category-card active">
               <div className="card-glass"></div>
               <div className="hover-bubbles">
                 <div className="floating-bubble bubble-1 gradient-books"></div>
@@ -174,9 +269,10 @@ function Home() {
               <div className="card-content">
                 <BookIcon />
                 <h3 className="card-title">Llibres</h3>
-                <span className="coming-soon">Properament</span>
+                <span className="card-count">Biblioteca</span>
               </div>
-            </div>
+              <div className="hover-border"></div>
+            </Link>
 
             {/* Audiollibres */}
             <div className="category-card inactive">
@@ -192,28 +288,9 @@ function Home() {
                 <span className="coming-soon">Properament</span>
               </div>
             </div>
-
-            {/* Televisió */}
-            <div className="category-card inactive">
-              <div className="card-glass"></div>
-              <div className="hover-bubbles">
-                <div className="floating-bubble bubble-1 gradient-tv"></div>
-                <div className="floating-bubble bubble-2 gradient-tv"></div>
-                <div className="floating-bubble bubble-3 gradient-tv"></div>
-              </div>
-              <div className="card-content">
-                <svg className="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M2 8.5c0-1 0-1.5.3-1.9.2-.3.5-.5.9-.6.4-.2.9-.2 1.9-.2h13.8c1 0 1.5 0 1.9.2.4.1.7.3.9.6.3.4.3.9.3 1.9v7c0 1 0 1.5-.3 1.9-.2.3-.5.5-.9.6-.4.2-.9.2-1.9.2H5.1c-1 0-1.5 0-1.9-.2-.4-.1-.7-.3-.9-.6-.3-.4-.3-.9-.3-1.9v-7z"></path>
-                  <path d="M12 5.5v.01M8 2l4 3.5L16 2"></path>
-                </svg>
-                <h3 className="card-title">Televisió</h3>
-                <span className="coming-soon">Properament</span>
-              </div>
-            </div>
           </div>
         </div>
       </section>
-
     </div>
   );
 }

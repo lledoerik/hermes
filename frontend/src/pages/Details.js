@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import './Details.css';
@@ -56,17 +56,7 @@ function Details() {
   const [selectedSeason, setSelectedSeason] = useState(1);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadDetails();
-  }, [type, id]);
-
-  useEffect(() => {
-    if (type === 'series' && seasons.length > 0) {
-      loadEpisodes(selectedSeason);
-    }
-  }, [selectedSeason, seasons]);
-
-  const loadDetails = async () => {
+  const loadDetails = useCallback(async () => {
     try {
       if (type === 'series') {
         const [seriesRes, seasonsRes] = await Promise.all([
@@ -87,16 +77,26 @@ function Details() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [type, id]);
 
-  const loadEpisodes = async (seasonNum) => {
+  const loadEpisodes = useCallback(async (seasonNum) => {
     try {
       const response = await axios.get(`/api/library/series/${id}/seasons/${seasonNum}/episodes`);
       setEpisodes(response.data);
     } catch (error) {
       console.error('Error carregant episodis:', error);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    loadDetails();
+  }, [loadDetails]);
+
+  useEffect(() => {
+    if (type === 'series' && seasons.length > 0) {
+      loadEpisodes(selectedSeason);
+    }
+  }, [type, selectedSeason, seasons, loadEpisodes]);
 
   const handlePlay = (episodeId = null) => {
     if (type === 'movies') {

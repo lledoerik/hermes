@@ -446,3 +446,220 @@
     font-size: 16px;
   }
 }
+
+/* Welcome Section */
+.welcome-section {
+  padding: 2rem 4%;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.welcome-content {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.welcome-title {
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.login-prompt {
+  display: inline-block;
+  margin-top: 0.5rem;
+  color: rgba(255, 255, 255, 0.6);
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: color 0.3s ease;
+}
+
+.login-prompt:hover {
+  color: #667eea;
+}
+
+/* Continue Watching Section */
+.continue-watching-section {
+  padding: 2rem 4%;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 1.5rem 0;
+}
+
+.title-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.continue-watching-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.continue-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.continue-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.4);
+  border-color: rgba(102, 126, 234, 0.3);
+}
+
+.continue-thumbnail {
+  position: relative;
+  aspect-ratio: 16/9;
+  overflow: hidden;
+  background: #1a1a2e;
+}
+
+.continue-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.continue-card:hover .continue-thumbnail img {
+  transform: scale(1.05);
+}
+
+.thumbnail-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+}
+
+.thumbnail-placeholder svg {
+  width: 48px;
+  height: 48px;
+  opacity: 0.3;
+}
+
+.continue-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.continue-card:hover .continue-overlay {
+  opacity: 1;
+}
+
+.continue-overlay .play-btn {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: rgba(102, 126, 234, 0.9);
+  border: none;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.continue-overlay .play-btn:hover {
+  transform: scale(1.1);
+  background: #667eea;
+}
+
+.continue-thumbnail .progress-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.continue-thumbnail .progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+}
+
+.continue-info {
+  padding: 1rem;
+}
+
+.continue-title {
+  margin: 0 0 0.25rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.continue-episode {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.continue-time {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+@media (max-width: 768px) {
+  .welcome-section {
+    padding: 1.5rem;
+  }
+
+  .welcome-title {
+    font-size: 1.25rem;
+  }
+
+  .continue-watching-section {
+    padding: 1.5rem;
+  }
+
+  .section-title {
+    font-size: 1.25rem;
+  }
+
+  .continue-watching-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+  }
+}

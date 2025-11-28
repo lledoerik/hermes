@@ -75,6 +75,25 @@ class StreamRequest(BaseModel):
     subtitle_index: Optional[int] = None
     quality: str = "1080p"
 
+# Auth Models
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+    email: Optional[str] = None
+    display_name: Optional[str] = None
+
+class ProfileUpdateRequest(BaseModel):
+    display_name: Optional[str] = None
+    email: Optional[str] = None
+
+class PasswordChangeRequest(BaseModel):
+    old_password: str
+    new_password: str
+
 class SegmentRequest(BaseModel):
     segment_type: str  # 'intro', 'recap', 'outro', 'credits', 'preview'
     start_time: float
@@ -161,6 +180,200 @@ async def stream_video_with_range(file_path: Path, request: Request):
             headers=headers,
             media_type=content_type
         )
+
+
+# === AUTENTICACIÓ ===
+
+def get_current_user(request: Request) -> Optional[Dict]:
+    """Obté l'usuari actual del token"""
+    from backend.auth import get_auth_manager
+
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return None
+
+    token = auth_header.replace("Bearer ", "")
+    auth = get_auth_manager()
+    return auth.verify_token(token)
+
+
+def require_auth(request: Request) -> Dict:
+    """Requereix autenticació"""
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="No autenticat")
+    return user
+
+
+@app.post("/api/auth/register")
+async def register(data: RegisterRequest):
+    """Registra un nou usuari"""
+    from backend.auth import get_auth_manager
+
+    if len(data.password) < 4:
+        raise HTTPException(status_code=400, detail="La contrasenya ha de tenir mínim 4 caràcters")
+
+    auth = get_auth_manager()
+    result = auth.register(
+        username=data.username,
+        password=data.password,
+        email=data.email,
+        display_name=data.display_name
+    )
+
+    if result["status"] == "error":
+        raise HTTPException(status_code=400, detail=result["message"])
+
+    return result
+
+
+@app.post("/api/auth/login")
+async def login(data: LoginRequest):
+    """Inicia sessió"""
+    from backend.auth import get_auth_manager
+
+    auth = get_auth_manager()
+    result = auth.login(data.username, data.password)
+
+    if result["status"] == "error":
+        raise HTTPException(status_code=401, detail=result["message"])
+
+    return result
+
+
+@app.get("/api/auth/me")
+async def get_current_user_info(request: Request):
+    """Retorna informació de l'usuari actual"""
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="No autenticat")
+    return user
+
+
+@app.put("/api/auth/profile")
+async def update_profile(request: Request, data: ProfileUpdateRequest):
+    """Actualitza el perfil de l'usuari"""
+    from backend.auth import get_auth_manager
+
+    user = require_auth(request)
+    auth = get_auth_manager()
+    result = auth.update_profile(
+        user_id=user["id"],
+        display_name=data.display_name,
+        email=data.email
+    )
+
+    if result["status"] == "error":
+        raise HTTPException(status_code=400, detail=result["message"])
+
+    return result
+
+
+@app.put("/api/auth/password")
+async def change_password(request: Request, data: PasswordChangeRequest):
+    """Canvia la contrasenya"""
+    from backend.auth import get_auth_manager
+
+    user = require_auth(request)
+    auth = get_auth_manager()
+    result = auth.change_password(
+        user_id=user["id"],
+        old_password=data.old_password,
+        new_password=data.new_password
+    )
+
+    if result["status"] == "error":
+        raise HTTPException(status_code=400, detail=result["message"])
+
+    return result
+
+
+@app.get("/api/user/continue-watching")
+async def get_continue_watching(request: Request):
+    """Retorna el contingut que l'usuari està veient (per continuar)"""
+    user = get_current_user(request)
+    user_id = user["id"] if user else 1  # Default user_id 1 si no autenticat
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Obtenir episodis en progrés (no acabats)
+        cursor.execute("""
+            SELECT
+                wp.media_id,
+                wp.progress_seconds,
+                wp.total_seconds,
+                wp.last_watched,
+                mf.title as episode_title,
+                mf.season_number,
+                mf.episode_number,
+                mf.thumbnail,
+                mf.duration,
+                s.id as series_id,
+                s.name as series_name,
+                s.poster,
+                s.backdrop
+            FROM watch_progress wp
+            JOIN media_files mf ON wp.media_id = mf.id
+            LEFT JOIN series s ON mf.series_id = s.id
+            WHERE wp.user_id = ?
+            AND wp.progress_seconds > 30
+            AND (wp.total_seconds IS NULL OR wp.progress_seconds < wp.total_seconds * 0.9)
+            ORDER BY wp.last_watched DESC
+            LIMIT 20
+        """, (user_id,))
+
+        watching = []
+        for row in cursor.fetchall():
+            progress_pct = 0
+            if row["total_seconds"] and row["total_seconds"] > 0:
+                progress_pct = (row["progress_seconds"] / row["total_seconds"]) * 100
+
+            watching.append({
+                "id": row["media_id"],
+                "type": "episode" if row["series_id"] else "movie",
+                "series_id": row["series_id"],
+                "series_name": row["series_name"],
+                "title": row["episode_title"],
+                "season_number": row["season_number"],
+                "episode_number": row["episode_number"],
+                "poster": row["poster"],
+                "backdrop": row["backdrop"],
+                "thumbnail": row["thumbnail"],
+                "progress_seconds": row["progress_seconds"],
+                "total_seconds": row["total_seconds"],
+                "progress_percentage": round(progress_pct, 1),
+                "last_watched": row["last_watched"]
+            })
+
+        return watching
+
+
+@app.get("/api/user/recently-watched")
+async def get_recently_watched(request: Request, limit: int = 10):
+    """Retorna contingut vist recentment"""
+    user = get_current_user(request)
+    user_id = user["id"] if user else 1
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT DISTINCT
+                s.id as series_id,
+                s.name as series_name,
+                s.poster,
+                MAX(wp.last_watched) as last_watched
+            FROM watch_progress wp
+            JOIN media_files mf ON wp.media_id = mf.id
+            JOIN series s ON mf.series_id = s.id
+            WHERE wp.user_id = ?
+            GROUP BY s.id
+            ORDER BY last_watched DESC
+            LIMIT ?
+        """, (user_id, limit))
+
+        return [dict(row) for row in cursor.fetchall()]
 
 
 # === ENDPOINTS ===
@@ -543,6 +756,121 @@ async def get_series_seasons(series_id: int):
             })
 
         return seasons
+
+
+@app.delete("/api/library/series/{series_id}")
+async def delete_series(series_id: int):
+    """
+    Elimina una sèrie i tots els seus episodis de la base de dades.
+    No elimina els fitxers del disc, només de la BD.
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Verificar que existeix
+        cursor.execute("SELECT name FROM series WHERE id = ?", (series_id,))
+        series = cursor.fetchone()
+        if not series:
+            raise HTTPException(status_code=404, detail="Sèrie no trobada")
+
+        series_name = series["name"]
+
+        # Obtenir IDs dels episodis per eliminar segments i progress
+        cursor.execute("SELECT id FROM media_files WHERE series_id = ?", (series_id,))
+        episode_ids = [row["id"] for row in cursor.fetchall()]
+
+        # Eliminar segments dels episodis
+        if episode_ids:
+            placeholders = ",".join("?" * len(episode_ids))
+            cursor.execute(f"DELETE FROM media_segments WHERE media_id IN ({placeholders})", episode_ids)
+            cursor.execute(f"DELETE FROM watch_progress WHERE media_id IN ({placeholders})", episode_ids)
+
+        # Eliminar segments de la sèrie
+        cursor.execute("DELETE FROM media_segments WHERE series_id = ?", (series_id,))
+
+        # Eliminar episodis
+        cursor.execute("DELETE FROM media_files WHERE series_id = ?", (series_id,))
+        episodes_deleted = cursor.rowcount
+
+        # Eliminar sèrie
+        cursor.execute("DELETE FROM series WHERE id = ?", (series_id,))
+
+        conn.commit()
+
+        return {
+            "status": "success",
+            "message": f"Sèrie '{series_name}' eliminada",
+            "episodes_deleted": episodes_deleted
+        }
+
+
+@app.post("/api/library/cleanup")
+async def cleanup_library():
+    """
+    Neteja la biblioteca eliminant sèries i episodis que ja no existeixen al disc.
+    """
+    import os
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        stats = {
+            "series_removed": 0,
+            "episodes_removed": 0,
+            "series_details": []
+        }
+
+        # Buscar sèries amb paths que no existeixen
+        cursor.execute("SELECT id, name, path FROM series")
+        series_list = cursor.fetchall()
+
+        for series in series_list:
+            if not os.path.exists(series["path"]):
+                # La carpeta de la sèrie no existeix, eliminar-la
+                series_id = series["id"]
+                series_name = series["name"]
+
+                # Obtenir IDs dels episodis
+                cursor.execute("SELECT id FROM media_files WHERE series_id = ?", (series_id,))
+                episode_ids = [row["id"] for row in cursor.fetchall()]
+
+                # Eliminar segments i progress
+                if episode_ids:
+                    placeholders = ",".join("?" * len(episode_ids))
+                    cursor.execute(f"DELETE FROM media_segments WHERE media_id IN ({placeholders})", episode_ids)
+                    cursor.execute(f"DELETE FROM watch_progress WHERE media_id IN ({placeholders})", episode_ids)
+
+                cursor.execute("DELETE FROM media_segments WHERE series_id = ?", (series_id,))
+                cursor.execute("DELETE FROM media_files WHERE series_id = ?", (series_id,))
+                episodes_count = cursor.rowcount
+                cursor.execute("DELETE FROM series WHERE id = ?", (series_id,))
+
+                stats["series_removed"] += 1
+                stats["episodes_removed"] += episodes_count
+                stats["series_details"].append({
+                    "name": series_name,
+                    "episodes_removed": episodes_count
+                })
+
+                logger.info(f"Netejat: {series_name} ({episodes_count} episodis)")
+
+        # També buscar episodis orfes (fitxers que no existeixen)
+        cursor.execute("SELECT id, file_path, series_id FROM media_files")
+        for media in cursor.fetchall():
+            if not os.path.exists(media["file_path"]):
+                media_id = media["id"]
+                cursor.execute("DELETE FROM media_segments WHERE media_id = ?", (media_id,))
+                cursor.execute("DELETE FROM watch_progress WHERE media_id = ?", (media_id,))
+                cursor.execute("DELETE FROM media_files WHERE id = ?", (media_id,))
+                stats["episodes_removed"] += 1
+
+        conn.commit()
+
+        return {
+            "status": "success",
+            "message": f"Neteja completada: {stats['series_removed']} sèries i {stats['episodes_removed']} episodis eliminats",
+            **stats
+        }
 
 
 @app.get("/api/library/series/{series_id}/seasons/{season_number}/episodes")
@@ -1105,6 +1433,239 @@ async def detect_intros_series_v2(series_id: int):
     except Exception as e:
         logger.error(f"Error detectant intros v2: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# BIBLIOTECA DE LLIBRES
+# ============================================================
+
+@app.get("/api/books/authors")
+async def get_authors():
+    """Retorna tots els autors"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT a.*, COUNT(b.id) as book_count
+            FROM authors a
+            LEFT JOIN books b ON a.id = b.author_id
+            GROUP BY a.id
+            ORDER BY a.name
+        """)
+        authors = [dict(row) for row in cursor.fetchall()]
+        return authors
+
+
+@app.get("/api/books/authors/{author_id}")
+async def get_author_detail(author_id: int):
+    """Retorna detalls d'un autor i els seus llibres"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT * FROM authors WHERE id = ?", (author_id,))
+        author = cursor.fetchone()
+        if not author:
+            raise HTTPException(status_code=404, detail="Autor no trobat")
+
+        cursor.execute("""
+            SELECT * FROM books WHERE author_id = ?
+            ORDER BY title
+        """, (author_id,))
+        books = [dict(row) for row in cursor.fetchall()]
+
+        return {
+            **dict(author),
+            "books": books
+        }
+
+
+@app.get("/api/books")
+async def get_all_books():
+    """Retorna tots els llibres"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT b.*, a.name as author_name
+            FROM books b
+            LEFT JOIN authors a ON b.author_id = a.id
+            ORDER BY b.title
+        """)
+        books = [dict(row) for row in cursor.fetchall()]
+        return books
+
+
+@app.get("/api/books/{book_id}")
+async def get_book_detail(book_id: int):
+    """Retorna detalls d'un llibre"""
+    from backend.books.reader import BookReader
+
+    reader = BookReader()
+    book = reader.get_book_info(book_id)
+
+    if not book:
+        raise HTTPException(status_code=404, detail="Llibre no trobat")
+
+    # Afegir progrés de lectura
+    progress = reader.get_reading_progress(book_id)
+    book['reading_progress'] = progress
+
+    return book
+
+
+@app.get("/api/books/{book_id}/content")
+async def get_book_content(book_id: int):
+    """Retorna el contingut estructurat d'un llibre (per EPUB)"""
+    from backend.books.reader import BookReader
+
+    reader = BookReader()
+    content_type, file_path = reader.get_book_content_type(book_id)
+
+    if not file_path:
+        raise HTTPException(status_code=404, detail="Llibre no trobat")
+
+    if content_type == 'epub':
+        content = reader.get_epub_content(book_id)
+        if content:
+            return {"type": "epub", "content": content}
+
+    elif content_type == 'pdf':
+        return {"type": "pdf", "file_path": file_path}
+
+    raise HTTPException(status_code=400, detail=f"Format {content_type} no suportat per visualització")
+
+
+@app.get("/api/books/{book_id}/resource/{resource_path:path}")
+async def get_book_resource(book_id: int, resource_path: str):
+    """Serveix un recurs d'un EPUB (HTML, CSS, imatges)"""
+    from backend.books.reader import BookReader
+
+    reader = BookReader()
+    content, mime_type = reader.get_epub_resource(book_id, resource_path)
+
+    if content is None:
+        raise HTTPException(status_code=404, detail="Recurs no trobat")
+
+    return Response(content=content, media_type=mime_type)
+
+
+@app.get("/api/books/{book_id}/file")
+async def get_book_file(book_id: int):
+    """Serveix el fitxer del llibre directament (per PDF viewer)"""
+    from backend.books.reader import BookReader
+
+    reader = BookReader()
+    book = reader.get_book_info(book_id)
+
+    if not book:
+        raise HTTPException(status_code=404, detail="Llibre no trobat")
+
+    file_path = book['file_path']
+
+    # Si és MOBI/AZW i tenim versió convertida, servir l'EPUB
+    if book['format'] in ['mobi', 'azw', 'azw3'] and book.get('converted_path'):
+        if os.path.exists(book['converted_path']):
+            file_path = book['converted_path']
+
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Fitxer no trobat")
+
+    return FileResponse(
+        path=file_path,
+        filename=os.path.basename(file_path),
+        media_type='application/octet-stream'
+    )
+
+
+@app.get("/api/books/{book_id}/cover")
+async def get_book_cover(book_id: int):
+    """Serveix la portada d'un llibre"""
+    from backend.books.reader import BookReader
+
+    reader = BookReader()
+    book = reader.get_book_info(book_id)
+
+    if not book or not book.get('cover'):
+        raise HTTPException(status_code=404, detail="Portada no trobada")
+
+    if not os.path.exists(book['cover']):
+        raise HTTPException(status_code=404, detail="Fitxer de portada no trobat")
+
+    return FileResponse(path=book['cover'], media_type='image/jpeg')
+
+
+class ReadingProgressRequest(BaseModel):
+    position: str
+    page: int = 0
+    total_pages: int = 0
+
+
+@app.post("/api/books/{book_id}/progress")
+async def update_reading_progress(book_id: int, progress: ReadingProgressRequest):
+    """Actualitza el progrés de lectura"""
+    from backend.books.reader import BookReader
+
+    reader = BookReader()
+    reader.update_reading_progress(
+        book_id,
+        progress.position,
+        progress.page,
+        progress.total_pages
+    )
+
+    return {"status": "success"}
+
+
+@app.get("/api/books/{book_id}/progress")
+async def get_reading_progress(book_id: int):
+    """Obté el progrés de lectura"""
+    from backend.books.reader import BookReader
+
+    reader = BookReader()
+    progress = reader.get_reading_progress(book_id)
+
+    if not progress:
+        return {"current_position": None, "current_page": 0, "percentage": 0}
+
+    return progress
+
+
+@app.post("/api/books/scan")
+async def scan_books_library(background_tasks: BackgroundTasks):
+    """Escaneja la biblioteca de llibres"""
+    from backend.books.scanner import BooksScanner
+
+    def do_scan():
+        scanner = BooksScanner()
+        return scanner.scan_all_libraries()
+
+    background_tasks.add_task(do_scan)
+
+    return {
+        "status": "started",
+        "message": "Escaneig de llibres iniciat"
+    }
+
+
+@app.get("/api/books/scan/sync")
+async def scan_books_library_sync():
+    """Escaneja la biblioteca de llibres (síncron)"""
+    from backend.books.scanner import BooksScanner
+
+    scanner = BooksScanner()
+    result = scanner.scan_all_libraries()
+    return result
+
+
+@app.post("/api/books/cleanup")
+async def cleanup_books_library():
+    """Neteja llibres i autors que ja no existeixen"""
+    from backend.books.scanner import BooksScanner
+
+    scanner = BooksScanner()
+    result = scanner.cleanup_missing_books()
+    return {
+        "status": "success",
+        **result
+    }
 
 
 if __name__ == "__main__":
