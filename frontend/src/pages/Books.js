@@ -59,6 +59,27 @@ const BackIcon = () => (
   </svg>
 );
 
+const EditIcon = ({ size = 18 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+  </svg>
+);
+
+const CloseIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <line x1="18" y1="6" x2="6" y2="18"></line>
+    <line x1="6" y1="6" x2="18" y2="18"></line>
+  </svg>
+);
+
+const SearchIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="11" cy="11" r="8"></circle>
+    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+  </svg>
+);
+
 const LibraryIcon = () => (
   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
@@ -73,6 +94,16 @@ function Books() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('authors'); // 'authors' o 'all'
   const navigate = useNavigate();
+
+  // Metadata editing state
+  const [editingBook, setEditingBook] = useState(null);
+  const [metadataTab, setMetadataTab] = useState('isbn'); // 'isbn', 'olid', 'search'
+  const [isbn, setIsbn] = useState('');
+  const [olid, setOlid] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [metadataLoading, setMetadataLoading] = useState(false);
+  const [metadataMessage, setMetadataMessage] = useState(null);
 
   useEffect(() => {
     loadAuthors();
@@ -124,6 +155,121 @@ function Books() {
     setSelectedAuthor(null);
     if (mode === 'all' && books.length === 0) {
       loadAllBooks();
+    }
+  };
+
+  // Metadata editing handlers
+  const handleOpenMetadataEdit = (e, book) => {
+    e.stopPropagation();
+    setEditingBook(book);
+    setMetadataTab('isbn');
+    setIsbn('');
+    setOlid('');
+    setSearchQuery('');
+    setSearchResults([]);
+    setMetadataMessage(null);
+  };
+
+  const handleCloseMetadataEdit = () => {
+    setEditingBook(null);
+    setMetadataMessage(null);
+  };
+
+  const handleUpdateByIsbn = async () => {
+    if (!isbn.trim()) {
+      setMetadataMessage({ type: 'error', text: 'Introdueix un ISBN' });
+      return;
+    }
+    setMetadataLoading(true);
+    setMetadataMessage(null);
+    try {
+      const response = await axios.post(`/api/metadata/books/${editingBook.id}/update-by-isbn`, { isbn });
+      if (response.data.status === 'success') {
+        setMetadataMessage({ type: 'success', text: `Portada actualitzada per "${response.data.title || editingBook.title}"` });
+        // Reload data
+        if (selectedAuthor) {
+          loadAuthorBooks(selectedAuthor.id);
+        } else if (viewMode === 'all') {
+          loadAllBooks();
+        }
+        setTimeout(() => handleCloseMetadataEdit(), 1500);
+      }
+    } catch (error) {
+      setMetadataMessage({ type: 'error', text: error.response?.data?.detail || 'Error actualitzant metadades' });
+    } finally {
+      setMetadataLoading(false);
+    }
+  };
+
+  const handleUpdateByOlid = async () => {
+    if (!olid.trim()) {
+      setMetadataMessage({ type: 'error', text: 'Introdueix un Open Library ID' });
+      return;
+    }
+    setMetadataLoading(true);
+    setMetadataMessage(null);
+    try {
+      const response = await axios.post(`/api/metadata/books/${editingBook.id}/update-by-olid`, { olid });
+      if (response.data.status === 'success') {
+        setMetadataMessage({ type: 'success', text: `Portada actualitzada per "${response.data.title || editingBook.title}"` });
+        if (selectedAuthor) {
+          loadAuthorBooks(selectedAuthor.id);
+        } else if (viewMode === 'all') {
+          loadAllBooks();
+        }
+        setTimeout(() => handleCloseMetadataEdit(), 1500);
+      }
+    } catch (error) {
+      setMetadataMessage({ type: 'error', text: error.response?.data?.detail || 'Error actualitzant metadades' });
+    } finally {
+      setMetadataLoading(false);
+    }
+  };
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      setMetadataMessage({ type: 'error', text: 'Introdueix un títol per cercar' });
+      return;
+    }
+    setMetadataLoading(true);
+    setMetadataMessage(null);
+    setSearchResults([]);
+    try {
+      const response = await axios.post('/api/metadata/books/search', { title: searchQuery });
+      if (response.data.results && response.data.results.length > 0) {
+        setSearchResults(response.data.results);
+      } else {
+        setMetadataMessage({ type: 'error', text: 'No s\'han trobat resultats' });
+      }
+    } catch (error) {
+      setMetadataMessage({ type: 'error', text: 'Error cercant llibres' });
+    } finally {
+      setMetadataLoading(false);
+    }
+  };
+
+  const handleSelectSearchResult = async (result) => {
+    if (!result.cover_id) {
+      setMetadataMessage({ type: 'error', text: 'Aquest llibre no té portada disponible' });
+      return;
+    }
+    setMetadataLoading(true);
+    setMetadataMessage(null);
+    try {
+      const response = await axios.post(`/api/metadata/books/${editingBook.id}/update-by-search-result?cover_id=${result.cover_id}`);
+      if (response.data.status === 'success') {
+        setMetadataMessage({ type: 'success', text: 'Portada actualitzada!' });
+        if (selectedAuthor) {
+          loadAuthorBooks(selectedAuthor.id);
+        } else if (viewMode === 'all') {
+          loadAllBooks();
+        }
+        setTimeout(() => handleCloseMetadataEdit(), 1500);
+      }
+    } catch (error) {
+      setMetadataMessage({ type: 'error', text: error.response?.data?.detail || 'Error actualitzant portada' });
+    } finally {
+      setMetadataLoading(false);
     }
   };
 
@@ -189,6 +335,13 @@ function Books() {
                   </div>
                 )}
                 <div className="book-format-badge">{book.format.toUpperCase()}</div>
+                <button
+                  className="book-edit-btn"
+                  onClick={(e) => handleOpenMetadataEdit(e, book)}
+                  title="Editar metadades"
+                >
+                  <EditIcon size={14} />
+                </button>
               </div>
               <div className="book-info">
                 <h3 className="book-title">{book.title}</h3>
@@ -287,6 +440,13 @@ function Books() {
                   </div>
                 )}
                 <div className="book-format-badge">{book.format.toUpperCase()}</div>
+                <button
+                  className="book-edit-btn"
+                  onClick={(e) => handleOpenMetadataEdit(e, book)}
+                  title="Editar metadades"
+                >
+                  <EditIcon size={14} />
+                </button>
               </div>
               <div className="book-info">
                 <h3 className="book-title">{book.title}</h3>
@@ -294,6 +454,139 @@ function Books() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Modal for editing book metadata */}
+      {editingBook && (
+        <div className="metadata-modal-overlay" onClick={handleCloseMetadataEdit}>
+          <div className="metadata-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="metadata-modal-header">
+              <h2>Editar metadades</h2>
+              <button className="close-btn" onClick={handleCloseMetadataEdit}>
+                <CloseIcon />
+              </button>
+            </div>
+            <p className="metadata-book-title">{editingBook.title}</p>
+
+            <div className="metadata-tabs">
+              <button
+                className={metadataTab === 'isbn' ? 'active' : ''}
+                onClick={() => setMetadataTab('isbn')}
+              >
+                ISBN
+              </button>
+              <button
+                className={metadataTab === 'olid' ? 'active' : ''}
+                onClick={() => setMetadataTab('olid')}
+              >
+                Open Library ID
+              </button>
+              <button
+                className={metadataTab === 'search' ? 'active' : ''}
+                onClick={() => setMetadataTab('search')}
+              >
+                Cercar
+              </button>
+            </div>
+
+            <div className="metadata-content">
+              {metadataTab === 'isbn' && (
+                <div className="metadata-form">
+                  <label>Introdueix l'ISBN del llibre:</label>
+                  <div className="input-row">
+                    <input
+                      type="text"
+                      value={isbn}
+                      onChange={(e) => setIsbn(e.target.value)}
+                      placeholder="Ex: 978-84-376-0494-7"
+                      disabled={metadataLoading}
+                    />
+                    <button onClick={handleUpdateByIsbn} disabled={metadataLoading}>
+                      {metadataLoading ? 'Actualitzant...' : 'Actualitzar'}
+                    </button>
+                  </div>
+                  <small>Pots trobar l'ISBN a la contraportada del llibre o a la pàgina de crèdits</small>
+                </div>
+              )}
+
+              {metadataTab === 'olid' && (
+                <div className="metadata-form">
+                  <label>Introdueix l'Open Library Work ID:</label>
+                  <div className="input-row">
+                    <input
+                      type="text"
+                      value={olid}
+                      onChange={(e) => setOlid(e.target.value)}
+                      placeholder="Ex: OL45804W"
+                      disabled={metadataLoading}
+                    />
+                    <button onClick={handleUpdateByOlid} disabled={metadataLoading}>
+                      {metadataLoading ? 'Actualitzant...' : 'Actualitzar'}
+                    </button>
+                  </div>
+                  <small>
+                    Cerca a <a href="https://openlibrary.org" target="_blank" rel="noopener noreferrer">openlibrary.org</a> i copia l'ID de l'URL
+                  </small>
+                </div>
+              )}
+
+              {metadataTab === 'search' && (
+                <div className="metadata-form">
+                  <label>Cerca per títol:</label>
+                  <div className="input-row">
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Títol del llibre..."
+                      disabled={metadataLoading}
+                      onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                    />
+                    <button onClick={handleSearch} disabled={metadataLoading}>
+                      <SearchIcon /> Cercar
+                    </button>
+                  </div>
+
+                  {searchResults.length > 0 && (
+                    <div className="search-results">
+                      {searchResults.map((result, index) => (
+                        <div
+                          key={index}
+                          className={`search-result ${!result.cover_id ? 'no-cover' : ''}`}
+                          onClick={() => handleSelectSearchResult(result)}
+                        >
+                          <div className="result-cover">
+                            {result.cover_id ? (
+                              <img
+                                src={`https://covers.openlibrary.org/b/id/${result.cover_id}-S.jpg`}
+                                alt={result.title}
+                              />
+                            ) : (
+                              <div className="no-cover-placeholder">
+                                <BookIcon />
+                              </div>
+                            )}
+                          </div>
+                          <div className="result-info">
+                            <strong>{result.title}</strong>
+                            {result.author && <span>{result.author}</span>}
+                            {result.year && <span>({result.year})</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {metadataMessage && (
+                <div className={`metadata-message ${metadataMessage.type}`}>
+                  {metadataMessage.text}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
