@@ -2100,7 +2100,7 @@ async def fetch_all_metadata(request: MetadataRequest):
                 with get_db() as conn:
                     # Movies
                     movies = conn.execute(
-                        "SELECT id, name, year, path FROM series WHERE media_type = 'movie'"
+                        "SELECT id, name, path FROM series WHERE media_type = 'movie'"
                     ).fetchall()
                     for movie in movies:
                         results["movies"]["processed"] += 1
@@ -2121,26 +2121,11 @@ async def fetch_all_metadata(request: MetadataRequest):
 
                             metadata = await tmdb_client.fetch_movie_metadata(
                                 movie["name"],
-                                movie["year"],
+                                None,
                                 poster_path,
                                 backdrop_path
                             )
                             if metadata["found"]:
-                                # Update database with metadata
-                                conn.execute("""
-                                    UPDATE series SET
-                                        overview = COALESCE(?, overview),
-                                        rating = COALESCE(?, rating),
-                                        year = COALESCE(?, year),
-                                        genres = COALESCE(?, genres)
-                                    WHERE id = ?
-                                """, (
-                                    metadata["overview"],
-                                    metadata["rating"],
-                                    metadata["year"],
-                                    ", ".join(metadata["genres"]) if metadata["genres"] else None,
-                                    movie["id"]
-                                ))
                                 if metadata["poster_downloaded"]:
                                     conn.execute(
                                         "UPDATE series SET poster = ? WHERE id = ?",
@@ -2153,7 +2138,7 @@ async def fetch_all_metadata(request: MetadataRequest):
 
                     # Series
                     series_list = conn.execute(
-                        "SELECT id, name, year, path FROM series WHERE media_type = 'series'"
+                        "SELECT id, name, path FROM series WHERE media_type = 'series'"
                     ).fetchall()
                     for series in series_list:
                         results["series"]["processed"] += 1
@@ -2168,25 +2153,11 @@ async def fetch_all_metadata(request: MetadataRequest):
 
                             metadata = await tmdb_client.fetch_tv_metadata(
                                 series["name"],
-                                series["year"],
+                                None,
                                 poster_path,
                                 backdrop_path
                             )
                             if metadata["found"]:
-                                conn.execute("""
-                                    UPDATE series SET
-                                        overview = COALESCE(?, overview),
-                                        rating = COALESCE(?, rating),
-                                        year = COALESCE(?, year),
-                                        genres = COALESCE(?, genres)
-                                    WHERE id = ?
-                                """, (
-                                    metadata["overview"],
-                                    metadata["rating"],
-                                    metadata["year"],
-                                    ", ".join(metadata["genres"]) if metadata["genres"] else None,
-                                    series["id"]
-                                ))
                                 if metadata["poster_downloaded"]:
                                     conn.execute(
                                         "UPDATE series SET poster = ? WHERE id = ?",
@@ -2282,7 +2253,7 @@ async def fetch_videos_metadata(request: MetadataRequest):
         with get_db() as conn:
             # Movies
             movies = conn.execute(
-                "SELECT id, name, year, path FROM series WHERE media_type = 'movie'"
+                "SELECT id, name, path FROM series WHERE media_type = 'movie'"
             ).fetchall()
             for movie in movies:
                 try:
@@ -2300,23 +2271,9 @@ async def fetch_videos_metadata(request: MetadataRequest):
                         continue
 
                     metadata = await client.fetch_movie_metadata(
-                        movie["name"], movie["year"], poster_path, backdrop_path
+                        movie["name"], None, poster_path, backdrop_path
                     )
                     if metadata["found"]:
-                        conn.execute("""
-                            UPDATE series SET
-                                overview = COALESCE(?, overview),
-                                rating = COALESCE(?, rating),
-                                year = COALESCE(?, year),
-                                genres = COALESCE(?, genres)
-                            WHERE id = ?
-                        """, (
-                            metadata["overview"],
-                            metadata["rating"],
-                            metadata["year"],
-                            ", ".join(metadata["genres"]) if metadata["genres"] else None,
-                            movie["id"]
-                        ))
                         if metadata["poster_downloaded"]:
                             conn.execute(
                                 "UPDATE series SET poster = ? WHERE id = ?",
@@ -2329,7 +2286,7 @@ async def fetch_videos_metadata(request: MetadataRequest):
 
             # Series
             series_list = conn.execute(
-                "SELECT id, name, year, path FROM series WHERE media_type = 'series'"
+                "SELECT id, name, path FROM series WHERE media_type = 'series'"
             ).fetchall()
             for series in series_list:
                 try:
@@ -2341,23 +2298,9 @@ async def fetch_videos_metadata(request: MetadataRequest):
                         continue
 
                     metadata = await client.fetch_tv_metadata(
-                        series["name"], series["year"], poster_path, backdrop_path
+                        series["name"], None, poster_path, backdrop_path
                     )
                     if metadata["found"]:
-                        conn.execute("""
-                            UPDATE series SET
-                                overview = COALESCE(?, overview),
-                                rating = COALESCE(?, rating),
-                                year = COALESCE(?, year),
-                                genres = COALESCE(?, genres)
-                            WHERE id = ?
-                        """, (
-                            metadata["overview"],
-                            metadata["rating"],
-                            metadata["year"],
-                            ", ".join(metadata["genres"]) if metadata["genres"] else None,
-                            series["id"]
-                        ))
                         if metadata["poster_downloaded"]:
                             conn.execute(
                                 "UPDATE series SET poster = ? WHERE id = ?",
