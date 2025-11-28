@@ -94,13 +94,6 @@ const BookIcon = () => (
   </svg>
 );
 
-const HeadphonesIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
-    <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
-  </svg>
-);
-
 const PaletteIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <circle cx="13.5" cy="6.5" r=".5"></circle>
@@ -314,67 +307,6 @@ function Admin() {
       addLog('success', 'Cache netejat correctament');
     } catch (error) {
       addLog('error', `Error netejant cache: ${error.message}`);
-    }
-  };
-
-  const handleCleanup = async () => {
-    if (!window.confirm('Eliminar de la base de dades les sèries i pel·lícules que ja no existeixen al disc? Aquesta acció és irreversible.')) {
-      return;
-    }
-
-    setCleaning(true);
-    addLog('info', 'Netejant contingut eliminat del disc...');
-
-    try {
-      const response = await axios.post('/api/library/cleanup');
-
-      if (response.data.status === 'success') {
-        const { series_removed, episodes_removed } = response.data;
-        addLog('success', `Neteja completada: ${series_removed} sèries/pel·lícules i ${episodes_removed} episodis eliminats`);
-
-        if (response.data.series_details?.length > 0) {
-          response.data.series_details.forEach(item => {
-            addLog('info', `Eliminat: ${item.name} (${item.episodes_removed} episodis)`);
-          });
-        }
-
-        await loadStats();
-      } else {
-        addLog('warning', 'Neteja completada amb advertències');
-      }
-    } catch (error) {
-      console.error('Error netejant:', error);
-      addLog('error', `Error durant la neteja: ${error.message}`);
-    } finally {
-      setCleaning(false);
-    }
-  };
-
-  const handleCleanupBooks = async () => {
-    if (!window.confirm('Eliminar de la base de dades els llibres que ja no existeixen al disc?')) {
-      return;
-    }
-
-    addLog('info', 'Netejant llibres eliminats...');
-    try {
-      const response = await axios.post('/api/books/cleanup');
-      addLog('success', `Neteja de llibres completada: ${response.data.books_removed || 0} llibres i ${response.data.authors_removed || 0} autors eliminats`);
-    } catch (error) {
-      addLog('error', `Error netejant llibres: ${error.message}`);
-    }
-  };
-
-  const handleCleanupAudiobooks = async () => {
-    if (!window.confirm('Eliminar de la base de dades els audiollibres que ja no existeixen al disc?')) {
-      return;
-    }
-
-    addLog('info', 'Netejant audiollibres eliminats...');
-    try {
-      const response = await axios.post('/api/audiobooks/cleanup');
-      addLog('success', `Neteja d'audiollibres completada: ${response.data.audiobooks_removed || 0} audiollibres i ${response.data.authors_removed || 0} autors eliminats`);
-    } catch (error) {
-      addLog('error', `Error netejant audiollibres: ${error.message}`);
     }
   };
 
