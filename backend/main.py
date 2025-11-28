@@ -477,16 +477,17 @@ async def get_movies():
 @app.get("/api/series/{series_id}")
 async def get_series_detail(series_id: int):
     """Retorna detalls d'una sèrie amb temporades"""
+    import json as json_module
     with get_db() as conn:
         cursor = conn.cursor()
-        
+
         # Info de la sèrie
         cursor.execute("SELECT * FROM series WHERE id = ?", (series_id,))
         series = cursor.fetchone()
-        
+
         if not series:
             raise HTTPException(status_code=404, detail="Sèrie no trobada")
-        
+
         # Temporades
         cursor.execute("""
             SELECT DISTINCT season_number, COUNT(*) as episode_count
@@ -495,17 +496,32 @@ async def get_series_detail(series_id: int):
             GROUP BY season_number
             ORDER BY season_number
         """, (series_id,))
-        
+
         seasons = []
         for row in cursor.fetchall():
             seasons.append({
                 "season_number": row["season_number"],
                 "episode_count": row["episode_count"]
             })
-        
+
+        # Parsejar gèneres si existeixen
+        genres = None
+        if series.get("genres"):
+            try:
+                genres = json_module.loads(series["genres"])
+            except (json_module.JSONDecodeError, TypeError):
+                genres = None
+
         return {
             "id": series["id"],
             "name": series["name"],
+            "title": series.get("title"),
+            "year": series.get("year"),
+            "overview": series.get("overview"),
+            "rating": series.get("rating"),
+            "genres": genres,
+            "runtime": series.get("runtime"),
+            "tmdb_id": series.get("tmdb_id"),
             "poster": series["poster"],
             "backdrop": series["backdrop"],
             "seasons": seasons
@@ -920,6 +936,7 @@ async def get_library_season_episodes(series_id: int, season_number: int):
 @app.get("/api/library/movies/{movie_id}")
 async def get_library_movie_detail(movie_id: int):
     """Detalls pel·lícula - format frontend"""
+    import json as json_module
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -934,10 +951,25 @@ async def get_library_movie_detail(movie_id: int):
         if not movie:
             raise HTTPException(status_code=404, detail="Pel·lícula no trobada")
 
+        # Parsejar gèneres si existeixen
+        genres = None
+        if movie.get("genres"):
+            try:
+                genres = json_module.loads(movie["genres"])
+            except (json_module.JSONDecodeError, TypeError):
+                genres = None
+
         return {
             "id": movie["id"],
             "media_id": movie["media_id"],
             "name": movie["name"],
+            "title": movie.get("title"),
+            "year": movie.get("year"),
+            "overview": movie.get("overview"),
+            "rating": movie.get("rating"),
+            "genres": genres,
+            "runtime": movie.get("runtime"),
+            "tmdb_id": movie.get("tmdb_id"),
             "poster": movie["poster"],
             "backdrop": movie["backdrop"],
             "duration": movie["duration"],
@@ -2427,9 +2459,38 @@ async def update_series_by_tmdb_id(series_id: int, request: UpdateByTmdbIdReques
                 detail=f"No s'ha trobat cap {'pel·lícula' if request.media_type == 'movie' else 'sèrie'} amb TMDB ID {request.tmdb_id}"
             )
 
-        # Actualitzar la base de dades amb les noves imatges
+        # Actualitzar la base de dades amb les noves imatges I metadades
         update_fields = []
         update_values = []
+
+        # Sempre guardar el TMDB ID i les metadades
+        update_fields.append("tmdb_id = ?")
+        update_values.append(request.tmdb_id)
+
+        if metadata.get("title"):
+            update_fields.append("title = ?")
+            update_values.append(metadata["title"])
+
+        if metadata.get("year"):
+            update_fields.append("year = ?")
+            update_values.append(metadata["year"])
+
+        if metadata.get("overview"):
+            update_fields.append("overview = ?")
+            update_values.append(metadata["overview"])
+
+        if metadata.get("rating"):
+            update_fields.append("rating = ?")
+            update_values.append(metadata["rating"])
+
+        if metadata.get("genres"):
+            import json
+            update_fields.append("genres = ?")
+            update_values.append(json.dumps(metadata["genres"]))
+
+        if metadata.get("runtime"):
+            update_fields.append("runtime = ?")
+            update_values.append(metadata["runtime"])
 
         if metadata["poster_downloaded"]:
             update_fields.append("poster = ?")
@@ -2438,6 +2499,9 @@ async def update_series_by_tmdb_id(series_id: int, request: UpdateByTmdbIdReques
         if metadata["backdrop_downloaded"]:
             update_fields.append("backdrop = ?")
             update_values.append(str(backdrop_path))
+
+        # Actualitzar data de modificació
+        update_fields.append("updated_date = CURRENT_TIMESTAMP")
 
         if update_fields:
             update_values.append(series_id)

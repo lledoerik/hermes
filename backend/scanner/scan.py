@@ -48,10 +48,47 @@ class HermesScanner:
                 backdrop TEXT,
                 banner TEXT,
                 tvshow_nfo TEXT,
+                tmdb_id INTEGER,
+                title TEXT,
+                year INTEGER,
+                overview TEXT,
+                rating REAL,
+                genres TEXT,
+                runtime INTEGER,
                 added_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+
+        # Migració: afegir columnes si no existeixen (per bases de dades existents)
+        try:
+            cursor.execute("ALTER TABLE series ADD COLUMN tmdb_id INTEGER")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE series ADD COLUMN title TEXT")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE series ADD COLUMN year INTEGER")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE series ADD COLUMN overview TEXT")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE series ADD COLUMN rating REAL")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE series ADD COLUMN genres TEXT")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE series ADD COLUMN runtime INTEGER")
+        except sqlite3.OperationalError:
+            pass
         
         # Taula media_files
         cursor.execute('''
