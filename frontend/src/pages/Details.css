@@ -373,6 +373,112 @@
   color: #c4b5fd;
 }
 
+/* TMDB Edit Button */
+.edit-metadata-btn {
+  padding: 15px;
+  min-width: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* TMDB Input Form */
+.tmdb-input-form {
+  margin-top: 20px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  max-width: 450px;
+}
+
+.tmdb-input-form label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.tmdb-input-row {
+  display: flex;
+  gap: 10px;
+}
+
+.tmdb-input-form input {
+  flex: 1;
+  padding: 12px 15px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: white;
+  font-size: 15px;
+}
+
+.tmdb-input-form input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.tmdb-input-form input:focus {
+  outline: none;
+  border-color: #328492;
+}
+
+.tmdb-submit-btn {
+  padding: 12px 20px;
+  background: #328492;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.tmdb-submit-btn:hover:not(:disabled) {
+  background: #07505a;
+}
+
+.tmdb-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.tmdb-help {
+  display: block;
+  margin-top: 10px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.tmdb-help a {
+  color: #60a5fa;
+  text-decoration: none;
+}
+
+.tmdb-help a:hover {
+  text-decoration: underline;
+}
+
+.tmdb-message {
+  margin-top: 12px;
+  padding: 10px 15px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.tmdb-message.success {
+  background: rgba(34, 197, 94, 0.2);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  color: #4ade80;
+}
+
+.tmdb-message.error {
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #f87171;
+}
+
 /* Responsive */
 @media (max-width: 1023px) {
   .details-hero {
@@ -406,6 +512,11 @@
   .details-actions {
     justify-content: center;
   }
+
+  .tmdb-input-form {
+    margin-left: auto;
+    margin-right: auto;
+  }
 }
 
 @media (max-width: 767px) {
@@ -428,5 +539,13 @@
   .episode-thumbnail {
     width: 100%;
     height: 180px;
+  }
+
+  .tmdb-input-row {
+    flex-direction: column;
+  }
+
+  .tmdb-submit-btn {
+    width: 100%;
   }
 }
