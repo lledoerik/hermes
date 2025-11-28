@@ -1515,20 +1515,48 @@ async def get_book_content(book_id: int):
     from backend.books.reader import BookReader
 
     reader = BookReader()
+    book_info = reader.get_book_info(book_id)
+
+    if not book_info:
+        raise HTTPException(status_code=404, detail="Llibre no trobat")
+
     content_type, file_path = reader.get_book_content_type(book_id)
 
     if not file_path:
-        raise HTTPException(status_code=404, detail="Llibre no trobat")
+        raise HTTPException(status_code=404, detail="Fitxer del llibre no trobat")
 
     if content_type == 'epub':
         content = reader.get_epub_content(book_id)
         if content:
             return {"type": "epub", "content": content}
+        else:
+            # Error parsing EPUB - retornem info perquè el frontend pugui descarregar-lo
+            return {
+                "type": "epub",
+                "error": "No s'ha pogut processar l'EPUB",
+                "download_available": True,
+                "book_info": {
+                    "title": book_info.get("title"),
+                    "format": book_info.get("format")
+                }
+            }
 
     elif content_type == 'pdf':
         return {"type": "pdf", "file_path": file_path}
 
-    raise HTTPException(status_code=400, detail=f"Format {content_type} no suportat per visualització")
+    # Formats MOBI/AZW - necessiten conversió o descàrrega directa
+    elif content_type in ['mobi', 'azw', 'azw3']:
+        return {
+            "type": content_type,
+            "message": f"Format {content_type.upper()} - Necessita conversió a EPUB o descàrrega directa",
+            "download_available": True,
+            "book_info": {
+                "title": book_info.get("title"),
+                "format": book_info.get("format")
+            }
+        }
+
+    raise HTTPException(status_code=400, detail=f"Format {content_type} no suportat")
 
 
 @app.get("/api/books/{book_id}/resource/{resource_path:path}")
