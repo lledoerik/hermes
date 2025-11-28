@@ -243,6 +243,16 @@ function Admin() {
     }
   };
 
+  const handleGenerateThumbnails = async () => {
+    addLog('info', 'Generant miniatures per episodis...');
+    try {
+      await axios.post('/api/thumbnails/generate-all');
+      addLog('info', 'Generació iniciada en segon pla. Pot trigar uns minuts...');
+    } catch (error) {
+      addLog('error', `Error: ${error.message}`);
+    }
+  };
+
   const addLog = (type, message) => {
     const timestamp = new Date().toLocaleTimeString();
     setLogs(prev => [...prev, { type, message, timestamp }].slice(-50));
@@ -596,6 +606,14 @@ function Admin() {
               disabled={fetchingMetadata}
             >
               {fetchingMetadata ? <><RefreshIcon /> Obtenint...</> : <><DownloadIcon /> Obtenir totes</>}
+            </button>
+
+            <button
+              className="action-btn secondary"
+              onClick={handleGenerateThumbnails}
+              title="Genera miniatures per tots els episodis"
+            >
+              <TvIcon /> Generar miniatures
             </button>
           </div>
         </div>
