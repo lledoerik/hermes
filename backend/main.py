@@ -303,7 +303,7 @@ async def get_continue_watching(request: Request):
                 wp.media_id,
                 wp.progress_seconds,
                 wp.total_seconds,
-                wp.last_watched,
+                wp.updated_date,
                 mf.title as episode_title,
                 mf.season_number,
                 mf.episode_number,
@@ -319,7 +319,7 @@ async def get_continue_watching(request: Request):
             WHERE wp.user_id = ?
             AND wp.progress_seconds > 30
             AND (wp.total_seconds IS NULL OR wp.progress_seconds < wp.total_seconds * 0.9)
-            ORDER BY wp.last_watched DESC
+            ORDER BY wp.updated_date DESC
             LIMIT 20
         """, (user_id,))
 
@@ -343,7 +343,7 @@ async def get_continue_watching(request: Request):
                 "progress_seconds": row["progress_seconds"],
                 "total_seconds": row["total_seconds"],
                 "progress_percentage": round(progress_pct, 1),
-                "last_watched": row["last_watched"]
+                "last_watched": row["updated_date"]
             })
 
         return watching
@@ -363,7 +363,7 @@ async def get_recently_watched(request: Request, limit: int = 10):
                 s.id as series_id,
                 s.name as series_name,
                 s.poster,
-                MAX(wp.last_watched) as last_watched
+                MAX(wp.updated_date) as last_watched
             FROM watch_progress wp
             JOIN media_files mf ON wp.media_id = mf.id
             JOIN series s ON mf.series_id = s.id
