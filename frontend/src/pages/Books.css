@@ -100,8 +100,13 @@
 }
 
 .book-cover-placeholder .format-icon {
-  font-size: 4rem;
   opacity: 0.5;
+}
+
+.book-cover-placeholder .format-icon svg {
+  width: 64px;
+  height: 64px;
+  stroke: rgba(255, 255, 255, 0.6);
 }
 
 .book-format-badge {
@@ -183,6 +188,9 @@
 
 /* Back Button */
 .back-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   background: rgba(255, 255, 255, 0.1);
   border: none;
   color: #fff;
@@ -195,6 +203,45 @@
 
 .back-btn:hover {
   background: rgba(255, 255, 255, 0.2);
+}
+
+/* Author Avatar SVG Icon */
+.author-avatar svg {
+  width: 32px;
+  height: 32px;
+  stroke: rgba(255, 255, 255, 0.9);
+}
+
+/* Scan button icons */
+.scan-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.scan-btn svg {
+  flex-shrink: 0;
+}
+
+/* Spin animation */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Empty state icon */
+.empty-icon svg {
+  width: 80px;
+  height: 80px;
+  stroke: rgba(255, 255, 255, 0.3);
 }
 
 /* Responsive */

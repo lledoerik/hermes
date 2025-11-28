@@ -100,6 +100,7 @@ function BookReader() {
     } catch (err) {
       console.error('Error carregant capítol:', err);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, content]);
 
   const saveProgress = async (chapterIndex) => {
