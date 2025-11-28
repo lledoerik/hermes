@@ -8,6 +8,128 @@ const API_URL = window.location.hostname === 'localhost'
 
 axios.defaults.baseURL = API_URL;
 
+// SVG Icons
+const SettingsIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="12" cy="12" r="3"></circle>
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+  </svg>
+);
+
+const TvIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect>
+    <polyline points="17 2 12 7 7 2"></polyline>
+  </svg>
+);
+
+const MovieIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+    <line x1="7" y1="2" x2="7" y2="22"></line>
+    <line x1="17" y1="2" x2="17" y2="22"></line>
+    <line x1="2" y1="12" x2="22" y2="12"></line>
+    <line x1="2" y1="7" x2="7" y2="7"></line>
+    <line x1="2" y1="17" x2="7" y2="17"></line>
+    <line x1="17" y1="17" x2="22" y2="17"></line>
+    <line x1="17" y1="7" x2="22" y2="7"></line>
+  </svg>
+);
+
+const FolderIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+  </svg>
+);
+
+const ClockIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="12" cy="12" r="10"></circle>
+    <polyline points="12 6 12 12 16 14"></polyline>
+  </svg>
+);
+
+const SearchIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="11" cy="11" r="8"></circle>
+    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+  </svg>
+);
+
+const RefreshIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polyline points="23 4 23 10 17 10"></polyline>
+    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+  </svg>
+);
+
+const TrashIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polyline points="3 6 5 6 21 6"></polyline>
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+  </svg>
+);
+
+const ClipboardIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+    <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+  </svg>
+);
+
+const BroomIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M14 3v4a1 1 0 0 0 1 1h4"></path>
+    <path d="M5 12V5a2 2 0 0 1 2-2h7l5 5v4"></path>
+    <path d="M5 21h14"></path>
+    <path d="M5 12l7 9"></path>
+    <path d="M12 21l7-9"></path>
+  </svg>
+);
+
+const BookIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+  </svg>
+);
+
+const HeadphonesIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+    <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+  </svg>
+);
+
+const PaletteIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="13.5" cy="6.5" r=".5"></circle>
+    <circle cx="17.5" cy="10.5" r=".5"></circle>
+    <circle cx="8.5" cy="7.5" r=".5"></circle>
+    <circle cx="6.5" cy="12.5" r=".5"></circle>
+    <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.555C21.965 6.012 17.461 2 12 2z"></path>
+  </svg>
+);
+
+const VolumeIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+    <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+  </svg>
+);
+
+const SubtitlesIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+  </svg>
+);
+
+const PlayIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+  </svg>
+);
+
 function Admin() {
   const [stats, setStats] = useState(null);
   const [scanning, setScanning] = useState(false);
@@ -169,14 +291,14 @@ function Admin() {
   return (
     <div className="admin-container">
       <div className="admin-header">
-        <h1>⚙️ Administració</h1>
+        <h1><SettingsIcon /> Administració</h1>
         <p>Gestiona la teva biblioteca multimèdia Hermes</p>
       </div>
 
       {/* Stats Grid */}
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-icon">📺</div>
+          <div className="stat-icon"><TvIcon /></div>
           <div className="stat-info">
             <h3>{stats?.series || 0}</h3>
             <p>Sèries</p>
@@ -184,7 +306,7 @@ function Admin() {
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon">🎬</div>
+          <div className="stat-icon"><MovieIcon /></div>
           <div className="stat-info">
             <h3>{stats?.movies || 0}</h3>
             <p>Pel·lícules</p>
@@ -192,7 +314,7 @@ function Admin() {
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon">📁</div>
+          <div className="stat-icon"><FolderIcon /></div>
           <div className="stat-info">
             <h3>{stats?.files || 0}</h3>
             <p>Arxius</p>
@@ -200,7 +322,7 @@ function Admin() {
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon">⏱️</div>
+          <div className="stat-icon"><ClockIcon /></div>
           <div className="stat-info">
             <h3>{stats?.total_hours || 0}h</h3>
             <p>Contingut total</p>
@@ -211,7 +333,7 @@ function Admin() {
       {/* Scanner Section */}
       <div className="admin-section">
         <div className="section-header">
-          <h2>🔍 Escàner de Biblioteca</h2>
+          <h2><SearchIcon /> Escàner de Biblioteca</h2>
         </div>
         <div className="section-content">
           <div className="scanner-actions">
@@ -220,7 +342,7 @@ function Admin() {
               onClick={handleScan}
               disabled={scanning}
             >
-              {scanning ? '🔄 Escanejant...' : '🔍 Escanejar biblioteca'}
+              {scanning ? <><RefreshIcon /> Escanejant...</> : <><SearchIcon /> Escanejar biblioteca</>}
             </button>
 
             <button
@@ -228,7 +350,7 @@ function Admin() {
               onClick={handleRefreshMetadata}
               disabled={scanning}
             >
-              🔄 Actualitzar metadades
+              <RefreshIcon /> Actualitzar metadades
             </button>
 
             <button
@@ -236,13 +358,13 @@ function Admin() {
               onClick={handleClearCache}
               disabled={scanning}
             >
-              🗑️ Netejar cache
+              <TrashIcon /> Netejar cache
             </button>
           </div>
 
           {scanning && (
             <div className="scan-progress">
-              <h4>🔄 Escaneig en procés...</h4>
+              <h4><RefreshIcon /> Escaneig en procés...</h4>
               <div className="progress-bar-container">
                 <div
                   className="progress-bar-fill"
@@ -263,13 +385,13 @@ function Admin() {
       {/* Library Paths */}
       <div className="admin-section">
         <div className="section-header">
-          <h2>📂 Directoris de la Biblioteca</h2>
+          <h2><FolderIcon /> Directoris de la Biblioteca</h2>
         </div>
         <div className="section-content">
           <div className="paths-list">
             <div className="path-item">
               <div className="path-info">
-                <div className="path-icon">📺</div>
+                <div className="path-icon"><TvIcon /></div>
                 <div className="path-details">
                   <h4>Sèries</h4>
                   <p>./storage/series</p>
@@ -280,7 +402,7 @@ function Admin() {
 
             <div className="path-item">
               <div className="path-info">
-                <div className="path-icon">🎬</div>
+                <div className="path-icon"><MovieIcon /></div>
                 <div className="path-details">
                   <h4>Pel·lícules</h4>
                   <p>./storage/movies</p>
@@ -295,7 +417,7 @@ function Admin() {
       {/* Logs Section */}
       <div className="admin-section">
         <div className="section-header">
-          <h2>📋 Registre d'Activitat</h2>
+          <h2><ClipboardIcon /> Registre d'Activitat</h2>
           <button
             className="action-btn secondary"
             onClick={() => setLogs([])}
@@ -325,7 +447,7 @@ function Admin() {
       {/* Maintenance Section */}
       <div className="admin-section">
         <div className="section-header">
-          <h2>🧹 Manteniment</h2>
+          <h2><BroomIcon /> Manteniment</h2>
         </div>
         <div className="section-content">
           <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '20px' }}>
@@ -337,21 +459,21 @@ function Admin() {
               onClick={handleCleanup}
               disabled={cleaning}
             >
-              {cleaning ? '🔄 Netejant...' : '📺 Netejar sèries/pel·lícules'}
+              {cleaning ? <><RefreshIcon /> Netejant...</> : <><TvIcon /> Netejar sèries/pel·lícules</>}
             </button>
 
             <button
               className="action-btn danger"
               onClick={handleCleanupBooks}
             >
-              📚 Netejar llibres
+              <BookIcon /> Netejar llibres
             </button>
 
             <button
               className="action-btn danger"
               onClick={handleCleanupAudiobooks}
             >
-              🎧 Netejar audiollibres
+              <HeadphonesIcon /> Netejar audiollibres
             </button>
           </div>
         </div>
@@ -360,13 +482,13 @@ function Admin() {
       {/* Preferences Section */}
       <div className="admin-section">
         <div className="section-header">
-          <h2>🎨 Preferències</h2>
+          <h2><PaletteIcon /> Preferències</h2>
         </div>
         <div className="section-content">
           <div className="paths-list">
             <div className="path-item">
               <div className="path-info">
-                <div className="path-icon">🔊</div>
+                <div className="path-icon"><VolumeIcon /></div>
                 <div className="path-details">
                   <h4>Idioma d'àudio preferit</h4>
                   <p>Català (per defecte)</p>
@@ -392,7 +514,7 @@ function Admin() {
 
             <div className="path-item">
               <div className="path-info">
-                <div className="path-icon">💬</div>
+                <div className="path-icon"><SubtitlesIcon /></div>
                 <div className="path-details">
                   <h4>Subtítols per defecte</h4>
                   <p>Desactivats</p>
@@ -418,7 +540,7 @@ function Admin() {
 
             <div className="path-item">
               <div className="path-info">
-                <div className="path-icon">▶️</div>
+                <div className="path-icon"><PlayIcon /></div>
                 <div className="path-details">
                   <h4>Reproducció automàtica</h4>
                   <p>Reproduir següent episodi automàticament</p>
