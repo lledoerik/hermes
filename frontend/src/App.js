@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import Movies from './pages/Movies';
@@ -8,10 +9,14 @@ import Details from './pages/Details';
 import Player from './pages/Player';
 import Search from './pages/Search';
 import Admin from './pages/Admin';
+import Books from './pages/Books';
+import BookReader from './pages/BookReader';
+import Login from './pages/Login';
 import './App.css';
 
 function App() {
   return (
+    <AuthProvider>
     <Router>
       <div className="app">
         {/* Animated Background */}
@@ -25,6 +30,12 @@ function App() {
           {/* Player route without Navbar */}
           <Route path="/play/:type/:id" element={<Player />} />
 
+          {/* Book Reader without Navbar */}
+          <Route path="/read/:id" element={<BookReader />} />
+
+          {/* Login without Navbar */}
+          <Route path="/login" element={<Login />} />
+
           {/* All other routes with Navbar */}
           <Route
             path="*"
@@ -36,6 +47,7 @@ function App() {
                     <Route path="/" element={<Home />} />
                     <Route path="/movies" element={<Movies />} />
                     <Route path="/series" element={<Series />} />
+                    <Route path="/books" element={<Books />} />
                     <Route path="/movies/:id" element={<Details />} />
                     <Route path="/series/:id" element={<Details />} />
                     <Route path="/search" element={<Search />} />
@@ -48,6 +60,7 @@ function App() {
         </Routes>
       </div>
     </Router>
+    </AuthProvider>
   );
 }
 

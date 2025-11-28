@@ -163,7 +163,6 @@ function Player() {
   // Segments (intro, recap, outro) i next episode
   const [segments, setSegments] = useState([]);
   const [nextEpisode, setNextEpisode] = useState(null);
-  const [prevEpisode, setPrevEpisode] = useState(null);
   const [seriesEpisodes, setSeriesEpisodes] = useState([]);
   const [activeSegment, setActiveSegment] = useState(null);
   const [showSkipButton, setShowSkipButton] = useState(false);
@@ -251,6 +250,7 @@ function Player() {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('keydown', handleKeyDown);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type, id, videoReady]);
 
   const loadMedia = async () => {
@@ -315,14 +315,6 @@ function Player() {
           setNextEpisode(nextRes.data);
         } catch (e) {
           console.log('No hi ha següent episodi');
-        }
-
-        // Carregar episodi anterior
-        try {
-          const prevRes = await axios.get(`/api/library/episodes/${id}/prev`);
-          setPrevEpisode(prevRes.data);
-        } catch (e) {
-          console.log('No hi ha episodi anterior');
         }
 
         // Carregar tots els episodis de la temporada
@@ -685,21 +677,17 @@ function Player() {
     navigate(`/play/episode/${nextEpisode.id}`);
   };
 
-  const goToPrevEpisode = () => {
-    // Implementar navegació a episodi anterior
-    if (!item?.series_id) return;
-    // Buscar episodi anterior via API
-  };
-
   const [isDragging, setIsDragging] = useState(false);
   const [dragTime, setDragTime] = useState(0);
+  const [hoverTime, setHoverTime] = useState(null);
+  const [hoverPosition, setHoverPosition] = useState(0);
 
-  const calculateTimeFromEvent = (e) => {
+  const calculateTimeFromEvent = useCallback((e) => {
     if (!progressRef.current || !duration) return 0;
     const rect = progressRef.current.getBoundingClientRect();
     const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     return percent * duration;
-  };
+  }, [duration]);
 
   const handleProgressMouseDown = (e) => {
     e.preventDefault();
@@ -712,14 +700,14 @@ function Player() {
     if (!isDragging) return;
     const newTime = calculateTimeFromEvent(e);
     setDragTime(newTime);
-  }, [isDragging, duration]);
+  }, [isDragging, calculateTimeFromEvent]);
 
   const handleProgressMouseUp = useCallback((e) => {
     if (!isDragging || !videoRef.current) return;
     setIsDragging(false);
     const newTime = calculateTimeFromEvent(e);
     videoRef.current.currentTime = newTime;
-  }, [isDragging, duration]);
+  }, [isDragging, calculateTimeFromEvent]);
 
   useEffect(() => {
     if (isDragging) {
@@ -737,6 +725,18 @@ function Player() {
     const rect = progressRef.current.getBoundingClientRect();
     const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     videoRef.current.currentTime = percent * duration;
+  };
+
+  const handleProgressHover = (e) => {
+    if (!progressRef.current || !duration) return;
+    const rect = progressRef.current.getBoundingClientRect();
+    const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    setHoverTime(percent * duration);
+    setHoverPosition(percent * 100);
+  };
+
+  const handleProgressLeave = () => {
+    setHoverTime(null);
   };
 
   const skip = (seconds) => {
@@ -1081,8 +1081,18 @@ function Player() {
                 ref={progressRef}
                 className={`progress-bar ${isDragging ? 'dragging' : ''}`}
                 onMouseDown={handleProgressMouseDown}
+                onMouseMove={handleProgressHover}
+                onMouseLeave={handleProgressLeave}
                 onClick={handleProgressClick}
               >
+                {hoverTime !== null && (
+                  <div
+                    className="progress-tooltip"
+                    style={{ left: `${hoverPosition}%` }}
+                  >
+                    {formatTime(hoverTime)}
+                  </div>
+                )}
                 <div
                   className="progress-buffered"
                   style={{ width: `${(buffered / duration) * 100}%` }}

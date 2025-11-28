@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import './Navbar.css';
 
 // SVG Icons
@@ -27,10 +28,34 @@ const PreferencesIcon = () => (
   </svg>
 );
 
+const LogoutIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+    <polyline points="16 17 21 12 16 7"></polyline>
+    <line x1="21" y1="12" x2="9" y2="12"></line>
+  </svg>
+);
+
+const LoginIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+    <polyline points="10 17 15 12 10 7"></polyline>
+    <line x1="15" y1="12" x2="3" y2="12"></line>
+  </svg>
+);
+
 function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, isAuthenticated, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    setShowProfile(false);
+    navigate('/');
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -61,55 +86,63 @@ function Navbar() {
             <Link to="/series" className={`nav-link ${isActive('/series') ? 'active' : ''}`}>
               Sèries
             </Link>
-            <span className="nav-link disabled">
-              Programes
-            </span>
-            <span className="nav-link disabled">
+            <Link to="/books" className={`nav-link ${isActive('/books') ? 'active' : ''}`}>
               Llibres
-            </span>
+            </Link>
             <span className="nav-link disabled">
               Audiollibres
-            </span>
-            <span className="nav-link disabled">
-              Televisió
             </span>
           </div>
         </div>
 
         <div className="navbar-right">
-          <div
-            className="profile-menu-container"
-            onMouseEnter={() => setShowProfile(true)}
-            onMouseLeave={() => setShowProfile(false)}
-          >
-            <button className="profile-button">
-              <span className="profile-avatar">H</span>
-            </button>
+          {isAuthenticated ? (
+            <div
+              className="profile-menu-container"
+              onMouseEnter={() => setShowProfile(true)}
+              onMouseLeave={() => setShowProfile(false)}
+            >
+              <button className="profile-button">
+                <span className="profile-avatar">
+                  {user?.display_name?.charAt(0).toUpperCase() || user?.username?.charAt(0).toUpperCase() || 'U'}
+                </span>
+              </button>
 
-            {showProfile && (
-              <div className="profile-dropdown">
-                <div className="profile-info">
-                  <div className="profile-name">Hermes User</div>
-                  <div className="profile-email">user@hermes.cat</div>
+              {showProfile && (
+                <div className="profile-dropdown">
+                  <div className="profile-info">
+                    <div className="profile-name">{user?.display_name || user?.username}</div>
+                    <div className="profile-email">{user?.email || 'Sense email'}</div>
+                  </div>
+
+                  <div className="dropdown-divider"></div>
+
+                  {user?.is_admin && (
+                    <Link to="/admin" className="dropdown-item admin">
+                      <SettingsIcon /> Administració
+                    </Link>
+                  )}
+                  <button className="dropdown-item">
+                    <StatsIcon /> Estadístiques
+                  </button>
+
+                  <div className="dropdown-divider"></div>
+
+                  <button className="dropdown-item">
+                    <PreferencesIcon /> Preferències
+                  </button>
+                  <button className="dropdown-item logout" onClick={handleLogout}>
+                    <LogoutIcon /> Tancar sessió
+                  </button>
                 </div>
-
-                <div className="dropdown-divider"></div>
-
-                <Link to="/admin" className="dropdown-item admin">
-                  <SettingsIcon /> Administració
-                </Link>
-                <button className="dropdown-item">
-                  <StatsIcon /> Estadístiques
-                </button>
-
-                <div className="dropdown-divider"></div>
-
-                <button className="dropdown-item">
-                  <PreferencesIcon /> Preferències
-                </button>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          ) : (
+            <Link to="/login" className="login-button-nav">
+              <LoginIcon />
+              <span>Iniciar sessió</span>
+            </Link>
+          )}
         </div>
       </div>
     </nav>

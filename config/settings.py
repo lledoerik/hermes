@@ -25,7 +25,7 @@ MEDIA_LIBRARIES = [
     },
     {
         "name": "Anime Movies",
-        "path": "D:\\Anime Movies", 
+        "path": "D:\\Anime Movies",
         "type": "movies"
     },
     {
@@ -44,6 +44,27 @@ MEDIA_LIBRARIES = [
         "type": "series"
     }
 ]
+
+# === BIBLIOTECA DE LLIBRES ===
+BOOKS_LIBRARIES = [
+    {
+        "name": "Llibres",
+        "path": "D:\\Llibres\\Llibres",
+        "type": "books"
+    }
+]
+
+AUDIOBOOKS_LIBRARIES = [
+    {
+        "name": "Audiollibres",
+        "path": "D:\\Llibres\\Audiollibres",
+        "type": "audiobooks"
+    }
+]
+
+# Formats de llibres suportats
+BOOK_FORMATS = ['.epub', '.pdf', '.mobi', '.azw', '.azw3']
+AUDIOBOOK_FORMATS = ['.mp3', '.m4a', '.m4b', '.ogg', '.flac']
 
 # === API ===
 API_HOST = "0.0.0.0"
@@ -70,3 +91,9 @@ TRANSCODE_SETTINGS = {
 
 # === SEGURETAT ===
 SECRET_KEY = "canvia-aixo-per-una-clau-segura"
+
+# === ADMIN PER DEFECTE ===
+# Aquestes credencials es creen automàticament si no existeix cap admin
+DEFAULT_ADMIN_USERNAME = "admin"
+DEFAULT_ADMIN_PASSWORD = "hermes2024"
+DEFAULT_ADMIN_EMAIL = "admin@hermes.cat"
