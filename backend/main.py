@@ -2454,6 +2454,48 @@ async def generate_all_thumbnails():
     return {"status": "success", "generated": generated, "errors": errors, "skipped": skipped}
 
 
+@app.post("/api/thumbnails/regenerate-all")
+async def regenerate_all_thumbnails():
+    """Esborra i regenera TOTS els thumbnails"""
+    import shutil
+
+    # Esborrar tots els thumbnails existents
+    deleted = 0
+    if THUMBNAILS_DIR.exists():
+        for thumb in THUMBNAILS_DIR.glob("*.jpg"):
+            try:
+                thumb.unlink()
+                deleted += 1
+            except Exception as e:
+                logger.error(f"Error esborrant thumbnail {thumb}: {e}")
+
+    logger.info(f"Thumbnails esborrats: {deleted}")
+
+    # Regenerar tots
+    generated = 0
+    errors = 0
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, file_path FROM media_files")
+
+        for row in cursor.fetchall():
+            thumbnail_path = THUMBNAILS_DIR / f"{row['id']}.jpg"
+            video_path = Path(row["file_path"])
+
+            if not video_path.exists():
+                errors += 1
+                continue
+
+            if generate_thumbnail(video_path, thumbnail_path):
+                generated += 1
+            else:
+                errors += 1
+
+    logger.info(f"Thumbnails regenerats: {generated}, errors: {errors}")
+    return {"status": "success", "deleted": deleted, "generated": generated, "errors": errors}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
