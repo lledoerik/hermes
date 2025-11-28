@@ -325,6 +325,17 @@
   border-radius: 2px;
   cursor: pointer;
   position: relative;
+  touch-action: none; /* Evitar scroll mentre es fa drag */
+}
+
+/* Àrea de toc més gran per mòbils */
+.progress-bar::before {
+  content: '';
+  position: absolute;
+  top: -15px;
+  bottom: -15px;
+  left: 0;
+  right: 0;
 }
 
 .progress-buffered {
