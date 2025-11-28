@@ -1993,6 +1993,358 @@ async def cleanup_audiobooks_library():
     }
 
 
+# === METADATA API ===
+
+class MetadataRequest(BaseModel):
+    tmdb_api_key: Optional[str] = None  # Optional TMDB API key
+
+
+@app.post("/api/metadata/fetch-all")
+async def fetch_all_metadata(request: MetadataRequest, background_tasks: BackgroundTasks):
+    """Fetch metadata for all content (movies, series, books, audiobooks)"""
+    from backend.metadata.openlibrary import OpenLibraryClient
+    from backend.metadata.tmdb import TMDBClient
+
+    async def do_fetch():
+        results = {
+            "movies": {"processed": 0, "updated": 0, "errors": 0},
+            "series": {"processed": 0, "updated": 0, "errors": 0},
+            "books": {"processed": 0, "updated": 0, "errors": 0},
+            "audiobooks": {"processed": 0, "updated": 0, "errors": 0}
+        }
+
+        # Fetch metadata for books
+        ol_client = OpenLibraryClient()
+        try:
+            with get_db() as conn:
+                books = conn.execute("SELECT id, title, author_name, file_path FROM books").fetchall()
+                for book in books:
+                    results["books"]["processed"] += 1
+                    try:
+                        book_path = Path(book["file_path"]).parent
+                        cover_path = book_path / "cover.jpg"
+
+                        # Skip if cover already exists
+                        if cover_path.exists():
+                            continue
+
+                        metadata = await ol_client.fetch_book_metadata(
+                            book["title"],
+                            book["author_name"],
+                            cover_path
+                        )
+                        if metadata["cover_downloaded"]:
+                            results["books"]["updated"] += 1
+                    except Exception as e:
+                        results["books"]["errors"] += 1
+                        logger.error(f"Error fetching book metadata: {e}")
+
+                # Fetch for audiobooks
+                audiobooks = conn.execute("SELECT id, title, author_name, path FROM audiobooks").fetchall()
+                for ab in audiobooks:
+                    results["audiobooks"]["processed"] += 1
+                    try:
+                        ab_path = Path(ab["path"])
+                        cover_path = ab_path / "cover.jpg"
+
+                        # Skip if cover already exists
+                        if cover_path.exists():
+                            continue
+
+                        metadata = await ol_client.fetch_book_metadata(
+                            ab["title"],
+                            ab["author_name"],
+                            cover_path
+                        )
+                        if metadata["cover_downloaded"]:
+                            results["audiobooks"]["updated"] += 1
+                    except Exception as e:
+                        results["audiobooks"]["errors"] += 1
+                        logger.error(f"Error fetching audiobook metadata: {e}")
+        finally:
+            await ol_client.close()
+
+        # Fetch metadata for movies/series if TMDB key provided
+        if request.tmdb_api_key:
+            tmdb_client = TMDBClient(request.tmdb_api_key)
+            try:
+                with get_db() as conn:
+                    # Movies
+                    movies = conn.execute(
+                        "SELECT id, name, year, path FROM series WHERE is_movie = 1"
+                    ).fetchall()
+                    for movie in movies:
+                        results["movies"]["processed"] += 1
+                        try:
+                            movie_path = Path(movie["path"])
+                            poster_path = movie_path / "poster.jpg"
+                            backdrop_path = movie_path / "backdrop.jpg"
+
+                            # Skip if poster already exists
+                            if poster_path.exists():
+                                continue
+
+                            metadata = await tmdb_client.fetch_movie_metadata(
+                                movie["name"],
+                                movie["year"],
+                                poster_path,
+                                backdrop_path
+                            )
+                            if metadata["found"]:
+                                # Update database with metadata
+                                conn.execute("""
+                                    UPDATE series SET
+                                        overview = COALESCE(?, overview),
+                                        rating = COALESCE(?, rating),
+                                        year = COALESCE(?, year),
+                                        genres = COALESCE(?, genres)
+                                    WHERE id = ?
+                                """, (
+                                    metadata["overview"],
+                                    metadata["rating"],
+                                    metadata["year"],
+                                    ", ".join(metadata["genres"]) if metadata["genres"] else None,
+                                    movie["id"]
+                                ))
+                                if metadata["poster_downloaded"]:
+                                    conn.execute(
+                                        "UPDATE series SET poster = ? WHERE id = ?",
+                                        (str(poster_path), movie["id"])
+                                    )
+                                results["movies"]["updated"] += 1
+                        except Exception as e:
+                            results["movies"]["errors"] += 1
+                            logger.error(f"Error fetching movie metadata: {e}")
+
+                    # Series
+                    series_list = conn.execute(
+                        "SELECT id, name, year, path FROM series WHERE is_movie = 0"
+                    ).fetchall()
+                    for series in series_list:
+                        results["series"]["processed"] += 1
+                        try:
+                            series_path = Path(series["path"])
+                            poster_path = series_path / "poster.jpg"
+                            backdrop_path = series_path / "backdrop.jpg"
+
+                            # Skip if poster already exists
+                            if poster_path.exists():
+                                continue
+
+                            metadata = await tmdb_client.fetch_tv_metadata(
+                                series["name"],
+                                series["year"],
+                                poster_path,
+                                backdrop_path
+                            )
+                            if metadata["found"]:
+                                conn.execute("""
+                                    UPDATE series SET
+                                        overview = COALESCE(?, overview),
+                                        rating = COALESCE(?, rating),
+                                        year = COALESCE(?, year),
+                                        genres = COALESCE(?, genres)
+                                    WHERE id = ?
+                                """, (
+                                    metadata["overview"],
+                                    metadata["rating"],
+                                    metadata["year"],
+                                    ", ".join(metadata["genres"]) if metadata["genres"] else None,
+                                    series["id"]
+                                ))
+                                if metadata["poster_downloaded"]:
+                                    conn.execute(
+                                        "UPDATE series SET poster = ? WHERE id = ?",
+                                        (str(poster_path), series["id"])
+                                    )
+                                results["series"]["updated"] += 1
+                        except Exception as e:
+                            results["series"]["errors"] += 1
+                            logger.error(f"Error fetching series metadata: {e}")
+            finally:
+                await tmdb_client.close()
+
+        return results
+
+    background_tasks.add_task(do_fetch)
+    return {"status": "started", "message": "Obtenció de metadades iniciada"}
+
+
+@app.post("/api/metadata/fetch-books")
+async def fetch_books_metadata():
+    """Fetch metadata for all books and audiobooks from Open Library"""
+    from backend.metadata.openlibrary import OpenLibraryClient
+
+    results = {"books": 0, "audiobooks": 0, "errors": 0}
+    client = OpenLibraryClient()
+
+    try:
+        with get_db() as conn:
+            # Books
+            books = conn.execute("SELECT id, title, author_name, file_path FROM books").fetchall()
+            for book in books:
+                try:
+                    book_path = Path(book["file_path"]).parent
+                    cover_path = book_path / "cover.jpg"
+
+                    if cover_path.exists():
+                        continue
+
+                    metadata = await client.fetch_book_metadata(
+                        book["title"], book["author_name"], cover_path
+                    )
+                    if metadata["cover_downloaded"]:
+                        results["books"] += 1
+                except Exception as e:
+                    results["errors"] += 1
+                    logger.error(f"Error fetching book metadata: {e}")
+
+            # Audiobooks
+            audiobooks = conn.execute("SELECT id, title, author_name, path FROM audiobooks").fetchall()
+            for ab in audiobooks:
+                try:
+                    ab_path = Path(ab["path"])
+                    cover_path = ab_path / "cover.jpg"
+
+                    if cover_path.exists():
+                        continue
+
+                    metadata = await client.fetch_book_metadata(
+                        ab["title"], ab["author_name"], cover_path
+                    )
+                    if metadata["cover_downloaded"]:
+                        results["audiobooks"] += 1
+                except Exception as e:
+                    results["errors"] += 1
+                    logger.error(f"Error fetching audiobook metadata: {e}")
+    finally:
+        await client.close()
+
+    return {"status": "success", **results}
+
+
+@app.post("/api/metadata/fetch-videos")
+async def fetch_videos_metadata(request: MetadataRequest):
+    """Fetch metadata for movies and series from TMDB"""
+    if not request.tmdb_api_key:
+        raise HTTPException(status_code=400, detail="TMDB API key is required")
+
+    from backend.metadata.tmdb import TMDBClient
+
+    results = {"movies": 0, "series": 0, "errors": 0}
+    client = TMDBClient(request.tmdb_api_key)
+
+    try:
+        with get_db() as conn:
+            # Movies
+            movies = conn.execute(
+                "SELECT id, name, year, path FROM series WHERE is_movie = 1"
+            ).fetchall()
+            for movie in movies:
+                try:
+                    movie_path = Path(movie["path"])
+                    poster_path = movie_path / "poster.jpg"
+                    backdrop_path = movie_path / "backdrop.jpg"
+
+                    if poster_path.exists():
+                        continue
+
+                    metadata = await client.fetch_movie_metadata(
+                        movie["name"], movie["year"], poster_path, backdrop_path
+                    )
+                    if metadata["found"]:
+                        conn.execute("""
+                            UPDATE series SET
+                                overview = COALESCE(?, overview),
+                                rating = COALESCE(?, rating),
+                                year = COALESCE(?, year),
+                                genres = COALESCE(?, genres)
+                            WHERE id = ?
+                        """, (
+                            metadata["overview"],
+                            metadata["rating"],
+                            metadata["year"],
+                            ", ".join(metadata["genres"]) if metadata["genres"] else None,
+                            movie["id"]
+                        ))
+                        if metadata["poster_downloaded"]:
+                            conn.execute(
+                                "UPDATE series SET poster = ? WHERE id = ?",
+                                (str(poster_path), movie["id"])
+                            )
+                        results["movies"] += 1
+                except Exception as e:
+                    results["errors"] += 1
+                    logger.error(f"Error fetching movie metadata: {e}")
+
+            # Series
+            series_list = conn.execute(
+                "SELECT id, name, year, path FROM series WHERE is_movie = 0"
+            ).fetchall()
+            for series in series_list:
+                try:
+                    series_path = Path(series["path"])
+                    poster_path = series_path / "poster.jpg"
+                    backdrop_path = series_path / "backdrop.jpg"
+
+                    if poster_path.exists():
+                        continue
+
+                    metadata = await client.fetch_tv_metadata(
+                        series["name"], series["year"], poster_path, backdrop_path
+                    )
+                    if metadata["found"]:
+                        conn.execute("""
+                            UPDATE series SET
+                                overview = COALESCE(?, overview),
+                                rating = COALESCE(?, rating),
+                                year = COALESCE(?, year),
+                                genres = COALESCE(?, genres)
+                            WHERE id = ?
+                        """, (
+                            metadata["overview"],
+                            metadata["rating"],
+                            metadata["year"],
+                            ", ".join(metadata["genres"]) if metadata["genres"] else None,
+                            series["id"]
+                        ))
+                        if metadata["poster_downloaded"]:
+                            conn.execute(
+                                "UPDATE series SET poster = ? WHERE id = ?",
+                                (str(poster_path), series["id"])
+                            )
+                        results["series"] += 1
+                except Exception as e:
+                    results["errors"] += 1
+                    logger.error(f"Error fetching series metadata: {e}")
+    finally:
+        await client.close()
+
+    return {"status": "success", **results}
+
+
+@app.get("/api/metadata/tmdb-key")
+async def get_tmdb_key_status():
+    """Check if TMDB API key is configured"""
+    # Check if key is stored in a config file or environment
+    tmdb_key = os.environ.get("TMDB_API_KEY", "")
+    config_path = Path(settings.DATA_PATH) / "tmdb_key.txt"
+
+    if config_path.exists():
+        tmdb_key = config_path.read_text().strip()
+
+    return {"configured": bool(tmdb_key)}
+
+
+@app.post("/api/metadata/tmdb-key")
+async def save_tmdb_key(api_key: str = Query(...)):
+    """Save TMDB API key to config"""
+    config_path = Path(settings.DATA_PATH) / "tmdb_key.txt"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(api_key)
+    return {"status": "success", "message": "API key guardada"}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
