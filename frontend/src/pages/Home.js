@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -81,11 +81,7 @@ function Home() {
   );
   const navigate = useNavigate();
 
-  useEffect(() => {
-    loadData();
-  }, [isAuthenticated]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const statsRes = await axios.get('/api/library/stats');
       setStats(statsRes.data);
@@ -104,7 +100,11 @@ function Home() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleSearch = (e) => {
     e.preventDefault();
