@@ -8,6 +8,8 @@ import Details from './pages/Details';
 import Player from './pages/Player';
 import Search from './pages/Search';
 import Admin from './pages/Admin';
+import Books from './pages/Books';
+import BookReader from './pages/BookReader';
 import './App.css';
 
 function App() {
@@ -25,6 +27,9 @@ function App() {
           {/* Player route without Navbar */}
           <Route path="/play/:type/:id" element={<Player />} />
 
+          {/* Book Reader without Navbar */}
+          <Route path="/read/:id" element={<BookReader />} />
+
           {/* All other routes with Navbar */}
           <Route
             path="*"
@@ -36,6 +41,7 @@ function App() {
                     <Route path="/" element={<Home />} />
                     <Route path="/movies" element={<Movies />} />
                     <Route path="/series" element={<Series />} />
+                    <Route path="/books" element={<Books />} />
                     <Route path="/movies/:id" element={<Details />} />
                     <Route path="/series/:id" element={<Details />} />
                     <Route path="/search" element={<Search />} />
