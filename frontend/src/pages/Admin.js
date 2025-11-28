@@ -226,12 +226,31 @@ function Admin() {
     }
   };
 
+  const [thumbnailProgress, setThumbnailProgress] = useState(null);
+
   const handleRegenerateThumbnails = async () => {
     if (!window.confirm('Això esborrarà TOTES les miniatures i les tornarà a generar. Pot trigar molt. Continuar?')) {
       return;
     }
     setGeneratingThumbnails(true);
-    addLog('info', 'Esborrant i regenerant TOTES les miniatures... (pot trigar molt)');
+    setThumbnailProgress({ status: 'starting', current: 0, total: 0 });
+    addLog('info', 'Esborrant i regenerant TOTES les miniatures...');
+
+    // Iniciar polling del progrés
+    const pollInterval = setInterval(async () => {
+      try {
+        const progressRes = await axios.get('/api/thumbnails/progress');
+        const prog = progressRes.data;
+        setThumbnailProgress(prog);
+
+        if (prog.status === 'completed' || !prog.active) {
+          clearInterval(pollInterval);
+        }
+      } catch (e) {
+        // Ignorar errors de polling
+      }
+    }, 1000);
+
     try {
       const response = await axios.post('/api/thumbnails/regenerate-all');
       const { deleted, generated, errors } = response.data;
@@ -239,7 +258,9 @@ function Admin() {
     } catch (error) {
       addLog('error', `Error: ${error.response?.data?.detail || error.message}`);
     } finally {
+      clearInterval(pollInterval);
       setGeneratingThumbnails(false);
+      setThumbnailProgress(null);
     }
   };
 
@@ -538,6 +559,35 @@ function Admin() {
               <RefreshIcon /> Regenerar totes
             </button>
           </div>
+
+          {/* Barra de progrés de miniatures */}
+          {thumbnailProgress && thumbnailProgress.total > 0 && (
+            <div style={{ marginTop: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '14px', color: 'rgba(255,255,255,0.8)' }}>
+                <span>
+                  {thumbnailProgress.status === 'deleting' && 'Esborrant miniatures...'}
+                  {thumbnailProgress.status === 'generating' && `Generant miniatura ${thumbnailProgress.current} de ${thumbnailProgress.total}`}
+                  {thumbnailProgress.status === 'completed' && 'Completat!'}
+                </span>
+                <span>{Math.round((thumbnailProgress.current / thumbnailProgress.total) * 100)}%</span>
+              </div>
+              <div style={{ height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
+                <div
+                  style={{
+                    width: `${(thumbnailProgress.current / thumbnailProgress.total) * 100}%`,
+                    height: '100%',
+                    background: 'linear-gradient(90deg, #8b5cf6, #a78bfa)',
+                    borderRadius: '4px',
+                    transition: 'width 0.3s ease'
+                  }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', fontSize: '12px', color: 'rgba(255,255,255,0.6)' }}>
+                <span>✓ {thumbnailProgress.generated} generades</span>
+                {thumbnailProgress.errors > 0 && <span style={{ color: '#ef4444' }}>✗ {thumbnailProgress.errors} errors</span>}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
