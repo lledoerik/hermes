@@ -330,10 +330,10 @@ function Admin() {
         </div>
       </div>
 
-      {/* Scanner Section */}
+      {/* Maintenance Section - Scanner + Cleanup combined */}
       <div className="admin-section">
         <div className="section-header">
-          <h2><SearchIcon /> Escàner de Biblioteca</h2>
+          <h2><BroomIcon /> Manteniment de la biblioteca</h2>
         </div>
         <div className="section-content">
           <div className="scanner-actions">
@@ -359,6 +359,28 @@ function Admin() {
               disabled={scanning}
             >
               <TrashIcon /> Netejar cache
+            </button>
+
+            <button
+              className="action-btn danger"
+              onClick={handleCleanup}
+              disabled={cleaning}
+            >
+              {cleaning ? <><RefreshIcon /> Netejant...</> : <><TvIcon /> Netejar vídeos</>}
+            </button>
+
+            <button
+              className="action-btn danger"
+              onClick={handleCleanupBooks}
+            >
+              <BookIcon /> Netejar llibres
+            </button>
+
+            <button
+              className="action-btn danger"
+              onClick={handleCleanupAudiobooks}
+            >
+              <HeadphonesIcon /> Netejar audiollibres
             </button>
           </div>
 
@@ -440,41 +462,6 @@ function Admin() {
                 </div>
               ))
             )}
-          </div>
-        </div>
-      </div>
-
-      {/* Maintenance Section */}
-      <div className="admin-section">
-        <div className="section-header">
-          <h2><BroomIcon /> Manteniment</h2>
-        </div>
-        <div className="section-content">
-          <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '20px' }}>
-            Elimina de la base de dades els elements que ja no existeixen al disc dur.
-          </p>
-          <div className="scanner-actions">
-            <button
-              className="action-btn danger"
-              onClick={handleCleanup}
-              disabled={cleaning}
-            >
-              {cleaning ? <><RefreshIcon /> Netejant...</> : <><TvIcon /> Netejar sèries/pel·lícules</>}
-            </button>
-
-            <button
-              className="action-btn danger"
-              onClick={handleCleanupBooks}
-            >
-              <BookIcon /> Netejar llibres
-            </button>
-
-            <button
-              className="action-btn danger"
-              onClick={handleCleanupAudiobooks}
-            >
-              <HeadphonesIcon /> Netejar audiollibres
-            </button>
           </div>
         </div>
       </div>

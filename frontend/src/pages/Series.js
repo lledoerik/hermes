@@ -9,11 +9,18 @@ const API_URL = window.location.hostname === 'localhost'
 
 axios.defaults.baseURL = API_URL;
 
+// SVG Icon
+const TvIcon = () => (
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect>
+    <polyline points="17 2 12 7 7 2"></polyline>
+  </svg>
+);
+
 function Series() {
   const [series, setSeries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('name');
-  const [scanning, setScanning] = useState(false);
 
   useEffect(() => {
     loadSeries();
@@ -27,18 +34,6 @@ function Series() {
       console.error('Error carregant sèries:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleScan = async () => {
-    setScanning(true);
-    try {
-      await axios.post('/api/library/scan');
-      await loadSeries();
-    } catch (error) {
-      console.error('Error escanejant:', error);
-    } finally {
-      setScanning(false);
     }
   };
 
@@ -70,7 +65,7 @@ function Series() {
     <div className="library-container">
       <div className="library-header">
         <div className="library-title">
-          <span className="icon">📺</span>
+          <span className="icon"><TvIcon /></span>
           <h1>Sèries</h1>
           <span className="library-count">({series.length})</span>
         </div>
@@ -92,16 +87,9 @@ function Series() {
       {series.length === 0 ? (
         <div className="library-grid">
           <div className="empty-state">
-            <div className="empty-icon">📺</div>
+            <div className="empty-icon"><TvIcon /></div>
             <h2>No hi ha sèries</h2>
-            <p>Escaneja la teva biblioteca per afegir contingut</p>
-            <button
-              className={`scan-btn ${scanning ? 'scanning' : ''}`}
-              onClick={handleScan}
-              disabled={scanning}
-            >
-              {scanning ? '🔄 Escanejant...' : '🔍 Escanejar biblioteca'}
-            </button>
+            <p>Ves al panell d'administració per escanejar la biblioteca</p>
           </div>
         </div>
       ) : (
