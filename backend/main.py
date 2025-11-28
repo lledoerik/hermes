@@ -1999,18 +1999,39 @@ class MetadataRequest(BaseModel):
     tmdb_api_key: Optional[str] = None  # Optional TMDB API key
 
 
+def get_tmdb_api_key(request_key: str = None) -> str:
+    """Get TMDB API key from request, file, or environment"""
+    if request_key:
+        return request_key
+
+    # Try config file
+    config_path = settings.METADATA_DIR / "tmdb_key.txt"
+    if config_path.exists():
+        key = config_path.read_text().strip()
+        if key:
+            return key
+
+    # Try environment
+    return os.environ.get("TMDB_API_KEY", "")
+
+
 @app.post("/api/metadata/fetch-all")
 async def fetch_all_metadata(request: MetadataRequest):
     """Fetch metadata for all content (movies, series, books, audiobooks)"""
     from backend.metadata.openlibrary import OpenLibraryClient
     from backend.metadata.tmdb import TMDBClient
 
+    # Get TMDB key from request or stored config
+    tmdb_api_key = get_tmdb_api_key(request.tmdb_api_key)
+    logger.info(f"TMDB API key configured: {bool(tmdb_api_key)}")
+
     async def do_fetch():
         results = {
             "movies": {"processed": 0, "updated": 0, "errors": 0},
             "series": {"processed": 0, "updated": 0, "errors": 0},
             "books": {"processed": 0, "updated": 0, "errors": 0},
-            "audiobooks": {"processed": 0, "updated": 0, "errors": 0}
+            "audiobooks": {"processed": 0, "updated": 0, "errors": 0},
+            "tmdb_configured": bool(tmdb_api_key)
         }
 
         # Fetch metadata for books
@@ -2073,8 +2094,8 @@ async def fetch_all_metadata(request: MetadataRequest):
             await ol_client.close()
 
         # Fetch metadata for movies/series if TMDB key provided
-        if request.tmdb_api_key:
-            tmdb_client = TMDBClient(request.tmdb_api_key)
+        if tmdb_api_key:
+            tmdb_client = TMDBClient(tmdb_api_key)
             try:
                 with get_db() as conn:
                     # Movies
