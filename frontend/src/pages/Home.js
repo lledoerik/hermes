@@ -305,7 +305,7 @@ function Home() {
             </Link>
 
             {/* Audiollibres */}
-            <div className="category-card inactive">
+            <Link to="/audiobooks" className="category-card active">
               <div className="card-glass"></div>
               <div className="hover-bubbles">
                 <div className="floating-bubble bubble-1 gradient-audiobooks"></div>
@@ -315,9 +315,10 @@ function Home() {
               <div className="card-content">
                 <AudiobookIcon />
                 <h3 className="card-title">Audiollibres</h3>
-                <span className="coming-soon">Properament</span>
+                <span className="card-count">Biblioteca</span>
               </div>
-            </div>
+              <div className="hover-border"></div>
+            </Link>
 
             {/* Televisió */}
             <div className="category-card inactive">

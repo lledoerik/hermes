@@ -1694,6 +1694,305 @@ async def cleanup_books_library():
     }
 
 
+# ============================================================
+# BIBLIOTECA D'AUDIOLLIBRES
+# ============================================================
+
+@app.get("/api/audiobooks/authors")
+async def get_audiobook_authors():
+    """Retorna tots els autors d'audiollibres"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT a.*, COUNT(ab.id) as audiobook_count
+            FROM audiobook_authors a
+            LEFT JOIN audiobooks ab ON a.id = ab.author_id
+            GROUP BY a.id
+            ORDER BY a.name
+        """)
+        authors = [dict(row) for row in cursor.fetchall()]
+        return authors
+
+
+@app.get("/api/audiobooks/authors/{author_id}")
+async def get_audiobook_author_detail(author_id: int):
+    """Retorna detalls d'un autor i els seus audiollibres"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT * FROM audiobook_authors WHERE id = ?", (author_id,))
+        author = cursor.fetchone()
+        if not author:
+            raise HTTPException(status_code=404, detail="Autor no trobat")
+
+        cursor.execute("""
+            SELECT * FROM audiobooks WHERE author_id = ?
+            ORDER BY title
+        """, (author_id,))
+        audiobooks = [dict(row) for row in cursor.fetchall()]
+
+        return {
+            **dict(author),
+            "audiobooks": audiobooks
+        }
+
+
+@app.get("/api/audiobooks")
+async def get_all_audiobooks():
+    """Retorna tots els audiollibres"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT ab.*, a.name as author_name
+            FROM audiobooks ab
+            LEFT JOIN audiobook_authors a ON ab.author_id = a.id
+            ORDER BY ab.title
+        """)
+        audiobooks = [dict(row) for row in cursor.fetchall()]
+        return audiobooks
+
+
+@app.get("/api/audiobooks/{audiobook_id}")
+async def get_audiobook_detail(audiobook_id: int):
+    """Retorna detalls d'un audiollibres"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT ab.*, a.name as author_name
+            FROM audiobooks ab
+            LEFT JOIN audiobook_authors a ON ab.author_id = a.id
+            WHERE ab.id = ?
+        """, (audiobook_id,))
+        audiobook = cursor.fetchone()
+
+        if not audiobook:
+            raise HTTPException(status_code=404, detail="Audiollibres no trobat")
+
+        # Obtenir fitxers
+        cursor.execute("""
+            SELECT * FROM audiobook_files
+            WHERE audiobook_id = ?
+            ORDER BY track_number, file_name
+        """, (audiobook_id,))
+        files = [dict(row) for row in cursor.fetchall()]
+
+        # Obtenir progrés
+        cursor.execute("""
+            SELECT * FROM audiobook_progress
+            WHERE audiobook_id = ? AND user_id = 1
+        """, (audiobook_id,))
+        progress = cursor.fetchone()
+
+        return {
+            **dict(audiobook),
+            "files": files,
+            "progress": dict(progress) if progress else None
+        }
+
+
+@app.get("/api/audiobooks/{audiobook_id}/cover")
+async def get_audiobook_cover(audiobook_id: int):
+    """Serveix la portada d'un audiollibres"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT cover FROM audiobooks WHERE id = ?", (audiobook_id,))
+        audiobook = cursor.fetchone()
+
+        if not audiobook or not audiobook['cover']:
+            raise HTTPException(status_code=404, detail="Portada no trobada")
+
+        if not os.path.exists(audiobook['cover']):
+            raise HTTPException(status_code=404, detail="Fitxer de portada no trobat")
+
+        return FileResponse(path=audiobook['cover'], media_type='image/jpeg')
+
+
+@app.get("/api/audiobooks/{audiobook_id}/files/{file_id}/stream")
+async def stream_audiobook_file(audiobook_id: int, file_id: int, request: Request):
+    """Serveix un fitxer d'àudio amb suport per Range requests"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM audiobook_files
+            WHERE id = ? AND audiobook_id = ?
+        """, (file_id, audiobook_id))
+        file_info = cursor.fetchone()
+
+        if not file_info:
+            raise HTTPException(status_code=404, detail="Fitxer no trobat")
+
+        file_path = file_info['file_path']
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="Fitxer d'àudio no trobat")
+
+        file_size = os.path.getsize(file_path)
+
+        # Determinar mime type
+        ext = file_info['format'].lower()
+        mime_types = {
+            'mp3': 'audio/mpeg',
+            'm4a': 'audio/mp4',
+            'm4b': 'audio/mp4',
+            'ogg': 'audio/ogg',
+            'flac': 'audio/flac',
+            'opus': 'audio/opus',
+            'aac': 'audio/aac'
+        }
+        mime_type = mime_types.get(ext, 'audio/mpeg')
+
+        # Range request support
+        range_header = request.headers.get('range')
+        if range_header:
+            range_match = range_header.replace('bytes=', '').split('-')
+            start = int(range_match[0]) if range_match[0] else 0
+            end = int(range_match[1]) if len(range_match) > 1 and range_match[1] else file_size - 1
+
+            if start >= file_size:
+                raise HTTPException(status_code=416, detail="Range not satisfiable")
+
+            chunk_size = end - start + 1
+
+            def iterfile():
+                with open(file_path, 'rb') as f:
+                    f.seek(start)
+                    remaining = chunk_size
+                    while remaining > 0:
+                        read_size = min(8192, remaining)
+                        data = f.read(read_size)
+                        if not data:
+                            break
+                        remaining -= len(data)
+                        yield data
+
+            headers = {
+                'Content-Range': f'bytes {start}-{end}/{file_size}',
+                'Accept-Ranges': 'bytes',
+                'Content-Length': str(chunk_size),
+                'Content-Type': mime_type
+            }
+
+            return StreamingResponse(
+                iterfile(),
+                status_code=206,
+                headers=headers,
+                media_type=mime_type
+            )
+
+        # Full file
+        return FileResponse(
+            path=file_path,
+            media_type=mime_type,
+            headers={'Accept-Ranges': 'bytes'}
+        )
+
+
+class AudiobookProgressRequest(BaseModel):
+    file_id: int
+    position: int = 0
+
+
+@app.post("/api/audiobooks/{audiobook_id}/progress")
+async def update_audiobook_progress(audiobook_id: int, progress: AudiobookProgressRequest):
+    """Actualitza el progrés d'escolta"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Obtenir info del audiollibres
+        cursor.execute("SELECT total_duration FROM audiobooks WHERE id = ?", (audiobook_id,))
+        audiobook = cursor.fetchone()
+        if not audiobook:
+            raise HTTPException(status_code=404, detail="Audiollibres no trobat")
+
+        # Calcular temps total escoltat
+        cursor.execute("""
+            SELECT SUM(duration) as listened FROM audiobook_files
+            WHERE audiobook_id = ? AND track_number < (
+                SELECT track_number FROM audiobook_files WHERE id = ?
+            )
+        """, (audiobook_id, progress.file_id))
+        prev = cursor.fetchone()
+        total_listened = (prev['listened'] or 0) + progress.position
+
+        # Calcular percentatge
+        percentage = 0
+        if audiobook['total_duration'] > 0:
+            percentage = (total_listened / audiobook['total_duration']) * 100
+
+        # Actualitzar o inserir progrés
+        cursor.execute("""
+            INSERT INTO audiobook_progress (user_id, audiobook_id, current_file_id, current_position, total_listened, percentage, last_listened)
+            VALUES (1, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id, audiobook_id) DO UPDATE SET
+                current_file_id = excluded.current_file_id,
+                current_position = excluded.current_position,
+                total_listened = excluded.total_listened,
+                percentage = excluded.percentage,
+                last_listened = CURRENT_TIMESTAMP
+        """, (audiobook_id, progress.file_id, progress.position, total_listened, percentage))
+
+        conn.commit()
+
+    return {"status": "success", "percentage": percentage}
+
+
+@app.get("/api/audiobooks/{audiobook_id}/progress")
+async def get_audiobook_progress(audiobook_id: int):
+    """Obté el progrés d'escolta"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM audiobook_progress
+            WHERE audiobook_id = ? AND user_id = 1
+        """, (audiobook_id,))
+        progress = cursor.fetchone()
+
+        if not progress:
+            return {"current_file_id": None, "current_position": 0, "percentage": 0}
+
+        return dict(progress)
+
+
+@app.post("/api/audiobooks/scan")
+async def scan_audiobooks_library(background_tasks: BackgroundTasks):
+    """Escaneja la biblioteca d'audiollibres"""
+    from backend.audiobooks.scanner import AudiobooksScanner
+
+    def do_scan():
+        scanner = AudiobooksScanner()
+        return scanner.scan_all_libraries()
+
+    background_tasks.add_task(do_scan)
+
+    return {
+        "status": "started",
+        "message": "Escaneig d'audiollibres iniciat"
+    }
+
+
+@app.get("/api/audiobooks/scan/sync")
+async def scan_audiobooks_library_sync():
+    """Escaneja la biblioteca d'audiollibres (síncron)"""
+    from backend.audiobooks.scanner import AudiobooksScanner
+
+    scanner = AudiobooksScanner()
+    result = scanner.scan_all_libraries()
+    return result
+
+
+@app.post("/api/audiobooks/cleanup")
+async def cleanup_audiobooks_library():
+    """Neteja audiollibres que ja no existeixen"""
+    from backend.audiobooks.scanner import AudiobooksScanner
+
+    scanner = AudiobooksScanner()
+    result = scanner.cleanup_missing_audiobooks()
+    return {
+        "status": "success",
+        **result
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
