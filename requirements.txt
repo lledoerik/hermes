@@ -7,3 +7,5 @@ numpy>=1.24.0
 # Llibres
 EbookLib>=0.18
 PyMuPDF>=1.23.0
+# Traducció automàtica
+deep-translator>=1.11.0
