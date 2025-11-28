@@ -91,14 +91,6 @@ function Books() {
     if (book.cover) {
       return `${API_URL}/api/books/${book.id}/cover`;
     }
-    // Placeholder basat en format
-    const formatIcons = {
-      'epub': '📖',
-      'pdf': '📄',
-      'mobi': '📱',
-      'azw': '📱',
-      'azw3': '📱'
-    };
     return null;
   };
 
