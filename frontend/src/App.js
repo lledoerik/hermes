@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import Movies from './pages/Movies';
@@ -10,10 +11,12 @@ import Search from './pages/Search';
 import Admin from './pages/Admin';
 import Books from './pages/Books';
 import BookReader from './pages/BookReader';
+import Login from './pages/Login';
 import './App.css';
 
 function App() {
   return (
+    <AuthProvider>
     <Router>
       <div className="app">
         {/* Animated Background */}
@@ -29,6 +32,9 @@ function App() {
 
           {/* Book Reader without Navbar */}
           <Route path="/read/:id" element={<BookReader />} />
+
+          {/* Login without Navbar */}
+          <Route path="/login" element={<Login />} />
 
           {/* All other routes with Navbar */}
           <Route
@@ -54,6 +60,7 @@ function App() {
         </Routes>
       </div>
     </Router>
+    </AuthProvider>
   );
 }
 
