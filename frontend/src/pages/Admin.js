@@ -223,26 +223,43 @@ function Admin() {
 
   const handleFetchAllMetadata = async () => {
     setFetchingMetadata(true);
-    addLog('info', 'Obtenint totes les metadades...');
+    addLog('info', 'Obtenint metadades... (pot trigar uns minuts)');
     try {
-      await axios.post('/api/metadata/fetch-all', {
+      const response = await axios.post('/api/metadata/fetch-all', {
         tmdb_api_key: tmdbConfigured ? undefined : tmdbKey || undefined
       });
-      addLog('info', 'Procés iniciat en segon pla. Les metadades s\'estan descarregant...');
+      const r = response.data.results;
+      if (r) {
+        addLog('success', `Pel·lícules: ${r.movies?.updated || 0} actualitzades`);
+        addLog('success', `Sèries: ${r.series?.updated || 0} actualitzades`);
+        addLog('success', `Llibres: ${r.books?.updated || 0} actualitzats`);
+        addLog('success', `Audiollibres: ${r.audiobooks?.updated || 0} actualitzats`);
+        const errors = (r.movies?.errors || 0) + (r.series?.errors || 0) + (r.books?.errors || 0) + (r.audiobooks?.errors || 0);
+        if (errors > 0) {
+          addLog('warning', `${errors} errors (revisa la consola del servidor)`);
+        }
+      }
+      addLog('success', 'Metadades actualitzades!');
     } catch (error) {
-      addLog('error', `Error: ${error.message}`);
+      addLog('error', `Error: ${error.response?.data?.detail || error.message}`);
     } finally {
       setFetchingMetadata(false);
     }
   };
 
+  const [generatingThumbnails, setGeneratingThumbnails] = useState(false);
+
   const handleGenerateThumbnails = async () => {
-    addLog('info', 'Generant miniatures per episodis...');
+    setGeneratingThumbnails(true);
+    addLog('info', 'Generant miniatures... (pot trigar uns minuts)');
     try {
-      await axios.post('/api/thumbnails/generate-all');
-      addLog('info', 'Generació iniciada en segon pla. Pot trigar uns minuts...');
+      const response = await axios.post('/api/thumbnails/generate-all');
+      const { generated, errors, skipped } = response.data;
+      addLog('success', `Miniatures generades: ${generated}, omeses: ${skipped}, errors: ${errors}`);
     } catch (error) {
-      addLog('error', `Error: ${error.message}`);
+      addLog('error', `Error: ${error.response?.data?.detail || error.message}`);
+    } finally {
+      setGeneratingThumbnails(false);
     }
   };
 
@@ -517,35 +534,19 @@ function Admin() {
           <div className="scanner-actions">
             <button
               className="action-btn"
-              onClick={handleFetchBooksMetadata}
-              disabled={fetchingMetadata}
-            >
-              <BookIcon /> Obtenir metadades llibres
-            </button>
-
-            <button
-              className="action-btn"
-              onClick={handleFetchVideosMetadata}
-              disabled={fetchingMetadata || (!tmdbConfigured && !tmdbKey)}
-              title={!tmdbConfigured && !tmdbKey ? 'Necessites configurar la clau TMDB' : ''}
-            >
-              <MovieIcon /> Obtenir metadades vídeos
-            </button>
-
-            <button
-              className="action-btn secondary"
               onClick={handleFetchAllMetadata}
               disabled={fetchingMetadata}
             >
-              {fetchingMetadata ? <><RefreshIcon /> Obtenint...</> : <><DownloadIcon /> Obtenir totes</>}
+              {fetchingMetadata ? <><RefreshIcon /> Obtenint...</> : <><DownloadIcon /> Obtenir metadades</>}
             </button>
 
             <button
               className="action-btn secondary"
               onClick={handleGenerateThumbnails}
+              disabled={generatingThumbnails}
               title="Genera miniatures per tots els episodis"
             >
-              <TvIcon /> Generar miniatures
+              {generatingThumbnails ? <><RefreshIcon /> Generant...</> : <><TvIcon /> Generar miniatures</>}
             </button>
           </div>
         </div>

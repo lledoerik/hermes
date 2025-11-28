@@ -2000,7 +2000,7 @@ class MetadataRequest(BaseModel):
 
 
 @app.post("/api/metadata/fetch-all")
-async def fetch_all_metadata(request: MetadataRequest, background_tasks: BackgroundTasks):
+async def fetch_all_metadata(request: MetadataRequest):
     """Fetch metadata for all content (movies, series, books, audiobooks)"""
     from backend.metadata.openlibrary import OpenLibraryClient
     from backend.metadata.tmdb import TMDBClient
@@ -2079,14 +2079,20 @@ async def fetch_all_metadata(request: MetadataRequest, background_tasks: Backgro
                 with get_db() as conn:
                     # Movies
                     movies = conn.execute(
-                        "SELECT id, name, year, path FROM series WHERE is_movie = 1"
+                        "SELECT id, name, year, path FROM series WHERE media_type = 'movie'"
                     ).fetchall()
                     for movie in movies:
                         results["movies"]["processed"] += 1
                         try:
                             movie_path = Path(movie["path"])
-                            poster_path = movie_path / "poster.jpg"
-                            backdrop_path = movie_path / "backdrop.jpg"
+                            # Si el path és un fitxer (carpeta plana), usar el parent
+                            if movie_path.is_file():
+                                poster_dir = movie_path.parent
+                                poster_path = poster_dir / f"{movie_path.stem}_poster.jpg"
+                                backdrop_path = poster_dir / f"{movie_path.stem}_backdrop.jpg"
+                            else:
+                                poster_path = movie_path / "poster.jpg"
+                                backdrop_path = movie_path / "backdrop.jpg"
 
                             # Skip if poster already exists
                             if poster_path.exists():
@@ -2126,7 +2132,7 @@ async def fetch_all_metadata(request: MetadataRequest, background_tasks: Backgro
 
                     # Series
                     series_list = conn.execute(
-                        "SELECT id, name, year, path FROM series WHERE is_movie = 0"
+                        "SELECT id, name, year, path FROM series WHERE media_type = 'series'"
                     ).fetchall()
                     for series in series_list:
                         results["series"]["processed"] += 1
@@ -2174,8 +2180,9 @@ async def fetch_all_metadata(request: MetadataRequest, background_tasks: Backgro
 
         return results
 
-    background_tasks.add_task(do_fetch)
-    return {"status": "started", "message": "Obtenció de metadades iniciada"}
+    # Executar síncronament per retornar resultats
+    fetch_results = await do_fetch()
+    return {"status": "success", "results": fetch_results}
 
 
 @app.post("/api/metadata/fetch-books")
@@ -2254,13 +2261,19 @@ async def fetch_videos_metadata(request: MetadataRequest):
         with get_db() as conn:
             # Movies
             movies = conn.execute(
-                "SELECT id, name, year, path FROM series WHERE is_movie = 1"
+                "SELECT id, name, year, path FROM series WHERE media_type = 'movie'"
             ).fetchall()
             for movie in movies:
                 try:
                     movie_path = Path(movie["path"])
-                    poster_path = movie_path / "poster.jpg"
-                    backdrop_path = movie_path / "backdrop.jpg"
+                    # Si el path és un fitxer (carpeta plana), usar el parent
+                    if movie_path.is_file():
+                        poster_dir = movie_path.parent
+                        poster_path = poster_dir / f"{movie_path.stem}_poster.jpg"
+                        backdrop_path = poster_dir / f"{movie_path.stem}_backdrop.jpg"
+                    else:
+                        poster_path = movie_path / "poster.jpg"
+                        backdrop_path = movie_path / "backdrop.jpg"
 
                     if poster_path.exists():
                         continue
@@ -2295,7 +2308,7 @@ async def fetch_videos_metadata(request: MetadataRequest):
 
             # Series
             series_list = conn.execute(
-                "SELECT id, name, year, path FROM series WHERE is_movie = 0"
+                "SELECT id, name, year, path FROM series WHERE media_type = 'series'"
             ).fetchall()
             for series in series_list:
                 try:
@@ -2446,39 +2459,35 @@ async def get_media_thumbnail(media_id: int):
 
 
 @app.post("/api/thumbnails/generate-all")
-async def generate_all_thumbnails(background_tasks: BackgroundTasks):
+async def generate_all_thumbnails():
     """Genera thumbnails per tots els episodis/pel·lícules que no en tinguin"""
+    generated = 0
+    errors = 0
+    skipped = 0
 
-    async def do_generate():
-        generated = 0
-        errors = 0
-        skipped = 0
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, file_path FROM media_files")
 
-        with get_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT id, file_path FROM media_files")
+        for row in cursor.fetchall():
+            thumbnail_path = THUMBNAILS_DIR / f"{row['id']}.jpg"
 
-            for row in cursor.fetchall():
-                thumbnail_path = THUMBNAILS_DIR / f"{row['id']}.jpg"
+            if thumbnail_path.exists():
+                skipped += 1
+                continue
 
-                if thumbnail_path.exists():
-                    skipped += 1
-                    continue
+            video_path = Path(row["file_path"])
+            if not video_path.exists():
+                errors += 1
+                continue
 
-                video_path = Path(row["file_path"])
-                if not video_path.exists():
-                    errors += 1
-                    continue
+            if generate_thumbnail(video_path, thumbnail_path):
+                generated += 1
+            else:
+                errors += 1
 
-                if generate_thumbnail(video_path, thumbnail_path):
-                    generated += 1
-                else:
-                    errors += 1
-
-        logger.info(f"Thumbnails generats: {generated}, errors: {errors}, omesos: {skipped}")
-
-    background_tasks.add_task(do_generate)
-    return {"status": "started", "message": "Generació de thumbnails iniciada en segon pla"}
+    logger.info(f"Thumbnails generats: {generated}, errors: {errors}, omesos: {skipped}")
+    return {"status": "success", "generated": generated, "errors": errors, "skipped": skipped}
 
 
 if __name__ == "__main__":
