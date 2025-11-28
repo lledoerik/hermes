@@ -2328,7 +2328,7 @@ async def get_tmdb_key_status():
     """Check if TMDB API key is configured"""
     # Check if key is stored in a config file or environment
     tmdb_key = os.environ.get("TMDB_API_KEY", "")
-    config_path = Path(settings.DATA_PATH) / "tmdb_key.txt"
+    config_path = settings.METADATA_DIR / "tmdb_key.txt"
 
     if config_path.exists():
         tmdb_key = config_path.read_text().strip()
@@ -2339,7 +2339,7 @@ async def get_tmdb_key_status():
 @app.post("/api/metadata/tmdb-key")
 async def save_tmdb_key(api_key: str = Query(...)):
     """Save TMDB API key to config"""
-    config_path = Path(settings.DATA_PATH) / "tmdb_key.txt"
+    config_path = settings.METADATA_DIR / "tmdb_key.txt"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(api_key)
     return {"status": "success", "message": "API key guardada"}
