@@ -2,6 +2,7 @@
 Configuració de Hermes Media Server
 """
 
+import os
 from pathlib import Path
 
 # === PATHS ===
@@ -90,10 +91,12 @@ TRANSCODE_SETTINGS = {
 }
 
 # === SEGURETAT ===
-SECRET_KEY = "canvia-aixo-per-una-clau-segura"
+# Clau secreta per JWT - USA VARIABLE D'ENTORN EN PRODUCCIÓ!
+SECRET_KEY = os.environ.get("HERMES_SECRET_KEY", "dev-key-canvia-en-produccio")
 
 # === ADMIN PER DEFECTE ===
 # Aquestes credencials es creen automàticament si no existeix cap admin
-DEFAULT_ADMIN_USERNAME = "admin"
-DEFAULT_ADMIN_PASSWORD = "hermes2024"
-DEFAULT_ADMIN_EMAIL = "admin@hermes.cat"
+# USA VARIABLES D'ENTORN EN PRODUCCIÓ!
+DEFAULT_ADMIN_USERNAME = os.environ.get("HERMES_ADMIN_USER", "admin")
+DEFAULT_ADMIN_PASSWORD = os.environ.get("HERMES_ADMIN_PASSWORD", "hermes2024")
+DEFAULT_ADMIN_EMAIL = os.environ.get("HERMES_ADMIN_EMAIL", "admin@hermes.local")

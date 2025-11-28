@@ -81,7 +81,7 @@
 
 .search-bar input {
   width: 450px;
-  height: 55px;
+  height: 50px;
   border: 2px solid #07505a;
   border-radius: 30px;
   padding: 10px 25px;
@@ -110,7 +110,7 @@
   top: 0;
   right: 0;
   width: 60px;
-  height: 55px;
+  height: 50px;
   border: none;
   border-radius: 30px;
   background: linear-gradient(135deg, #07505a 0%, #328492 100%);
