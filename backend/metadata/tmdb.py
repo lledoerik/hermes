@@ -8,8 +8,40 @@ import urllib.request
 import urllib.parse
 import urllib.error
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import re
+
+# Idiomes per ordre de preferència (català, espanyol, anglès)
+LANGUAGE_FALLBACK = ["ca-ES", "es-ES", "en-US"]
+
+
+def translate_to_catalan(text: str, source_lang: str = "auto") -> str:
+    """Tradueix text al català utilitzant Google Translate (deep-translator)."""
+    if not text or not text.strip():
+        return text
+
+    try:
+        from deep_translator import GoogleTranslator
+        # Detectar idioma font si és "auto"
+        if source_lang == "auto" or source_lang.startswith("en"):
+            source_lang = "en"
+        elif source_lang.startswith("es"):
+            source_lang = "es"
+        else:
+            source_lang = "auto"
+
+        translator = GoogleTranslator(source=source_lang, target='ca')
+        # deep-translator té un límit de 5000 caràcters
+        if len(text) > 4500:
+            text = text[:4500] + "..."
+        return translator.translate(text)
+    except ImportError:
+        # Si no està instal·lat deep-translator, retornar el text original
+        print("Avís: deep-translator no instal·lat. Executa: pip install deep-translator")
+        return text
+    except Exception as e:
+        print(f"Error traduint: {e}")
+        return text
 
 
 class TMDBClient:
@@ -104,12 +136,58 @@ class TMDBClient:
         return None
 
     async def get_movie_details(self, movie_id: int) -> Optional[Dict[str, Any]]:
-        """Get detailed information about a movie."""
-        return await self._request(f"/movie/{movie_id}", {"language": "ca-ES"})
+        """Get detailed information about a movie with language fallback and translation."""
+        result = None
+        used_language = None
+
+        # Provar cada idioma fins trobar contingut
+        for lang in LANGUAGE_FALLBACK:
+            data = await self._request(f"/movie/{movie_id}", {"language": lang})
+            if data:
+                # Si és el primer resultat o té overview (sinopsi), utilitzar-lo
+                if not result or (data.get("overview") and not result.get("overview")):
+                    result = data
+                    used_language = lang
+                    # Si tenim overview, no cal provar més idiomes
+                    if data.get("overview"):
+                        break
+
+        # Si les dades no són en català, traduir
+        if result and used_language and used_language != "ca-ES":
+            if result.get("overview"):
+                result["overview"] = await asyncio.to_thread(
+                    translate_to_catalan, result["overview"], used_language
+                )
+            # Els gèneres es tradueixen automàticament per TMDB, però per si de cas
+            # No traduïm el títol per mantenir coherència amb pòsters/cerca
+
+        return result
 
     async def get_tv_details(self, tv_id: int) -> Optional[Dict[str, Any]]:
-        """Get detailed information about a TV series."""
-        return await self._request(f"/tv/{tv_id}", {"language": "ca-ES"})
+        """Get detailed information about a TV series with language fallback and translation."""
+        result = None
+        used_language = None
+
+        # Provar cada idioma fins trobar contingut
+        for lang in LANGUAGE_FALLBACK:
+            data = await self._request(f"/tv/{tv_id}", {"language": lang})
+            if data:
+                # Si és el primer resultat o té overview (sinopsi), utilitzar-lo
+                if not result or (data.get("overview") and not result.get("overview")):
+                    result = data
+                    used_language = lang
+                    # Si tenim overview, no cal provar més idiomes
+                    if data.get("overview"):
+                        break
+
+        # Si les dades no són en català, traduir
+        if result and used_language and used_language != "ca-ES":
+            if result.get("overview"):
+                result["overview"] = await asyncio.to_thread(
+                    translate_to_catalan, result["overview"], used_language
+                )
+
+        return result
 
     def get_poster_url(self, poster_path: str, size: str = "w500") -> Optional[str]:
         """
