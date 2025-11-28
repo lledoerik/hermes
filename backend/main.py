@@ -819,12 +819,23 @@ async def cleanup_library():
         }
 
         # Buscar sèries amb paths que no existeixen
-        cursor.execute("SELECT id, name, path FROM series")
+        cursor.execute("SELECT id, name, path, media_type FROM series")
         series_list = cursor.fetchall()
 
         for series in series_list:
-            if not os.path.exists(series["path"]):
-                # La carpeta de la sèrie no existeix, eliminar-la
+            should_remove = False
+            series_path = series["path"]
+
+            if not os.path.exists(series_path):
+                # El path no existeix
+                should_remove = True
+            elif series["media_type"] == "movie" and os.path.isdir(series_path):
+                # És una pel·lícula però el path és un directori (entrada antiga de carpeta plana)
+                # Hauria de ser un fitxer, no un directori
+                should_remove = True
+                logger.info(f"Detectada pel·lícula amb path de directori (entrada antiga): {series['name']}")
+
+            if should_remove:
                 series_id = series["id"]
                 series_name = series["name"]
 
