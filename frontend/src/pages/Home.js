@@ -127,7 +127,7 @@ function Home() {
       {continueWatching.length > 0 && (
         <section className="continue-watching-section">
           <h2 className="section-title">
-            <span className="title-icon">▶</span>
+            <span className="title-icon"><PlayIcon /></span>
             Continuar veient
           </h2>
           <div className="continue-watching-grid">

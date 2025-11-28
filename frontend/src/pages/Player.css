@@ -320,11 +320,16 @@
 
 .progress-bar {
   flex: 1;
-  height: 5px;
+  height: 3px;
   background: rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
+  border-radius: 2px;
   cursor: pointer;
   position: relative;
+  transition: height 0.15s ease;
+}
+
+.progress-container:hover .progress-bar {
+  height: 5px;
 }
 
 .progress-buffered {

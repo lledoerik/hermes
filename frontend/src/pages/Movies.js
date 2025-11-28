@@ -9,11 +9,24 @@ const API_URL = window.location.hostname === 'localhost'
 
 axios.defaults.baseURL = API_URL;
 
+// SVG Icon
+const MovieIcon = () => (
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+    <line x1="7" y1="2" x2="7" y2="22"></line>
+    <line x1="17" y1="2" x2="17" y2="22"></line>
+    <line x1="2" y1="12" x2="22" y2="12"></line>
+    <line x1="2" y1="7" x2="7" y2="7"></line>
+    <line x1="2" y1="17" x2="7" y2="17"></line>
+    <line x1="17" y1="17" x2="22" y2="17"></line>
+    <line x1="17" y1="7" x2="22" y2="7"></line>
+  </svg>
+);
+
 function Movies() {
   const [movies, setMovies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('name');
-  const [scanning, setScanning] = useState(false);
 
   useEffect(() => {
     loadMovies();
@@ -27,18 +40,6 @@ function Movies() {
       console.error('Error carregant pel·lícules:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleScan = async () => {
-    setScanning(true);
-    try {
-      await axios.post('/api/library/scan');
-      await loadMovies();
-    } catch (error) {
-      console.error('Error escanejant:', error);
-    } finally {
-      setScanning(false);
     }
   };
 
@@ -70,7 +71,7 @@ function Movies() {
     <div className="library-container">
       <div className="library-header">
         <div className="library-title">
-          <span className="icon">🎬</span>
+          <span className="icon"><MovieIcon /></span>
           <h1>Pel·lícules</h1>
           <span className="library-count">({movies.length})</span>
         </div>
@@ -92,16 +93,9 @@ function Movies() {
       {movies.length === 0 ? (
         <div className="library-grid">
           <div className="empty-state">
-            <div className="empty-icon">🎬</div>
+            <div className="empty-icon"><MovieIcon /></div>
             <h2>No hi ha pel·lícules</h2>
-            <p>Escaneja la teva biblioteca per afegir contingut</p>
-            <button
-              className={`scan-btn ${scanning ? 'scanning' : ''}`}
-              onClick={handleScan}
-              disabled={scanning}
-            >
-              {scanning ? '🔄 Escanejant...' : '🔍 Escanejar biblioteca'}
-            </button>
+            <p>Ves al panell d'administració per escanejar la biblioteca</p>
           </div>
         </div>
       ) : (

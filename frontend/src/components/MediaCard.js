@@ -5,6 +5,39 @@ const API_URL = window.location.hostname === 'localhost'
   ? 'http://localhost:8000'
   : '';
 
+// SVG Icons
+const TvIcon = () => (
+  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect>
+    <polyline points="17 2 12 7 7 2"></polyline>
+  </svg>
+);
+
+const MovieIcon = () => (
+  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+    <line x1="7" y1="2" x2="7" y2="22"></line>
+    <line x1="17" y1="2" x2="17" y2="22"></line>
+    <line x1="2" y1="12" x2="22" y2="12"></line>
+    <line x1="2" y1="7" x2="7" y2="7"></line>
+    <line x1="2" y1="17" x2="7" y2="17"></line>
+    <line x1="17" y1="17" x2="22" y2="17"></line>
+    <line x1="17" y1="7" x2="22" y2="7"></line>
+  </svg>
+);
+
+const StarIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1">
+    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+  </svg>
+);
+
+const PlayIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+  </svg>
+);
+
 const styles = {
   card: {
     position: 'relative',
@@ -171,7 +204,7 @@ function MediaCard({ item, type = 'series', width = 180 }) {
           />
         ) : (
           <div style={styles.placeholder}>
-            {type === 'movies' ? '🎬' : '📺'}
+            {type === 'movies' ? <MovieIcon /> : <TvIcon />}
           </div>
         )}
 
@@ -180,7 +213,7 @@ function MediaCard({ item, type = 'series', width = 180 }) {
           ...(isHovered ? styles.overlayVisible : {})
         }}>
           <div style={styles.rating}>
-            ⭐ {item.rating || '8.5'}
+            <StarIcon /> {item.rating || '8.5'}
           </div>
         </div>
 
@@ -191,7 +224,7 @@ function MediaCard({ item, type = 'series', width = 180 }) {
           }}
           onClick={handlePlay}
         >
-          ▶
+          <PlayIcon />
         </button>
 
         {item.year && (
