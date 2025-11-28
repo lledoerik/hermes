@@ -483,10 +483,13 @@ async def get_series_detail(series_id: int):
 
         # Info de la sèrie
         cursor.execute("SELECT * FROM series WHERE id = ?", (series_id,))
-        series = cursor.fetchone()
+        row = cursor.fetchone()
 
-        if not series:
+        if not row:
             raise HTTPException(status_code=404, detail="Sèrie no trobada")
+
+        # Convertir a diccionari per poder usar .get()
+        series = dict(row)
 
         # Temporades
         cursor.execute("""
@@ -522,8 +525,8 @@ async def get_series_detail(series_id: int):
             "genres": genres,
             "runtime": series.get("runtime"),
             "tmdb_id": series.get("tmdb_id"),
-            "poster": series["poster"],
-            "backdrop": series["backdrop"],
+            "poster": series.get("poster"),
+            "backdrop": series.get("backdrop"),
             "seasons": seasons
         }
 
@@ -946,10 +949,13 @@ async def get_library_movie_detail(movie_id: int):
             LEFT JOIN media_files m ON s.id = m.series_id
             WHERE s.id = ? AND s.media_type = 'movie'
         """, (movie_id,))
-        movie = cursor.fetchone()
+        row = cursor.fetchone()
 
-        if not movie:
+        if not row:
             raise HTTPException(status_code=404, detail="Pel·lícula no trobada")
+
+        # Convertir a diccionari per poder usar .get()
+        movie = dict(row)
 
         # Parsejar gèneres si existeixen
         genres = None
@@ -961,7 +967,7 @@ async def get_library_movie_detail(movie_id: int):
 
         return {
             "id": movie["id"],
-            "media_id": movie["media_id"],
+            "media_id": movie.get("media_id"),
             "name": movie["name"],
             "title": movie.get("title"),
             "year": movie.get("year"),
@@ -970,16 +976,16 @@ async def get_library_movie_detail(movie_id: int):
             "genres": genres,
             "runtime": movie.get("runtime"),
             "tmdb_id": movie.get("tmdb_id"),
-            "poster": movie["poster"],
-            "backdrop": movie["backdrop"],
-            "duration": movie["duration"],
-            "file_size": movie["file_size"],
-            "width": movie["width"],
-            "height": movie["height"],
-            "video_codec": movie["video_codec"],
-            "audio_tracks": movie["audio_tracks"],
-            "subtitles": movie["subtitle_tracks"],
-            "file_path": movie["file_path"]
+            "poster": movie.get("poster"),
+            "backdrop": movie.get("backdrop"),
+            "duration": movie.get("duration"),
+            "file_size": movie.get("file_size"),
+            "width": movie.get("width"),
+            "height": movie.get("height"),
+            "video_codec": movie.get("video_codec"),
+            "audio_tracks": movie.get("audio_tracks"),
+            "subtitles": movie.get("subtitle_tracks"),
+            "file_path": movie.get("file_path")
         }
 
 
