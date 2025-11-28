@@ -2017,7 +2017,11 @@ async def fetch_all_metadata(request: MetadataRequest, background_tasks: Backgro
         ol_client = OpenLibraryClient()
         try:
             with get_db() as conn:
-                books = conn.execute("SELECT id, title, author_name, file_path FROM books").fetchall()
+                books = conn.execute("""
+                    SELECT b.id, b.title, b.file_path, a.name as author_name
+                    FROM books b
+                    LEFT JOIN authors a ON b.author_id = a.id
+                """).fetchall()
                 for book in books:
                     results["books"]["processed"] += 1
                     try:
@@ -2040,7 +2044,11 @@ async def fetch_all_metadata(request: MetadataRequest, background_tasks: Backgro
                         logger.error(f"Error fetching book metadata: {e}")
 
                 # Fetch for audiobooks
-                audiobooks = conn.execute("SELECT id, title, author_name, path FROM audiobooks").fetchall()
+                audiobooks = conn.execute("""
+                    SELECT ab.id, ab.title, ab.path, a.name as author_name
+                    FROM audiobooks ab
+                    LEFT JOIN authors a ON ab.author_id = a.id
+                """).fetchall()
                 for ab in audiobooks:
                     results["audiobooks"]["processed"] += 1
                     try:
@@ -2181,7 +2189,11 @@ async def fetch_books_metadata():
     try:
         with get_db() as conn:
             # Books
-            books = conn.execute("SELECT id, title, author_name, file_path FROM books").fetchall()
+            books = conn.execute("""
+                SELECT b.id, b.title, b.file_path, a.name as author_name
+                FROM books b
+                LEFT JOIN authors a ON b.author_id = a.id
+            """).fetchall()
             for book in books:
                 try:
                     book_path = Path(book["file_path"]).parent
@@ -2200,7 +2212,11 @@ async def fetch_books_metadata():
                     logger.error(f"Error fetching book metadata: {e}")
 
             # Audiobooks
-            audiobooks = conn.execute("SELECT id, title, author_name, path FROM audiobooks").fetchall()
+            audiobooks = conn.execute("""
+                SELECT ab.id, ab.title, ab.path, a.name as author_name
+                FROM audiobooks ab
+                LEFT JOIN authors a ON ab.author_id = a.id
+            """).fetchall()
             for ab in audiobooks:
                 try:
                     ab_path = Path(ab["path"])
