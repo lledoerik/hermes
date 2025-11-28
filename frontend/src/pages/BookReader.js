@@ -26,13 +26,8 @@ function BookReader() {
   const [chapterContent, setChapterContent] = useState('');
 
   const contentRef = useRef(null);
-  const controlsTimeoutRef = useRef(null);
 
-  useEffect(() => {
-    loadBook();
-  }, [id]);
-
-  const loadBook = async () => {
+  const loadBook = useCallback(async () => {
     try {
       setLoading(true);
       // Carregar info del llibre
@@ -60,9 +55,14 @@ function BookReader() {
     } finally {
       setLoading(false);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
-  const loadChapter = async (chapterIndex, bookContent = content?.content) => {
+  useEffect(() => {
+    loadBook();
+  }, [loadBook]);
+
+  const loadChapter = useCallback(async (chapterIndex, bookContent = content?.content) => {
     if (!bookContent || !bookContent.spine || !bookContent.spine[chapterIndex]) {
       return;
     }
@@ -100,7 +100,7 @@ function BookReader() {
     } catch (err) {
       console.error('Error carregant capítol:', err);
     }
-  };
+  }, [id, content]);
 
   const saveProgress = async (chapterIndex) => {
     try {
@@ -118,13 +118,13 @@ function BookReader() {
     if (content?.content?.spine && currentChapter < content.content.spine.length - 1) {
       loadChapter(currentChapter + 1);
     }
-  }, [content, currentChapter]);
+  }, [content, currentChapter, loadChapter]);
 
   const goToPrevChapter = useCallback(() => {
     if (currentChapter > 0) {
       loadChapter(currentChapter - 1);
     }
-  }, [currentChapter]);
+  }, [currentChapter, loadChapter]);
 
   const handleKeyDown = useCallback((e) => {
     switch (e.key) {
