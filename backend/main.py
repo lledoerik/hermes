@@ -2045,14 +2045,14 @@ async def fetch_all_metadata(request: MetadataRequest, background_tasks: Backgro
 
                 # Fetch for audiobooks
                 audiobooks = conn.execute("""
-                    SELECT ab.id, ab.title, ab.path, a.name as author_name
+                    SELECT ab.id, ab.title, ab.folder_path, a.name as author_name
                     FROM audiobooks ab
-                    LEFT JOIN authors a ON ab.author_id = a.id
+                    LEFT JOIN audiobook_authors a ON ab.author_id = a.id
                 """).fetchall()
                 for ab in audiobooks:
                     results["audiobooks"]["processed"] += 1
                     try:
-                        ab_path = Path(ab["path"])
+                        ab_path = Path(ab["folder_path"])
                         cover_path = ab_path / "cover.jpg"
 
                         # Skip if cover already exists
@@ -2213,13 +2213,13 @@ async def fetch_books_metadata():
 
             # Audiobooks
             audiobooks = conn.execute("""
-                SELECT ab.id, ab.title, ab.path, a.name as author_name
+                SELECT ab.id, ab.title, ab.folder_path, a.name as author_name
                 FROM audiobooks ab
-                LEFT JOIN authors a ON ab.author_id = a.id
+                LEFT JOIN audiobook_authors a ON ab.author_id = a.id
             """).fetchall()
             for ab in audiobooks:
                 try:
-                    ab_path = Path(ab["path"])
+                    ab_path = Path(ab["folder_path"])
                     cover_path = ab_path / "cover.jpg"
 
                     if cover_path.exists():
