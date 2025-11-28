@@ -136,6 +136,13 @@ function Details() {
     loadDetails();
   }, [loadDetails]);
 
+  // Carregar el TMDB ID guardat si existeix
+  useEffect(() => {
+    if (item?.tmdb_id) {
+      setTmdbId(item.tmdb_id.toString());
+    }
+  }, [item]);
+
   useEffect(() => {
     if (type === 'series' && seasons.length > 0) {
       loadEpisodes(selectedSeason);
@@ -268,17 +275,17 @@ function Details() {
           </div>
 
           <div className="details-info">
-            <h1 className="details-title">{item.name}</h1>
+            <h1 className="details-title">{item.title || item.name}</h1>
 
             <div className="details-meta">
               {item.year && (
                 <span className="meta-item">{item.year}</span>
               )}
               {item.rating && (
-                <span className="meta-item rating"><StarIcon /> {item.rating}</span>
+                <span className="meta-item rating"><StarIcon /> {item.rating.toFixed(1)}</span>
               )}
-              {type === 'movies' && item.duration && (
-                <span className="meta-item">{formatDuration(item.duration)}</span>
+              {type === 'movies' && (item.runtime || item.duration) && (
+                <span className="meta-item">{formatDuration(item.runtime ? item.runtime * 60 : item.duration)}</span>
               )}
               {type === 'series' && (
                 <>
@@ -286,8 +293,8 @@ function Details() {
                   <span className="meta-item">{item.episode_count || 0} episodis</span>
                 </>
               )}
-              {item.genres && (
-                <span className="meta-item">{item.genres}</span>
+              {item.genres && Array.isArray(item.genres) && item.genres.length > 0 && (
+                <span className="meta-item genres">{item.genres.join(', ')}</span>
               )}
             </div>
 
@@ -314,7 +321,9 @@ function Details() {
             {/* TMDB ID Input Form */}
             {showTmdbInput && (
               <div className="tmdb-input-form">
-                <label>Introdueix l'ID de TMDB:</label>
+                <label>
+                  {item?.tmdb_id ? 'TMDB ID actual (canvia per actualitzar):' : 'Introdueix l\'ID de TMDB:'}
+                </label>
                 <div className="tmdb-input-row">
                   <input
                     type="number"
