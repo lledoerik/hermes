@@ -91,3 +91,9 @@ TRANSCODE_SETTINGS = {
 
 # === SEGURETAT ===
 SECRET_KEY = "canvia-aixo-per-una-clau-segura"
+
+# === ADMIN PER DEFECTE ===
+# Aquestes credencials es creen automàticament si no existeix cap admin
+DEFAULT_ADMIN_USERNAME = "admin"
+DEFAULT_ADMIN_PASSWORD = "hermes2024"
+DEFAULT_ADMIN_EMAIL = "admin@hermes.cat"
