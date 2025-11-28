@@ -65,35 +65,12 @@ const PlayIcon = () => (
   </svg>
 );
 
-// Missatges de benvinguda
-const getGreeting = () => {
-  const hour = new Date().getHours();
-  if (hour < 6) return 'Bona nit';
-  if (hour < 12) return 'Bon dia';
-  if (hour < 20) return 'Bona tarda';
-  return 'Bona nit';
-};
-
-const getWelcomeMessage = (name) => {
-  const messages = [
-    `${getGreeting()}, ${name}!`,
-    `Hola ${name}! Tens ganes de maratonar alguna cosa?`,
-    `${getGreeting()}, ${name}! Hermes et dona la benvinguda`,
-    `Ei ${name}! Preparat per una bona sessió?`,
-    `${getGreeting()}, ${name}!`
-  ];
-  return messages[Math.floor(Math.random() * messages.length)];
-};
-
 function Home() {
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [stats, setStats] = useState(null);
   const [continueWatching, setContinueWatching] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [welcomeMessage] = useState(() =>
-    user ? getWelcomeMessage(user.display_name || user.username) : ''
-  );
   const navigate = useNavigate();
 
   const loadData = useCallback(async () => {
@@ -146,20 +123,6 @@ function Home() {
 
   return (
     <div className="home-container">
-      {/* Welcome Section for logged in users */}
-      {isAuthenticated && (
-        <section className="welcome-section">
-          <div className="welcome-content">
-            <h1 className="welcome-title">{welcomeMessage}</h1>
-            {!isAuthenticated && (
-              <Link to="/login" className="login-prompt">
-                Inicia sessió per guardar el teu progrés →
-              </Link>
-            )}
-          </div>
-        </section>
-      )}
-
       {/* Continue Watching Section */}
       {continueWatching.length > 0 && (
         <section className="continue-watching-section">
