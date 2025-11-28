@@ -2349,6 +2349,115 @@ async def save_tmdb_key(api_key: str = Query(...)):
     return {"status": "success", "message": "API key guardada"}
 
 
+class UpdateByTmdbIdRequest(BaseModel):
+    tmdb_id: int
+    media_type: str = "movie"  # "movie" o "series"
+
+
+@app.post("/api/metadata/series/{series_id}/update-by-tmdb")
+async def update_series_by_tmdb_id(series_id: int, request: UpdateByTmdbIdRequest):
+    """
+    Actualitza les metadades d'una sèrie/pel·lícula usant directament l'ID de TMDB.
+    Força la descàrrega de les imatges encara que ja existeixin.
+    """
+    from backend.metadata.tmdb import fetch_movie_by_tmdb_id, fetch_tv_by_tmdb_id
+
+    tmdb_api_key = get_tmdb_api_key()
+    if not tmdb_api_key:
+        raise HTTPException(status_code=400, detail="No hi ha clau API de TMDB configurada")
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Obtenir info de la sèrie/pel·lícula
+        cursor.execute("SELECT id, name, path, media_type FROM series WHERE id = ?", (series_id,))
+        series = cursor.fetchone()
+
+        if not series:
+            raise HTTPException(status_code=404, detail="Sèrie/pel·lícula no trobada")
+
+        series_path = Path(series["path"])
+
+        # Determinar paths per les imatges
+        if series["media_type"] == "movie":
+            if series_path.is_file():
+                # Carpeta plana - imatges al costat del fitxer
+                poster_dir = series_path.parent
+                poster_path = poster_dir / f"{series_path.stem}_poster.jpg"
+                backdrop_path = poster_dir / f"{series_path.stem}_backdrop.jpg"
+            else:
+                poster_path = series_path / "poster.jpg"
+                backdrop_path = series_path / "backdrop.jpg"
+        else:
+            poster_path = series_path / "poster.jpg"
+            backdrop_path = series_path / "backdrop.jpg"
+
+        # Esborrar imatges existents per forçar la descàrrega
+        if poster_path.exists():
+            try:
+                poster_path.unlink()
+            except Exception as e:
+                logger.warning(f"No s'ha pogut esborrar el poster existent: {e}")
+
+        if backdrop_path.exists():
+            try:
+                backdrop_path.unlink()
+            except Exception as e:
+                logger.warning(f"No s'ha pogut esborrar el backdrop existent: {e}")
+
+        # Obtenir metadades de TMDB
+        if request.media_type == "movie":
+            metadata = await fetch_movie_by_tmdb_id(
+                tmdb_api_key,
+                request.tmdb_id,
+                poster_path,
+                backdrop_path
+            )
+        else:
+            metadata = await fetch_tv_by_tmdb_id(
+                tmdb_api_key,
+                request.tmdb_id,
+                poster_path,
+                backdrop_path
+            )
+
+        if not metadata["found"]:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No s'ha trobat cap {'pel·lícula' if request.media_type == 'movie' else 'sèrie'} amb TMDB ID {request.tmdb_id}"
+            )
+
+        # Actualitzar la base de dades amb les noves imatges
+        update_fields = []
+        update_values = []
+
+        if metadata["poster_downloaded"]:
+            update_fields.append("poster = ?")
+            update_values.append(str(poster_path))
+
+        if metadata["backdrop_downloaded"]:
+            update_fields.append("backdrop = ?")
+            update_values.append(str(backdrop_path))
+
+        if update_fields:
+            update_values.append(series_id)
+            cursor.execute(
+                f"UPDATE series SET {', '.join(update_fields)} WHERE id = ?",
+                update_values
+            )
+            conn.commit()
+
+        return {
+            "status": "success",
+            "message": f"Metadades actualitzades per '{series['name']}'",
+            "tmdb_id": request.tmdb_id,
+            "title": metadata.get("title"),
+            "poster_downloaded": metadata["poster_downloaded"],
+            "backdrop_downloaded": metadata["backdrop_downloaded"],
+            "metadata": metadata
+        }
+
+
 # ============================================================
 # THUMBNAILS PER EPISODIS
 # ============================================================
