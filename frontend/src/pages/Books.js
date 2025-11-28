@@ -52,20 +52,6 @@ const AuthorIcon = () => (
   </svg>
 );
 
-const ScanIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <circle cx="11" cy="11" r="8"></circle>
-    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-  </svg>
-);
-
-const RefreshIcon = ({ className }) => (
-  <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <polyline points="23 4 23 10 17 10"></polyline>
-    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-  </svg>
-);
-
 const BackIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <line x1="19" y1="12" x2="5" y2="12"></line>
@@ -85,7 +71,6 @@ function Books() {
   const [books, setBooks] = useState([]);
   const [selectedAuthor, setSelectedAuthor] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [scanning, setScanning] = useState(false);
   const [viewMode, setViewMode] = useState('authors'); // 'authors' o 'all'
   const navigate = useNavigate();
 
@@ -119,21 +104,6 @@ function Books() {
       setSelectedAuthor(response.data);
     } catch (error) {
       console.error('Error carregant llibres de l\'autor:', error);
-    }
-  };
-
-  const handleScan = async () => {
-    setScanning(true);
-    try {
-      await axios.get('/api/books/scan/sync');
-      await loadAuthors();
-      if (viewMode === 'all') {
-        await loadAllBooks();
-      }
-    } catch (error) {
-      console.error('Error escanejant:', error);
-    } finally {
-      setScanning(false);
     }
   };
 
@@ -265,14 +235,6 @@ function Books() {
               Tots els Llibres
             </button>
           </div>
-
-          <button
-            className={`scan-btn ${scanning ? 'scanning' : ''}`}
-            onClick={handleScan}
-            disabled={scanning}
-          >
-            {scanning ? <><RefreshIcon className="spin" /> Escanejant...</> : <><ScanIcon /> Escanejar</>}
-          </button>
         </div>
       </div>
 
@@ -282,14 +244,7 @@ function Books() {
           <div className="empty-state">
             <div className="empty-icon"><LibraryIcon /></div>
             <h2>No hi ha llibres</h2>
-            <p>Escaneja la teva biblioteca per afegir contingut</p>
-            <button
-              className={`scan-btn ${scanning ? 'scanning' : ''}`}
-              onClick={handleScan}
-              disabled={scanning}
-            >
-              {scanning ? <><RefreshIcon className="spin" /> Escanejant...</> : <><ScanIcon /> Escanejar biblioteca</>}
-            </button>
+            <p>Ves al panell d'administració per escanejar la biblioteca</p>
           </div>
         ) : (
           <div className="authors-grid">
