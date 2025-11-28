@@ -130,13 +130,32 @@ const PlayIcon = () => (
   </svg>
 );
 
+// Download icon
+const DownloadIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+    <polyline points="7 10 12 15 17 10"></polyline>
+    <line x1="12" y1="15" x2="12" y2="3"></line>
+  </svg>
+);
+
+// Key icon
+const KeyIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
+  </svg>
+);
+
 function Admin() {
   const [stats, setStats] = useState(null);
   const [scanning, setScanning] = useState(false);
   const [cleaning, setCleaning] = useState(false);
+  const [fetchingMetadata, setFetchingMetadata] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [tmdbKey, setTmdbKey] = useState('');
+  const [tmdbConfigured, setTmdbConfigured] = useState(false);
 
   const loadStats = useCallback(async () => {
     try {
@@ -152,7 +171,77 @@ function Admin() {
 
   useEffect(() => {
     loadStats();
+    checkTmdbKey();
   }, [loadStats]);
+
+  const checkTmdbKey = async () => {
+    try {
+      const response = await axios.get('/api/metadata/tmdb-key');
+      setTmdbConfigured(response.data.configured);
+    } catch (error) {
+      console.error('Error checking TMDB key:', error);
+    }
+  };
+
+  const saveTmdbKey = async () => {
+    if (!tmdbKey.trim()) return;
+    try {
+      await axios.post(`/api/metadata/tmdb-key?api_key=${encodeURIComponent(tmdbKey)}`);
+      setTmdbConfigured(true);
+      addLog('success', 'Clau TMDB guardada correctament');
+      setTmdbKey('');
+    } catch (error) {
+      addLog('error', 'Error guardant clau TMDB');
+    }
+  };
+
+  const handleFetchBooksMetadata = async () => {
+    setFetchingMetadata(true);
+    addLog('info', 'Obtenint metadades de llibres i audiollibres...');
+    try {
+      const response = await axios.post('/api/metadata/fetch-books');
+      addLog('success', `Metadades obtingudes: ${response.data.books} llibres, ${response.data.audiobooks} audiollibres`);
+    } catch (error) {
+      addLog('error', `Error obtenint metadades: ${error.message}`);
+    } finally {
+      setFetchingMetadata(false);
+    }
+  };
+
+  const handleFetchVideosMetadata = async () => {
+    if (!tmdbConfigured && !tmdbKey) {
+      addLog('error', 'Necessites configurar la clau TMDB primer');
+      return;
+    }
+
+    setFetchingMetadata(true);
+    addLog('info', 'Obtenint metadades de pel·lícules i sèries...');
+    try {
+      const response = await axios.post('/api/metadata/fetch-videos', {
+        tmdb_api_key: tmdbKey || undefined
+      });
+      addLog('success', `Metadades obtingudes: ${response.data.movies} pel·lícules, ${response.data.series} sèries`);
+    } catch (error) {
+      addLog('error', `Error obtenint metadades: ${error.message}`);
+    } finally {
+      setFetchingMetadata(false);
+    }
+  };
+
+  const handleFetchAllMetadata = async () => {
+    setFetchingMetadata(true);
+    addLog('info', 'Obtenint totes les metadades...');
+    try {
+      await axios.post('/api/metadata/fetch-all', {
+        tmdb_api_key: tmdbConfigured ? undefined : tmdbKey || undefined
+      });
+      addLog('info', 'Procés iniciat en segon pla. Les metadades s\'estan descarregant...');
+    } catch (error) {
+      addLog('error', `Error: ${error.message}`);
+    } finally {
+      setFetchingMetadata(false);
+    }
+  };
 
   const addLog = (type, message) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -279,6 +368,46 @@ function Admin() {
     }
   };
 
+  const handleCleanupAll = async () => {
+    if (!window.confirm('Eliminar de la base de dades tot el contingut que ja no existeix al disc? (vídeos, llibres i audiollibres)')) {
+      return;
+    }
+
+    setCleaning(true);
+    addLog('info', 'Iniciant neteja completa...');
+
+    let totalRemoved = { videos: 0, episodes: 0, books: 0, audiobooks: 0, authors: 0 };
+
+    try {
+      // Netejar vídeos
+      addLog('info', 'Netejant vídeos...');
+      const videosRes = await axios.post('/api/library/cleanup');
+      if (videosRes.data.status === 'success') {
+        totalRemoved.videos = videosRes.data.series_removed || 0;
+        totalRemoved.episodes = videosRes.data.episodes_removed || 0;
+      }
+
+      // Netejar llibres
+      addLog('info', 'Netejant llibres...');
+      const booksRes = await axios.post('/api/books/cleanup');
+      totalRemoved.books = booksRes.data.books_removed || 0;
+      totalRemoved.authors += booksRes.data.authors_removed || 0;
+
+      // Netejar audiollibres
+      addLog('info', 'Netejant audiollibres...');
+      const audiobooksRes = await axios.post('/api/audiobooks/cleanup');
+      totalRemoved.audiobooks = audiobooksRes.data.audiobooks_removed || 0;
+      totalRemoved.authors += audiobooksRes.data.authors_removed || 0;
+
+      addLog('success', `Neteja completa: ${totalRemoved.videos} vídeos, ${totalRemoved.episodes} episodis, ${totalRemoved.books} llibres, ${totalRemoved.audiobooks} audiollibres, ${totalRemoved.authors} autors eliminats`);
+      await loadStats();
+    } catch (error) {
+      addLog('error', `Error durant la neteja: ${error.message}`);
+    } finally {
+      setCleaning(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="loading-screen">
@@ -363,24 +492,10 @@ function Admin() {
 
             <button
               className="action-btn danger"
-              onClick={handleCleanup}
+              onClick={handleCleanupAll}
               disabled={cleaning}
             >
-              {cleaning ? <><RefreshIcon /> Netejant...</> : <><TvIcon /> Netejar vídeos</>}
-            </button>
-
-            <button
-              className="action-btn danger"
-              onClick={handleCleanupBooks}
-            >
-              <BookIcon /> Netejar llibres
-            </button>
-
-            <button
-              className="action-btn danger"
-              onClick={handleCleanupAudiobooks}
-            >
-              <HeadphonesIcon /> Netejar audiollibres
+              {cleaning ? <><RefreshIcon /> Netejant...</> : <><BroomIcon /> Netejar tot</>}
             </button>
           </div>
 
@@ -401,6 +516,88 @@ function Admin() {
               </div>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Metadata Section */}
+      <div className="admin-section">
+        <div className="section-header">
+          <h2><DownloadIcon /> Metadades externes</h2>
+        </div>
+        <div className="section-content">
+          <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '1rem' }}>
+            Descarrega automàticament metadades i caràtules des de TMDB (pel·lícules i sèries) i Open Library (llibres i audiollibres).
+          </p>
+
+          {!tmdbConfigured && (
+            <div className="tmdb-config" style={{ marginBottom: '1.5rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+              <h4 style={{ color: 'white', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <KeyIcon /> Clau API de TMDB
+              </h4>
+              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem', marginBottom: '0.75rem' }}>
+                Per obtenir metadades de vídeos necessites una clau API de <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener noreferrer" style={{ color: '#8b5cf6' }}>themoviedb.org</a> (gratuïta)
+              </p>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input
+                  type="text"
+                  value={tmdbKey}
+                  onChange={(e) => setTmdbKey(e.target.value)}
+                  placeholder="Introdueix la clau API..."
+                  style={{
+                    flex: 1,
+                    padding: '0.75rem 1rem',
+                    background: 'rgba(255,255,255,0.1)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    borderRadius: '8px',
+                    color: 'white',
+                    fontSize: '0.9rem'
+                  }}
+                />
+                <button
+                  className="action-btn"
+                  onClick={saveTmdbKey}
+                  disabled={!tmdbKey.trim()}
+                  style={{ padding: '0.75rem 1.25rem' }}
+                >
+                  Desar
+                </button>
+              </div>
+            </div>
+          )}
+
+          {tmdbConfigured && (
+            <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: 'rgba(139, 92, 246, 0.15)', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <KeyIcon />
+              <span style={{ color: 'rgba(255,255,255,0.8)' }}>Clau TMDB configurada</span>
+            </div>
+          )}
+
+          <div className="scanner-actions">
+            <button
+              className="action-btn"
+              onClick={handleFetchBooksMetadata}
+              disabled={fetchingMetadata}
+            >
+              <BookIcon /> Obtenir metadades llibres
+            </button>
+
+            <button
+              className="action-btn"
+              onClick={handleFetchVideosMetadata}
+              disabled={fetchingMetadata || (!tmdbConfigured && !tmdbKey)}
+              title={!tmdbConfigured && !tmdbKey ? 'Necessites configurar la clau TMDB' : ''}
+            >
+              <MovieIcon /> Obtenir metadades vídeos
+            </button>
+
+            <button
+              className="action-btn secondary"
+              onClick={handleFetchAllMetadata}
+              disabled={fetchingMetadata}
+            >
+              {fetchingMetadata ? <><RefreshIcon /> Obtenint...</> : <><DownloadIcon /> Obtenir totes</>}
+            </button>
+          </div>
         </div>
       </div>
 

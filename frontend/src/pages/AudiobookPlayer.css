@@ -540,3 +540,42 @@
   color: rgba(255, 255, 255, 0.5);
   margin: 0.25rem 0 0;
 }
+
+/* Skip indicator for double tap */
+.skip-indicator {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: white;
+  font-size: 18px;
+  font-weight: 600;
+  padding: 20px 30px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 12px;
+  animation: skipFade 0.5s ease-out forwards;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.skip-indicator.left {
+  left: 15%;
+}
+
+.skip-indicator.right {
+  right: 15%;
+}
+
+@keyframes skipFade {
+  0% {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-50%) scale(1.2);
+  }
+}
