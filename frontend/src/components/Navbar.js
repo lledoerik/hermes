@@ -86,6 +86,12 @@ function Navbar() {
             <Link to="/series" className={`nav-link ${isActive('/series') ? 'active' : ''}`}>
               Sèries
             </Link>
+            <span className="nav-link disabled">
+              Programes
+            </span>
+            <span className="nav-link disabled">
+              Televisió
+            </span>
             <Link to="/books" className={`nav-link ${isActive('/books') ? 'active' : ''}`}>
               Llibres
             </Link>
