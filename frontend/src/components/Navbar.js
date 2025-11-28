@@ -89,14 +89,14 @@ function Navbar() {
             <span className="nav-link disabled">
               Programes
             </span>
-            <span className="nav-link disabled">
-              Televisió
-            </span>
             <Link to="/books" className={`nav-link ${isActive('/books') ? 'active' : ''}`}>
               Llibres
             </Link>
             <span className="nav-link disabled">
               Audiollibres
+            </span>
+            <span className="nav-link disabled">
+              Televisió
             </span>
           </div>
         </div>
