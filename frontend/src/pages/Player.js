@@ -679,6 +679,8 @@ function Player() {
 
   const [isDragging, setIsDragging] = useState(false);
   const [dragTime, setDragTime] = useState(0);
+  const [hoverTime, setHoverTime] = useState(null);
+  const [hoverPosition, setHoverPosition] = useState(0);
 
   const calculateTimeFromEvent = useCallback((e) => {
     if (!progressRef.current || !duration) return 0;
@@ -723,6 +725,18 @@ function Player() {
     const rect = progressRef.current.getBoundingClientRect();
     const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     videoRef.current.currentTime = percent * duration;
+  };
+
+  const handleProgressHover = (e) => {
+    if (!progressRef.current || !duration) return;
+    const rect = progressRef.current.getBoundingClientRect();
+    const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    setHoverTime(percent * duration);
+    setHoverPosition(percent * 100);
+  };
+
+  const handleProgressLeave = () => {
+    setHoverTime(null);
   };
 
   const skip = (seconds) => {
@@ -1067,8 +1081,18 @@ function Player() {
                 ref={progressRef}
                 className={`progress-bar ${isDragging ? 'dragging' : ''}`}
                 onMouseDown={handleProgressMouseDown}
+                onMouseMove={handleProgressHover}
+                onMouseLeave={handleProgressLeave}
                 onClick={handleProgressClick}
               >
+                {hoverTime !== null && (
+                  <div
+                    className="progress-tooltip"
+                    style={{ left: `${hoverPosition}%` }}
+                  >
+                    {formatTime(hoverTime)}
+                  </div>
+                )}
                 <div
                   className="progress-buffered"
                   style={{ width: `${(buffered / duration) * 100}%` }}
