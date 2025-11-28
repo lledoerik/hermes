@@ -76,11 +76,11 @@ const getGreeting = () => {
 
 const getWelcomeMessage = (name) => {
   const messages = [
-    `${getGreeting()}, ${name}! Què vols veure avui?`,
+    `${getGreeting()}, ${name}!`,
     `Hola ${name}! Tens ganes de maratonar alguna cosa?`,
     `${getGreeting()}, ${name}! Hermes et dona la benvinguda`,
     `Ei ${name}! Preparat per una bona sessió?`,
-    `${getGreeting()}! Què et ve de gust, ${name}?`
+    `${getGreeting()}, ${name}!`
   ];
   return messages[Math.floor(Math.random() * messages.length)];
 };
