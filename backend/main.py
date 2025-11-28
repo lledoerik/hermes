@@ -1049,6 +1049,64 @@ async def apply_segment_template(series_id: int, template: TemplateRequest):
     }
 
 
+# ============================================================
+# ESCANEIG D'INTROS PER TOTA LA BIBLIOTECA
+# ============================================================
+
+@app.post("/api/segments/detect/all")
+async def detect_intros_all_series(background_tasks: BackgroundTasks):
+    """
+    Detecta intros per totes les sèries de la biblioteca.
+
+    Usa el nou algorisme v2 que:
+    - Compara segments d'àudio entre episodis consecutius
+    - Detecta l'opening independentment de la seva posició (cold opens)
+    - Detecta canvis d'opening entre temporades/arcs
+    """
+    from backend.segments.fingerprint import detect_intros_for_all_series
+
+    # Executar en background per no bloquejar
+    background_tasks.add_task(detect_intros_for_all_series)
+
+    return {
+        "status": "started",
+        "message": "Escaneig iniciat en background. Revisa els logs per veure el progrés."
+    }
+
+
+@app.get("/api/segments/detect/all/sync")
+async def detect_intros_all_series_sync():
+    """
+    Detecta intros per totes les sèries (versió síncrona).
+    ATENCIÓ: Pot trigar molt! Usar només per proves o biblioteques petites.
+    """
+    from backend.segments.fingerprint import detect_intros_for_all_series
+
+    results = detect_intros_for_all_series()
+    return results
+
+
+@app.post("/api/segments/detect/series/{series_id}/v2")
+async def detect_intros_series_v2(series_id: int):
+    """
+    Detecta intros per una sèrie usant l'algorisme v2.
+
+    Millor per sèries amb:
+    - Cold opens (escenes abans de l'opening)
+    - Canvis d'opening
+    - Intros en posicions variables
+    """
+    from backend.segments.fingerprint import AudioFingerprinterV2
+
+    try:
+        fingerprinter = AudioFingerprinterV2()
+        result = fingerprinter.detect_intros_for_series(series_id)
+        return result
+    except Exception as e:
+        logger.error(f"Error detectant intros v2: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
