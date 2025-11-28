@@ -325,11 +325,6 @@
   border-radius: 2px;
   cursor: pointer;
   position: relative;
-  transition: height 0.15s ease;
-}
-
-.progress-container:hover .progress-bar {
-  height: 5px;
 }
 
 .progress-buffered {

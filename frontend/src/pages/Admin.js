@@ -279,6 +279,46 @@ function Admin() {
     }
   };
 
+  const handleCleanupAll = async () => {
+    if (!window.confirm('Eliminar de la base de dades tot el contingut que ja no existeix al disc? (vídeos, llibres i audiollibres)')) {
+      return;
+    }
+
+    setCleaning(true);
+    addLog('info', 'Iniciant neteja completa...');
+
+    let totalRemoved = { videos: 0, episodes: 0, books: 0, audiobooks: 0, authors: 0 };
+
+    try {
+      // Netejar vídeos
+      addLog('info', 'Netejant vídeos...');
+      const videosRes = await axios.post('/api/library/cleanup');
+      if (videosRes.data.status === 'success') {
+        totalRemoved.videos = videosRes.data.series_removed || 0;
+        totalRemoved.episodes = videosRes.data.episodes_removed || 0;
+      }
+
+      // Netejar llibres
+      addLog('info', 'Netejant llibres...');
+      const booksRes = await axios.post('/api/books/cleanup');
+      totalRemoved.books = booksRes.data.books_removed || 0;
+      totalRemoved.authors += booksRes.data.authors_removed || 0;
+
+      // Netejar audiollibres
+      addLog('info', 'Netejant audiollibres...');
+      const audiobooksRes = await axios.post('/api/audiobooks/cleanup');
+      totalRemoved.audiobooks = audiobooksRes.data.audiobooks_removed || 0;
+      totalRemoved.authors += audiobooksRes.data.authors_removed || 0;
+
+      addLog('success', `Neteja completa: ${totalRemoved.videos} vídeos, ${totalRemoved.episodes} episodis, ${totalRemoved.books} llibres, ${totalRemoved.audiobooks} audiollibres, ${totalRemoved.authors} autors eliminats`);
+      await loadStats();
+    } catch (error) {
+      addLog('error', `Error durant la neteja: ${error.message}`);
+    } finally {
+      setCleaning(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="loading-screen">
@@ -363,24 +403,10 @@ function Admin() {
 
             <button
               className="action-btn danger"
-              onClick={handleCleanup}
+              onClick={handleCleanupAll}
               disabled={cleaning}
             >
-              {cleaning ? <><RefreshIcon /> Netejant...</> : <><TvIcon /> Netejar vídeos</>}
-            </button>
-
-            <button
-              className="action-btn danger"
-              onClick={handleCleanupBooks}
-            >
-              <BookIcon /> Netejar llibres
-            </button>
-
-            <button
-              className="action-btn danger"
-              onClick={handleCleanupAudiobooks}
-            >
-              <HeadphonesIcon /> Netejar audiollibres
+              {cleaning ? <><RefreshIcon /> Netejant...</> : <><BroomIcon /> Netejar tot</>}
             </button>
           </div>
 

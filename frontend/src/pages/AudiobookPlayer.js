@@ -89,11 +89,28 @@ const SpeedIcon = () => (
   </svg>
 );
 
+// Skip indicator icons
+const RewindIndicator = () => (
+  <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor">
+    <polygon points="11 19 2 12 11 5 11 19"></polygon>
+    <polygon points="22 19 13 12 22 5 22 19"></polygon>
+  </svg>
+);
+
+const ForwardIndicator = () => (
+  <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor">
+    <polygon points="13 19 22 12 13 5 13 19"></polygon>
+    <polygon points="2 19 11 12 2 5 2 19"></polygon>
+  </svg>
+);
+
 function AudiobookPlayer() {
   const { id } = useParams();
   const navigate = useNavigate();
   const audioRef = useRef(null);
   const progressIntervalRef = useRef(null);
+  const containerRef = useRef(null);
+  const lastTapRef = useRef({ time: 0, side: null });
 
   const [audiobook, setAudiobook] = useState(null);
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
@@ -105,6 +122,7 @@ function AudiobookPlayer() {
   const [playbackRate, setPlaybackRate] = useState(1);
   const [showChapters, setShowChapters] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [skipIndicator, setSkipIndicator] = useState(null); // { side: 'left' | 'right', seconds: number }
 
   // Carregar audiollibres
   useEffect(() => {
@@ -294,6 +312,105 @@ function AudiobookPlayer() {
     }
   };
 
+  // Show skip indicator
+  const showSkipIndicator = useCallback((side, seconds) => {
+    setSkipIndicator({ side, seconds });
+    setTimeout(() => setSkipIndicator(null), 500);
+  }, []);
+
+  // Double tap handler
+  const handleDoubleTap = useCallback((side) => {
+    if (side === 'left') {
+      if (audioRef.current) {
+        audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 10);
+        showSkipIndicator('left', 10);
+      }
+    } else {
+      if (audioRef.current) {
+        audioRef.current.currentTime = Math.min(duration, audioRef.current.currentTime + 30);
+        showSkipIndicator('right', 30);
+      }
+    }
+  }, [duration, showSkipIndicator]);
+
+  // Handle tap on container for double-tap detection
+  const handleContainerClick = useCallback((e) => {
+    // Ignore clicks on buttons, controls, sliders
+    if (e.target.closest('button') || e.target.closest('input') || e.target.closest('.audiobook-controls') ||
+        e.target.closest('.audiobook-extra-controls') || e.target.closest('.audiobook-progress') ||
+        e.target.closest('.chapters-panel') || e.target.closest('.audiobook-header')) {
+      return;
+    }
+
+    const now = Date.now();
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const clickX = e.clientX - rect.left;
+    const side = clickX < rect.width / 2 ? 'left' : 'right';
+
+    // Check if it's a double tap (within 300ms and same side)
+    if (now - lastTapRef.current.time < 300 && lastTapRef.current.side === side) {
+      handleDoubleTap(side);
+      lastTapRef.current = { time: 0, side: null };
+    } else {
+      lastTapRef.current = { time: now, side };
+    }
+  }, [handleDoubleTap]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ignore if user is typing in an input
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      switch (e.code) {
+        case 'Space':
+          e.preventDefault();
+          togglePlay();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          if (audioRef.current) {
+            audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 10);
+            showSkipIndicator('left', 10);
+          }
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          if (audioRef.current) {
+            audioRef.current.currentTime = Math.min(duration, audioRef.current.currentTime + 30);
+            showSkipIndicator('right', 30);
+          }
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setVolume(prev => {
+            const newVol = Math.min(1, prev + 0.1);
+            if (audioRef.current) audioRef.current.volume = newVol;
+            return newVol;
+          });
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          setVolume(prev => {
+            const newVol = Math.max(0, prev - 0.1);
+            if (audioRef.current) audioRef.current.volume = newVol;
+            return newVol;
+          });
+          break;
+        case 'KeyM':
+          toggleMute();
+          break;
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [duration, showSkipIndicator]);
+
   const formatTime = (seconds) => {
     if (!seconds || isNaN(seconds)) return '0:00';
     const hrs = Math.floor(seconds / 3600);
@@ -338,7 +455,15 @@ function AudiobookPlayer() {
     : null;
 
   return (
-    <div className="audiobook-player-container">
+    <div className="audiobook-player-container" ref={containerRef} onClick={handleContainerClick}>
+      {/* Skip Indicators */}
+      {skipIndicator && (
+        <div className={`skip-indicator ${skipIndicator.side}`}>
+          {skipIndicator.side === 'left' ? <RewindIndicator /> : <ForwardIndicator />}
+          <span>{skipIndicator.seconds}s</span>
+        </div>
+      )}
+
       {/* Background */}
       <div className="audiobook-bg">
         {coverUrl && <img src={coverUrl} alt="" className="audiobook-bg-image" />}
