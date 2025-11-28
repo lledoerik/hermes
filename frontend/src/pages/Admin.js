@@ -11,6 +11,7 @@ axios.defaults.baseURL = API_URL;
 function Admin() {
   const [stats, setStats] = useState(null);
   const [scanning, setScanning] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -92,6 +93,67 @@ function Admin() {
       addLog('success', 'Cache netejat correctament');
     } catch (error) {
       addLog('error', `Error netejant cache: ${error.message}`);
+    }
+  };
+
+  const handleCleanup = async () => {
+    if (!window.confirm('Eliminar de la base de dades les sèries i pel·lícules que ja no existeixen al disc? Aquesta acció és irreversible.')) {
+      return;
+    }
+
+    setCleaning(true);
+    addLog('info', 'Netejant contingut eliminat del disc...');
+
+    try {
+      const response = await axios.post('/api/library/cleanup');
+
+      if (response.data.status === 'success') {
+        const { series_removed, episodes_removed } = response.data;
+        addLog('success', `Neteja completada: ${series_removed} sèries/pel·lícules i ${episodes_removed} episodis eliminats`);
+
+        if (response.data.series_details?.length > 0) {
+          response.data.series_details.forEach(item => {
+            addLog('info', `Eliminat: ${item.name} (${item.episodes_removed} episodis)`);
+          });
+        }
+
+        await loadStats();
+      } else {
+        addLog('warning', 'Neteja completada amb advertències');
+      }
+    } catch (error) {
+      console.error('Error netejant:', error);
+      addLog('error', `Error durant la neteja: ${error.message}`);
+    } finally {
+      setCleaning(false);
+    }
+  };
+
+  const handleCleanupBooks = async () => {
+    if (!window.confirm('Eliminar de la base de dades els llibres que ja no existeixen al disc?')) {
+      return;
+    }
+
+    addLog('info', 'Netejant llibres eliminats...');
+    try {
+      const response = await axios.post('/api/books/cleanup');
+      addLog('success', `Neteja de llibres completada: ${response.data.books_removed || 0} llibres i ${response.data.authors_removed || 0} autors eliminats`);
+    } catch (error) {
+      addLog('error', `Error netejant llibres: ${error.message}`);
+    }
+  };
+
+  const handleCleanupAudiobooks = async () => {
+    if (!window.confirm('Eliminar de la base de dades els audiollibres que ja no existeixen al disc?')) {
+      return;
+    }
+
+    addLog('info', 'Netejant audiollibres eliminats...');
+    try {
+      const response = await axios.post('/api/audiobooks/cleanup');
+      addLog('success', `Neteja d'audiollibres completada: ${response.data.audiobooks_removed || 0} audiollibres i ${response.data.authors_removed || 0} autors eliminats`);
+    } catch (error) {
+      addLog('error', `Error netejant audiollibres: ${error.message}`);
     }
   };
 
@@ -256,6 +318,41 @@ function Admin() {
                 </div>
               ))
             )}
+          </div>
+        </div>
+      </div>
+
+      {/* Maintenance Section */}
+      <div className="admin-section">
+        <div className="section-header">
+          <h2>🧹 Manteniment</h2>
+        </div>
+        <div className="section-content">
+          <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '20px' }}>
+            Elimina de la base de dades els elements que ja no existeixen al disc dur.
+          </p>
+          <div className="scanner-actions">
+            <button
+              className="action-btn danger"
+              onClick={handleCleanup}
+              disabled={cleaning}
+            >
+              {cleaning ? '🔄 Netejant...' : '📺 Netejar sèries/pel·lícules'}
+            </button>
+
+            <button
+              className="action-btn danger"
+              onClick={handleCleanupBooks}
+            >
+              📚 Netejar llibres
+            </button>
+
+            <button
+              className="action-btn danger"
+              onClick={handleCleanupAudiobooks}
+            >
+              🎧 Netejar audiollibres
+            </button>
           </div>
         </div>
       </div>

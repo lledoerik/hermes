@@ -43,7 +43,7 @@ function Login() {
     <div className="login-page">
       <div className="login-container">
         <div className="login-header">
-          <img src="/img/hermes.jpeg" alt="Hermes" className="login-logo" />
+          <img src="/img/caduceus.png" alt="Hermes" className="login-logo" />
           <h1>Hermes</h1>
           <p>{isLogin ? 'Inicia sessió per continuar' : 'Crea un compte nou'}</p>
         </div>

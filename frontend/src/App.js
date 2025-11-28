@@ -11,6 +11,8 @@ import Search from './pages/Search';
 import Admin from './pages/Admin';
 import Books from './pages/Books';
 import BookReader from './pages/BookReader';
+import Audiobooks from './pages/Audiobooks';
+import AudiobookPlayer from './pages/AudiobookPlayer';
 import Login from './pages/Login';
 import './App.css';
 
@@ -33,6 +35,9 @@ function App() {
           {/* Book Reader without Navbar */}
           <Route path="/read/:id" element={<BookReader />} />
 
+          {/* Audiobook Player without Navbar */}
+          <Route path="/listen/:id" element={<AudiobookPlayer />} />
+
           {/* Login without Navbar */}
           <Route path="/login" element={<Login />} />
 
@@ -48,6 +53,7 @@ function App() {
                     <Route path="/movies" element={<Movies />} />
                     <Route path="/series" element={<Series />} />
                     <Route path="/books" element={<Books />} />
+                    <Route path="/audiobooks" element={<Audiobooks />} />
                     <Route path="/movies/:id" element={<Details />} />
                     <Route path="/series/:id" element={<Details />} />
                     <Route path="/search" element={<Search />} />
