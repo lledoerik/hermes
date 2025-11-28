@@ -99,6 +99,7 @@ function Details() {
   const [tmdbId, setTmdbId] = useState('');
   const [tmdbLoading, setTmdbLoading] = useState(false);
   const [tmdbMessage, setTmdbMessage] = useState(null);
+  const [imageCacheBust, setImageCacheBust] = useState('');
 
   const loadDetails = useCallback(async () => {
     try {
@@ -175,17 +176,35 @@ function Details() {
       });
 
       if (response.data.status === 'success') {
+        const metadata = response.data.metadata;
+
+        // Actualitzar l'item directament amb les noves metadades
+        setItem(prev => ({
+          ...prev,
+          title: metadata.title || prev.title,
+          year: metadata.year || prev.year,
+          overview: metadata.overview || prev.overview,
+          rating: metadata.rating || prev.rating,
+          genres: metadata.genres || prev.genres,
+          runtime: metadata.runtime || prev.runtime,
+          tmdb_id: response.data.tmdb_id
+        }));
+
+        // Forçar recàrrega de les imatges amb cache bust
+        if (response.data.poster_downloaded || response.data.backdrop_downloaded) {
+          setImageCacheBust(`?t=${Date.now()}`);
+        }
+
         setTmdbMessage({
           type: 'success',
-          text: `Metadades actualitzades: ${response.data.title || item.name}`
+          text: `Metadades actualitzades: ${metadata.title || item.name}`
         });
         setShowTmdbInput(false);
-        setTmdbId('');
-        // Recarregar els detalls per mostrar les noves imatges
+
+        // Amagar el missatge després de 3 segons
         setTimeout(() => {
-          loadDetails();
           setTmdbMessage(null);
-        }, 1500);
+        }, 3000);
       }
     } catch (error) {
       const errorMsg = error.response?.data?.detail || 'Error actualitzant metadades';
@@ -252,9 +271,9 @@ function Details() {
           className="hero-backdrop"
           style={{
             backgroundImage: item.backdrop
-              ? `url(${API_URL}/api/image/backdrop/${item.id})`
+              ? `url(${API_URL}/api/image/backdrop/${item.id}${imageCacheBust})`
               : item.poster
-              ? `url(${API_URL}/api/image/poster/${item.id})`
+              ? `url(${API_URL}/api/image/poster/${item.id}${imageCacheBust})`
               : 'none'
           }}
         />
@@ -264,8 +283,8 @@ function Details() {
           <div className="details-poster">
             {item.poster ? (
               <img
-                src={`${API_URL}/api/image/poster/${item.id}`}
-                alt={item.name}
+                src={`${API_URL}/api/image/poster/${item.id}${imageCacheBust}`}
+                alt={item.title || item.name}
               />
             ) : (
               <div className="poster-placeholder">
