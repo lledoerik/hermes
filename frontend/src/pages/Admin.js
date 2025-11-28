@@ -214,11 +214,28 @@ function Admin() {
 
   const handleGenerateThumbnails = async () => {
     setGeneratingThumbnails(true);
-    addLog('info', 'Generant miniatures... (pot trigar uns minuts)');
+    addLog('info', 'Generant miniatures noves... (pot trigar uns minuts)');
     try {
       const response = await axios.post('/api/thumbnails/generate-all');
       const { generated, errors, skipped } = response.data;
       addLog('success', `Miniatures generades: ${generated}, omeses: ${skipped}, errors: ${errors}`);
+    } catch (error) {
+      addLog('error', `Error: ${error.response?.data?.detail || error.message}`);
+    } finally {
+      setGeneratingThumbnails(false);
+    }
+  };
+
+  const handleRegenerateThumbnails = async () => {
+    if (!window.confirm('Això esborrarà TOTES les miniatures i les tornarà a generar. Pot trigar molt. Continuar?')) {
+      return;
+    }
+    setGeneratingThumbnails(true);
+    addLog('info', 'Esborrant i regenerant TOTES les miniatures... (pot trigar molt)');
+    try {
+      const response = await axios.post('/api/thumbnails/regenerate-all');
+      const { deleted, generated, errors } = response.data;
+      addLog('success', `Miniatures esborrades: ${deleted}, regenerades: ${generated}, errors: ${errors}`);
     } catch (error) {
       addLog('error', `Error: ${error.response?.data?.detail || error.message}`);
     } finally {
@@ -510,6 +527,15 @@ function Admin() {
               title="Genera miniatures per tots els episodis"
             >
               {generatingThumbnails ? <><RefreshIcon /> Generant...</> : <><TvIcon /> Generar miniatures</>}
+            </button>
+
+            <button
+              className="action-btn danger"
+              onClick={handleRegenerateThumbnails}
+              disabled={generatingThumbnails}
+              title="Esborra i regenera TOTES les miniatures"
+            >
+              <RefreshIcon /> Regenerar totes
             </button>
           </div>
         </div>
