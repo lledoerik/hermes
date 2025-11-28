@@ -77,6 +77,13 @@ const PlayIcon = ({ size = 18 }) => (
   </svg>
 );
 
+const EditIcon = ({ size = 18 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+  </svg>
+);
+
 function Details() {
   const { id } = useParams();
   const location = useLocation();
@@ -88,6 +95,10 @@ function Details() {
   const [episodes, setEpisodes] = useState([]);
   const [selectedSeason, setSelectedSeason] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [showTmdbInput, setShowTmdbInput] = useState(false);
+  const [tmdbId, setTmdbId] = useState('');
+  const [tmdbLoading, setTmdbLoading] = useState(false);
+  const [tmdbMessage, setTmdbMessage] = useState(null);
 
   const loadDetails = useCallback(async () => {
     try {
@@ -138,6 +149,42 @@ function Details() {
       navigate(`/play/episode/${episodeId}`);
     } else if (episodes.length > 0) {
       navigate(`/play/episode/${episodes[0].id}`);
+    }
+  };
+
+  const handleUpdateByTmdbId = async () => {
+    if (!tmdbId.trim()) {
+      setTmdbMessage({ type: 'error', text: 'Introdueix un ID de TMDB' });
+      return;
+    }
+
+    setTmdbLoading(true);
+    setTmdbMessage(null);
+
+    try {
+      const response = await axios.post(`/api/metadata/series/${id}/update-by-tmdb`, {
+        tmdb_id: parseInt(tmdbId),
+        media_type: type === 'movies' ? 'movie' : 'series'
+      });
+
+      if (response.data.status === 'success') {
+        setTmdbMessage({
+          type: 'success',
+          text: `Metadades actualitzades: ${response.data.title || item.name}`
+        });
+        setShowTmdbInput(false);
+        setTmdbId('');
+        // Recarregar els detalls per mostrar les noves imatges
+        setTimeout(() => {
+          loadDetails();
+          setTmdbMessage(null);
+        }, 1500);
+      }
+    } catch (error) {
+      const errorMsg = error.response?.data?.detail || 'Error actualitzant metadades';
+      setTmdbMessage({ type: 'error', text: errorMsg });
+    } finally {
+      setTmdbLoading(false);
     }
   };
 
@@ -255,7 +302,45 @@ function Details() {
               <button className="secondary-btn">
                 + La meva llista
               </button>
+              <button
+                className="secondary-btn edit-metadata-btn"
+                onClick={() => setShowTmdbInput(!showTmdbInput)}
+                title="Corregir metadades amb TMDB ID"
+              >
+                <EditIcon size={16} />
+              </button>
             </div>
+
+            {/* TMDB ID Input Form */}
+            {showTmdbInput && (
+              <div className="tmdb-input-form">
+                <label>Introdueix l'ID de TMDB:</label>
+                <div className="tmdb-input-row">
+                  <input
+                    type="number"
+                    value={tmdbId}
+                    onChange={(e) => setTmdbId(e.target.value)}
+                    placeholder="Ex: 550 (Fight Club)"
+                    disabled={tmdbLoading}
+                  />
+                  <button
+                    className="tmdb-submit-btn"
+                    onClick={handleUpdateByTmdbId}
+                    disabled={tmdbLoading}
+                  >
+                    {tmdbLoading ? 'Actualitzant...' : 'Actualitzar'}
+                  </button>
+                </div>
+                <small className="tmdb-help">
+                  Cerca a <a href="https://www.themoviedb.org" target="_blank" rel="noopener noreferrer">themoviedb.org</a> i copia l'ID de l'URL
+                </small>
+                {tmdbMessage && (
+                  <div className={`tmdb-message ${tmdbMessage.type}`}>
+                    {tmdbMessage.text}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
