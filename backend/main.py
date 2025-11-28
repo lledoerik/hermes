@@ -1222,6 +1222,239 @@ async def detect_intros_series_v2(series_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ============================================================
+# BIBLIOTECA DE LLIBRES
+# ============================================================
+
+@app.get("/api/books/authors")
+async def get_authors():
+    """Retorna tots els autors"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT a.*, COUNT(b.id) as book_count
+            FROM authors a
+            LEFT JOIN books b ON a.id = b.author_id
+            GROUP BY a.id
+            ORDER BY a.name
+        """)
+        authors = [dict(row) for row in cursor.fetchall()]
+        return authors
+
+
+@app.get("/api/books/authors/{author_id}")
+async def get_author_detail(author_id: int):
+    """Retorna detalls d'un autor i els seus llibres"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT * FROM authors WHERE id = ?", (author_id,))
+        author = cursor.fetchone()
+        if not author:
+            raise HTTPException(status_code=404, detail="Autor no trobat")
+
+        cursor.execute("""
+            SELECT * FROM books WHERE author_id = ?
+            ORDER BY title
+        """, (author_id,))
+        books = [dict(row) for row in cursor.fetchall()]
+
+        return {
+            **dict(author),
+            "books": books
+        }
+
+
+@app.get("/api/books")
+async def get_all_books():
+    """Retorna tots els llibres"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT b.*, a.name as author_name
+            FROM books b
+            LEFT JOIN authors a ON b.author_id = a.id
+            ORDER BY b.title
+        """)
+        books = [dict(row) for row in cursor.fetchall()]
+        return books
+
+
+@app.get("/api/books/{book_id}")
+async def get_book_detail(book_id: int):
+    """Retorna detalls d'un llibre"""
+    from backend.books.reader import BookReader
+
+    reader = BookReader()
+    book = reader.get_book_info(book_id)
+
+    if not book:
+        raise HTTPException(status_code=404, detail="Llibre no trobat")
+
+    # Afegir progrés de lectura
+    progress = reader.get_reading_progress(book_id)
+    book['reading_progress'] = progress
+
+    return book
+
+
+@app.get("/api/books/{book_id}/content")
+async def get_book_content(book_id: int):
+    """Retorna el contingut estructurat d'un llibre (per EPUB)"""
+    from backend.books.reader import BookReader
+
+    reader = BookReader()
+    content_type, file_path = reader.get_book_content_type(book_id)
+
+    if not file_path:
+        raise HTTPException(status_code=404, detail="Llibre no trobat")
+
+    if content_type == 'epub':
+        content = reader.get_epub_content(book_id)
+        if content:
+            return {"type": "epub", "content": content}
+
+    elif content_type == 'pdf':
+        return {"type": "pdf", "file_path": file_path}
+
+    raise HTTPException(status_code=400, detail=f"Format {content_type} no suportat per visualització")
+
+
+@app.get("/api/books/{book_id}/resource/{resource_path:path}")
+async def get_book_resource(book_id: int, resource_path: str):
+    """Serveix un recurs d'un EPUB (HTML, CSS, imatges)"""
+    from backend.books.reader import BookReader
+
+    reader = BookReader()
+    content, mime_type = reader.get_epub_resource(book_id, resource_path)
+
+    if content is None:
+        raise HTTPException(status_code=404, detail="Recurs no trobat")
+
+    return Response(content=content, media_type=mime_type)
+
+
+@app.get("/api/books/{book_id}/file")
+async def get_book_file(book_id: int):
+    """Serveix el fitxer del llibre directament (per PDF viewer)"""
+    from backend.books.reader import BookReader
+
+    reader = BookReader()
+    book = reader.get_book_info(book_id)
+
+    if not book:
+        raise HTTPException(status_code=404, detail="Llibre no trobat")
+
+    file_path = book['file_path']
+
+    # Si és MOBI/AZW i tenim versió convertida, servir l'EPUB
+    if book['format'] in ['mobi', 'azw', 'azw3'] and book.get('converted_path'):
+        if os.path.exists(book['converted_path']):
+            file_path = book['converted_path']
+
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Fitxer no trobat")
+
+    return FileResponse(
+        path=file_path,
+        filename=os.path.basename(file_path),
+        media_type='application/octet-stream'
+    )
+
+
+@app.get("/api/books/{book_id}/cover")
+async def get_book_cover(book_id: int):
+    """Serveix la portada d'un llibre"""
+    from backend.books.reader import BookReader
+
+    reader = BookReader()
+    book = reader.get_book_info(book_id)
+
+    if not book or not book.get('cover'):
+        raise HTTPException(status_code=404, detail="Portada no trobada")
+
+    if not os.path.exists(book['cover']):
+        raise HTTPException(status_code=404, detail="Fitxer de portada no trobat")
+
+    return FileResponse(path=book['cover'], media_type='image/jpeg')
+
+
+class ReadingProgressRequest(BaseModel):
+    position: str
+    page: int = 0
+    total_pages: int = 0
+
+
+@app.post("/api/books/{book_id}/progress")
+async def update_reading_progress(book_id: int, progress: ReadingProgressRequest):
+    """Actualitza el progrés de lectura"""
+    from backend.books.reader import BookReader
+
+    reader = BookReader()
+    reader.update_reading_progress(
+        book_id,
+        progress.position,
+        progress.page,
+        progress.total_pages
+    )
+
+    return {"status": "success"}
+
+
+@app.get("/api/books/{book_id}/progress")
+async def get_reading_progress(book_id: int):
+    """Obté el progrés de lectura"""
+    from backend.books.reader import BookReader
+
+    reader = BookReader()
+    progress = reader.get_reading_progress(book_id)
+
+    if not progress:
+        return {"current_position": None, "current_page": 0, "percentage": 0}
+
+    return progress
+
+
+@app.post("/api/books/scan")
+async def scan_books_library(background_tasks: BackgroundTasks):
+    """Escaneja la biblioteca de llibres"""
+    from backend.books.scanner import BooksScanner
+
+    def do_scan():
+        scanner = BooksScanner()
+        return scanner.scan_all_libraries()
+
+    background_tasks.add_task(do_scan)
+
+    return {
+        "status": "started",
+        "message": "Escaneig de llibres iniciat"
+    }
+
+
+@app.get("/api/books/scan/sync")
+async def scan_books_library_sync():
+    """Escaneja la biblioteca de llibres (síncron)"""
+    from backend.books.scanner import BooksScanner
+
+    scanner = BooksScanner()
+    result = scanner.scan_all_libraries()
+    return result
+
+
+@app.post("/api/books/cleanup")
+async def cleanup_books_library():
+    """Neteja llibres i autors que ja no existeixen"""
+    from backend.books.scanner import BooksScanner
+
+    scanner = BooksScanner()
+    result = scanner.cleanup_missing_books()
+    return {
+        "status": "success",
+        **result
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
