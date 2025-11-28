@@ -2,10 +2,13 @@
 TMDB (The Movie Database) API integration for fetching movie/series metadata and posters.
 Requires an API key from https://www.themoviedb.org/
 """
-import httpx
 import asyncio
+import json
+import urllib.request
+import urllib.parse
+import urllib.error
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 import re
 
 
@@ -15,10 +18,10 @@ class TMDBClient:
 
     def __init__(self, api_key: str):
         self.api_key = api_key
-        self.client = httpx.AsyncClient(timeout=30.0)
 
     async def close(self):
-        await self.client.aclose()
+        """No-op for compatibility"""
+        pass
 
     def _clean_title(self, title: str) -> str:
         """Clean title for better search results."""
@@ -37,19 +40,28 @@ class TMDBClient:
             return int(match.group(1))
         return None
 
-    async def _request(self, endpoint: str, params: Dict = None) -> Optional[Dict]:
-        """Make an API request."""
+    def _sync_request(self, endpoint: str, params: Dict = None) -> Optional[Dict]:
+        """Make a synchronous API request."""
         if params is None:
             params = {}
         params["api_key"] = self.api_key
 
         try:
-            response = await self.client.get(f"{self.BASE_URL}{endpoint}", params=params)
-            response.raise_for_status()
-            return response.json()
+            query_string = urllib.parse.urlencode(params)
+            url = f"{self.BASE_URL}{endpoint}?{query_string}"
+
+            req = urllib.request.Request(url)
+            req.add_header('User-Agent', 'Hermes Media Server/1.0')
+
+            with urllib.request.urlopen(req, timeout=30) as response:
+                return json.loads(response.read().decode('utf-8'))
         except Exception as e:
             print(f"TMDB API error: {e}")
             return None
+
+    async def _request(self, endpoint: str, params: Dict = None) -> Optional[Dict]:
+        """Make an async API request."""
+        return await asyncio.to_thread(self._sync_request, endpoint, params)
 
     async def search_movie(self, title: str, year: int = None) -> Optional[Dict[str, Any]]:
         """Search for a movie by title."""
@@ -117,30 +129,36 @@ class TMDBClient:
             return None
         return f"{self.IMAGE_BASE_URL}/{size}{backdrop_path}"
 
-    async def download_image(self, image_path: str, save_path: Path, size: str = "w500") -> bool:
-        """Download an image and save to path."""
+    def _sync_download_image(self, image_path: str, save_path: Path, size: str = "w500") -> bool:
+        """Download an image synchronously."""
         if not image_path:
             return False
 
         url = f"{self.IMAGE_BASE_URL}/{size}{image_path}"
 
         try:
-            response = await self.client.get(url)
-            response.raise_for_status()
+            req = urllib.request.Request(url)
+            req.add_header('User-Agent', 'Hermes Media Server/1.0')
 
-            # Check if it's actually an image
-            content_type = response.headers.get("content-type", "")
-            if "image" not in content_type:
-                return False
+            with urllib.request.urlopen(req, timeout=30) as response:
+                # Check if it's actually an image
+                content_type = response.headers.get("content-type", "")
+                if "image" not in content_type:
+                    return False
 
-            # Save the image
-            save_path.parent.mkdir(parents=True, exist_ok=True)
-            save_path.write_bytes(response.content)
-            return True
+                # Save the image
+                save_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(save_path, 'wb') as f:
+                    f.write(response.read())
+                return True
 
         except Exception as e:
             print(f"Error downloading image: {e}")
             return False
+
+    async def download_image(self, image_path: str, save_path: Path, size: str = "w500") -> bool:
+        """Download an image and save to path."""
+        return await asyncio.to_thread(self._sync_download_image, image_path, save_path, size)
 
     async def fetch_movie_metadata(self, title: str, year: int = None,
                                     poster_path: Path = None,
