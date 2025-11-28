@@ -2478,21 +2478,28 @@ async def regenerate_all_thumbnails():
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id, file_path FROM media_files")
+        rows = cursor.fetchall()
+        total = len(rows)
 
-        for row in cursor.fetchall():
+        logger.info(f"Iniciant generació de {total} thumbnails...")
+
+        for i, row in enumerate(rows, 1):
             thumbnail_path = THUMBNAILS_DIR / f"{row['id']}.jpg"
             video_path = Path(row["file_path"])
 
             if not video_path.exists():
                 errors += 1
+                logger.warning(f"[{i}/{total}] Fitxer no existeix: {video_path.name}")
                 continue
 
             if generate_thumbnail(video_path, thumbnail_path):
                 generated += 1
+                if generated % 50 == 0 or i == total:  # Log cada 50 o al final
+                    logger.info(f"[{i}/{total}] Progrés: {generated} generades, {errors} errors")
             else:
                 errors += 1
 
-    logger.info(f"Thumbnails regenerats: {generated}, errors: {errors}")
+    logger.info(f"COMPLETAT: {generated} thumbnails regenerats, {errors} errors")
     return {"status": "success", "deleted": deleted, "generated": generated, "errors": errors}
 
 
