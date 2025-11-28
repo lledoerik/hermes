@@ -312,7 +312,7 @@
 /* Progress Bar */
 .progress-container {
   position: relative;
-  height: 30px;
+  height: 5px;
   display: flex;
   align-items: center;
   margin-bottom: 15px;
