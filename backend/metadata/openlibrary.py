@@ -2,8 +2,10 @@
 Open Library API integration for fetching book metadata and covers.
 No API key required.
 """
-import httpx
 import asyncio
+import json
+import urllib.request
+import urllib.parse
 from pathlib import Path
 from typing import Optional, Dict, Any
 import re
@@ -14,10 +16,11 @@ class OpenLibraryClient:
     COVERS_URL = "https://covers.openlibrary.org"
 
     def __init__(self):
-        self.client = httpx.AsyncClient(timeout=30.0)
+        pass
 
     async def close(self):
-        await self.client.aclose()
+        """No-op for compatibility"""
+        pass
 
     def _clean_title(self, title: str) -> str:
         """Clean title for better search results."""
@@ -27,35 +30,30 @@ class OpenLibraryClient:
         title = re.sub(r'[_\-\.]+', ' ', title)  # Replace separators with spaces
         return title.strip()
 
-    async def search_book(self, title: str, author: str = None) -> Optional[Dict[str, Any]]:
-        """
-        Search for a book by title and optionally author.
-        Returns the best matching result.
-        """
+    def _sync_search_book(self, title: str, author: str = None) -> Optional[Dict[str, Any]]:
+        """Synchronous search for a book."""
         clean_title = self._clean_title(title)
         query = clean_title
         if author:
             query = f"{clean_title} {author}"
 
         try:
-            response = await self.client.get(
-                f"{self.BASE_URL}/search.json",
-                params={
-                    "q": query,
-                    "limit": 5,
-                    "fields": "key,title,author_name,first_publish_year,cover_i,isbn,subject,description"
-                }
-            )
-            response.raise_for_status()
-            data = response.json()
+            params = {
+                "q": query,
+                "limit": 5,
+                "fields": "key,title,author_name,first_publish_year,cover_i,isbn,subject,description"
+            }
+            query_string = urllib.parse.urlencode(params)
+            url = f"{self.BASE_URL}/search.json?{query_string}"
+
+            req = urllib.request.Request(url)
+            req.add_header('User-Agent', 'Hermes Media Server/1.0')
+
+            with urllib.request.urlopen(req, timeout=30) as response:
+                data = json.loads(response.read().decode('utf-8'))
 
             if data.get("numFound", 0) > 0 and data.get("docs"):
-                # Return the first (best) match
                 return data["docs"][0]
-
-            # Try search without author if no results
-            if author:
-                return await self.search_book(title, None)
 
             return None
 
@@ -63,7 +61,20 @@ class OpenLibraryClient:
             print(f"Error searching Open Library: {e}")
             return None
 
-    async def get_cover_url(self, cover_id: int, size: str = "L") -> Optional[str]:
+    async def search_book(self, title: str, author: str = None) -> Optional[Dict[str, Any]]:
+        """
+        Search for a book by title and optionally author.
+        Returns the best matching result.
+        """
+        result = await asyncio.to_thread(self._sync_search_book, title, author)
+
+        # Try search without author if no results
+        if result is None and author:
+            result = await asyncio.to_thread(self._sync_search_book, title, None)
+
+        return result
+
+    def get_cover_url(self, cover_id: int, size: str = "L") -> Optional[str]:
         """
         Get cover image URL.
         Size: S (small), M (medium), L (large)
@@ -72,36 +83,44 @@ class OpenLibraryClient:
             return None
         return f"{self.COVERS_URL}/b/id/{cover_id}-{size}.jpg"
 
+    def _sync_download_cover(self, cover_id: int, save_path: Path, size: str = "L") -> bool:
+        """Download cover image synchronously."""
+        url = self.get_cover_url(cover_id, size)
+        if not url:
+            return False
+
+        try:
+            req = urllib.request.Request(url)
+            req.add_header('User-Agent', 'Hermes Media Server/1.0')
+
+            with urllib.request.urlopen(req, timeout=30) as response:
+                # Check if it's actually an image (not a placeholder)
+                content_type = response.headers.get("content-type", "")
+                if "image" not in content_type:
+                    return False
+
+                content = response.read()
+
+                # Check minimum size (placeholder images are very small)
+                if len(content) < 1000:
+                    return False
+
+                # Save the image
+                save_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(save_path, 'wb') as f:
+                    f.write(content)
+                return True
+
+        except Exception as e:
+            print(f"Error downloading cover: {e}")
+            return False
+
     async def download_cover(self, cover_id: int, save_path: Path, size: str = "L") -> bool:
         """
         Download cover image and save to path.
         Returns True if successful.
         """
-        url = await self.get_cover_url(cover_id, size)
-        if not url:
-            return False
-
-        try:
-            response = await self.client.get(url)
-            response.raise_for_status()
-
-            # Check if it's actually an image (not a placeholder)
-            content_type = response.headers.get("content-type", "")
-            if "image" not in content_type:
-                return False
-
-            # Check minimum size (placeholder images are very small)
-            if len(response.content) < 1000:
-                return False
-
-            # Save the image
-            save_path.parent.mkdir(parents=True, exist_ok=True)
-            save_path.write_bytes(response.content)
-            return True
-
-        except Exception as e:
-            print(f"Error downloading cover: {e}")
-            return False
+        return await asyncio.to_thread(self._sync_download_cover, cover_id, save_path, size)
 
     async def fetch_book_metadata(self, title: str, author: str = None, save_cover_to: Path = None) -> Dict[str, Any]:
         """
