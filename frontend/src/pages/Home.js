@@ -44,6 +44,21 @@ const AudiobookIcon = () => (
   </svg>
 );
 
+const ProgramsIcon = () => (
+  <svg className="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+    <line x1="8" y1="21" x2="16" y2="21"></line>
+    <line x1="12" y1="17" x2="12" y2="21"></line>
+  </svg>
+);
+
+const TvIcon = () => (
+  <svg className="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect>
+    <polyline points="17 2 12 7 7 2"></polyline>
+  </svg>
+);
+
 const PlayIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
     <polygon points="5 3 19 12 5 21 5 3"></polygon>
@@ -258,6 +273,21 @@ function Home() {
               <div className="hover-border"></div>
             </Link>
 
+            {/* Programes */}
+            <div className="category-card inactive">
+              <div className="card-glass"></div>
+              <div className="hover-bubbles">
+                <div className="floating-bubble bubble-1 gradient-programs"></div>
+                <div className="floating-bubble bubble-2 gradient-programs"></div>
+                <div className="floating-bubble bubble-3 gradient-programs"></div>
+              </div>
+              <div className="card-content">
+                <ProgramsIcon />
+                <h3 className="card-title">Programes</h3>
+                <span className="coming-soon">Properament</span>
+              </div>
+            </div>
+
             {/* Llibres */}
             <Link to="/books" className="category-card active">
               <div className="card-glass"></div>
@@ -285,6 +315,21 @@ function Home() {
               <div className="card-content">
                 <AudiobookIcon />
                 <h3 className="card-title">Audiollibres</h3>
+                <span className="coming-soon">Properament</span>
+              </div>
+            </div>
+
+            {/* Televisió */}
+            <div className="category-card inactive">
+              <div className="card-glass"></div>
+              <div className="hover-bubbles">
+                <div className="floating-bubble bubble-1 gradient-tv"></div>
+                <div className="floating-bubble bubble-2 gradient-tv"></div>
+                <div className="floating-bubble bubble-3 gradient-tv"></div>
+              </div>
+              <div className="card-content">
+                <TvIcon />
+                <h3 className="card-title">Televisió</h3>
                 <span className="coming-soon">Properament</span>
               </div>
             </div>
