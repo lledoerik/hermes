@@ -144,6 +144,47 @@ class AuthManager:
         conn.close()
         logger.info("Taules d'autenticació inicialitzades")
 
+        # Crear admin per defecte si no existeix
+        self._create_default_admin()
+
+    def _create_default_admin(self):
+        """Crea l'usuari admin per defecte si no existeix cap admin"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # Comprovar si ja existeix algun admin
+        cursor.execute("SELECT id FROM users WHERE is_admin = TRUE")
+        if cursor.fetchone():
+            conn.close()
+            return
+
+        # Comprovar si l'usuari admin ja existeix (però no és admin)
+        cursor.execute("SELECT id FROM users WHERE username = ?",
+                      (settings.DEFAULT_ADMIN_USERNAME,))
+        existing = cursor.fetchone()
+
+        if existing:
+            # Promoure a admin
+            cursor.execute("UPDATE users SET is_admin = TRUE WHERE id = ?",
+                          (existing[0],))
+            logger.info(f"Usuari '{settings.DEFAULT_ADMIN_USERNAME}' promogut a admin")
+        else:
+            # Crear nou usuari admin
+            password_hash = self._hash_password(settings.DEFAULT_ADMIN_PASSWORD)
+            cursor.execute("""
+                INSERT INTO users (username, email, password_hash, display_name, is_admin)
+                VALUES (?, ?, ?, ?, TRUE)
+            """, (
+                settings.DEFAULT_ADMIN_USERNAME,
+                settings.DEFAULT_ADMIN_EMAIL,
+                password_hash,
+                "Administrador",
+            ))
+            logger.info(f"Usuari admin creat: {settings.DEFAULT_ADMIN_USERNAME}")
+
+        conn.commit()
+        conn.close()
+
     def _hash_password(self, password: str) -> str:
         """Crea un hash segur de la contrasenya"""
         salt = secrets.token_hex(16)
