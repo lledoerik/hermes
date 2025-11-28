@@ -1294,7 +1294,7 @@ function Player() {
                               setShowEpisodesMenu(false);
                             }}
                           >
-                            {ep.id === parseInt(id) && <span className="check-icon">▶</span>}
+                            {ep.id === parseInt(id) && <span className="check-icon"><PlayIcon /></span>}
                             <span className="episode-num">{ep.episode_number}.</span>
                             <span className="episode-title">{ep.title || `Episodi ${ep.episode_number}`}</span>
                           </div>
