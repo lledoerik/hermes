@@ -2459,6 +2459,340 @@ async def update_series_by_tmdb_id(series_id: int, request: UpdateByTmdbIdReques
 
 
 # ============================================================
+# BOOK/AUDIOBOOK METADATA
+# ============================================================
+
+class BookMetadataByIsbnRequest(BaseModel):
+    isbn: str
+
+
+class BookMetadataByOlidRequest(BaseModel):
+    olid: str
+
+
+class BookSearchRequest(BaseModel):
+    title: str
+    author: Optional[str] = None
+
+
+@app.post("/api/metadata/books/{book_id}/update-by-isbn")
+async def update_book_by_isbn(book_id: int, request: BookMetadataByIsbnRequest):
+    """
+    Actualitza les metadades d'un llibre usant l'ISBN.
+    """
+    from backend.metadata.openlibrary import fetch_book_by_isbn
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Obtenir info del llibre
+        cursor.execute("SELECT id, title, file_path FROM books WHERE id = ?", (book_id,))
+        book = cursor.fetchone()
+
+        if not book:
+            raise HTTPException(status_code=404, detail="Llibre no trobat")
+
+        book_path = Path(book["file_path"]).parent
+        cover_path = book_path / "cover.jpg"
+
+        # Esborrar portada existent
+        if cover_path.exists():
+            try:
+                cover_path.unlink()
+            except Exception as e:
+                logger.warning(f"No s'ha pogut esborrar la portada existent: {e}")
+
+        # Obtenir metadades
+        metadata = await fetch_book_by_isbn(request.isbn, cover_path)
+
+        if not metadata["found"]:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No s'ha trobat cap llibre amb ISBN {request.isbn}"
+            )
+
+        # Actualitzar la base de dades
+        if metadata["cover_downloaded"]:
+            cursor.execute(
+                "UPDATE books SET cover = ? WHERE id = ?",
+                (str(cover_path), book_id)
+            )
+            conn.commit()
+
+        return {
+            "status": "success",
+            "message": f"Metadades actualitzades per '{book['title']}'",
+            "isbn": request.isbn,
+            "title": metadata.get("title"),
+            "author": metadata.get("author"),
+            "cover_downloaded": metadata["cover_downloaded"]
+        }
+
+
+@app.post("/api/metadata/books/{book_id}/update-by-olid")
+async def update_book_by_olid(book_id: int, request: BookMetadataByOlidRequest):
+    """
+    Actualitza les metadades d'un llibre usant l'Open Library Work ID.
+    """
+    from backend.metadata.openlibrary import fetch_book_by_olid
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id, title, file_path FROM books WHERE id = ?", (book_id,))
+        book = cursor.fetchone()
+
+        if not book:
+            raise HTTPException(status_code=404, detail="Llibre no trobat")
+
+        book_path = Path(book["file_path"]).parent
+        cover_path = book_path / "cover.jpg"
+
+        if cover_path.exists():
+            try:
+                cover_path.unlink()
+            except Exception as e:
+                logger.warning(f"No s'ha pogut esborrar la portada existent: {e}")
+
+        metadata = await fetch_book_by_olid(request.olid, cover_path)
+
+        if not metadata["found"]:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No s'ha trobat cap llibre amb Open Library ID {request.olid}"
+            )
+
+        if metadata["cover_downloaded"]:
+            cursor.execute(
+                "UPDATE books SET cover = ? WHERE id = ?",
+                (str(cover_path), book_id)
+            )
+            conn.commit()
+
+        return {
+            "status": "success",
+            "message": f"Metadades actualitzades per '{book['title']}'",
+            "olid": request.olid,
+            "title": metadata.get("title"),
+            "author": metadata.get("author"),
+            "cover_downloaded": metadata["cover_downloaded"]
+        }
+
+
+@app.post("/api/metadata/books/search")
+async def search_books_metadata(request: BookSearchRequest):
+    """
+    Cerca llibres a Open Library i retorna múltiples resultats.
+    """
+    from backend.metadata.openlibrary import search_books
+
+    results = await search_books(request.title, request.author, limit=10)
+
+    return {
+        "status": "success",
+        "results": results
+    }
+
+
+@app.post("/api/metadata/books/{book_id}/update-by-search-result")
+async def update_book_by_search_result(book_id: int, cover_id: int = Query(...)):
+    """
+    Actualitza la portada d'un llibre usant el cover_id d'un resultat de cerca.
+    """
+    from backend.metadata.openlibrary import OpenLibraryClient
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id, title, file_path FROM books WHERE id = ?", (book_id,))
+        book = cursor.fetchone()
+
+        if not book:
+            raise HTTPException(status_code=404, detail="Llibre no trobat")
+
+        book_path = Path(book["file_path"]).parent
+        cover_path = book_path / "cover.jpg"
+
+        if cover_path.exists():
+            try:
+                cover_path.unlink()
+            except Exception as e:
+                logger.warning(f"No s'ha pogut esborrar la portada existent: {e}")
+
+        client = OpenLibraryClient()
+        try:
+            downloaded = await client.download_cover(cover_id, cover_path)
+        finally:
+            await client.close()
+
+        if not downloaded:
+            raise HTTPException(
+                status_code=404,
+                detail="No s'ha pogut descarregar la portada"
+            )
+
+        cursor.execute(
+            "UPDATE books SET cover = ? WHERE id = ?",
+            (str(cover_path), book_id)
+        )
+        conn.commit()
+
+        return {
+            "status": "success",
+            "message": f"Portada actualitzada per '{book['title']}'",
+            "cover_downloaded": True
+        }
+
+
+# Endpoints per audiollibres (mateixa lògica)
+@app.post("/api/metadata/audiobooks/{audiobook_id}/update-by-isbn")
+async def update_audiobook_by_isbn(audiobook_id: int, request: BookMetadataByIsbnRequest):
+    """
+    Actualitza les metadades d'un audiollibres usant l'ISBN.
+    """
+    from backend.metadata.openlibrary import fetch_book_by_isbn
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id, title, folder_path FROM audiobooks WHERE id = ?", (audiobook_id,))
+        audiobook = cursor.fetchone()
+
+        if not audiobook:
+            raise HTTPException(status_code=404, detail="Audiollibres no trobat")
+
+        cover_path = Path(audiobook["folder_path"]) / "cover.jpg"
+
+        if cover_path.exists():
+            try:
+                cover_path.unlink()
+            except Exception as e:
+                logger.warning(f"No s'ha pogut esborrar la portada existent: {e}")
+
+        metadata = await fetch_book_by_isbn(request.isbn, cover_path)
+
+        if not metadata["found"]:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No s'ha trobat cap llibre amb ISBN {request.isbn}"
+            )
+
+        if metadata["cover_downloaded"]:
+            cursor.execute(
+                "UPDATE audiobooks SET cover = ? WHERE id = ?",
+                (str(cover_path), audiobook_id)
+            )
+            conn.commit()
+
+        return {
+            "status": "success",
+            "message": f"Metadades actualitzades per '{audiobook['title']}'",
+            "isbn": request.isbn,
+            "title": metadata.get("title"),
+            "author": metadata.get("author"),
+            "cover_downloaded": metadata["cover_downloaded"]
+        }
+
+
+@app.post("/api/metadata/audiobooks/{audiobook_id}/update-by-olid")
+async def update_audiobook_by_olid(audiobook_id: int, request: BookMetadataByOlidRequest):
+    """
+    Actualitza les metadades d'un audiollibres usant l'Open Library Work ID.
+    """
+    from backend.metadata.openlibrary import fetch_book_by_olid
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id, title, folder_path FROM audiobooks WHERE id = ?", (audiobook_id,))
+        audiobook = cursor.fetchone()
+
+        if not audiobook:
+            raise HTTPException(status_code=404, detail="Audiollibres no trobat")
+
+        cover_path = Path(audiobook["folder_path"]) / "cover.jpg"
+
+        if cover_path.exists():
+            try:
+                cover_path.unlink()
+            except Exception as e:
+                logger.warning(f"No s'ha pogut esborrar la portada existent: {e}")
+
+        metadata = await fetch_book_by_olid(request.olid, cover_path)
+
+        if not metadata["found"]:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No s'ha trobat cap llibre amb Open Library ID {request.olid}"
+            )
+
+        if metadata["cover_downloaded"]:
+            cursor.execute(
+                "UPDATE audiobooks SET cover = ? WHERE id = ?",
+                (str(cover_path), audiobook_id)
+            )
+            conn.commit()
+
+        return {
+            "status": "success",
+            "message": f"Metadades actualitzades per '{audiobook['title']}'",
+            "olid": request.olid,
+            "title": metadata.get("title"),
+            "author": metadata.get("author"),
+            "cover_downloaded": metadata["cover_downloaded"]
+        }
+
+
+@app.post("/api/metadata/audiobooks/{audiobook_id}/update-by-search-result")
+async def update_audiobook_by_search_result(audiobook_id: int, cover_id: int = Query(...)):
+    """
+    Actualitza la portada d'un audiollibres usant el cover_id d'un resultat de cerca.
+    """
+    from backend.metadata.openlibrary import OpenLibraryClient
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id, title, folder_path FROM audiobooks WHERE id = ?", (audiobook_id,))
+        audiobook = cursor.fetchone()
+
+        if not audiobook:
+            raise HTTPException(status_code=404, detail="Audiollibres no trobat")
+
+        cover_path = Path(audiobook["folder_path"]) / "cover.jpg"
+
+        if cover_path.exists():
+            try:
+                cover_path.unlink()
+            except Exception as e:
+                logger.warning(f"No s'ha pogut esborrar la portada existent: {e}")
+
+        client = OpenLibraryClient()
+        try:
+            downloaded = await client.download_cover(cover_id, cover_path)
+        finally:
+            await client.close()
+
+        if not downloaded:
+            raise HTTPException(
+                status_code=404,
+                detail="No s'ha pogut descarregar la portada"
+            )
+
+        cursor.execute(
+            "UPDATE audiobooks SET cover = ? WHERE id = ?",
+            (str(cover_path), audiobook_id)
+        )
+        conn.commit()
+
+        return {
+            "status": "success",
+            "message": f"Portada actualitzada per '{audiobook['title']}'",
+            "cover_downloaded": True
+        }
+
+
+# ============================================================
 # THUMBNAILS PER EPISODIS
 # ============================================================
 

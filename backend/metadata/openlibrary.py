@@ -7,7 +7,7 @@ import json
 import urllib.request
 import urllib.parse
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import re
 
 
@@ -73,6 +73,179 @@ class OpenLibraryClient:
             result = await asyncio.to_thread(self._sync_search_book, title, None)
 
         return result
+
+    def _sync_search_books_multiple(self, title: str, author: str = None, limit: int = 10) -> List[Dict[str, Any]]:
+        """Synchronous search returning multiple results."""
+        clean_title = self._clean_title(title)
+        query = clean_title
+        if author:
+            query = f"{clean_title} {author}"
+
+        try:
+            params = {
+                "q": query,
+                "limit": limit,
+                "fields": "key,title,author_name,first_publish_year,cover_i,isbn,subject"
+            }
+            query_string = urllib.parse.urlencode(params)
+            url = f"{self.BASE_URL}/search.json?{query_string}"
+
+            req = urllib.request.Request(url)
+            req.add_header('User-Agent', 'Hermes Media Server/1.0')
+
+            with urllib.request.urlopen(req, timeout=30) as response:
+                data = json.loads(response.read().decode('utf-8'))
+
+            results = []
+            for doc in data.get("docs", []):
+                results.append({
+                    "key": doc.get("key", "").replace("/works/", ""),
+                    "title": doc.get("title"),
+                    "author": doc.get("author_name", [None])[0],
+                    "year": doc.get("first_publish_year"),
+                    "cover_id": doc.get("cover_i"),
+                    "isbn": doc.get("isbn", [None])[0] if doc.get("isbn") else None
+                })
+            return results
+
+        except Exception as e:
+            print(f"Error searching Open Library: {e}")
+            return []
+
+    async def search_books_multiple(self, title: str, author: str = None, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Search for books returning multiple results for user selection.
+        """
+        return await asyncio.to_thread(self._sync_search_books_multiple, title, author, limit)
+
+    def _sync_get_book_by_isbn(self, isbn: str) -> Optional[Dict[str, Any]]:
+        """Get book by ISBN synchronously."""
+        # Clean ISBN (remove dashes and spaces)
+        isbn = re.sub(r'[\s\-]', '', isbn)
+
+        try:
+            url = f"{self.BASE_URL}/isbn/{isbn}.json"
+            req = urllib.request.Request(url)
+            req.add_header('User-Agent', 'Hermes Media Server/1.0')
+
+            with urllib.request.urlopen(req, timeout=30) as response:
+                data = json.loads(response.read().decode('utf-8'))
+
+            # Get work info for more details
+            work_key = None
+            if data.get("works"):
+                work_key = data["works"][0].get("key")
+
+            # Get cover
+            cover_id = None
+            if data.get("covers"):
+                cover_id = data["covers"][0]
+
+            result = {
+                "found": True,
+                "title": data.get("title"),
+                "isbn": isbn,
+                "cover_id": cover_id,
+                "publishers": data.get("publishers", []),
+                "publish_date": data.get("publish_date"),
+                "number_of_pages": data.get("number_of_pages"),
+                "work_key": work_key
+            }
+
+            # Try to get author info
+            if data.get("authors"):
+                author_key = data["authors"][0].get("key")
+                if author_key:
+                    try:
+                        author_url = f"{self.BASE_URL}{author_key}.json"
+                        author_req = urllib.request.Request(author_url)
+                        author_req.add_header('User-Agent', 'Hermes Media Server/1.0')
+                        with urllib.request.urlopen(author_req, timeout=30) as author_response:
+                            author_data = json.loads(author_response.read().decode('utf-8'))
+                            result["author"] = author_data.get("name")
+                    except Exception:
+                        pass
+
+            return result
+
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return None
+            print(f"HTTP Error getting book by ISBN: {e}")
+            return None
+        except Exception as e:
+            print(f"Error getting book by ISBN: {e}")
+            return None
+
+    async def get_book_by_isbn(self, isbn: str) -> Optional[Dict[str, Any]]:
+        """Get book information by ISBN."""
+        return await asyncio.to_thread(self._sync_get_book_by_isbn, isbn)
+
+    def _sync_get_book_by_olid(self, olid: str) -> Optional[Dict[str, Any]]:
+        """Get book by Open Library Work ID synchronously."""
+        # Clean OLID (remove /works/ prefix if present)
+        olid = olid.replace("/works/", "").strip()
+
+        try:
+            url = f"{self.BASE_URL}/works/{olid}.json"
+            req = urllib.request.Request(url)
+            req.add_header('User-Agent', 'Hermes Media Server/1.0')
+
+            with urllib.request.urlopen(req, timeout=30) as response:
+                data = json.loads(response.read().decode('utf-8'))
+
+            # Get cover
+            cover_id = None
+            if data.get("covers"):
+                cover_id = data["covers"][0]
+
+            # Get description
+            description = None
+            if data.get("description"):
+                desc = data["description"]
+                if isinstance(desc, dict):
+                    description = desc.get("value", "")
+                else:
+                    description = desc
+
+            result = {
+                "found": True,
+                "title": data.get("title"),
+                "olid": olid,
+                "cover_id": cover_id,
+                "subjects": data.get("subjects", [])[:5],
+                "description": description[:500] if description else None
+            }
+
+            # Try to get author info
+            if data.get("authors"):
+                author_ref = data["authors"][0]
+                author_key = author_ref.get("author", {}).get("key") if isinstance(author_ref, dict) else None
+                if author_key:
+                    try:
+                        author_url = f"{self.BASE_URL}{author_key}.json"
+                        author_req = urllib.request.Request(author_url)
+                        author_req.add_header('User-Agent', 'Hermes Media Server/1.0')
+                        with urllib.request.urlopen(author_req, timeout=30) as author_response:
+                            author_data = json.loads(author_response.read().decode('utf-8'))
+                            result["author"] = author_data.get("name")
+                    except Exception:
+                        pass
+
+            return result
+
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return None
+            print(f"HTTP Error getting book by OLID: {e}")
+            return None
+        except Exception as e:
+            print(f"Error getting book by OLID: {e}")
+            return None
+
+    async def get_book_by_olid(self, olid: str) -> Optional[Dict[str, Any]]:
+        """Get book information by Open Library Work ID."""
+        return await asyncio.to_thread(self._sync_get_book_by_olid, olid)
 
     def get_cover_url(self, cover_id: int, size: str = "L") -> Optional[str]:
         """
@@ -177,3 +350,81 @@ async def fetch_metadata_for_book(title: str, author: str = None, cover_path: Pa
 def fetch_metadata_for_book_sync(title: str, author: str = None, cover_path: Path = None) -> Dict[str, Any]:
     """Synchronous wrapper for fetch_metadata_for_book."""
     return asyncio.run(fetch_metadata_for_book(title, author, cover_path))
+
+
+async def fetch_book_by_isbn(isbn: str, cover_path: Path = None) -> Dict[str, Any]:
+    """
+    Fetch book metadata by ISBN and optionally download cover.
+    """
+    client = OpenLibraryClient()
+    try:
+        result = {
+            "found": False,
+            "title": None,
+            "author": None,
+            "year": None,
+            "cover_downloaded": False
+        }
+
+        book = await client.get_book_by_isbn(isbn)
+        if not book or not book.get("found"):
+            return result
+
+        result["found"] = True
+        result["title"] = book.get("title")
+        result["author"] = book.get("author")
+        result["year"] = book.get("publish_date")
+        result["isbn"] = isbn
+
+        # Download cover if requested
+        if cover_path and book.get("cover_id"):
+            result["cover_downloaded"] = await client.download_cover(book["cover_id"], cover_path)
+
+        return result
+    finally:
+        await client.close()
+
+
+async def fetch_book_by_olid(olid: str, cover_path: Path = None) -> Dict[str, Any]:
+    """
+    Fetch book metadata by Open Library Work ID and optionally download cover.
+    """
+    client = OpenLibraryClient()
+    try:
+        result = {
+            "found": False,
+            "title": None,
+            "author": None,
+            "description": None,
+            "cover_downloaded": False
+        }
+
+        book = await client.get_book_by_olid(olid)
+        if not book or not book.get("found"):
+            return result
+
+        result["found"] = True
+        result["title"] = book.get("title")
+        result["author"] = book.get("author")
+        result["description"] = book.get("description")
+        result["subjects"] = book.get("subjects", [])
+        result["olid"] = olid
+
+        # Download cover if requested
+        if cover_path and book.get("cover_id"):
+            result["cover_downloaded"] = await client.download_cover(book["cover_id"], cover_path)
+
+        return result
+    finally:
+        await client.close()
+
+
+async def search_books(title: str, author: str = None, limit: int = 10) -> List[Dict[str, Any]]:
+    """
+    Search for books and return multiple results.
+    """
+    client = OpenLibraryClient()
+    try:
+        return await client.search_books_multiple(title, author, limit)
+    finally:
+        await client.close()
