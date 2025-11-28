@@ -75,6 +75,25 @@ class StreamRequest(BaseModel):
     subtitle_index: Optional[int] = None
     quality: str = "1080p"
 
+# Auth Models
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+    email: Optional[str] = None
+    display_name: Optional[str] = None
+
+class ProfileUpdateRequest(BaseModel):
+    display_name: Optional[str] = None
+    email: Optional[str] = None
+
+class PasswordChangeRequest(BaseModel):
+    old_password: str
+    new_password: str
+
 class SegmentRequest(BaseModel):
     segment_type: str  # 'intro', 'recap', 'outro', 'credits', 'preview'
     start_time: float
@@ -161,6 +180,200 @@ async def stream_video_with_range(file_path: Path, request: Request):
             headers=headers,
             media_type=content_type
         )
+
+
+# === AUTENTICACIÓ ===
+
+def get_current_user(request: Request) -> Optional[Dict]:
+    """Obté l'usuari actual del token"""
+    from backend.auth import get_auth_manager
+
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return None
+
+    token = auth_header.replace("Bearer ", "")
+    auth = get_auth_manager()
+    return auth.verify_token(token)
+
+
+def require_auth(request: Request) -> Dict:
+    """Requereix autenticació"""
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="No autenticat")
+    return user
+
+
+@app.post("/api/auth/register")
+async def register(data: RegisterRequest):
+    """Registra un nou usuari"""
+    from backend.auth import get_auth_manager
+
+    if len(data.password) < 4:
+        raise HTTPException(status_code=400, detail="La contrasenya ha de tenir mínim 4 caràcters")
+
+    auth = get_auth_manager()
+    result = auth.register(
+        username=data.username,
+        password=data.password,
+        email=data.email,
+        display_name=data.display_name
+    )
+
+    if result["status"] == "error":
+        raise HTTPException(status_code=400, detail=result["message"])
+
+    return result
+
+
+@app.post("/api/auth/login")
+async def login(data: LoginRequest):
+    """Inicia sessió"""
+    from backend.auth import get_auth_manager
+
+    auth = get_auth_manager()
+    result = auth.login(data.username, data.password)
+
+    if result["status"] == "error":
+        raise HTTPException(status_code=401, detail=result["message"])
+
+    return result
+
+
+@app.get("/api/auth/me")
+async def get_current_user_info(request: Request):
+    """Retorna informació de l'usuari actual"""
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="No autenticat")
+    return user
+
+
+@app.put("/api/auth/profile")
+async def update_profile(request: Request, data: ProfileUpdateRequest):
+    """Actualitza el perfil de l'usuari"""
+    from backend.auth import get_auth_manager
+
+    user = require_auth(request)
+    auth = get_auth_manager()
+    result = auth.update_profile(
+        user_id=user["id"],
+        display_name=data.display_name,
+        email=data.email
+    )
+
+    if result["status"] == "error":
+        raise HTTPException(status_code=400, detail=result["message"])
+
+    return result
+
+
+@app.put("/api/auth/password")
+async def change_password(request: Request, data: PasswordChangeRequest):
+    """Canvia la contrasenya"""
+    from backend.auth import get_auth_manager
+
+    user = require_auth(request)
+    auth = get_auth_manager()
+    result = auth.change_password(
+        user_id=user["id"],
+        old_password=data.old_password,
+        new_password=data.new_password
+    )
+
+    if result["status"] == "error":
+        raise HTTPException(status_code=400, detail=result["message"])
+
+    return result
+
+
+@app.get("/api/user/continue-watching")
+async def get_continue_watching(request: Request):
+    """Retorna el contingut que l'usuari està veient (per continuar)"""
+    user = get_current_user(request)
+    user_id = user["id"] if user else 1  # Default user_id 1 si no autenticat
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Obtenir episodis en progrés (no acabats)
+        cursor.execute("""
+            SELECT
+                wp.media_id,
+                wp.progress_seconds,
+                wp.total_seconds,
+                wp.last_watched,
+                mf.title as episode_title,
+                mf.season_number,
+                mf.episode_number,
+                mf.thumbnail,
+                mf.duration,
+                s.id as series_id,
+                s.name as series_name,
+                s.poster,
+                s.backdrop
+            FROM watch_progress wp
+            JOIN media_files mf ON wp.media_id = mf.id
+            LEFT JOIN series s ON mf.series_id = s.id
+            WHERE wp.user_id = ?
+            AND wp.progress_seconds > 30
+            AND (wp.total_seconds IS NULL OR wp.progress_seconds < wp.total_seconds * 0.9)
+            ORDER BY wp.last_watched DESC
+            LIMIT 20
+        """, (user_id,))
+
+        watching = []
+        for row in cursor.fetchall():
+            progress_pct = 0
+            if row["total_seconds"] and row["total_seconds"] > 0:
+                progress_pct = (row["progress_seconds"] / row["total_seconds"]) * 100
+
+            watching.append({
+                "id": row["media_id"],
+                "type": "episode" if row["series_id"] else "movie",
+                "series_id": row["series_id"],
+                "series_name": row["series_name"],
+                "title": row["episode_title"],
+                "season_number": row["season_number"],
+                "episode_number": row["episode_number"],
+                "poster": row["poster"],
+                "backdrop": row["backdrop"],
+                "thumbnail": row["thumbnail"],
+                "progress_seconds": row["progress_seconds"],
+                "total_seconds": row["total_seconds"],
+                "progress_percentage": round(progress_pct, 1),
+                "last_watched": row["last_watched"]
+            })
+
+        return watching
+
+
+@app.get("/api/user/recently-watched")
+async def get_recently_watched(request: Request, limit: int = 10):
+    """Retorna contingut vist recentment"""
+    user = get_current_user(request)
+    user_id = user["id"] if user else 1
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT DISTINCT
+                s.id as series_id,
+                s.name as series_name,
+                s.poster,
+                MAX(wp.last_watched) as last_watched
+            FROM watch_progress wp
+            JOIN media_files mf ON wp.media_id = mf.id
+            JOIN series s ON mf.series_id = s.id
+            WHERE wp.user_id = ?
+            GROUP BY s.id
+            ORDER BY last_watched DESC
+            LIMIT ?
+        """, (user_id, limit))
+
+        return [dict(row) for row in cursor.fetchall()]
 
 
 # === ENDPOINTS ===
