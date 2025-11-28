@@ -163,14 +163,22 @@ class HermesScanner:
             return
 
         # Metadata
-        base_dir = movie_dir or file_path.parent
+        # Si la pel·lícula està en una carpeta pròpia, usar la carpeta
+        # Si està directament a la carpeta base, usar el path del fitxer
+        if movie_dir:
+            base_dir = movie_dir
+            movie_path = str(movie_dir)
+            movie_name = movie_dir.name
+        else:
+            base_dir = file_path.parent
+            movie_path = str(file_path)  # Path únic per cada pel·lícula
+            movie_name = file_path.stem
+
         poster = self._find_image(base_dir, ['folder.jpg', 'poster.jpg'])
         backdrop = self._find_image(base_dir, ['backdrop.jpg', 'fanart.jpg'])
 
-        movie_name = base_dir.name if movie_dir else file_path.stem
-
         # Comprovar si ja existeix per evitar perdre referències
-        cursor.execute('SELECT id FROM series WHERE path = ?', (str(base_dir),))
+        cursor.execute('SELECT id FROM series WHERE path = ?', (movie_path,))
         existing = cursor.fetchone()
 
         if existing:
@@ -183,7 +191,7 @@ class HermesScanner:
             cursor.execute('''
                 INSERT INTO series (name, path, media_type, poster, backdrop)
                 VALUES (?, ?, 'movie', ?, ?)
-            ''', (movie_name, str(base_dir), str(poster) if poster else None,
+            ''', (movie_name, movie_path, str(poster) if poster else None,
                   str(backdrop) if backdrop else None))
             series_id = cursor.lastrowid
         

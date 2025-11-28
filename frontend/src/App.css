@@ -55,7 +55,8 @@ a {
 }
 
 .loading-logo {
-  max-width: 200px;
+  max-width: 700px;
+  width: 80%;
   height: auto;
   animation: pulse-logo 2s ease-in-out infinite;
 }
