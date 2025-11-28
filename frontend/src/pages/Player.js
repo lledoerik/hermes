@@ -682,43 +682,69 @@ function Player() {
   const [hoverTime, setHoverTime] = useState(null);
   const [hoverPosition, setHoverPosition] = useState(0);
 
-  const calculateTimeFromEvent = useCallback((e) => {
+  const calculateTimeFromPosition = useCallback((clientX) => {
     if (!progressRef.current || !duration) return 0;
     const rect = progressRef.current.getBoundingClientRect();
-    const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     return percent * duration;
   }, [duration]);
 
   const handleProgressMouseDown = (e) => {
     e.preventDefault();
     setIsDragging(true);
-    const newTime = calculateTimeFromEvent(e);
+    const newTime = calculateTimeFromPosition(e.clientX);
+    setDragTime(newTime);
+  };
+
+  const handleProgressTouchStart = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+    const touch = e.touches[0];
+    const newTime = calculateTimeFromPosition(touch.clientX);
     setDragTime(newTime);
   };
 
   const handleProgressMouseMove = useCallback((e) => {
     if (!isDragging) return;
-    const newTime = calculateTimeFromEvent(e);
+    const newTime = calculateTimeFromPosition(e.clientX);
     setDragTime(newTime);
-  }, [isDragging, calculateTimeFromEvent]);
+  }, [isDragging, calculateTimeFromPosition]);
+
+  const handleProgressTouchMove = useCallback((e) => {
+    if (!isDragging) return;
+    const touch = e.touches[0];
+    const newTime = calculateTimeFromPosition(touch.clientX);
+    setDragTime(newTime);
+  }, [isDragging, calculateTimeFromPosition]);
 
   const handleProgressMouseUp = useCallback((e) => {
     if (!isDragging || !videoRef.current) return;
     setIsDragging(false);
-    const newTime = calculateTimeFromEvent(e);
+    const newTime = calculateTimeFromPosition(e.clientX);
     videoRef.current.currentTime = newTime;
-  }, [isDragging, calculateTimeFromEvent]);
+  }, [isDragging, calculateTimeFromPosition]);
+
+  const handleProgressTouchEnd = useCallback((e) => {
+    if (!isDragging || !videoRef.current) return;
+    setIsDragging(false);
+    // Usar l'última posició guardada (dragTime) perquè touchend no té touches
+    videoRef.current.currentTime = dragTime;
+  }, [isDragging, dragTime]);
 
   useEffect(() => {
     if (isDragging) {
       document.addEventListener('mousemove', handleProgressMouseMove);
       document.addEventListener('mouseup', handleProgressMouseUp);
+      document.addEventListener('touchmove', handleProgressTouchMove, { passive: false });
+      document.addEventListener('touchend', handleProgressTouchEnd);
       return () => {
         document.removeEventListener('mousemove', handleProgressMouseMove);
         document.removeEventListener('mouseup', handleProgressMouseUp);
+        document.removeEventListener('touchmove', handleProgressTouchMove);
+        document.removeEventListener('touchend', handleProgressTouchEnd);
       };
     }
-  }, [isDragging, handleProgressMouseMove, handleProgressMouseUp]);
+  }, [isDragging, handleProgressMouseMove, handleProgressMouseUp, handleProgressTouchMove, handleProgressTouchEnd]);
 
   const handleProgressClick = (e) => {
     if (!progressRef.current || !videoRef.current || !duration) return;
@@ -1084,6 +1110,7 @@ function Player() {
                 onMouseMove={handleProgressHover}
                 onMouseLeave={handleProgressLeave}
                 onClick={handleProgressClick}
+                onTouchStart={handleProgressTouchStart}
               >
                 {hoverTime !== null && (
                   <div
