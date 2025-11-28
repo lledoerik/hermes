@@ -2347,6 +2347,22 @@ import subprocess
 THUMBNAILS_DIR = settings.METADATA_DIR / "thumbnails"
 THUMBNAILS_DIR.mkdir(parents=True, exist_ok=True)
 
+# Estat global per seguiment de progrés
+thumbnail_progress = {
+    "active": False,
+    "current": 0,
+    "total": 0,
+    "generated": 0,
+    "errors": 0,
+    "status": "idle"  # idle, deleting, generating, completed
+}
+
+
+@app.get("/api/thumbnails/progress")
+async def get_thumbnail_progress():
+    """Retorna l'estat actual de la generació de thumbnails"""
+    return thumbnail_progress
+
 
 def generate_thumbnail(video_path: Path, output_path: Path, time_percent: int = 20) -> bool:
     """
@@ -2457,7 +2473,15 @@ async def generate_all_thumbnails():
 @app.post("/api/thumbnails/regenerate-all")
 async def regenerate_all_thumbnails():
     """Esborra i regenera TOTS els thumbnails"""
-    import shutil
+    global thumbnail_progress
+
+    # Inicialitzar progrés
+    thumbnail_progress["active"] = True
+    thumbnail_progress["status"] = "deleting"
+    thumbnail_progress["current"] = 0
+    thumbnail_progress["total"] = 0
+    thumbnail_progress["generated"] = 0
+    thumbnail_progress["errors"] = 0
 
     # Esborrar tots els thumbnails existents
     deleted = 0
@@ -2472,35 +2496,39 @@ async def regenerate_all_thumbnails():
     logger.info(f"Thumbnails esborrats: {deleted}")
 
     # Regenerar tots
-    generated = 0
-    errors = 0
+    thumbnail_progress["status"] = "generating"
 
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id, file_path FROM media_files")
         rows = cursor.fetchall()
         total = len(rows)
+        thumbnail_progress["total"] = total
 
         logger.info(f"Iniciant generació de {total} thumbnails...")
 
         for i, row in enumerate(rows, 1):
+            thumbnail_progress["current"] = i
             thumbnail_path = THUMBNAILS_DIR / f"{row['id']}.jpg"
             video_path = Path(row["file_path"])
 
             if not video_path.exists():
-                errors += 1
+                thumbnail_progress["errors"] += 1
                 logger.warning(f"[{i}/{total}] Fitxer no existeix: {video_path.name}")
                 continue
 
             if generate_thumbnail(video_path, thumbnail_path):
-                generated += 1
-                if generated % 50 == 0 or i == total:  # Log cada 50 o al final
-                    logger.info(f"[{i}/{total}] Progrés: {generated} generades, {errors} errors")
+                thumbnail_progress["generated"] += 1
+                if thumbnail_progress["generated"] % 50 == 0 or i == total:
+                    logger.info(f"[{i}/{total}] Progrés: {thumbnail_progress['generated']} generades, {thumbnail_progress['errors']} errors")
             else:
-                errors += 1
+                thumbnail_progress["errors"] += 1
 
-    logger.info(f"COMPLETAT: {generated} thumbnails regenerats, {errors} errors")
-    return {"status": "success", "deleted": deleted, "generated": generated, "errors": errors}
+    thumbnail_progress["status"] = "completed"
+    thumbnail_progress["active"] = False
+
+    logger.info(f"COMPLETAT: {thumbnail_progress['generated']} thumbnails regenerats, {thumbnail_progress['errors']} errors")
+    return {"status": "success", "deleted": deleted, "generated": thumbnail_progress["generated"], "errors": thumbnail_progress["errors"]}
 
 
 if __name__ == "__main__":
