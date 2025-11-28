@@ -37,7 +37,8 @@
             pointer-events: none;
         }
         #initial-loader img {
-            width: 200px;
+            max-width: 700px;
+            width: 80%;
             height: auto;
             animation: pulse 2s ease-in-out infinite;
         }
@@ -58,7 +59,6 @@
     <!-- Initial loader while React loads -->
     <div id="initial-loader">
         <img src="/img/hermes.png" alt="Hermes" />
-        <p>El transport més ràpid de l'Olimp</p>
     </div>
 
     <div id="root"></div>
@@ -68,7 +68,7 @@
         window.addEventListener('load', function() {
             setTimeout(function() {
                 document.getElementById('initial-loader').classList.add('hidden');
-            }, 500);
+            }, 100);
         });
     </script>
 </body>
