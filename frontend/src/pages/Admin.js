@@ -87,13 +87,6 @@ const BroomIcon = () => (
   </svg>
 );
 
-const BookIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-  </svg>
-);
-
 const PaletteIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <circle cx="13.5" cy="6.5" r=".5"></circle>
@@ -188,39 +181,6 @@ function Admin() {
     }
   };
 
-  const handleFetchBooksMetadata = async () => {
-    setFetchingMetadata(true);
-    addLog('info', 'Obtenint metadades de llibres i audiollibres...');
-    try {
-      const response = await axios.post('/api/metadata/fetch-books');
-      addLog('success', `Metadades obtingudes: ${response.data.books} llibres, ${response.data.audiobooks} audiollibres`);
-    } catch (error) {
-      addLog('error', `Error obtenint metadades: ${error.message}`);
-    } finally {
-      setFetchingMetadata(false);
-    }
-  };
-
-  const handleFetchVideosMetadata = async () => {
-    if (!tmdbConfigured && !tmdbKey) {
-      addLog('error', 'Necessites configurar la clau TMDB primer');
-      return;
-    }
-
-    setFetchingMetadata(true);
-    addLog('info', 'Obtenint metadades de pel·lícules i sèries...');
-    try {
-      const response = await axios.post('/api/metadata/fetch-videos', {
-        tmdb_api_key: tmdbKey || undefined
-      });
-      addLog('success', `Metadades obtingudes: ${response.data.movies} pel·lícules, ${response.data.series} sèries`);
-    } catch (error) {
-      addLog('error', `Error obtenint metadades: ${error.message}`);
-    } finally {
-      setFetchingMetadata(false);
-    }
-  };
-
   const handleFetchAllMetadata = async () => {
     setFetchingMetadata(true);
     addLog('info', 'Obtenint metadades... (pot trigar uns minuts)');
@@ -230,8 +190,11 @@ function Admin() {
       });
       const r = response.data.results;
       if (r) {
-        addLog('success', `Pel·lícules: ${r.movies?.updated || 0} actualitzades`);
-        addLog('success', `Sèries: ${r.series?.updated || 0} actualitzades`);
+        if (!r.tmdb_configured) {
+          addLog('warning', 'Clau TMDB no configurada - no es descarregaran posters de pel·lícules/sèries');
+        }
+        addLog('success', `Pel·lícules: ${r.movies?.updated || 0} actualitzades (${r.movies?.processed || 0} processades)`);
+        addLog('success', `Sèries: ${r.series?.updated || 0} actualitzades (${r.series?.processed || 0} processades)`);
         addLog('success', `Llibres: ${r.books?.updated || 0} actualitzats`);
         addLog('success', `Audiollibres: ${r.audiobooks?.updated || 0} actualitzats`);
         const errors = (r.movies?.errors || 0) + (r.series?.errors || 0) + (r.books?.errors || 0) + (r.audiobooks?.errors || 0);
