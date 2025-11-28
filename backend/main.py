@@ -545,6 +545,121 @@ async def get_series_seasons(series_id: int):
         return seasons
 
 
+@app.delete("/api/library/series/{series_id}")
+async def delete_series(series_id: int):
+    """
+    Elimina una sèrie i tots els seus episodis de la base de dades.
+    No elimina els fitxers del disc, només de la BD.
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Verificar que existeix
+        cursor.execute("SELECT name FROM series WHERE id = ?", (series_id,))
+        series = cursor.fetchone()
+        if not series:
+            raise HTTPException(status_code=404, detail="Sèrie no trobada")
+
+        series_name = series["name"]
+
+        # Obtenir IDs dels episodis per eliminar segments i progress
+        cursor.execute("SELECT id FROM media_files WHERE series_id = ?", (series_id,))
+        episode_ids = [row["id"] for row in cursor.fetchall()]
+
+        # Eliminar segments dels episodis
+        if episode_ids:
+            placeholders = ",".join("?" * len(episode_ids))
+            cursor.execute(f"DELETE FROM media_segments WHERE media_id IN ({placeholders})", episode_ids)
+            cursor.execute(f"DELETE FROM watch_progress WHERE media_id IN ({placeholders})", episode_ids)
+
+        # Eliminar segments de la sèrie
+        cursor.execute("DELETE FROM media_segments WHERE series_id = ?", (series_id,))
+
+        # Eliminar episodis
+        cursor.execute("DELETE FROM media_files WHERE series_id = ?", (series_id,))
+        episodes_deleted = cursor.rowcount
+
+        # Eliminar sèrie
+        cursor.execute("DELETE FROM series WHERE id = ?", (series_id,))
+
+        conn.commit()
+
+        return {
+            "status": "success",
+            "message": f"Sèrie '{series_name}' eliminada",
+            "episodes_deleted": episodes_deleted
+        }
+
+
+@app.post("/api/library/cleanup")
+async def cleanup_library():
+    """
+    Neteja la biblioteca eliminant sèries i episodis que ja no existeixen al disc.
+    """
+    import os
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        stats = {
+            "series_removed": 0,
+            "episodes_removed": 0,
+            "series_details": []
+        }
+
+        # Buscar sèries amb paths que no existeixen
+        cursor.execute("SELECT id, name, path FROM series")
+        series_list = cursor.fetchall()
+
+        for series in series_list:
+            if not os.path.exists(series["path"]):
+                # La carpeta de la sèrie no existeix, eliminar-la
+                series_id = series["id"]
+                series_name = series["name"]
+
+                # Obtenir IDs dels episodis
+                cursor.execute("SELECT id FROM media_files WHERE series_id = ?", (series_id,))
+                episode_ids = [row["id"] for row in cursor.fetchall()]
+
+                # Eliminar segments i progress
+                if episode_ids:
+                    placeholders = ",".join("?" * len(episode_ids))
+                    cursor.execute(f"DELETE FROM media_segments WHERE media_id IN ({placeholders})", episode_ids)
+                    cursor.execute(f"DELETE FROM watch_progress WHERE media_id IN ({placeholders})", episode_ids)
+
+                cursor.execute("DELETE FROM media_segments WHERE series_id = ?", (series_id,))
+                cursor.execute("DELETE FROM media_files WHERE series_id = ?", (series_id,))
+                episodes_count = cursor.rowcount
+                cursor.execute("DELETE FROM series WHERE id = ?", (series_id,))
+
+                stats["series_removed"] += 1
+                stats["episodes_removed"] += episodes_count
+                stats["series_details"].append({
+                    "name": series_name,
+                    "episodes_removed": episodes_count
+                })
+
+                logger.info(f"Netejat: {series_name} ({episodes_count} episodis)")
+
+        # També buscar episodis orfes (fitxers que no existeixen)
+        cursor.execute("SELECT id, file_path, series_id FROM media_files")
+        for media in cursor.fetchall():
+            if not os.path.exists(media["file_path"]):
+                media_id = media["id"]
+                cursor.execute("DELETE FROM media_segments WHERE media_id = ?", (media_id,))
+                cursor.execute("DELETE FROM watch_progress WHERE media_id = ?", (media_id,))
+                cursor.execute("DELETE FROM media_files WHERE id = ?", (media_id,))
+                stats["episodes_removed"] += 1
+
+        conn.commit()
+
+        return {
+            "status": "success",
+            "message": f"Neteja completada: {stats['series_removed']} sèries i {stats['episodes_removed']} episodis eliminats",
+            **stats
+        }
+
+
 @app.get("/api/library/series/{series_id}/seasons/{season_number}/episodes")
 async def get_library_season_episodes(series_id: int, season_number: int):
     """Retorna episodis d'una temporada - format frontend"""
