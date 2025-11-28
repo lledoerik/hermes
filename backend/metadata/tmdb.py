@@ -297,3 +297,109 @@ async def fetch_tv_metadata(api_key: str, title: str, year: int = None,
         return await client.fetch_tv_metadata(title, year, poster_path, backdrop_path)
     finally:
         await client.close()
+
+
+async def fetch_movie_by_tmdb_id(api_key: str, tmdb_id: int,
+                                  poster_path: Path = None, backdrop_path: Path = None) -> Dict[str, Any]:
+    """Fetch metadata for a movie using its TMDB ID directly."""
+    client = TMDBClient(api_key)
+    try:
+        result = {
+            "found": False,
+            "tmdb_id": tmdb_id,
+            "title": None,
+            "original_title": None,
+            "year": None,
+            "overview": None,
+            "rating": None,
+            "genres": [],
+            "runtime": None,
+            "poster_downloaded": False,
+            "backdrop_downloaded": False
+        }
+
+        movie = await client.get_movie_details(tmdb_id)
+        if not movie:
+            return result
+
+        result["found"] = True
+        result["title"] = movie.get("title")
+        result["original_title"] = movie.get("original_title")
+        result["overview"] = movie.get("overview")
+        result["rating"] = movie.get("vote_average")
+        result["runtime"] = movie.get("runtime")
+
+        release_date = movie.get("release_date", "")
+        if release_date:
+            result["year"] = int(release_date[:4])
+
+        if movie.get("genres"):
+            result["genres"] = [g["name"] for g in movie["genres"]]
+
+        if poster_path and movie.get("poster_path"):
+            result["poster_downloaded"] = await client.download_image(
+                movie["poster_path"], poster_path, "w500"
+            )
+
+        if backdrop_path and movie.get("backdrop_path"):
+            result["backdrop_downloaded"] = await client.download_image(
+                movie["backdrop_path"], backdrop_path, "w1280"
+            )
+
+        return result
+    finally:
+        await client.close()
+
+
+async def fetch_tv_by_tmdb_id(api_key: str, tmdb_id: int,
+                               poster_path: Path = None, backdrop_path: Path = None) -> Dict[str, Any]:
+    """Fetch metadata for a TV series using its TMDB ID directly."""
+    client = TMDBClient(api_key)
+    try:
+        result = {
+            "found": False,
+            "tmdb_id": tmdb_id,
+            "title": None,
+            "original_title": None,
+            "year": None,
+            "overview": None,
+            "rating": None,
+            "genres": [],
+            "seasons": None,
+            "episodes": None,
+            "poster_downloaded": False,
+            "backdrop_downloaded": False
+        }
+
+        tv = await client.get_tv_details(tmdb_id)
+        if not tv:
+            return result
+
+        result["found"] = True
+        result["title"] = tv.get("name")
+        result["original_title"] = tv.get("original_name")
+        result["overview"] = tv.get("overview")
+        result["rating"] = tv.get("vote_average")
+        result["seasons"] = tv.get("number_of_seasons")
+        result["episodes"] = tv.get("number_of_episodes")
+
+        first_air_date = tv.get("first_air_date", "")
+        if first_air_date:
+            result["year"] = int(first_air_date[:4])
+
+        if tv.get("genres"):
+            result["genres"] = [g["name"] for g in tv["genres"]]
+
+        if poster_path and tv.get("poster_path"):
+            result["poster_downloaded"] = await client.download_image(
+                tv["poster_path"], poster_path, "w500"
+            )
+
+        if backdrop_path and tv.get("backdrop_path"):
+            result["backdrop_downloaded"] = await client.download_image(
+                tv["backdrop_path"], backdrop_path, "w1280"
+            )
+
+        return result
+    finally:
+        await client.close()
