@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import './Details.css';
@@ -84,6 +84,18 @@ const EditIcon = ({ size = 18 }) => (
   </svg>
 );
 
+const ChevronLeftIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polyline points="15 18 9 12 15 6"></polyline>
+  </svg>
+);
+
+const ChevronRightIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polyline points="9 18 15 12 9 6"></polyline>
+  </svg>
+);
+
 function Details() {
   const { id } = useParams();
   const location = useLocation();
@@ -100,6 +112,38 @@ function Details() {
   const [tmdbLoading, setTmdbLoading] = useState(false);
   const [tmdbMessage, setTmdbMessage] = useState(null);
   const [imageCacheBust, setImageCacheBust] = useState('');
+
+  // Scroll de temporades
+  const seasonsScrollRef = useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScrollButtons = useCallback(() => {
+    const container = seasonsScrollRef.current;
+    if (container) {
+      setCanScrollLeft(container.scrollLeft > 0);
+      setCanScrollRight(
+        container.scrollLeft < container.scrollWidth - container.clientWidth - 5
+      );
+    }
+  }, []);
+
+  const scrollSeasons = (direction) => {
+    const container = seasonsScrollRef.current;
+    if (container) {
+      const scrollAmount = 200;
+      container.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  useEffect(() => {
+    checkScrollButtons();
+    window.addEventListener('resize', checkScrollButtons);
+    return () => window.removeEventListener('resize', checkScrollButtons);
+  }, [checkScrollButtons, seasons]);
 
   const loadDetails = useCallback(async () => {
     try {
@@ -309,7 +353,6 @@ function Details() {
               {type === 'series' && (
                 <>
                   <span className="meta-item">{item.season_count || seasons.length} temporades</span>
-                  <span className="meta-item">{item.episode_count || 0} episodis</span>
                 </>
               )}
               {item.genres && Array.isArray(item.genres) && item.genres.length > 0 && (
@@ -378,18 +421,48 @@ function Details() {
         <div className="episodes-section">
           <div className="section-header">
             <h2 className="section-title">Episodis</h2>
+
+            {/* Season Tabs amb scroll horitzontal */}
             {seasons.length > 0 && (
-              <select
-                className="season-selector"
-                value={selectedSeason}
-                onChange={(e) => setSelectedSeason(Number(e.target.value))}
-              >
-                {seasons.map((season) => (
-                  <option key={season.id} value={season.season_number}>
-                    Temporada {season.season_number}
-                  </option>
-                ))}
-              </select>
+              <div className="seasons-tabs">
+                {canScrollLeft && (
+                  <button
+                    className="scroll-indicator left"
+                    onClick={() => scrollSeasons('left')}
+                    aria-label="Scroll left"
+                  >
+                    <ChevronLeftIcon />
+                  </button>
+                )}
+
+                <div
+                  className="seasons-scroll-container"
+                  ref={seasonsScrollRef}
+                  onScroll={checkScrollButtons}
+                >
+                  <div className="seasons-list">
+                    {seasons.map((season) => (
+                      <button
+                        key={season.id}
+                        className={`season-btn ${selectedSeason === season.season_number ? 'active' : ''}`}
+                        onClick={() => setSelectedSeason(season.season_number)}
+                      >
+                        T{season.season_number}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {canScrollRight && (
+                  <button
+                    className="scroll-indicator right"
+                    onClick={() => scrollSeasons('right')}
+                    aria-label="Scroll right"
+                  >
+                    <ChevronRightIcon />
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
@@ -409,7 +482,7 @@ function Details() {
                   ) : (
                     <span className="episode-number">{episode.episode_number}</span>
                   )}
-                  <div className="episode-play-icon"><PlayIcon size={24} /></div>
+                  <div className="episode-play-icon"><PlayIcon size={20} /></div>
                   {episode.watch_progress > 0 && (
                     <div className="episode-progress">
                       <div
@@ -443,7 +516,7 @@ function Details() {
           </div>
 
           {episodes.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '40px', color: 'rgba(255,255,255,0.5)' }}>
+            <div className="episodes-empty">
               No hi ha episodis disponibles per aquesta temporada
             </div>
           )}
