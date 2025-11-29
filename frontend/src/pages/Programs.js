@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import './Programs.css';
 
@@ -60,11 +60,7 @@ function Programs() {
   const [playingVideo, setPlayingVideo] = useState(null);
   const [videoDetails, setVideoDetails] = useState(null);
 
-  useEffect(() => {
-    loadVideos();
-  }, [filter]);
-
-  const loadVideos = async () => {
+  const loadVideos = useCallback(async () => {
     setLoading(true);
     try {
       let url = '/api/3cat/latest?limit=100';
@@ -78,7 +74,11 @@ function Programs() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]);
+
+  useEffect(() => {
+    loadVideos();
+  }, [loadVideos]);
 
   const handleSearch = async (e) => {
     e.preventDefault();
