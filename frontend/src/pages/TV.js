@@ -427,6 +427,7 @@ function TV() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channels, currentChannel, isFullscreen, showChannelList, resetControlsTimeout]);
 
   // Mostrar info del canal breument
