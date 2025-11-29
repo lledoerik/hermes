@@ -1,14 +1,17 @@
-/* Details Page */
+/* Details Page - Estil Netflix/Filmin */
 .details-container {
   min-height: 100vh;
   background: #0f172a;
 }
 
-/* Hero Banner */
+/* ========================================
+   HERO BANNER
+   ======================================== */
 .details-hero {
   position: relative;
-  min-height: 550px;
-  overflow: hidden;
+  min-height: 85vh;
+  display: flex;
+  align-items: flex-end;
 }
 
 .hero-backdrop {
@@ -16,7 +19,6 @@
   inset: 0;
   background-size: cover;
   background-position: center top;
-  opacity: 0.5;
 }
 
 .hero-backdrop::after {
@@ -25,9 +27,10 @@
   inset: 0;
   background: linear-gradient(
     to right,
-    rgba(15, 23, 42, 0.95) 0%,
-    rgba(15, 23, 42, 0.7) 40%,
-    rgba(15, 23, 42, 0.4) 100%
+    rgba(15, 23, 42, 0.98) 0%,
+    rgba(15, 23, 42, 0.85) 25%,
+    rgba(15, 23, 42, 0.4) 50%,
+    rgba(15, 23, 42, 0.1) 100%
   );
 }
 
@@ -37,107 +40,94 @@
   background: linear-gradient(
     to bottom,
     transparent 0%,
-    transparent 60%,
+    transparent 50%,
+    rgba(15, 23, 42, 0.8) 80%,
     #0f172a 100%
   );
+  pointer-events: none;
 }
 
 .hero-content {
   position: relative;
-  height: 100%;
+  width: 100%;
   max-width: 1400px;
   margin: 0 auto;
-  padding: 80px 4% 50px;
-  display: flex;
-  align-items: flex-end;
-  gap: 40px;
+  padding: 0 4% 60px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
 }
 
-/* Poster */
-.details-poster {
-  flex-shrink: 0;
-  width: 260px;
-  aspect-ratio: 2/3;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6);
-  background: #1e293b;
-}
-
-.details-poster img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.poster-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 80px;
-  background: linear-gradient(135deg, #1e3a8a 0%, #328492 100%);
-}
-
-/* Info */
+/* ========================================
+   INFO SECTION (esquerra)
+   ======================================== */
 .details-info {
-  flex: 1;
-  min-width: 0;
-  padding-bottom: 10px;
+  max-width: 600px;
 }
 
 .details-title {
-  font-size: clamp(28px, 5vw, 48px);
-  font-weight: 700;
-  margin-bottom: 16px;
-  line-height: 1.15;
-  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
+  font-size: clamp(32px, 5vw, 56px);
+  font-weight: 800;
+  margin-bottom: 20px;
+  line-height: 1.1;
+  text-shadow: 0 4px 30px rgba(0, 0, 0, 0.8);
+  letter-spacing: -0.02em;
 }
 
 .details-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 16px;
+  align-items: center;
+  gap: 12px;
   margin-bottom: 20px;
-  color: rgba(255, 255, 255, 0.8);
   font-size: 15px;
 }
 
 .meta-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  white-space: nowrap;
+  gap: 5px;
+  color: rgba(255, 255, 255, 0.8);
 }
 
-.meta-item.genres {
-  white-space: normal;
-}
-
-.rating {
+.meta-item.rating {
   color: #fbbf24;
   font-weight: 600;
 }
 
+.meta-separator {
+  width: 4px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 50%;
+}
+
+.meta-item.genres {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Sinopsi - SEMPRE a l'esquerra */
 .details-overview {
-  font-size: 15px;
-  line-height: 1.7;
-  color: rgba(255, 255, 255, 0.75);
-  max-width: 650px;
+  font-size: 16px;
+  line-height: 1.75;
+  color: rgba(255, 255, 255, 0.85);
   margin-bottom: 28px;
+  text-align: left;
   display: -webkit-box;
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-/* Actions */
+/* ========================================
+   BOTONS D'ACCIÓ (a l'esquerra)
+   ======================================== */
 .details-actions {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  margin-bottom: 20px;
 }
 
 .play-btn {
@@ -145,22 +135,24 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 14px 32px;
-  background: #328492;
+  padding: 14px 36px;
+  background: white;
   border: none;
-  border-radius: 8px;
-  color: white;
-  font-size: 16px;
-  font-weight: 600;
+  border-radius: 6px;
+  color: #0f172a;
+  font-size: 17px;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
+  transition: all 0.15s ease;
 }
 
 .play-btn:hover {
-  background: #26686f;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(50, 132, 146, 0.4);
+  background: rgba(255, 255, 255, 0.85);
+  transform: scale(1.02);
+}
+
+.play-btn svg {
+  fill: #0f172a;
 }
 
 .secondary-btn {
@@ -168,21 +160,19 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 14px 24px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
+  padding: 14px 28px;
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  border-radius: 6px;
   color: white;
   font-size: 15px;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-  backdrop-filter: blur(10px);
+  transition: all 0.15s ease;
 }
 
 .secondary-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .secondary-btn:disabled {
@@ -191,18 +181,35 @@
 }
 
 .edit-metadata-btn {
-  padding: 14px 16px;
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
 }
 
-/* TMDB Input Form */
+.edit-metadata-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ========================================
+   POSTER (opcional, menys prominent)
+   ======================================== */
+.details-poster {
+  display: none; /* Amagat per defecte estil Netflix */
+}
+
+/* ========================================
+   TMDB INPUT FORM
+   ======================================== */
 .tmdb-input-form {
-  margin-top: 24px;
+  margin-top: 16px;
   padding: 20px;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  max-width: 420px;
-  backdrop-filter: blur(10px);
+  border-radius: 8px;
+  max-width: 400px;
+  backdrop-filter: blur(20px);
 }
 
 .tmdb-input-form label {
@@ -220,10 +227,10 @@
 .tmdb-input-form input {
   flex: 1;
   min-width: 0;
-  padding: 12px 15px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
   color: white;
   font-size: 15px;
 }
@@ -235,19 +242,19 @@
 .tmdb-input-form input:focus {
   outline: none;
   border-color: #328492;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .tmdb-submit-btn {
   padding: 12px 20px;
   background: #328492;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   color: white;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s ease;
   white-space: nowrap;
 }
 
@@ -278,8 +285,8 @@
 
 .tmdb-message {
   margin-top: 12px;
-  padding: 10px 15px;
-  border-radius: 8px;
+  padding: 10px 14px;
+  border-radius: 6px;
   font-size: 13px;
 }
 
@@ -301,23 +308,24 @@
 .episodes-section {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 30px 4% 60px;
+  padding: 20px 4% 60px;
 }
 
 .section-header {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .section-title {
-  font-size: 22px;
-  font-weight: 600;
-  margin-bottom: 16px;
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 20px;
 }
 
-/* Season Tabs - Botons horitzontals amb scroll */
+/* ========================================
+   SEASON TABS - Pastilles allargades
+   ======================================== */
 .seasons-tabs {
   position: relative;
-  margin-bottom: 8px;
 }
 
 .seasons-scroll-container {
@@ -326,7 +334,8 @@
   scrollbar-width: none;
   -ms-overflow-style: none;
   scroll-behavior: smooth;
-  padding-bottom: 4px;
+  margin: 0 -4px;
+  padding: 0 4px;
 }
 
 .seasons-scroll-container::-webkit-scrollbar {
@@ -335,17 +344,18 @@
 
 .seasons-list {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   padding: 4px 0;
 }
 
+/* Botons pastilla allargats i rodons */
 .season-btn {
   flex-shrink: 0;
-  padding: 10px 20px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: rgba(255, 255, 255, 0.7);
+  padding: 12px 28px;
+  background: transparent;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-radius: 30px;
+  color: rgba(255, 255, 255, 0.8);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -354,26 +364,27 @@
 }
 
 .season-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.4);
   color: white;
 }
 
 .season-btn.active {
-  background: #328492;
-  border-color: #328492;
-  color: white;
-  font-weight: 600;
+  background: white;
+  border-color: white;
+  color: #0f172a;
+  font-weight: 700;
 }
 
-/* Indicadors de scroll (fletxes) */
+/* Indicadors de scroll */
 .scroll-indicator {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   background: rgba(15, 23, 42, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -382,19 +393,20 @@
   z-index: 10;
   transition: all 0.2s ease;
   color: white;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
 .scroll-indicator:hover {
-  background: rgba(50, 132, 146, 0.8);
+  background: rgba(50, 132, 146, 0.9);
   border-color: #328492;
 }
 
 .scroll-indicator.left {
-  left: -10px;
+  left: -22px;
 }
 
 .scroll-indicator.right {
-  right: -10px;
+  right: -22px;
 }
 
 .scroll-indicator.hidden {
@@ -402,18 +414,18 @@
   pointer-events: none;
 }
 
-/* Episodes Grid */
+/* ========================================
+   EPISODES GRID
+   ======================================== */
 .episodes-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 16px;
 }
 
-/* Episode Card */
 .episode-card {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
   overflow: hidden;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -422,9 +434,7 @@
 
 .episode-card:hover {
   background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.12);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+  transform: scale(1.02);
 }
 
 .episode-thumbnail {
@@ -449,7 +459,7 @@
   transform: translate(-50%, -50%);
   font-size: 24px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.2);
 }
 
 .episode-play-icon {
@@ -457,14 +467,19 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%) scale(0);
-  width: 36px;
-  height: 36px;
-  background: rgba(50, 132, 146, 0.95);
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.95);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: transform 0.2s ease;
+}
+
+.episode-play-icon svg {
+  fill: #0f172a;
+  margin-left: 3px;
 }
 
 .episode-card:hover .episode-play-icon {
@@ -476,19 +491,19 @@
   bottom: 0;
   left: 0;
   right: 0;
-  height: 3px;
+  height: 4px;
   background: rgba(255, 255, 255, 0.2);
 }
 
 .episode-progress-bar {
   height: 100%;
-  background: #328492;
+  background: #e50914;
 }
 
 .episode-info {
   flex: 1;
   min-width: 0;
-  padding: 12px 14px;
+  padding: 12px 16px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -504,40 +519,36 @@
 }
 
 .episode-meta {
-  font-size: 12px;
+  font-size: 13px;
   color: rgba(255, 255, 255, 0.5);
-  display: flex;
-  gap: 10px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
-/* Audio/Subtitle badges */
 .audio-badges {
   display: flex;
-  gap: 4px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
 .badge {
-  padding: 2px 6px;
-  background: rgba(255, 255, 255, 0.08);
+  padding: 3px 8px;
+  background: rgba(255, 255, 255, 0.1);
   border-radius: 4px;
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
   font-weight: 500;
 }
 
 .badge.audio {
-  background: rgba(50, 132, 146, 0.25);
+  background: rgba(50, 132, 146, 0.3);
   color: #6ee7b7;
 }
 
 .badge.sub {
-  background: rgba(147, 51, 234, 0.25);
+  background: rgba(147, 51, 234, 0.3);
   color: #c4b5fd;
 }
 
-/* Empty state */
 .episodes-empty {
   text-align: center;
   padding: 60px 20px;
@@ -549,55 +560,29 @@
    RESPONSIVE
    ======================================== */
 
-/* Tablets */
 @media (max-width: 1023px) {
   .details-hero {
-    min-height: auto;
-  }
-
-  .hero-content {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    padding-top: 100px;
-    padding-bottom: 40px;
-    gap: 30px;
+    min-height: 70vh;
   }
 
   .hero-backdrop::after {
     background: linear-gradient(
       to bottom,
-      rgba(15, 23, 42, 0.7) 0%,
-      rgba(15, 23, 42, 0.85) 100%
+      rgba(15, 23, 42, 0.5) 0%,
+      rgba(15, 23, 42, 0.9) 100%
     );
   }
 
-  .details-poster {
-    width: 180px;
+  .hero-content {
+    padding-bottom: 40px;
   }
 
   .details-info {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .details-meta {
-    justify-content: center;
+    max-width: 100%;
   }
 
   .details-overview {
-    text-align: center;
     -webkit-line-clamp: 3;
-  }
-
-  .details-actions {
-    justify-content: center;
-  }
-
-  .tmdb-input-form {
-    margin-left: auto;
-    margin-right: auto;
   }
 
   .scroll-indicator {
@@ -605,25 +590,22 @@
   }
 }
 
-/* Mòbils */
 @media (max-width: 639px) {
-  .hero-content {
-    padding-top: 80px;
-    padding-bottom: 30px;
-    gap: 24px;
+  .details-hero {
+    min-height: 60vh;
   }
 
-  .details-poster {
-    width: 140px;
+  .hero-content {
+    padding-bottom: 30px;
   }
 
   .details-title {
-    font-size: 24px;
+    font-size: 28px;
   }
 
   .details-meta {
     font-size: 13px;
-    gap: 6px 12px;
+    gap: 8px;
   }
 
   .details-overview {
@@ -632,23 +614,24 @@
   }
 
   .details-actions {
-    width: 100%;
     gap: 10px;
   }
 
   .play-btn {
     flex: 1;
-    padding: 12px 20px;
+    padding: 12px 24px;
     font-size: 15px;
   }
 
   .secondary-btn {
-    padding: 12px 16px;
+    padding: 12px 18px;
     font-size: 14px;
   }
 
   .edit-metadata-btn {
-    padding: 12px 14px;
+    width: 44px;
+    height: 44px;
+    padding: 12px;
   }
 
   .tmdb-input-form {
@@ -664,16 +647,12 @@
   }
 
   /* Episodes */
-  .episodes-section {
-    padding: 20px 4% 40px;
-  }
-
   .section-title {
     font-size: 20px;
   }
 
   .season-btn {
-    padding: 8px 16px;
+    padding: 10px 22px;
     font-size: 13px;
   }
 
@@ -682,41 +661,30 @@
     gap: 12px;
   }
 
-  .episode-card {
-    flex-direction: row;
-  }
-
   .episode-thumbnail {
-    width: 130px;
-    height: 73px;
+    width: 140px;
+    height: 79px;
   }
 
   .episode-info {
-    padding: 10px 12px;
-  }
-
-  .episode-title {
-    font-size: 13px;
-  }
-
-  .episode-meta {
-    font-size: 11px;
+    padding: 10px 14px;
   }
 }
 
-/* Mòbils petits */
 @media (max-width: 374px) {
-  .details-poster {
-    width: 120px;
-  }
-
   .details-actions {
     flex-direction: column;
+    align-items: stretch;
   }
 
   .play-btn,
   .secondary-btn {
     width: 100%;
     justify-content: center;
+  }
+
+  .edit-metadata-btn {
+    align-self: flex-start;
+    width: 44px;
   }
 }

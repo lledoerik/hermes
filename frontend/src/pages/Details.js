@@ -324,19 +324,6 @@ function Details() {
         <div className="hero-gradient" />
 
         <div className="hero-content">
-          <div className="details-poster">
-            {item.poster ? (
-              <img
-                src={`${API_URL}/api/image/poster/${item.id}${imageCacheBust}`}
-                alt={item.title || item.name}
-              />
-            ) : (
-              <div className="poster-placeholder">
-                {type === 'movies' ? <MovieIcon /> : <TvIcon />}
-              </div>
-            )}
-          </div>
-
           <div className="details-info">
             <h1 className="details-title">{item.title || item.name}</h1>
 
@@ -350,10 +337,8 @@ function Details() {
               {type === 'movies' && (item.runtime || item.duration) && (
                 <span className="meta-item">{formatDuration(item.runtime ? item.runtime * 60 : item.duration)}</span>
               )}
-              {type === 'series' && (
-                <>
-                  <span className="meta-item">{item.season_count || seasons.length} temporades</span>
-                </>
+              {type === 'series' && seasons.length > 0 && (
+                <span className="meta-item">{seasons.length} temporades</span>
               )}
               {item.genres && Array.isArray(item.genres) && item.genres.length > 0 && (
                 <span className="meta-item genres">{item.genres.join(', ')}</span>
@@ -447,7 +432,7 @@ function Details() {
                         className={`season-btn ${selectedSeason === season.season_number ? 'active' : ''}`}
                         onClick={() => setSelectedSeason(season.season_number)}
                       >
-                        T{season.season_number}
+                        Temporada {season.season_number}
                       </button>
                     ))}
                   </div>
