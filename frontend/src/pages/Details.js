@@ -385,8 +385,6 @@ function Details() {
       {type === 'series' && (
         <div className="episodes-section">
           <div className="section-header">
-            <h2 className="section-title">Episodis</h2>
-
             {/* Season Tabs amb scroll horitzontal */}
             {seasons.length > 0 && (
               <div className="seasons-tabs">

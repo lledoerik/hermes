@@ -90,65 +90,91 @@ const TvIcon = () => (
   </svg>
 );
 
+const SkipBackIcon = ({ seconds = 10 }) => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12.5 4V1l-5 4 5 4V6c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4.5c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+    <text x="12.5" y="14" textAnchor="middle" fontSize="7" fontWeight="bold" fill="currentColor">{seconds}</text>
+  </svg>
+);
+
+const SkipForwardIcon = ({ seconds = 10 }) => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M11.5 4V1l5 4-5 4V6c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/>
+    <text x="11.5" y="14" textAnchor="middle" fontSize="7" fontWeight="bold" fill="currentColor">{seconds}</text>
+  </svg>
+);
+
+const LiveIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+    <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="2"/>
+    <circle cx="12" cy="12" r="4" fill="currentColor"/>
+  </svg>
+);
+
 // ============================================================
-// CANALS DE TV - TDT Espanya complet
+// CANALS DE TV - TDT Espanya complet (URLs actualitzades)
 // ============================================================
 const TV_CHANNELS = [
-  // === 3Cat - Televisió de Catalunya ===
-  { id: 1, name: 'TV3', description: 'La televisió de Catalunya', logo: 'https://www.3cat.cat/statics/images/favicons/tv3/apple-touch-icon-180x180.png', streamUrl: 'https://directes-tv-int.3catdirectes.cat/live-content/tv3-hls/master.m3u8', category: 'autonòmica', region: 'Catalunya', hd: true },
-  { id: 2, name: '3/24', description: 'Canal de notícies 24h', logo: 'https://www.3cat.cat/statics/images/favicons/324/apple-touch-icon-180x180.png', streamUrl: 'https://directes-tv-int.3catdirectes.cat/live-content/canal324-hls/master.m3u8', category: 'notícies', region: 'Catalunya', hd: true },
-  { id: 3, name: '33', description: 'Canal cultural', logo: 'https://www.3cat.cat/statics/images/favicons/c33/apple-touch-icon-180x180.png', streamUrl: 'https://directes-tv-int.3catdirectes.cat/live-content/c33-hls/master.m3u8', category: 'autonòmica', region: 'Catalunya', hd: true },
-  { id: 4, name: 'SX3', description: 'Canal infantil i juvenil', logo: 'https://www.3cat.cat/statics/images/favicons/sx3/apple-touch-icon-180x180.png', streamUrl: 'https://directes-tv-int.3catdirectes.cat/live-content/sx3-hls/master.m3u8', category: 'infantil', region: 'Catalunya', hd: true },
-  { id: 5, name: 'Esport3', description: 'Canal esportiu', logo: 'https://www.3cat.cat/statics/images/favicons/esport3/apple-touch-icon-180x180.png', streamUrl: 'https://directes-tv-int.3catdirectes.cat/live-content/esport3-hls/master.m3u8', category: 'esports', region: 'Catalunya', hd: true },
-  { id: 6, name: 'Bon Dia TV', description: 'Matinal informatiu', logo: 'https://www.3cat.cat/statics/images/favicons/324/apple-touch-icon-180x180.png', streamUrl: 'https://directes-tv-int.3catdirectes.cat/live-content/bondia-hls/master.m3u8', category: 'autonòmica', region: 'Catalunya' },
+  // === 3Cat - Televisió de Catalunya (URLs actualitzades) ===
+  { id: 1, name: 'TV3', description: 'La televisió de Catalunya', logo: 'https://statics.3cat.cat/recursos/frontal/ico/icon_tv3_180.png', streamUrl: 'https://directes3-tv-cat.3catdirectes.cat/live-content/tv3-hls/master.m3u8', category: 'autonòmica', region: 'Catalunya', hd: true },
+  { id: 2, name: '3/24', description: 'Canal de notícies 24h', logo: 'https://statics.3cat.cat/recursos/frontal/ico/icon_324_180.png', streamUrl: 'https://directes3-tv-cat.3catdirectes.cat/live-content/324-hls/master.m3u8', category: 'notícies', region: 'Catalunya', hd: true },
+  { id: 3, name: '33', description: 'Canal cultural', logo: 'https://statics.3cat.cat/recursos/frontal/ico/icon_c33_180.png', streamUrl: 'https://directes-tv-cat.3catdirectes.cat/live-origin/c33-super3-hls/master.m3u8', category: 'autonòmica', region: 'Catalunya', hd: true },
+  { id: 4, name: 'SX3', description: 'Canal infantil i juvenil', logo: 'https://statics.3cat.cat/recursos/frontal/ico/icon_sx3_180.png', streamUrl: 'https://directes-tv-cat.3catdirectes.cat/live-content/super3-hls/master.m3u8', category: 'infantil', region: 'Catalunya', hd: true },
+  { id: 5, name: 'Esport3', description: 'Canal esportiu', logo: 'https://statics.3cat.cat/recursos/frontal/ico/icon_esport3_180.png', streamUrl: 'https://directes-tv-cat.3catdirectes.cat/live-origin/esport3-hls/master.m3u8', category: 'esports', region: 'Catalunya', hd: true },
 
   // === 3Cat FAST Channels ===
-  { id: 7, name: 'El Búnquer', description: 'Humor i entreteniment', logo: 'https://www.3cat.cat/statics/images/favicons/tv3/apple-touch-icon-180x180.png', streamUrl: 'https://fast-tailor.3catdirectes.cat/v1/channel/bunquer/hls.m3u8', category: 'entreteniment', region: 'Catalunya' },
-  { id: 8, name: 'Plats Bruts', description: 'Sèrie clàssica', logo: 'https://www.3cat.cat/statics/images/favicons/tv3/apple-touch-icon-180x180.png', streamUrl: 'https://fast-tailor.3catdirectes.cat/v1/channel/ccma-channel2/hls.m3u8', category: 'entreteniment', region: 'Catalunya' },
+  { id: 6, name: 'El Búnquer', description: 'Humor i entreteniment', logo: 'https://statics.3cat.cat/recursos/frontal/ico/icon_tv3_180.png', streamUrl: 'https://fast-channels.3catdirectes.cat/live-origin/bunquer-hls/master.m3u8', category: 'entreteniment', region: 'Catalunya' },
+  { id: 7, name: 'Plats Bruts', description: 'Sèrie clàssica', logo: 'https://statics.3cat.cat/recursos/frontal/ico/icon_tv3_180.png', streamUrl: 'https://fast-channels.3catdirectes.cat/live-origin/platsbruts-hls/master.m3u8', category: 'entreteniment', region: 'Catalunya' },
+  { id: 8, name: 'Pol·lència', description: 'Sèrie de comèdia', logo: 'https://statics.3cat.cat/recursos/frontal/ico/icon_tv3_180.png', streamUrl: 'https://fast-channels.3catdirectes.cat/live-origin/pollencia-hls/master.m3u8', category: 'entreteniment', region: 'Catalunya' },
 
   // === RTVE - Televisión Española ===
-  { id: 10, name: 'La 1', description: 'Primera cadena de TVE', logo: 'https://img.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVE.png', streamUrl: 'https://ztnr.rtve.es/ztnr/1688877.m3u8', category: 'generalista', region: 'Espanya', hd: true },
-  { id: 11, name: 'La 2', description: 'Cultura i documentals', logo: 'https://img.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVE.png', streamUrl: 'https://ztnr.rtve.es/ztnr/1688885.m3u8', category: 'generalista', region: 'Espanya', hd: true },
-  { id: 12, name: '24 Horas', description: 'Canal de notícies RTVE', logo: 'https://img.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVE.png', streamUrl: 'https://ztnr.rtve.es/ztnr/1694255.m3u8', category: 'notícies', region: 'Espanya', hd: true },
-  { id: 13, name: 'Clan', description: 'Canal infantil RTVE', logo: 'https://img.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVE.png', streamUrl: 'https://ztnr.rtve.es/ztnr/1688893.m3u8', category: 'infantil', region: 'Espanya', hd: true },
-  { id: 14, name: 'Teledeporte', description: 'Esports RTVE', logo: 'https://img.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVE.png', streamUrl: 'https://ztnr.rtve.es/ztnr/1712972.m3u8', category: 'esports', region: 'Espanya', hd: true },
+  { id: 10, name: 'La 1', description: 'Primera cadena de TVE', logo: 'https://img2.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVEes.png', streamUrl: 'https://ztnr.rtve.es/ztnr/1688877.m3u8', category: 'generalista', region: 'Espanya', hd: true },
+  { id: 11, name: 'La 2', description: 'Cultura i documentals', logo: 'https://img2.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVEes.png', streamUrl: 'https://ztnr.rtve.es/ztnr/1688885.m3u8', category: 'generalista', region: 'Espanya', hd: true },
+  { id: 12, name: '24 Horas', description: 'Canal de notícies RTVE', logo: 'https://img2.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVEes.png', streamUrl: 'https://ztnr.rtve.es/ztnr/1694255.m3u8', category: 'notícies', region: 'Espanya', hd: true },
+  { id: 13, name: 'Clan', description: 'Canal infantil RTVE', logo: 'https://img2.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVEes.png', streamUrl: 'https://ztnr.rtve.es/ztnr/5466990.m3u8', category: 'infantil', region: 'Espanya', hd: true },
+  { id: 14, name: 'Teledeporte', description: 'Esports RTVE', logo: 'https://img2.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVEes.png', streamUrl: 'https://ztnr.rtve.es/ztnr/1712295.m3u8', category: 'esports', region: 'Espanya', hd: true },
+  { id: 15, name: 'Star HD', description: 'Canal de cinema RTVE', logo: 'https://img2.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVEes.png', streamUrl: 'https://ztnr.rtve.es/ztnr/4997583.m3u8', category: 'entreteniment', region: 'Espanya', hd: true },
 
-  // === Atresmedia ===
-  { id: 20, name: 'Antena 3', description: 'Cadena generalista', logo: 'https://www.antena3.com/favicon.ico', streamUrl: 'https://livestartover-i.akamaized.net/hls/live/638675/antena3/bitrate_1.m3u8', category: 'generalista', region: 'Espanya', hd: true },
-  { id: 21, name: 'laSexta', description: 'Informatius i entreteniment', logo: 'https://www.lasexta.com/favicon.ico', streamUrl: 'https://livestartover-i.akamaized.net/hls/live/638676/lasexta/bitrate_1.m3u8', category: 'generalista', region: 'Espanya', hd: true },
-  { id: 22, name: 'Neox', description: 'Sèries i cinema', logo: 'https://www.neox.atresmedia.com/favicon.ico', streamUrl: 'https://livestartover-i.akamaized.net/hls/live/638678/neox/bitrate_1.m3u8', category: 'entreteniment', region: 'Espanya', hd: true },
-  { id: 23, name: 'Nova', description: 'Sèries i telenovel·les', logo: 'https://www.nova.atresmedia.com/favicon.ico', streamUrl: 'https://livestartover-i.akamaized.net/hls/live/638679/nova/bitrate_1.m3u8', category: 'entreteniment', region: 'Espanya', hd: true },
-  { id: 24, name: 'Mega', description: 'Cinema i sèries', logo: 'https://www.mega.tv/favicon.ico', streamUrl: 'https://livestartover-i.akamaized.net/hls/live/638677/mega/bitrate_1.m3u8', category: 'entreteniment', region: 'Espanya', hd: true },
-  { id: 25, name: 'Atreseries', description: 'Sèries', logo: 'https://www.atreseries.atresmedia.com/favicon.ico', streamUrl: 'https://livestartover-i.akamaized.net/hls/live/638680/atreseries/bitrate_1.m3u8', category: 'entreteniment', region: 'Espanya', hd: true },
-
-  // === Mediaset España ===
-  { id: 30, name: 'Telecinco', description: 'Cadena generalista', logo: 'https://www.telecinco.es/favicon.ico', streamUrl: 'https://mdslivehlsb-i.akamaized.net/hls/live/623617/telecinco/bitrate_1.m3u8', category: 'generalista', region: 'Espanya', hd: true },
-  { id: 31, name: 'Cuatro', description: 'Entreteniment i esports', logo: 'https://www.cuatro.com/favicon.ico', streamUrl: 'https://mdslivehlsb-i.akamaized.net/hls/live/623619/cuatro/bitrate_1.m3u8', category: 'generalista', region: 'Espanya', hd: true },
-  { id: 32, name: 'FDF', description: 'Ficció i sèries', logo: 'https://www.factoriadeficcion.telecinco.es/favicon.ico', streamUrl: 'https://mdslivehlsb-i.akamaized.net/hls/live/623625/fdf/bitrate_1.m3u8', category: 'entreteniment', region: 'Espanya', hd: true },
-  { id: 33, name: 'Boing', description: 'Canal infantil', logo: 'https://www.boing.es/favicon.ico', streamUrl: 'https://mdslivehlsb-i.akamaized.net/hls/live/623627/boing/bitrate_1.m3u8', category: 'infantil', region: 'Espanya', hd: true },
-  { id: 34, name: 'Energy', description: 'Sèries i esports', logo: 'https://www.energytv.es/favicon.ico', streamUrl: 'https://mdslivehlsb-i.akamaized.net/hls/live/623629/energy/bitrate_1.m3u8', category: 'entreteniment', region: 'Espanya', hd: true },
-  { id: 35, name: 'Divinity', description: 'Estil de vida', logo: 'https://www.divinity.es/favicon.ico', streamUrl: 'https://mdslivehlsb-i.akamaized.net/hls/live/623623/divinity/bitrate_1.m3u8', category: 'entreteniment', region: 'Espanya', hd: true },
-  { id: 36, name: 'BeMad', description: 'Contingut alternatiu', logo: 'https://www.bemad.es/favicon.ico', streamUrl: 'https://mdslivehlsb-i.akamaized.net/hls/live/623631/bemad/bitrate_1.m3u8', category: 'entreteniment', region: 'Espanya', hd: true },
-
-  // === Altres autonòmiques ===
-  { id: 40, name: 'À Punt', description: 'TV Valenciana', logo: 'https://apuntmedia.es/assets/img/logos/logoApunt.png', streamUrl: 'https://bcovlive-a.akamaihd.net/8c74c5688faa4f3dad81a1d2683d4c82/eu-central-1/6057955885001/profile_0/chunklist_dvr.m3u8', category: 'autonòmica', region: 'País Valencià', hd: true },
+  // === Altres autonòmiques (URLs verificades) ===
+  { id: 40, name: 'À Punt', description: 'TV Valenciana', logo: 'https://apuntmedia.es/assets/img/logos/logoApunt.png', streamUrl: 'https://bcovlive-a.akamaihd.net/8499d938ef904e39b58a4adec2ddeada/eu-west-1/6057955885001/playlist_dvr.m3u8', category: 'autonòmica', region: 'País Valencià', hd: true },
   { id: 41, name: 'IB3', description: 'TV Illes Balears', logo: 'https://ib3.org/ib3-ico.png', streamUrl: 'https://ibsatiphone.ib3tv.com/hls/directeTV1_iphone.m3u8', category: 'autonòmica', region: 'Illes Balears', hd: true },
-  { id: 42, name: 'ETB 1', description: 'TV Euskadi en euskera', logo: 'https://www.eitb.eus/favicon.ico', streamUrl: 'https://etbcdn1-live.flumotion.com/etb/etb1/playlist.m3u8', category: 'autonòmica', region: 'Euskadi', hd: true },
-  { id: 43, name: 'ETB 2', description: 'TV Euskadi en castellà', logo: 'https://www.eitb.eus/favicon.ico', streamUrl: 'https://etbcdn1-live.flumotion.com/etb/etb2/playlist.m3u8', category: 'autonòmica', region: 'Euskadi', hd: true },
-  { id: 44, name: 'TVG', description: 'TV Galicia', logo: 'https://www.crtvg.es/files/favicons/tvg-128x128.png', streamUrl: 'https://cdnlive.coremedia.es/ott_crtvg/stream/index.m3u8', category: 'autonòmica', region: 'Galícia', hd: true },
-  { id: 45, name: 'Canal Sur', description: 'TV Andalusia', logo: 'https://www.canalsur.es/favicon.ico', streamUrl: 'https://cdnlive.shooowit.net/rtvalive/smil:channel1.smil/playlist.m3u8', category: 'autonòmica', region: 'Andalusia', hd: true },
-  { id: 46, name: 'Telemadrid', description: 'TV Madrid', logo: 'https://www.telemadrid.es/favicon.ico', streamUrl: 'https://cdnlive.shooowit.net/telemadridlive/smil:telemadrid.smil/playlist.m3u8', category: 'autonòmica', region: 'Madrid', hd: true },
-  { id: 47, name: 'Aragón TV', description: 'TV Aragó', logo: 'https://www.aragontelevision.es/favicon.ico', streamUrl: 'https://aragon.multimedia.rtve.es/live/aragontv.m3u8', category: 'autonòmica', region: 'Aragó', hd: true },
-  { id: 48, name: 'CMM', description: 'TV Castilla-La Mancha', logo: 'https://www.cmmedia.es/favicon.ico', streamUrl: 'https://cdnlive.shooowit.net/cmmlive/smil:channel1.smil/playlist.m3u8', category: 'autonòmica', region: 'Castilla-La Mancha', hd: true },
+  { id: 42, name: 'ETB 1', description: 'TV Euskadi en euskera', logo: 'https://www.eitb.eus/favicon.ico', streamUrl: 'https://multimedia.eitb.eus/live-content/etb1hd-hls/master.m3u8', category: 'autonòmica', region: 'Euskadi', hd: true },
+  { id: 43, name: 'ETB 2', description: 'TV Euskadi en castellà', logo: 'https://www.eitb.eus/favicon.ico', streamUrl: 'https://multimedia.eitb.eus/live-content/etb2hd-hls/master.m3u8', category: 'autonòmica', region: 'Euskadi', hd: true },
+  { id: 44, name: 'TVG', description: 'TV Galicia', logo: 'https://www.crtvg.es/files/favicons/tvg-128x128.png', streamUrl: 'https://crtvg-europa.flumotion.cloud/playlist.m3u8', category: 'autonòmica', region: 'Galícia', hd: true },
+  { id: 45, name: 'TVG 2', description: 'Cultura galega', logo: 'https://www.crtvg.es/files/favicons/tvg-128x128.png', streamUrl: 'https://crtvg2-europa.flumotion.cloud/playlist.m3u8', category: 'autonòmica', region: 'Galícia', hd: true },
+  { id: 46, name: 'Canal Sur', description: 'TV Andalusia', logo: 'https://www.canalsur.es/recursos/img/favicon.png', streamUrl: 'https://cdnlive.shooowit.net/rtvalive/smil:channel1HD.smil/playlist.m3u8', category: 'autonòmica', region: 'Andalusia', hd: true },
+  { id: 47, name: 'Telemadrid', description: 'TV Madrid', logo: 'https://www.telemadrid.es/favicon.ico', streamUrl: 'https://telemadridhls-live.hls.adaptive.level3.net/telemadrid/smil:telemadrid.smil/playlist.m3u8', category: 'autonòmica', region: 'Madrid', hd: true },
+  { id: 48, name: 'Aragón TV', description: 'TV Aragó', logo: 'https://www.cartv.es/favicon.ico', streamUrl: 'https://cartv.streaming.aranova.es/hls/live/aragontv_canal1.m3u8', category: 'autonòmica', region: 'Aragó', hd: true },
+  { id: 49, name: 'CMM', description: 'TV Castilla-La Mancha', logo: 'https://www.cmmedia.es/favicon.ico', streamUrl: 'https://cdnlive.shooowit.net/cmmlive/smil:cmmtv.smil/playlist.m3u8', category: 'autonòmica', region: 'Castilla-La Mancha', hd: true },
+  { id: 50, name: 'TV Canarias', description: 'TV Canàries', logo: 'https://www.rtvc.es/favicon.ico', streamUrl: 'https://rtvc.flumotion.cloud/rtvc/live/chunklist_w213463505.m3u8', category: 'autonòmica', region: 'Canàries', hd: true },
+  { id: 51, name: 'TPA', description: 'TV Principado Asturias', logo: 'https://www.rtpa.es/favicon.ico', streamUrl: 'https://rtpa-live.flumotion.cloud/playlist.m3u8', category: 'autonòmica', region: 'Astúries', hd: true },
+  { id: 52, name: '7 Región de Murcia', description: 'TV Múrcia', logo: 'https://7tvmurcia.es/favicon.ico', streamUrl: 'https://cdn.7tvmurcia.es/hls/live.m3u8', category: 'autonòmica', region: 'Múrcia', hd: true },
+  { id: 53, name: 'Extremadura TV', description: 'TV Extremadura', logo: 'https://www.canalextremadura.es/favicon.ico', streamUrl: 'https://cdnlive.shooowit.net/caborientallive/smil:extremadura.smil/playlist.m3u8', category: 'autonòmica', region: 'Extremadura', hd: true },
+  { id: 54, name: 'CyL TV', description: 'TV Castella i Lleó', logo: 'https://cyltv.es/favicon.ico', streamUrl: 'https://streaming-o.rtvcyl.es/cylc7/smil:cylc7.smil/playlist.m3u8', category: 'autonòmica', region: 'Castella i Lleó', hd: true },
+  { id: 55, name: 'La Rioja TV', description: 'TV La Rioja', logo: 'https://www.larioja.org/favicon.ico', streamUrl: 'https://streaming.larioja.org/hls/tvr.m3u8', category: 'autonòmica', region: 'La Rioja', hd: true },
 
   // === Temàtiques ===
-  { id: 50, name: 'TRECE', description: 'Canal catòlic', logo: 'https://www.trece.es/favicon.ico', streamUrl: 'https://live-edge-bom-1.cdn.enetres.net/A62F6E09D69245B7B19DC0B0D5D04A72/live-content/trecetv-hls/master.m3u8', category: 'temàtica', region: 'Espanya', hd: true },
-  { id: 51, name: 'Ten', description: 'Entreteniment', logo: 'https://www.tentv.es/favicon.ico', streamUrl: 'https://cdnlive.shooowit.net/tenlive/smil:channel1.smil/playlist.m3u8', category: 'temàtica', region: 'Espanya', hd: true },
-  { id: 52, name: 'Paramount', description: 'Cinema i sèries', logo: 'https://www.paramountnetwork.es/favicon.ico', streamUrl: 'https://vuelta-a.akamaized.net/vuelta/live.m3u8', category: 'entreteniment', region: 'Espanya', hd: true },
-  { id: 53, name: 'DMAX', description: 'Documentals i aventura', logo: 'https://www.dmax.es/favicon.ico', streamUrl: 'https://dmax-es-live-2.akamaized.net/Content/DASH_LIVE/Live/channel(ES-DMAX)/manifest.mpd', category: 'documentals', region: 'Espanya', hd: true },
+  { id: 60, name: 'TRECE', description: 'Canal catòlic', logo: 'https://www.trece.es/favicon.ico', streamUrl: 'https://live-edge-bom-1.cdn.enetres.net/A62F6E09D69245B7B19DC0B0D5D04A72021/live-1500/index.m3u8', category: 'temàtica', region: 'Espanya', hd: true },
+  { id: 61, name: 'Ten', description: 'Entreteniment', logo: 'https://tentv.es/favicon.ico', streamUrl: 'https://cdnlive.shooowit.net/tenlive/smil:tenlive.smil/playlist.m3u8', category: 'temàtica', region: 'Espanya', hd: true },
+  { id: 62, name: 'Real Madrid TV', description: 'Canal del Real Madrid', logo: 'https://www.realmadrid.com/favicon.ico', streamUrl: 'https://rmtv-live.akamaized.net/hls/live/2033988/rmtv/master.m3u8', category: 'esports', region: 'Espanya', hd: true },
+  { id: 63, name: 'Barça TV', description: 'Canal del FC Barcelona', logo: 'https://www.fcbarcelona.com/favicon.ico', streamUrl: 'https://directes-tv-cat.3catdirectes.cat/live-content/barcatv-hls/master.m3u8', category: 'esports', region: 'Catalunya', hd: true },
+
+  // === Internacionals en espanyol ===
+  { id: 70, name: 'DW Español', description: 'Deutsche Welle en espanyol', logo: 'https://www.dw.com/favicon.ico', streamUrl: 'https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8', category: 'notícies', region: 'Internacional', hd: true },
+  { id: 71, name: 'France 24 Español', description: 'France 24 en espanyol', logo: 'https://www.france24.com/favicon.ico', streamUrl: 'https://stream.france24.com/F24_ES_LO_HLS/live_web.m3u8', category: 'notícies', region: 'Internacional', hd: true },
+  { id: 72, name: 'Euronews Español', description: 'Euronews en espanyol', logo: 'https://www.euronews.com/favicon.ico', streamUrl: 'https://euronews-euronews-spanish-2-eu.rakuten.wurl.tv/playlist.m3u8', category: 'notícies', region: 'Internacional', hd: true },
+  { id: 73, name: 'RT en Español', description: 'Russia Today en espanyol', logo: 'https://www.rt.com/favicon.ico', streamUrl: 'https://rt-esp.rttv.com/live/rtesp/playlist.m3u8', category: 'notícies', region: 'Internacional', hd: true },
+  { id: 74, name: 'NHK World', description: 'NHK Japó en anglès', logo: 'https://www3.nhk.or.jp/favicon.ico', streamUrl: 'https://nhkworld.webcdn.stream.ne.jp/www11/nhkworld-tv/domestic/263942/live.m3u8', category: 'notícies', region: 'Internacional', hd: true },
+  { id: 75, name: 'Al Jazeera', description: 'Al Jazeera en anglès', logo: 'https://www.aljazeera.com/favicon.ico', streamUrl: 'https://live-hls-web-aje.getaj.net/AJE/01.m3u8', category: 'notícies', region: 'Internacional', hd: true },
 
   // === Barcelona locals ===
-  { id: 60, name: 'betevé', description: 'TV Barcelona', logo: 'https://beteve.cat/favicon.ico', streamUrl: 'https://cdnapisec.kaltura.com/p/2346171/sp/234617100/playManifest/entryId/1_2vffmgpo/format/applehttp/protocol/https/a.m3u8', category: 'local', region: 'Barcelona', hd: true },
+  { id: 80, name: 'betevé', description: 'TV Barcelona', logo: 'https://beteve.cat/favicon.ico', streamUrl: 'https://cdnapisec.kaltura.com/p/2346171/sp/234617100/playManifest/entryId/1_2vffmgpo/format/applehttp/protocol/https/a.m3u8', category: 'local', region: 'Barcelona', hd: true },
+  { id: 81, name: '8tv', description: 'TV privada catalana', logo: 'https://8tv.cat/favicon.ico', streamUrl: 'https://streaming-8tv.streaming-br.com/8tv/smil:live.smil/playlist.m3u8', category: 'local', region: 'Catalunya', hd: true },
+
+  // === Música ===
+  { id: 90, name: 'MTV España', description: 'Canal de música', logo: 'https://www.mtv.es/favicon.ico', streamUrl: 'https://amtv-es.akamaized.net/hls/live/2029613/mtves/index.m3u8', category: 'música', region: 'Espanya', hd: true },
+  { id: 91, name: 'Sol Música', description: 'Música espanyola i llatina', logo: 'https://solmusica.com/favicon.ico', streamUrl: 'https://cdnlive.shooowit.net/solmusicalive/smil:solmusica.smil/playlist.m3u8', category: 'música', region: 'Espanya', hd: true },
+  { id: 92, name: 'Hit TV', description: 'Videoclips i música', logo: 'https://hittv.es/favicon.ico', streamUrl: 'https://hittv-live.akamaized.net/hls/live/2033979/hittv/master.m3u8', category: 'música', region: 'Espanya', hd: true },
 ];
 
 // ============================================================
@@ -177,12 +203,13 @@ const RADIO_CHANNELS = [
 // Categories per filtrar
 const TV_CATEGORIES = [
   { id: 'all', name: 'Tots', icon: '📺' },
-  { id: 'generalista', name: 'Generalistes', icon: '🏠' },
   { id: 'autonòmica', name: 'Autonòmiques', icon: '🗺️' },
   { id: 'notícies', name: 'Notícies', icon: '📰' },
   { id: 'esports', name: 'Esports', icon: '⚽' },
   { id: 'infantil', name: 'Infantil', icon: '🧸' },
   { id: 'entreteniment', name: 'Entreteniment', icon: '🎬' },
+  { id: 'música', name: 'Música', icon: '🎵' },
+  { id: 'temàtica', name: 'Temàtiques', icon: '🎯' },
   { id: 'local', name: 'Locals', icon: '📍' },
 ];
 
@@ -209,6 +236,9 @@ function TV() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [channelNumber, setChannelNumber] = useState('');
   const [showChannelInfo, setShowChannelInfo] = useState(false);
+  const [hasAutoFullscreen, setHasAutoFullscreen] = useState(false);
+  const [skipIndicator, setSkipIndicator] = useState(null); // 'left', 'right', 'center'
+  const [isLive, setIsLive] = useState(true);
 
   const videoRef = useRef(null);
   const audioRef = useRef(null);
@@ -216,6 +246,10 @@ function TV() {
   const controlsTimeoutRef = useRef(null);
   const channelNumberTimeoutRef = useRef(null);
   const channelInfoTimeoutRef = useRef(null);
+  const lastTapRef = useRef(0);
+  const tapTimeoutRef = useRef(null);
+
+  const skipSeconds = 10;
 
   const channels = mode === 'tv' ? TV_CHANNELS : RADIO_CHANNELS;
   const categories = mode === 'tv' ? TV_CATEGORIES : RADIO_CATEGORIES;
@@ -342,6 +376,138 @@ function TV() {
       setIsPlaying(!isPlaying);
     }
   };
+
+  // Auto fullscreen + landscape lock on first play (com Player.js)
+  const handleVideoPlay = () => {
+    setIsPlaying(true);
+
+    // Auto fullscreen al primer play (especialment per mòbil)
+    if (!hasAutoFullscreen && !document.fullscreenElement && viewMode === 'fullscreen') {
+      setHasAutoFullscreen(true);
+
+      // Intentar entrar a fullscreen
+      const elem = containerRef.current || document.documentElement;
+      if (elem.requestFullscreen) {
+        elem.requestFullscreen().catch(() => {});
+      } else if (elem.webkitRequestFullscreen) {
+        elem.webkitRequestFullscreen();
+      } else if (elem.msRequestFullscreen) {
+        elem.msRequestFullscreen();
+      }
+
+      // Intentar bloquejar orientació horitzontal (mòbil)
+      if (window.screen.orientation && window.screen.orientation.lock) {
+        window.screen.orientation.lock('landscape').catch(() => {
+          // Si falla, no passa res (alguns navegadors no ho suporten)
+        });
+      }
+      setIsFullscreen(true);
+    }
+  };
+
+  // Funció per mostrar indicador de skip
+  const showSkipIndicator = (direction) => {
+    setSkipIndicator(direction);
+    setTimeout(() => setSkipIndicator(null), 500);
+  };
+
+  // Skip forward/back
+  const skip = (seconds) => {
+    const media = mode === 'tv' ? videoRef.current : audioRef.current;
+    if (media && media.duration && isFinite(media.duration)) {
+      const newTime = Math.max(0, Math.min(media.duration, media.currentTime + seconds));
+      media.currentTime = newTime;
+      setIsLive(false);
+    }
+  };
+
+  // Tornar al directe
+  const goToLive = () => {
+    const media = mode === 'tv' ? videoRef.current : audioRef.current;
+    if (media) {
+      // Per streams en directe, anar al final del buffer
+      if (media.duration && isFinite(media.duration)) {
+        media.currentTime = media.duration;
+      } else if (media.seekable && media.seekable.length > 0) {
+        media.currentTime = media.seekable.end(media.seekable.length - 1);
+      }
+      media.play();
+      setIsLive(true);
+      setIsPlaying(true);
+    }
+  };
+
+  // Touch handling per doble toc (com Player.js)
+  const handleTouchStart = (e) => {
+    // Ignorar si el toc és sobre els controls
+    const target = e.target;
+    const isControlElement = target.closest('.tv-bottom-controls') ||
+                            target.closest('.tv-top-controls') ||
+                            target.closest('.control-btn') ||
+                            target.closest('.tv-channel-sidebar') ||
+                            target.closest('.nav-btn');
+
+    if (isControlElement) {
+      if (controlsTimeoutRef.current) {
+        clearTimeout(controlsTimeoutRef.current);
+      }
+      return;
+    }
+
+    const now = Date.now();
+    const timeDiff = now - lastTapRef.current;
+    const touch = e.touches[0];
+    const containerWidth = containerRef.current?.offsetWidth || window.innerWidth;
+    const touchX = touch.clientX;
+
+    // Determinar zona: esquerra (0-33%), centre (33-66%), dreta (66-100%)
+    const zone = touchX < containerWidth * 0.33 ? 'left' : touchX > containerWidth * 0.66 ? 'right' : 'center';
+
+    if (timeDiff < 300 && timeDiff > 0) {
+      // Doble toc
+      clearTimeout(tapTimeoutRef.current);
+      lastTapRef.current = 0;
+
+      if (zone === 'left') {
+        skip(-skipSeconds);
+        showSkipIndicator('left');
+      } else if (zone === 'right') {
+        skip(skipSeconds);
+        showSkipIndicator('right');
+      } else {
+        togglePlayPause();
+        showSkipIndicator('center');
+      }
+    } else {
+      // Primer toc - esperar per veure si és doble
+      lastTapRef.current = now;
+      tapTimeoutRef.current = setTimeout(() => {
+        // Un sol toc - toggle controls
+        if (showControls) {
+          setShowControls(false);
+        } else {
+          resetControlsTimeout();
+        }
+        lastTapRef.current = 0;
+      }, 300);
+    }
+  };
+
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      // Sortir de fullscreen i desbloquejar orientació quan es desmunta
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+      if (window.screen.orientation && window.screen.orientation.unlock) {
+        window.screen.orientation.unlock();
+      }
+      if (tapTimeoutRef.current) {
+        clearTimeout(tapTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Mute
   const toggleMute = () => {
@@ -503,6 +669,7 @@ function TV() {
       className={`tv-fullscreen-view ${showControls ? 'controls-visible' : ''}`}
       ref={containerRef}
       onMouseMove={resetControlsTimeout}
+      onTouchStart={handleTouchStart}
       onClick={(e) => {
         if (e.target === e.currentTarget || e.target.classList.contains('tv-video-container')) {
           resetControlsTimeout();
@@ -519,7 +686,7 @@ function TV() {
             muted={isMuted}
             className="tv-video-player"
             key={currentChannel.streamUrl}
-            onPlay={() => setIsPlaying(true)}
+            onPlay={handleVideoPlay}
             onPause={() => setIsPlaying(false)}
           >
             <source src={currentChannel.streamUrl} type="application/x-mpegURL" />
@@ -551,6 +718,15 @@ function TV() {
           </div>
         )}
       </div>
+
+      {/* Indicadors de skip/play per doble toc */}
+      {skipIndicator && (
+        <div className={`skip-indicator ${skipIndicator}`}>
+          {skipIndicator === 'left' && <SkipBackIcon seconds={skipSeconds} />}
+          {skipIndicator === 'right' && <SkipForwardIcon seconds={skipSeconds} />}
+          {skipIndicator === 'center' && (isPlaying ? <PauseIcon size={48} /> : <PlayIcon size={48} />)}
+        </div>
+      )}
 
       {/* Número de canal (quan s'escriu) */}
       {channelNumber && (
@@ -638,16 +814,29 @@ function TV() {
 
         <div className="tv-player-controls">
           <div className="tv-nav-controls">
-            <button className="nav-btn" onClick={() => changeChannel(-1)}>
+            <button className="nav-btn" onClick={() => changeChannel(-1)} title="Canal anterior">
               <ChevronUpIcon />
             </button>
-            <button className="nav-btn" onClick={() => changeChannel(1)}>
+            <button className="nav-btn" onClick={() => changeChannel(1)} title="Canal següent">
               <ChevronDownIcon />
             </button>
           </div>
 
+          <button className="control-btn skip-btn" onClick={() => { skip(-skipSeconds); showSkipIndicator('left'); }} title="Retrocedir 10s">
+            <SkipBackIcon seconds={skipSeconds} />
+          </button>
+
           <button className="control-btn play-btn" onClick={togglePlayPause}>
             {isPlaying ? <PauseIcon size={28} /> : <PlayIcon size={28} />}
+          </button>
+
+          <button className="control-btn skip-btn" onClick={() => { skip(skipSeconds); showSkipIndicator('right'); }} title="Avançar 10s">
+            <SkipForwardIcon seconds={skipSeconds} />
+          </button>
+
+          <button className={`control-btn live-btn ${isLive ? 'active' : ''}`} onClick={goToLive} title="Tornar al directe">
+            <LiveIcon />
+            <span className="live-text">DIRECTE</span>
           </button>
 
           <div className="volume-control">
