@@ -2528,6 +2528,119 @@ async def update_series_by_tmdb_id(series_id: int, request: UpdateByTmdbIdReques
         }
 
 
+@app.post("/api/metadata/auto-fetch")
+async def auto_fetch_all_metadata():
+    """
+    Busca automàticament metadades TMDB per a totes les sèries i pel·lícules
+    que no tenen tmdb_id configurat.
+    Retorna el nombre d'elements actualitzats.
+    """
+    from backend.metadata.tmdb import fetch_tv_metadata, fetch_movie_metadata
+    import re
+
+    tmdb_api_key = get_tmdb_api_key()
+    if not tmdb_api_key:
+        raise HTTPException(status_code=400, detail="No hi ha clau API de TMDB configurada")
+
+    updated_count = 0
+    errors = []
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Get all items without tmdb_id
+        cursor.execute("""
+            SELECT id, name, path, media_type
+            FROM series
+            WHERE tmdb_id IS NULL OR tmdb_id = 0
+        """)
+        items = cursor.fetchall()
+
+    for item in items:
+        try:
+            item_path = Path(item["path"])
+
+            # Clean name for search
+            name = item["name"]
+            clean_name = re.sub(r'\s*\(\d{4}\)\s*$', '', name)
+            clean_name = re.sub(r'\s*-\s*(720p|1080p|4K|HDR).*$', '', clean_name, flags=re.IGNORECASE)
+
+            # Extract year if present
+            year_match = re.search(r'\((\d{4})\)', name)
+            year = int(year_match.group(1)) if year_match else None
+
+            # Determine paths
+            if item_path.is_dir():
+                poster_path = item_path / "folder.jpg"
+                backdrop_path = item_path / "backdrop.jpg"
+            else:
+                poster_path = item_path.parent / "folder.jpg"
+                backdrop_path = item_path.parent / "backdrop.jpg"
+
+            # Fetch metadata
+            if item["media_type"] == "movie":
+                result = await fetch_movie_metadata(
+                    tmdb_api_key, clean_name, year,
+                    poster_path if not poster_path.exists() else None,
+                    backdrop_path if not backdrop_path.exists() else None
+                )
+            else:
+                result = await fetch_tv_metadata(
+                    tmdb_api_key, clean_name, year,
+                    poster_path if not poster_path.exists() else None,
+                    backdrop_path if not backdrop_path.exists() else None
+                )
+
+            if result and result.get("found"):
+                # Update database
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    genres_json = json.dumps(result.get("genres", []))
+
+                    cursor.execute('''
+                        UPDATE series SET
+                            tmdb_id = ?,
+                            title = ?,
+                            year = ?,
+                            overview = ?,
+                            rating = ?,
+                            genres = ?,
+                            runtime = ?,
+                            poster = CASE WHEN ? = 1 THEN ? ELSE poster END,
+                            backdrop = CASE WHEN ? = 1 THEN ? ELSE backdrop END,
+                            updated_date = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    ''', (
+                        result.get("tmdb_id"),
+                        result.get("title"),
+                        result.get("year"),
+                        result.get("overview"),
+                        result.get("rating"),
+                        genres_json,
+                        result.get("runtime"),
+                        1 if result.get("poster_downloaded") else 0,
+                        str(poster_path) if result.get("poster_downloaded") else None,
+                        1 if result.get("backdrop_downloaded") else 0,
+                        str(backdrop_path) if result.get("backdrop_downloaded") else None,
+                        item["id"]
+                    ))
+                    conn.commit()
+
+                updated_count += 1
+                logger.info(f"Auto-fetch: {name} -> {result.get('title')}")
+
+        except Exception as e:
+            errors.append(f"{item['name']}: {str(e)}")
+            logger.error(f"Auto-fetch error for {item['name']}: {e}")
+
+    return {
+        "status": "success",
+        "updated": updated_count,
+        "total_without_metadata": len(items),
+        "errors": errors[:10] if errors else []
+    }
+
+
 # ============================================================
 # BOOK/AUDIOBOOK METADATA
 # ============================================================
@@ -3053,6 +3166,64 @@ async def regenerate_all_thumbnails():
 
     logger.info(f"COMPLETAT: {thumbnail_progress['generated']} thumbnails regenerats, {thumbnail_progress['errors']} errors")
     return {"status": "success", "deleted": deleted, "generated": thumbnail_progress["generated"], "errors": thumbnail_progress["errors"]}
+
+
+# ============================================================
+# 3CAT / CCMA CONTENT API
+# ============================================================
+
+@app.get("/api/3cat/programs")
+async def get_3cat_programs(limit: int = 50):
+    """Get list of 3Cat programs."""
+    from backend.metadata.ccma import get_3cat_programs as fetch_programs
+    programs = await fetch_programs(limit)
+    return {"programs": programs, "count": len(programs)}
+
+
+@app.get("/api/3cat/videos")
+async def get_3cat_videos(
+    program_id: Optional[str] = None,
+    category: Optional[str] = None,
+    limit: int = 50
+):
+    """Get 3Cat videos, optionally filtered by program or category."""
+    from backend.metadata.ccma import get_3cat_videos as fetch_videos
+    videos = await fetch_videos(program_id, category, limit)
+    return {"videos": videos, "count": len(videos)}
+
+
+@app.get("/api/3cat/videos/{video_id}")
+async def get_3cat_video_details(video_id: str):
+    """Get details of a specific 3Cat video including stream URL."""
+    from backend.metadata.ccma import get_3cat_video_details as fetch_details
+    video = await fetch_details(video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Vídeo no trobat")
+    return video
+
+
+@app.get("/api/3cat/search")
+async def search_3cat_content(q: str, limit: int = 30):
+    """Search 3Cat content."""
+    from backend.metadata.ccma import search_3cat
+    videos = await search_3cat(q, limit)
+    return {"videos": videos, "count": len(videos)}
+
+
+@app.get("/api/3cat/latest")
+async def get_3cat_latest(content_type: Optional[str] = None, limit: int = 50):
+    """
+    Get latest 3Cat content.
+    content_type can be: movie, series, program
+    """
+    from backend.metadata.ccma import get_3cat_videos as fetch_videos
+    videos = await fetch_videos(None, None, limit)
+
+    # Filter by content type if specified
+    if content_type:
+        videos = [v for v in videos if v.get('type') == content_type]
+
+    return {"videos": videos, "count": len(videos)}
 
 
 if __name__ == "__main__":
