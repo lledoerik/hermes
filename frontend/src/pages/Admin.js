@@ -109,6 +109,20 @@ const PlayIcon = () => (
   </svg>
 );
 
+const BookIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+  </svg>
+);
+
+const HeadphonesIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+    <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+  </svg>
+);
+
 // Download icon
 const DownloadIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -204,6 +218,34 @@ function Admin() {
   };
 
   const [generatingThumbnails, setGeneratingThumbnails] = useState(false);
+  const [fetchingBookCovers, setFetchingBookCovers] = useState(false);
+  const [fetchingAudiobookCovers, setFetchingAudiobookCovers] = useState(false);
+
+  const handleFetchBookCovers = async () => {
+    setFetchingBookCovers(true);
+    addLog('info', 'Cercant portades de llibres a Open Library...');
+    try {
+      await axios.post('/api/metadata/books/auto-fetch');
+      addLog('success', 'Cerca de portades de llibres iniciada en segon pla');
+    } catch (error) {
+      addLog('error', `Error: ${error.response?.data?.detail || error.message}`);
+    } finally {
+      setFetchingBookCovers(false);
+    }
+  };
+
+  const handleFetchAudiobookCovers = async () => {
+    setFetchingAudiobookCovers(true);
+    addLog('info', 'Cercant portades d\'audiollibres a Open Library...');
+    try {
+      await axios.post('/api/metadata/audiobooks/auto-fetch');
+      addLog('success', 'Cerca de portades d\'audiollibres iniciada en segon pla');
+    } catch (error) {
+      addLog('error', `Error: ${error.response?.data?.detail || error.message}`);
+    } finally {
+      setFetchingAudiobookCovers(false);
+    }
+  };
 
   const handleGenerateThumbnails = async () => {
     setGeneratingThumbnails(true);
@@ -513,6 +555,27 @@ function Admin() {
               title="Esborra i regenera TOTES les miniatures"
             >
               <RefreshIcon /> Regenerar totes
+            </button>
+          </div>
+
+          {/* Botons per portades de llibres */}
+          <div className="scanner-actions" style={{ marginTop: '1rem' }}>
+            <button
+              className="action-btn secondary"
+              onClick={handleFetchBookCovers}
+              disabled={fetchingBookCovers}
+              title="Cerca portades per tots els llibres sense portada"
+            >
+              {fetchingBookCovers ? <><RefreshIcon /> Cercant...</> : <><BookIcon /> Portades llibres</>}
+            </button>
+
+            <button
+              className="action-btn secondary"
+              onClick={handleFetchAudiobookCovers}
+              disabled={fetchingAudiobookCovers}
+              title="Cerca portades per tots els audiollibres sense portada"
+            >
+              {fetchingAudiobookCovers ? <><RefreshIcon /> Cercant...</> : <><HeadphonesIcon /> Portades audiollibres</>}
             </button>
           </div>
 
