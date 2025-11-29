@@ -1,29 +1,29 @@
 /* Library Pages (Movies & Series) */
 .library-container {
   min-height: 100vh;
-  background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
-  padding: 30px 4%;
+  background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+  padding: var(--space-2xl) 4%;
 }
 
 .library-header {
   max-width: 1800px;
-  margin: 0 auto 30px;
+  margin: 0 auto var(--space-2xl);
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 20px;
+  gap: var(--space-xl);
 }
 
 .library-title {
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: var(--space-lg);
 }
 
 .library-title h1 {
-  font-size: 32px;
-  font-weight: 700;
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
 }
 
 .library-title .icon {
@@ -31,43 +31,43 @@
 }
 
 .library-count {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 16px;
-  margin-left: 10px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+  margin-left: var(--space-md);
 }
 
 /* Filters */
 .library-filters {
   display: flex;
-  gap: 15px;
+  gap: var(--space-lg);
   flex-wrap: wrap;
 }
 
-.filter-btn {
-  padding: 10px 20px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 25px;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 14px;
+.library-container .filter-btn {
+  padding: var(--space-md) var(--space-xl);
+  background: var(--bg-glass);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all var(--transition-normal);
 }
 
-.filter-btn:hover,
-.filter-btn.active {
-  background: #328492;
-  border-color: #328492;
-  color: white;
+.library-container .filter-btn:hover,
+.library-container .filter-btn.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--text-primary);
 }
 
 .sort-select {
-  padding: 10px 20px;
-  background: #1e293b;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 25px;
-  color: white;
-  font-size: 14px;
+  padding: var(--space-md) var(--space-xl);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-pill);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
   cursor: pointer;
   -webkit-appearance: none;
   -moz-appearance: none;
@@ -80,9 +80,9 @@
 }
 
 .sort-select option {
-  background: #1e293b;
-  color: white;
-  padding: 10px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  padding: var(--space-md);
 }
 
 /* Grid */
@@ -91,51 +91,51 @@
   margin: 0 auto;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 25px;
+  gap: var(--space-xl);
 }
 
 /* Empty State */
 .empty-state {
   grid-column: 1 / -1;
   text-align: center;
-  padding: 80px 20px;
+  padding: 80px var(--space-xl);
 }
 
 .empty-icon {
   font-size: 80px;
-  margin-bottom: 20px;
+  margin-bottom: var(--space-xl);
   opacity: 0.5;
 }
 
 .empty-state h2 {
-  font-size: 24px;
-  margin-bottom: 10px;
+  font-size: var(--font-size-2xl);
+  margin-bottom: var(--space-md);
   color: rgba(255, 255, 255, 0.8);
 }
 
 .empty-state p {
-  color: rgba(255, 255, 255, 0.5);
-  margin-bottom: 30px;
+  color: var(--text-muted);
+  margin-bottom: var(--space-2xl);
 }
 
 .scan-btn {
-  padding: 15px 30px;
-  background: linear-gradient(135deg, #328492 0%, #07505a 100%);
+  padding: var(--space-lg) var(--space-2xl);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
   border: none;
-  border-radius: 30px;
-  color: white;
-  font-size: 16px;
-  font-weight: 600;
+  border-radius: var(--radius-pill);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all var(--transition-normal);
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-md);
 }
 
 .scan-btn:hover {
   transform: scale(1.05);
-  box-shadow: 0 10px 30px rgba(50, 132, 146, 0.4);
+  box-shadow: var(--shadow-primary-lg);
 }
 
 .scan-btn:disabled {

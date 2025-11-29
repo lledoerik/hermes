@@ -1,7 +1,7 @@
 /* Details Page - Estil Netflix/Filmin */
 .details-container {
   min-height: 100vh;
-  background: #0f172a;
+  background: var(--bg-primary);
 }
 
 /* ========================================
@@ -27,10 +27,10 @@
   inset: 0;
   background: linear-gradient(
     to right,
-    rgba(15, 23, 42, 0.98) 0%,
-    rgba(15, 23, 42, 0.85) 25%,
-    rgba(15, 23, 42, 0.4) 50%,
-    rgba(15, 23, 42, 0.1) 100%
+    rgba(var(--bg-primary-rgb), 0.98) 0%,
+    rgba(var(--bg-primary-rgb), 0.85) 25%,
+    rgba(var(--bg-primary-rgb), 0.4) 50%,
+    rgba(var(--bg-primary-rgb), 0.1) 100%
   );
 }
 
@@ -41,8 +41,8 @@
     to bottom,
     transparent 0%,
     transparent 50%,
-    rgba(15, 23, 42, 0.8) 80%,
-    #0f172a 100%
+    rgba(var(--bg-primary-rgb), 0.8) 80%,
+    var(--bg-primary) 100%
   );
   pointer-events: none;
 }
@@ -67,8 +67,8 @@
 
 .details-title {
   font-size: clamp(32px, 5vw, 56px);
-  font-weight: 800;
-  margin-bottom: 20px;
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--space-xl);
   line-height: 1.1;
   text-shadow: 0 4px 30px rgba(0, 0, 0, 0.8);
   letter-spacing: -0.02em;
@@ -78,21 +78,21 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 20px;
-  font-size: 15px;
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+  font-size: var(--font-size-base);
 }
 
 .meta-item {
   display: flex;
   align-items: center;
-  gap: 5px;
-  color: rgba(255, 255, 255, 0.8);
+  gap: var(--space-xs);
+  color: var(--text-secondary);
 }
 
 .meta-item.rating {
-  color: #fbbf24;
-  font-weight: 600;
+  color: var(--color-warning);
+  font-weight: var(--font-weight-semibold);
 }
 
 .meta-separator {
@@ -134,16 +134,16 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 14px 36px;
-  background: white;
+  gap: var(--space-md);
+  padding: var(--space-lg) var(--space-3xl);
+  background: var(--text-primary);
   border: none;
-  border-radius: 6px;
-  color: #0f172a;
-  font-size: 17px;
-  font-weight: 700;
+  border-radius: var(--radius-sm);
+  color: var(--bg-primary);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--transition-fast);
 }
 
 .play-btn:hover {
@@ -152,27 +152,27 @@
 }
 
 .play-btn svg {
-  fill: #0f172a;
+  fill: var(--bg-primary);
 }
 
 .secondary-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 14px 28px;
-  background: rgba(255, 255, 255, 0.15);
+  gap: var(--space-sm);
+  padding: var(--space-lg) var(--space-2xl);
+  background: var(--bg-glass);
   border: none;
-  border-radius: 6px;
-  color: white;
-  font-size: 15px;
-  font-weight: 600;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--transition-fast);
 }
 
 .secondary-btn:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: var(--bg-glass-hover);
 }
 
 .secondary-btn:disabled {
@@ -241,25 +241,25 @@
 
 .tmdb-input-form input:focus {
   outline: none;
-  border-color: #328492;
+  border-color: var(--color-primary);
   background: rgba(255, 255, 255, 0.15);
 }
 
 .tmdb-submit-btn {
-  padding: 12px 20px;
-  background: #328492;
+  padding: var(--space-md) var(--space-xl);
+  background: var(--color-primary);
   border: none;
-  border-radius: 6px;
-  color: white;
-  font-size: 14px;
-  font-weight: 600;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--transition-fast);
   white-space: nowrap;
 }
 
 .tmdb-submit-btn:hover:not(:disabled) {
-  background: #26686f;
+  background: var(--color-primary-dark);
 }
 
 .tmdb-submit-btn:disabled {
@@ -291,15 +291,15 @@
 }
 
 .tmdb-message.success {
-  background: rgba(34, 197, 94, 0.2);
-  border: 1px solid rgba(34, 197, 94, 0.4);
-  color: #4ade80;
+  background: rgba(var(--color-success-rgb), 0.2);
+  border: 1px solid rgba(var(--color-success-rgb), 0.4);
+  color: var(--color-success-light);
 }
 
 .tmdb-message.error {
-  background: rgba(239, 68, 68, 0.2);
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  color: #f87171;
+  background: rgba(var(--color-error-rgb), 0.2);
+  border: 1px solid rgba(var(--color-error-rgb), 0.4);
+  color: var(--color-error-light);
 }
 
 /* ========================================
@@ -317,9 +317,9 @@
 }
 
 .section-title {
-  font-size: 24px;
-  font-weight: 700;
-  margin-bottom: 20px;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--space-xl);
   text-align: left;
 }
 
@@ -355,29 +355,29 @@
 /* Botons pastilla allargats i rodons */
 .season-btn {
   flex-shrink: 0;
-  padding: 12px 28px;
+  padding: var(--space-md) var(--space-2xl);
   background: transparent;
-  border: 2px solid rgba(255, 255, 255, 0.25);
-  border-radius: 30px;
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 14px;
-  font-weight: 500;
+  border: 2px solid var(--border-medium);
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--transition-normal);
   white-space: nowrap;
 }
 
 .season-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.4);
-  color: white;
+  background: var(--bg-glass);
+  border-color: var(--border-light);
+  color: var(--text-primary);
 }
 
 .season-btn.active {
-  background: white;
-  border-color: white;
-  color: #0f172a;
-  font-weight: 700;
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--bg-primary);
+  font-weight: var(--font-weight-bold);
 }
 
 /* Indicadors de scroll */
@@ -401,8 +401,8 @@
 }
 
 .scroll-indicator:hover {
-  background: rgba(50, 132, 146, 0.9);
-  border-color: #328492;
+  background: rgba(var(--color-primary-rgb), 0.9);
+  border-color: var(--color-primary);
 }
 
 .scroll-indicator.left {
@@ -501,7 +501,7 @@
 
 .episode-progress-bar {
   height: 100%;
-  background: #e50914;
+  background: var(--color-primary);
 }
 
 .episode-info {
@@ -544,8 +544,8 @@
 }
 
 .badge.audio {
-  background: rgba(50, 132, 146, 0.3);
-  color: #6ee7b7;
+  background: rgba(var(--color-primary-rgb), 0.3);
+  color: var(--color-success-light);
 }
 
 .badge.sub {

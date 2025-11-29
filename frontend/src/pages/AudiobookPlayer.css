@@ -110,7 +110,7 @@
 }
 
 .chapters-btn.active {
-  color: var(--accent-primary, #8b5cf6);
+  color: var(--color-accent-audiobooks);
 }
 
 /* Main content */
@@ -192,7 +192,7 @@
 
 .audiobook-progress .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+  background: linear-gradient(90deg, var(--color-accent-audiobooks), var(--color-primary-light));
   border-radius: 3px;
   transition: width 0.1s linear;
 }
@@ -243,14 +243,14 @@
 .control-btn.primary {
   width: 72px;
   height: 72px;
-  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
-  border-radius: 50%;
-  box-shadow: 0 8px 30px rgba(139, 92, 246, 0.4);
+  background: linear-gradient(135deg, var(--color-accent-audiobooks), var(--color-primary));
+  border-radius: var(--radius-circle);
+  box-shadow: 0 8px 30px rgba(20, 184, 166, 0.4);
 }
 
 .control-btn.primary:hover {
   transform: scale(1.05);
-  box-shadow: 0 12px 40px rgba(139, 92, 246, 0.5);
+  box-shadow: 0 12px 40px rgba(20, 184, 166, 0.5);
 }
 
 .control-btn.primary:active {
@@ -390,12 +390,12 @@
 }
 
 .chapter-item.active {
-  background: rgba(139, 92, 246, 0.15);
+  background: rgba(var(--color-primary-rgb), 0.15);
 }
 
 .chapter-item.active .chapter-number {
-  background: var(--accent-primary, #8b5cf6);
-  color: white;
+  background: var(--color-accent-audiobooks);
+  color: var(--text-primary);
 }
 
 .chapter-number {
@@ -428,7 +428,7 @@
 }
 
 .chapter-item.active .chapter-title {
-  color: var(--accent-primary, #8b5cf6);
+  color: var(--color-accent-audiobooks);
 }
 
 .chapter-duration {
