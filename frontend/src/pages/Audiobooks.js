@@ -98,6 +98,7 @@ function Audiobooks() {
   const [searchResults, setSearchResults] = useState([]);
   const [metadataLoading, setMetadataLoading] = useState(false);
   const [metadataMessage, setMetadataMessage] = useState(null);
+  const [uploadPreview, setUploadPreview] = useState(null);
 
   useEffect(() => {
     loadAuthors();
@@ -261,6 +262,54 @@ function Audiobooks() {
       }
     } catch (error) {
       setMetadataMessage({ type: 'error', text: error.response?.data?.detail || 'Error actualitzant portada' });
+    } finally {
+      setMetadataLoading(false);
+    }
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        setMetadataMessage({ type: 'error', text: 'El fitxer ha de ser una imatge' });
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setUploadPreview({ file, preview: e.target.result });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleUploadCover = async () => {
+    if (!uploadPreview?.file) return;
+
+    setMetadataLoading(true);
+    setMetadataMessage(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', uploadPreview.file);
+
+      const response = await axios.post(
+        `/api/metadata/audiobooks/${editingAudiobook.id}/upload-cover`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+
+      if (response.data.status === 'success') {
+        setMetadataMessage({ type: 'success', text: 'Portada pujada correctament!' });
+        if (selectedAuthor) {
+          loadAuthorAudiobooks(selectedAuthor.id);
+        } else if (viewMode === 'all') {
+          loadAllAudiobooks();
+        }
+        setUploadPreview(null);
+        setTimeout(() => handleCloseMetadataEdit(), 1500);
+      }
+    } catch (error) {
+      setMetadataMessage({ type: 'error', text: error.response?.data?.detail || 'Error pujant portada' });
     } finally {
       setMetadataLoading(false);
     }
@@ -478,6 +527,12 @@ function Audiobooks() {
               >
                 Cercar
               </button>
+              <button
+                className={metadataTab === 'upload' ? 'active' : ''}
+                onClick={() => { setMetadataTab('upload'); setUploadPreview(null); }}
+              >
+                Pujar
+              </button>
             </div>
 
             <div className="metadata-content">
@@ -567,6 +622,34 @@ function Audiobooks() {
                       ))}
                     </div>
                   )}
+                </div>
+              )}
+
+              {metadataTab === 'upload' && (
+                <div className="metadata-form">
+                  <label>Puja una imatge de portada:</label>
+                  <div className="upload-area">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileSelect}
+                      disabled={metadataLoading}
+                      id="cover-upload-audiobook"
+                      style={{ display: 'none' }}
+                    />
+                    <label htmlFor="cover-upload-audiobook" className="upload-btn">
+                      Seleccionar imatge
+                    </label>
+                    {uploadPreview && (
+                      <div className="upload-preview">
+                        <img src={uploadPreview.preview} alt="Preview" />
+                        <button onClick={handleUploadCover} disabled={metadataLoading}>
+                          {metadataLoading ? 'Pujant...' : 'Pujar portada'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <small>Formats suportats: JPG, PNG, WebP. La imatge es guardarà a la carpeta de l'audiollibres.</small>
                 </div>
               )}
 

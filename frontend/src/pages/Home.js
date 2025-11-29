@@ -67,7 +67,6 @@ const PlayIcon = () => (
 
 function Home() {
   const { isAuthenticated } = useAuth();
-  const [stats, setStats] = useState(null);
   const [continueWatching, setContinueWatching] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -75,9 +74,6 @@ function Home() {
 
   const loadData = useCallback(async () => {
     try {
-      const statsRes = await axios.get('/api/library/stats');
-      setStats(statsRes.data);
-
       // Carregar "Continuar veient" si està autenticat
       if (isAuthenticated) {
         try {
@@ -88,7 +84,7 @@ function Home() {
         }
       }
     } catch (error) {
-      console.error('Error carregant estadistiques:', error);
+      console.error('Error carregant dades:', error);
     } finally {
       setLoading(false);
     }
@@ -140,7 +136,7 @@ function Home() {
                 <div className="continue-thumbnail">
                   {item.backdrop || item.poster ? (
                     <img
-                      src={`${API_URL}/api/images/series/${item.series_id}/${item.backdrop ? 'backdrop' : 'poster'}`}
+                      src={`${API_URL}/api/image/${item.backdrop ? 'backdrop' : 'poster'}/${item.series_id}`}
                       alt={item.series_name}
                     />
                   ) : (
