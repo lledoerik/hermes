@@ -237,7 +237,7 @@ function Home() {
             </Link>
 
             {/* Programes */}
-            <div className="category-card inactive">
+            <Link to="/programs" className="category-card active">
               <div className="card-glass"></div>
               <div className="hover-bubbles">
                 <div className="floating-bubble bubble-1 gradient-programs"></div>
@@ -247,9 +247,10 @@ function Home() {
               <div className="card-content">
                 <ProgramsIcon />
                 <h3 className="card-title">Programes</h3>
-                <span className="coming-soon">Properament</span>
+                <span className="card-count">3Cat</span>
               </div>
-            </div>
+              <div className="hover-border"></div>
+            </Link>
 
             {/* Llibres */}
             <Link to="/books" className="category-card active">
@@ -284,7 +285,7 @@ function Home() {
             </Link>
 
             {/* Televisió */}
-            <div className="category-card inactive">
+            <Link to="/tv" className="category-card active">
               <div className="card-glass"></div>
               <div className="hover-bubbles">
                 <div className="floating-bubble bubble-1 gradient-tv"></div>
@@ -294,9 +295,10 @@ function Home() {
               <div className="card-content">
                 <TvIcon />
                 <h3 className="card-title">Televisió</h3>
-                <span className="coming-soon">Properament</span>
+                <span className="card-count">En directe</span>
               </div>
-            </div>
+              <div className="hover-border"></div>
+            </Link>
           </div>
         </div>
       </section>
