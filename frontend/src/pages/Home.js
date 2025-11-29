@@ -140,7 +140,7 @@ function Home() {
                 <div className="continue-thumbnail">
                   {item.backdrop || item.poster ? (
                     <img
-                      src={`${API_URL}/api/images/series/${item.series_id}/${item.backdrop ? 'backdrop' : 'poster'}`}
+                      src={`${API_URL}/api/image/${item.backdrop ? 'backdrop' : 'poster'}/${item.series_id}`}
                       alt={item.series_name}
                     />
                   ) : (
