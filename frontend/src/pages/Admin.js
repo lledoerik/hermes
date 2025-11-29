@@ -221,6 +221,35 @@ function Admin() {
   const [fetchingBookCovers, setFetchingBookCovers] = useState(false);
   const [fetchingAudiobookCovers, setFetchingAudiobookCovers] = useState(false);
 
+  const [scanningBooks, setScanningBooks] = useState(false);
+  const [scanningAudiobooks, setScanningAudiobooks] = useState(false);
+
+  const handleScanBooks = async () => {
+    setScanningBooks(true);
+    addLog('info', 'Escanejant biblioteca de llibres...');
+    try {
+      await axios.post('/api/books/scan');
+      addLog('success', 'Escaneig de llibres iniciat en segon pla');
+    } catch (error) {
+      addLog('error', `Error: ${error.response?.data?.detail || error.message}`);
+    } finally {
+      setScanningBooks(false);
+    }
+  };
+
+  const handleScanAudiobooks = async () => {
+    setScanningAudiobooks(true);
+    addLog('info', 'Escanejant biblioteca d\'audiollibres...');
+    try {
+      await axios.post('/api/audiobooks/scan');
+      addLog('success', 'Escaneig d\'audiollibres iniciat en segon pla');
+    } catch (error) {
+      addLog('error', `Error: ${error.response?.data?.detail || error.message}`);
+    } finally {
+      setScanningAudiobooks(false);
+    }
+  };
+
   const handleFetchBookCovers = async () => {
     setFetchingBookCovers(true);
     addLog('info', 'Cercant portades de llibres a Open Library...');
@@ -454,6 +483,27 @@ function Admin() {
               disabled={cleaning}
             >
               {cleaning ? <><RefreshIcon /> Netejant...</> : <><BroomIcon /> Netejar tot</>}
+            </button>
+          </div>
+
+          {/* Escaneig de llibres i audiollibres */}
+          <div className="scanner-actions" style={{ marginTop: '1rem' }}>
+            <button
+              className="action-btn secondary"
+              onClick={handleScanBooks}
+              disabled={scanningBooks}
+              title="Escaneja la biblioteca de llibres"
+            >
+              {scanningBooks ? <><RefreshIcon /> Escanejant...</> : <><BookIcon /> Escanejar llibres</>}
+            </button>
+
+            <button
+              className="action-btn secondary"
+              onClick={handleScanAudiobooks}
+              disabled={scanningAudiobooks}
+              title="Escaneja la biblioteca d'audiollibres"
+            >
+              {scanningAudiobooks ? <><RefreshIcon /> Escanejant...</> : <><HeadphonesIcon /> Escanejar audiollibres</>}
             </button>
           </div>
 
