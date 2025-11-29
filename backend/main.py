@@ -2641,6 +2641,125 @@ async def auto_fetch_all_metadata():
     }
 
 
+@app.post("/api/metadata/refresh-all")
+async def refresh_all_metadata(background_tasks: BackgroundTasks):
+    """
+    Força l'actualització de metadades TMDB per a TOTES les sèries i pel·lícules.
+    Executa en background per no bloquejar.
+    """
+    from backend.metadata.tmdb import fetch_tv_metadata, fetch_movie_metadata
+    import re
+
+    tmdb_api_key = get_tmdb_api_key()
+    if not tmdb_api_key:
+        raise HTTPException(status_code=400, detail="No hi ha clau API de TMDB configurada")
+
+    async def do_refresh():
+        updated_count = 0
+        errors = []
+
+        with get_db() as conn:
+            cursor = conn.cursor()
+
+            # Get ALL items (including those with tmdb_id)
+            cursor.execute("""
+                SELECT id, name, path, media_type, tmdb_id
+                FROM series
+            """)
+            items = cursor.fetchall()
+
+        logger.info(f"Refresh-all: Processant {len(items)} elements...")
+
+        for item in items:
+            try:
+                item_path = Path(item["path"])
+
+                # Clean name for search
+                name = item["name"]
+                clean_name = re.sub(r'\s*\(\d{4}\)\s*$', '', name)
+                clean_name = re.sub(r'\s*-\s*(720p|1080p|4K|HDR).*$', '', clean_name, flags=re.IGNORECASE)
+
+                # Extract year if present
+                year_match = re.search(r'\((\d{4})\)', name)
+                year = int(year_match.group(1)) if year_match else None
+
+                # Determine paths
+                if item_path.is_dir():
+                    poster_path = item_path / "folder.jpg"
+                    backdrop_path = item_path / "backdrop.jpg"
+                else:
+                    poster_path = item_path.parent / "folder.jpg"
+                    backdrop_path = item_path.parent / "backdrop.jpg"
+
+                # Fetch metadata (force download images)
+                if item["media_type"] == "movie":
+                    result = await fetch_movie_metadata(
+                        tmdb_api_key, clean_name, year,
+                        poster_path,  # Always try to download
+                        backdrop_path
+                    )
+                else:
+                    result = await fetch_tv_metadata(
+                        tmdb_api_key, clean_name, year,
+                        poster_path,
+                        backdrop_path
+                    )
+
+                if result and result.get("found"):
+                    # Update database
+                    with get_db() as conn:
+                        cursor = conn.cursor()
+                        genres_json = json.dumps(result.get("genres", []))
+
+                        cursor.execute('''
+                            UPDATE series SET
+                                tmdb_id = ?,
+                                title = ?,
+                                year = ?,
+                                overview = ?,
+                                rating = ?,
+                                genres = ?,
+                                runtime = ?,
+                                poster = CASE WHEN ? = 1 THEN ? ELSE poster END,
+                                backdrop = CASE WHEN ? = 1 THEN ? ELSE backdrop END,
+                                updated_date = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                        ''', (
+                            result.get("tmdb_id"),
+                            result.get("title"),
+                            result.get("year"),
+                            result.get("overview"),
+                            result.get("rating"),
+                            genres_json,
+                            result.get("runtime"),
+                            1 if result.get("poster_downloaded") else 0,
+                            str(poster_path) if result.get("poster_downloaded") else None,
+                            1 if result.get("backdrop_downloaded") else 0,
+                            str(backdrop_path) if result.get("backdrop_downloaded") else None,
+                            item["id"]
+                        ))
+                        conn.commit()
+
+                    updated_count += 1
+                    logger.info(f"Refresh-all: {name} -> {result.get('title')}")
+
+                # Small delay to avoid rate limiting
+                await asyncio.sleep(0.3)
+
+            except Exception as e:
+                errors.append(f"{item['name']}: {str(e)}")
+                logger.error(f"Refresh-all error for {item['name']}: {e}")
+
+        logger.info(f"Refresh-all: Completat. {updated_count}/{len(items)} actualitzats.")
+
+    background_tasks.add_task(asyncio.run, do_refresh())
+
+    return {
+        "status": "started",
+        "message": "Actualització de metadades iniciada en background"
+    }
+
+
 # ============================================================
 # BOOK/AUDIOBOOK METADATA
 # ============================================================
@@ -2774,6 +2893,162 @@ async def search_books_metadata(request: BookSearchRequest):
     return {
         "status": "success",
         "results": results
+    }
+
+
+@app.post("/api/metadata/books/auto-fetch")
+async def auto_fetch_all_book_covers(background_tasks: BackgroundTasks):
+    """
+    Busca automàticament portades per a tots els llibres que no en tinguin.
+    Executa en background.
+    """
+    from backend.metadata.openlibrary import fetch_metadata_for_book
+
+    async def do_fetch():
+        updated_count = 0
+        errors = []
+
+        with get_db() as conn:
+            cursor = conn.cursor()
+
+            # Get all books without covers
+            cursor.execute("""
+                SELECT b.id, b.title, b.file_path, a.name as author
+                FROM books b
+                LEFT JOIN book_authors a ON b.author_id = a.id
+                WHERE b.cover IS NULL OR b.cover = ''
+            """)
+            books = cursor.fetchall()
+
+        logger.info(f"Auto-fetch books: Processant {len(books)} llibres sense portada...")
+
+        for book in books:
+            try:
+                book_path = Path(book["file_path"]).parent
+                cover_path = book_path / "cover.jpg"
+
+                # Skip if cover already exists on disk
+                if cover_path.exists():
+                    # Update database with existing cover
+                    with get_db() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute(
+                            "UPDATE books SET cover = ? WHERE id = ?",
+                            (str(cover_path), book["id"])
+                        )
+                        conn.commit()
+                    updated_count += 1
+                    continue
+
+                # Fetch metadata and cover
+                result = await fetch_metadata_for_book(
+                    book["title"],
+                    book.get("author"),
+                    cover_path
+                )
+
+                if result.get("cover_downloaded"):
+                    with get_db() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute(
+                            "UPDATE books SET cover = ? WHERE id = ?",
+                            (str(cover_path), book["id"])
+                        )
+                        conn.commit()
+                    updated_count += 1
+                    logger.info(f"Auto-fetch books: {book['title']} -> portada descarregada")
+
+                # Small delay to avoid rate limiting
+                await asyncio.sleep(0.5)
+
+            except Exception as e:
+                errors.append(f"{book['title']}: {str(e)}")
+                logger.error(f"Auto-fetch books error for {book['title']}: {e}")
+
+        logger.info(f"Auto-fetch books: Completat. {updated_count} portades actualitzades.")
+
+    background_tasks.add_task(asyncio.run, do_fetch())
+
+    return {
+        "status": "started",
+        "message": "Cerca automàtica de portades iniciada en background"
+    }
+
+
+@app.post("/api/metadata/audiobooks/auto-fetch")
+async def auto_fetch_all_audiobook_covers(background_tasks: BackgroundTasks):
+    """
+    Busca automàticament portades per a tots els audiollibres que no en tinguin.
+    Executa en background.
+    """
+    from backend.metadata.openlibrary import fetch_metadata_for_book
+
+    async def do_fetch():
+        updated_count = 0
+        errors = []
+
+        with get_db() as conn:
+            cursor = conn.cursor()
+
+            # Get all audiobooks without covers
+            cursor.execute("""
+                SELECT id, title, author, folder_path
+                FROM audiobooks
+                WHERE cover IS NULL OR cover = ''
+            """)
+            audiobooks = cursor.fetchall()
+
+        logger.info(f"Auto-fetch audiobooks: Processant {len(audiobooks)} audiollibres sense portada...")
+
+        for audiobook in audiobooks:
+            try:
+                folder_path = Path(audiobook["folder_path"])
+                cover_path = folder_path / "cover.jpg"
+
+                # Skip if cover already exists on disk
+                if cover_path.exists():
+                    with get_db() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute(
+                            "UPDATE audiobooks SET cover = ? WHERE id = ?",
+                            (str(cover_path), audiobook["id"])
+                        )
+                        conn.commit()
+                    updated_count += 1
+                    continue
+
+                # Fetch metadata and cover
+                result = await fetch_metadata_for_book(
+                    audiobook["title"],
+                    audiobook.get("author"),
+                    cover_path
+                )
+
+                if result.get("cover_downloaded"):
+                    with get_db() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute(
+                            "UPDATE audiobooks SET cover = ? WHERE id = ?",
+                            (str(cover_path), audiobook["id"])
+                        )
+                        conn.commit()
+                    updated_count += 1
+                    logger.info(f"Auto-fetch audiobooks: {audiobook['title']} -> portada descarregada")
+
+                # Small delay to avoid rate limiting
+                await asyncio.sleep(0.5)
+
+            except Exception as e:
+                errors.append(f"{audiobook['title']}: {str(e)}")
+                logger.error(f"Auto-fetch audiobooks error for {audiobook['title']}: {e}")
+
+        logger.info(f"Auto-fetch audiobooks: Completat. {updated_count} portades actualitzades.")
+
+    background_tasks.add_task(asyncio.run, do_fetch())
+
+    return {
+        "status": "started",
+        "message": "Cerca automàtica de portades d'audiollibres iniciada en background"
     }
 
 

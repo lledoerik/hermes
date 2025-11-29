@@ -215,7 +215,6 @@ function Home() {
               <div className="card-content">
                 <MovieIcon />
                 <h3 className="card-title">Pel·lícules</h3>
-                <span className="card-count">{stats?.movies || 0} títols</span>
               </div>
               <div className="hover-border"></div>
             </Link>
@@ -231,7 +230,6 @@ function Home() {
               <div className="card-content">
                 <SeriesIcon />
                 <h3 className="card-title">Sèries</h3>
-                <span className="card-count">{stats?.series || 0} sèries</span>
               </div>
               <div className="hover-border"></div>
             </Link>
@@ -247,7 +245,6 @@ function Home() {
               <div className="card-content">
                 <ProgramsIcon />
                 <h3 className="card-title">Programes</h3>
-                <span className="card-count">3Cat</span>
               </div>
               <div className="hover-border"></div>
             </Link>
@@ -263,7 +260,6 @@ function Home() {
               <div className="card-content">
                 <BookIcon />
                 <h3 className="card-title">Llibres</h3>
-                <span className="card-count">Biblioteca</span>
               </div>
               <div className="hover-border"></div>
             </Link>
@@ -279,7 +275,6 @@ function Home() {
               <div className="card-content">
                 <AudiobookIcon />
                 <h3 className="card-title">Audiollibres</h3>
-                <span className="card-count">Biblioteca</span>
               </div>
               <div className="hover-border"></div>
             </Link>
@@ -295,7 +290,6 @@ function Home() {
               <div className="card-content">
                 <TvIcon />
                 <h3 className="card-title">Televisió</h3>
-                <span className="card-count">En directe</span>
               </div>
               <div className="hover-border"></div>
             </Link>

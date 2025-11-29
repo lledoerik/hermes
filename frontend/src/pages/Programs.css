@@ -90,6 +90,16 @@
   flex-wrap: wrap;
 }
 
+.programs-stats {
+  display: flex;
+  align-items: center;
+}
+
+.programs-stats .stats-count {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
 .programs-tabs {
   display: flex;
   background: var(--bg-glass);
@@ -294,6 +304,36 @@
 /* ============================================
    PROGRAMS GRID
    ============================================ */
+
+/* Content Section Headers */
+.content-section-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-lg) 0;
+  margin-top: var(--space-lg);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.content-section-header:first-child {
+  margin-top: 0;
+}
+
+.content-section-header h2 {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.content-section-header .section-count {
+  padding: var(--space-xs) var(--space-md);
+  background: var(--bg-glass);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
 
 .programs-grid,
 .videos-grid {

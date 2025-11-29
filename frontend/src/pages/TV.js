@@ -112,20 +112,16 @@ const LiveIcon = () => (
 );
 
 // ============================================================
-// CANALS DE TV - TDT Espanya complet (URLs actualitzades)
+// CANALS DE TV - TDT Espanya (URLs verificades novembre 2025)
+// Font: TDTChannels (github.com/LaQuay/TDTChannels)
 // ============================================================
 const TV_CHANNELS = [
-  // === 3Cat - Televisió de Catalunya (URLs actualitzades) ===
+  // === 3Cat - Televisió de Catalunya ===
   { id: 1, name: 'TV3', description: 'La televisió de Catalunya', logo: 'https://statics.3cat.cat/recursos/frontal/ico/icon_tv3_180.png', streamUrl: 'https://directes3-tv-cat.3catdirectes.cat/live-content/tv3-hls/master.m3u8', category: 'autonòmica', region: 'Catalunya', hd: true },
-  { id: 2, name: '3/24', description: 'Canal de notícies 24h', logo: 'https://statics.3cat.cat/recursos/frontal/ico/icon_324_180.png', streamUrl: 'https://directes3-tv-cat.3catdirectes.cat/live-content/324-hls/master.m3u8', category: 'notícies', region: 'Catalunya', hd: true },
+  { id: 2, name: '3/24', description: 'Canal de notícies 24h', logo: 'https://statics.3cat.cat/recursos/frontal/ico/icon_324_180.png', streamUrl: 'https://directes-tv-int.3catdirectes.cat/live-content/canal324-hls/master.m3u8', category: 'notícies', region: 'Catalunya', hd: true },
   { id: 3, name: '33', description: 'Canal cultural', logo: 'https://statics.3cat.cat/recursos/frontal/ico/icon_c33_180.png', streamUrl: 'https://directes-tv-cat.3catdirectes.cat/live-origin/c33-super3-hls/master.m3u8', category: 'autonòmica', region: 'Catalunya', hd: true },
   { id: 4, name: 'SX3', description: 'Canal infantil i juvenil', logo: 'https://statics.3cat.cat/recursos/frontal/ico/icon_sx3_180.png', streamUrl: 'https://directes-tv-cat.3catdirectes.cat/live-content/super3-hls/master.m3u8', category: 'infantil', region: 'Catalunya', hd: true },
   { id: 5, name: 'Esport3', description: 'Canal esportiu', logo: 'https://statics.3cat.cat/recursos/frontal/ico/icon_esport3_180.png', streamUrl: 'https://directes-tv-cat.3catdirectes.cat/live-origin/esport3-hls/master.m3u8', category: 'esports', region: 'Catalunya', hd: true },
-
-  // === 3Cat FAST Channels ===
-  { id: 6, name: 'El Búnquer', description: 'Humor i entreteniment', logo: 'https://statics.3cat.cat/recursos/frontal/ico/icon_tv3_180.png', streamUrl: 'https://fast-channels.3catdirectes.cat/live-origin/bunquer-hls/master.m3u8', category: 'entreteniment', region: 'Catalunya' },
-  { id: 7, name: 'Plats Bruts', description: 'Sèrie clàssica', logo: 'https://statics.3cat.cat/recursos/frontal/ico/icon_tv3_180.png', streamUrl: 'https://fast-channels.3catdirectes.cat/live-origin/platsbruts-hls/master.m3u8', category: 'entreteniment', region: 'Catalunya' },
-  { id: 8, name: 'Pol·lència', description: 'Sèrie de comèdia', logo: 'https://statics.3cat.cat/recursos/frontal/ico/icon_tv3_180.png', streamUrl: 'https://fast-channels.3catdirectes.cat/live-origin/pollencia-hls/master.m3u8', category: 'entreteniment', region: 'Catalunya' },
 
   // === RTVE - Televisión Española ===
   { id: 10, name: 'La 1', description: 'Primera cadena de TVE', logo: 'https://img2.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVEes.png', streamUrl: 'https://ztnr.rtve.es/ztnr/1688877.m3u8', category: 'generalista', region: 'Espanya', hd: true },
@@ -133,71 +129,91 @@ const TV_CHANNELS = [
   { id: 12, name: '24 Horas', description: 'Canal de notícies RTVE', logo: 'https://img2.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVEes.png', streamUrl: 'https://ztnr.rtve.es/ztnr/1694255.m3u8', category: 'notícies', region: 'Espanya', hd: true },
   { id: 13, name: 'Clan', description: 'Canal infantil RTVE', logo: 'https://img2.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVEes.png', streamUrl: 'https://ztnr.rtve.es/ztnr/5466990.m3u8', category: 'infantil', region: 'Espanya', hd: true },
   { id: 14, name: 'Teledeporte', description: 'Esports RTVE', logo: 'https://img2.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVEes.png', streamUrl: 'https://ztnr.rtve.es/ztnr/1712295.m3u8', category: 'esports', region: 'Espanya', hd: true },
-  { id: 15, name: 'Star HD', description: 'Canal de cinema RTVE', logo: 'https://img2.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVEes.png', streamUrl: 'https://ztnr.rtve.es/ztnr/4997583.m3u8', category: 'entreteniment', region: 'Espanya', hd: true },
 
-  // === Altres autonòmiques (URLs verificades) ===
-  { id: 40, name: 'À Punt', description: 'TV Valenciana', logo: 'https://apuntmedia.es/assets/img/logos/logoApunt.png', streamUrl: 'https://bcovlive-a.akamaihd.net/8499d938ef904e39b58a4adec2ddeada/eu-west-1/6057955885001/playlist_dvr.m3u8', category: 'autonòmica', region: 'País Valencià', hd: true },
-  { id: 41, name: 'IB3', description: 'TV Illes Balears', logo: 'https://ib3.org/ib3-ico.png', streamUrl: 'https://ibsatiphone.ib3tv.com/hls/directeTV1_iphone.m3u8', category: 'autonòmica', region: 'Illes Balears', hd: true },
-  { id: 42, name: 'ETB 1', description: 'TV Euskadi en euskera', logo: 'https://www.eitb.eus/favicon.ico', streamUrl: 'https://multimedia.eitb.eus/live-content/etb1hd-hls/master.m3u8', category: 'autonòmica', region: 'Euskadi', hd: true },
-  { id: 43, name: 'ETB 2', description: 'TV Euskadi en castellà', logo: 'https://www.eitb.eus/favicon.ico', streamUrl: 'https://multimedia.eitb.eus/live-content/etb2hd-hls/master.m3u8', category: 'autonòmica', region: 'Euskadi', hd: true },
-  { id: 44, name: 'TVG', description: 'TV Galicia', logo: 'https://www.crtvg.es/files/favicons/tvg-128x128.png', streamUrl: 'https://crtvg-europa.flumotion.cloud/playlist.m3u8', category: 'autonòmica', region: 'Galícia', hd: true },
-  { id: 45, name: 'TVG 2', description: 'Cultura galega', logo: 'https://www.crtvg.es/files/favicons/tvg-128x128.png', streamUrl: 'https://crtvg2-europa.flumotion.cloud/playlist.m3u8', category: 'autonòmica', region: 'Galícia', hd: true },
-  { id: 46, name: 'Canal Sur', description: 'TV Andalusia', logo: 'https://www.canalsur.es/recursos/img/favicon.png', streamUrl: 'https://cdnlive.shooowit.net/rtvalive/smil:channel1HD.smil/playlist.m3u8', category: 'autonòmica', region: 'Andalusia', hd: true },
-  { id: 47, name: 'Telemadrid', description: 'TV Madrid', logo: 'https://www.telemadrid.es/favicon.ico', streamUrl: 'https://telemadridhls-live.hls.adaptive.level3.net/telemadrid/smil:telemadrid.smil/playlist.m3u8', category: 'autonòmica', region: 'Madrid', hd: true },
-  { id: 48, name: 'Aragón TV', description: 'TV Aragó', logo: 'https://www.cartv.es/favicon.ico', streamUrl: 'https://cartv.streaming.aranova.es/hls/live/aragontv_canal1.m3u8', category: 'autonòmica', region: 'Aragó', hd: true },
-  { id: 49, name: 'CMM', description: 'TV Castilla-La Mancha', logo: 'https://www.cmmedia.es/favicon.ico', streamUrl: 'https://cdnlive.shooowit.net/cmmlive/smil:cmmtv.smil/playlist.m3u8', category: 'autonòmica', region: 'Castilla-La Mancha', hd: true },
-  { id: 50, name: 'TV Canarias', description: 'TV Canàries', logo: 'https://www.rtvc.es/favicon.ico', streamUrl: 'https://rtvc.flumotion.cloud/rtvc/live/chunklist_w213463505.m3u8', category: 'autonòmica', region: 'Canàries', hd: true },
-  { id: 51, name: 'TPA', description: 'TV Principado Asturias', logo: 'https://www.rtpa.es/favicon.ico', streamUrl: 'https://rtpa-live.flumotion.cloud/playlist.m3u8', category: 'autonòmica', region: 'Astúries', hd: true },
-  { id: 52, name: '7 Región de Murcia', description: 'TV Múrcia', logo: 'https://7tvmurcia.es/favicon.ico', streamUrl: 'https://cdn.7tvmurcia.es/hls/live.m3u8', category: 'autonòmica', region: 'Múrcia', hd: true },
-  { id: 53, name: 'Extremadura TV', description: 'TV Extremadura', logo: 'https://www.canalextremadura.es/favicon.ico', streamUrl: 'https://cdnlive.shooowit.net/caborientallive/smil:extremadura.smil/playlist.m3u8', category: 'autonòmica', region: 'Extremadura', hd: true },
-  { id: 54, name: 'CyL TV', description: 'TV Castella i Lleó', logo: 'https://cyltv.es/favicon.ico', streamUrl: 'https://streaming-o.rtvcyl.es/cylc7/smil:cylc7.smil/playlist.m3u8', category: 'autonòmica', region: 'Castella i Lleó', hd: true },
-  { id: 55, name: 'La Rioja TV', description: 'TV La Rioja', logo: 'https://www.larioja.org/favicon.ico', streamUrl: 'https://streaming.larioja.org/hls/tvr.m3u8', category: 'autonòmica', region: 'La Rioja', hd: true },
+  // === Autonòmiques principals ===
+  { id: 20, name: 'À Punt', description: 'TV Valenciana', logo: 'https://upload.wikimedia.org/wikipedia/commons/b/be/Logo_%C3%A0_punt.png', streamUrl: 'https://bcovlive-a.akamaihd.net/8499d938ef904e39b58a4adec2ddeada/eu-west-1/6057955885001/playlist_dvr.m3u8', category: 'autonòmica', region: 'País Valencià', hd: true },
+  { id: 21, name: 'IB3', description: 'TV Illes Balears', logo: 'https://upload.wikimedia.org/wikipedia/commons/7/7e/IB3_logo_2022.svg', streamUrl: 'https://ibsatiphone.ib3tv.com/hls/directeTV1_iphone.m3u8', category: 'autonòmica', region: 'Illes Balears', hd: true },
+  { id: 22, name: 'ETB 1', description: 'TV Euskadi en euskera', logo: 'https://upload.wikimedia.org/wikipedia/commons/4/4f/ETB1.svg', streamUrl: 'https://multimedia.eitb.eus/live-content/etb1hd-hls/master.m3u8', category: 'autonòmica', region: 'Euskadi', hd: true },
+  { id: 23, name: 'ETB 2', description: 'TV Euskadi en castellà', logo: 'https://upload.wikimedia.org/wikipedia/commons/4/4c/ETB2.svg', streamUrl: 'https://multimedia.eitb.eus/live-content/etb2hd-hls/master.m3u8', category: 'autonòmica', region: 'Euskadi', hd: true },
+  { id: 24, name: 'TVG', description: 'TV Galicia', logo: 'https://upload.wikimedia.org/wikipedia/commons/a/a2/Tvg.svg', streamUrl: 'https://crtvg-live.hls.adaptive.level3.net/crtvg/smil:crtvg.smil/index.m3u8', category: 'autonòmica', region: 'Galícia', hd: true },
+  { id: 25, name: 'TVG 2', description: 'Cultura galega', logo: 'https://upload.wikimedia.org/wikipedia/commons/a/a2/Tvg.svg', streamUrl: 'https://crtvg2-live.hls.adaptive.level3.net/crtvg2/smil:crtvg2.smil/index.m3u8', category: 'autonòmica', region: 'Galícia', hd: true },
+  { id: 26, name: 'Canal Sur', description: 'TV Andalusia', logo: 'https://upload.wikimedia.org/wikipedia/commons/d/d2/Canal_Sur_logo.svg', streamUrl: 'https://cdnlive.shooowit.net/rtvalive/smil:channel1.smil/playlist.m3u8', category: 'autonòmica', region: 'Andalusia', hd: true },
+  { id: 27, name: 'Telemadrid', description: 'TV Madrid', logo: 'https://upload.wikimedia.org/wikipedia/commons/5/54/Logo_TeleMadrid.svg', streamUrl: 'https://telemadridhls-live.hls.adaptive.level3.net/telemadrid/smil:telemadrid.smil/playlist.m3u8', category: 'autonòmica', region: 'Madrid', hd: true },
+  { id: 28, name: 'Aragón TV', description: 'TV Aragó', logo: 'https://upload.wikimedia.org/wikipedia/commons/4/49/Arag%C3%B3n_TV_logo.svg', streamUrl: 'https://cartv.streaming.aranova.es/hls/live/aragontv_canal1.m3u8', category: 'autonòmica', region: 'Aragó', hd: true },
+  { id: 29, name: 'CMM', description: 'TV Castilla-La Mancha', logo: 'https://upload.wikimedia.org/wikipedia/commons/c/c5/CMM.svg', streamUrl: 'https://cdnlive.shooowit.net/cmmlive/smil:cmmtv.smil/playlist.m3u8', category: 'autonòmica', region: 'Castilla-La Mancha', hd: true },
+  { id: 30, name: 'TPA', description: 'TV Principado Asturias', logo: 'https://upload.wikimedia.org/wikipedia/commons/7/75/TPA_logo.svg', streamUrl: 'https://rtpa-live.hls.adaptive.level3.net/rtpa/smil:rtpa.smil/index.m3u8', category: 'autonòmica', region: 'Astúries', hd: true },
+  { id: 31, name: '7 RM', description: 'TV Región de Murcia', logo: 'https://upload.wikimedia.org/wikipedia/commons/7/72/7_Region_de_Murcia_logo.svg', streamUrl: 'https://cdn.7tvmurcia.es/hls/live.m3u8', category: 'autonòmica', region: 'Múrcia', hd: true },
+  { id: 32, name: 'Canal Extremadura', description: 'TV Extremadura', logo: 'https://upload.wikimedia.org/wikipedia/commons/6/60/Canal_Extremadura_TV_logo.svg', streamUrl: 'https://cdnlive.shooowit.net/caborientallive/smil:extremadura.smil/playlist.m3u8', category: 'autonòmica', region: 'Extremadura', hd: true },
+  { id: 33, name: 'CyL TV', description: 'TV Castella i Lleó', logo: 'https://upload.wikimedia.org/wikipedia/commons/2/23/CyLTV.svg', streamUrl: 'https://streaming-o.rtvcyl.es/cylc7/smil:cylc7.smil/playlist.m3u8', category: 'autonòmica', region: 'Castella i Lleó', hd: true },
+  { id: 34, name: 'TV Canarias', description: 'TV Canàries', logo: 'https://upload.wikimedia.org/wikipedia/commons/4/4b/Televisi%C3%B3n_Canaria_Logo.svg', streamUrl: 'https://rtvc-live.flumotion.com/playlist.m3u8', category: 'autonòmica', region: 'Canàries', hd: true },
 
-  // === Temàtiques ===
-  { id: 60, name: 'TRECE', description: 'Canal catòlic', logo: 'https://www.trece.es/favicon.ico', streamUrl: 'https://live-edge-bom-1.cdn.enetres.net/A62F6E09D69245B7B19DC0B0D5D04A72021/live-1500/index.m3u8', category: 'temàtica', region: 'Espanya', hd: true },
-  { id: 61, name: 'Ten', description: 'Entreteniment', logo: 'https://tentv.es/favicon.ico', streamUrl: 'https://cdnlive.shooowit.net/tenlive/smil:tenlive.smil/playlist.m3u8', category: 'temàtica', region: 'Espanya', hd: true },
-  { id: 62, name: 'Real Madrid TV', description: 'Canal del Real Madrid', logo: 'https://www.realmadrid.com/favicon.ico', streamUrl: 'https://rmtv-live.akamaized.net/hls/live/2033988/rmtv/master.m3u8', category: 'esports', region: 'Espanya', hd: true },
-  { id: 63, name: 'Barça TV', description: 'Canal del FC Barcelona', logo: 'https://www.fcbarcelona.com/favicon.ico', streamUrl: 'https://directes-tv-cat.3catdirectes.cat/live-content/barcatv-hls/master.m3u8', category: 'esports', region: 'Catalunya', hd: true },
+  // === Temàtiques nacionals ===
+  { id: 40, name: 'TRECE', description: 'Canal catòlic', logo: 'https://upload.wikimedia.org/wikipedia/commons/3/34/TRECE_logo.svg', streamUrl: 'https://live-edge-bom-1.cdn.enetres.net/A62F6E09D69245B7B19DC0B0D5D04A72021/live-1500/index.m3u8', category: 'temàtica', region: 'Espanya', hd: true },
+  { id: 41, name: 'El Toro TV', description: 'Canal taurí', logo: 'https://eltorotv.com/favicon.ico', streamUrl: 'https://streaming-1.eltorotv.com/lb0/eltorotv-streaming-web/index.m3u8', category: 'temàtica', region: 'Espanya', hd: true },
+  { id: 42, name: 'Real Madrid TV', description: 'Canal del Real Madrid', logo: 'https://upload.wikimedia.org/wikipedia/commons/4/47/Real_Madrid_TV.svg', streamUrl: 'https://rmtv-live.akamaized.net/hls/live/2033988/rmtv/master.m3u8', category: 'esports', region: 'Espanya', hd: true },
+  { id: 43, name: 'Barça TV+', description: 'Canal del FC Barcelona', logo: 'https://upload.wikimedia.org/wikipedia/en/4/47/FC_Barcelona_%28crest%29.svg', streamUrl: 'https://directes-tv-cat.3catdirectes.cat/live-content/barcatv-hls/master.m3u8', category: 'esports', region: 'Catalunya', hd: true },
 
   // === Internacionals en espanyol ===
-  { id: 70, name: 'DW Español', description: 'Deutsche Welle en espanyol', logo: 'https://www.dw.com/favicon.ico', streamUrl: 'https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8', category: 'notícies', region: 'Internacional', hd: true },
-  { id: 71, name: 'France 24 Español', description: 'France 24 en espanyol', logo: 'https://www.france24.com/favicon.ico', streamUrl: 'https://stream.france24.com/F24_ES_LO_HLS/live_web.m3u8', category: 'notícies', region: 'Internacional', hd: true },
-  { id: 72, name: 'Euronews Español', description: 'Euronews en espanyol', logo: 'https://www.euronews.com/favicon.ico', streamUrl: 'https://euronews-euronews-spanish-2-eu.rakuten.wurl.tv/playlist.m3u8', category: 'notícies', region: 'Internacional', hd: true },
-  { id: 73, name: 'RT en Español', description: 'Russia Today en espanyol', logo: 'https://www.rt.com/favicon.ico', streamUrl: 'https://rt-esp.rttv.com/live/rtesp/playlist.m3u8', category: 'notícies', region: 'Internacional', hd: true },
-  { id: 74, name: 'NHK World', description: 'NHK Japó en anglès', logo: 'https://www3.nhk.or.jp/favicon.ico', streamUrl: 'https://nhkworld.webcdn.stream.ne.jp/www11/nhkworld-tv/domestic/263942/live.m3u8', category: 'notícies', region: 'Internacional', hd: true },
-  { id: 75, name: 'Al Jazeera', description: 'Al Jazeera en anglès', logo: 'https://www.aljazeera.com/favicon.ico', streamUrl: 'https://live-hls-web-aje.getaj.net/AJE/01.m3u8', category: 'notícies', region: 'Internacional', hd: true },
+  { id: 50, name: 'DW Español', description: 'Deutsche Welle en espanyol', logo: 'https://upload.wikimedia.org/wikipedia/commons/8/81/Deutsche_Welle_Logo.svg', streamUrl: 'https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8', category: 'notícies', region: 'Internacional', hd: true },
+  { id: 51, name: 'France 24 Español', description: 'France 24 en espanyol', logo: 'https://upload.wikimedia.org/wikipedia/commons/6/66/France_24_logo_%282018%29.svg', streamUrl: 'https://stream.france24.com/F24_ES_LO_HLS/live_web.m3u8', category: 'notícies', region: 'Internacional', hd: true },
+  { id: 52, name: 'Euronews', description: 'Euronews en espanyol', logo: 'https://upload.wikimedia.org/wikipedia/commons/3/37/Euronews_logo_%282022%29.svg', streamUrl: 'https://euronews-euronews-spanish-2-eu.rakuten.wurl.tv/playlist.m3u8', category: 'notícies', region: 'Internacional', hd: true },
+  { id: 53, name: 'RT en Español', description: 'Russia Today en espanyol', logo: 'https://upload.wikimedia.org/wikipedia/commons/a/a0/RT_logo.svg', streamUrl: 'https://rt-esp.rttv.com/live/rtesp/playlist.m3u8', category: 'notícies', region: 'Internacional', hd: true },
+  { id: 54, name: 'NHK World', description: 'NHK Japó en anglès', logo: 'https://upload.wikimedia.org/wikipedia/commons/8/80/NHK_World_Japan_logo.svg', streamUrl: 'https://nhkworld.webcdn.stream.ne.jp/www11/nhkworld-tv/domestic/263942/live.m3u8', category: 'notícies', region: 'Internacional', hd: true },
+  { id: 55, name: 'Al Jazeera', description: 'Al Jazeera en anglès', logo: 'https://upload.wikimedia.org/wikipedia/en/f/f2/Al_Jazeera_English.svg', streamUrl: 'https://live-hls-web-aje.getaj.net/AJE/01.m3u8', category: 'notícies', region: 'Internacional', hd: true },
+  { id: 56, name: 'CGTN Español', description: 'TV Xina en espanyol', logo: 'https://upload.wikimedia.org/wikipedia/commons/6/68/CGTN.svg', streamUrl: 'https://livees.cgtn.com/1000e/prog_index.m3u8', category: 'notícies', region: 'Internacional', hd: true },
 
-  // === Barcelona locals ===
-  { id: 80, name: 'betevé', description: 'TV Barcelona', logo: 'https://beteve.cat/favicon.ico', streamUrl: 'https://cdnapisec.kaltura.com/p/2346171/sp/234617100/playManifest/entryId/1_2vffmgpo/format/applehttp/protocol/https/a.m3u8', category: 'local', region: 'Barcelona', hd: true },
-  { id: 81, name: '8tv', description: 'TV privada catalana', logo: 'https://8tv.cat/favicon.ico', streamUrl: 'https://streaming-8tv.streaming-br.com/8tv/smil:live.smil/playlist.m3u8', category: 'local', region: 'Catalunya', hd: true },
+  // === Locals Catalunya ===
+  { id: 60, name: 'betevé', description: 'TV Barcelona', logo: 'https://upload.wikimedia.org/wikipedia/commons/d/d7/Betev%C3%A9_logo.svg', streamUrl: 'https://cdnapisec.kaltura.com/p/2346171/sp/234617100/playManifest/entryId/1_2vffmgpo/format/applehttp/protocol/https/a.m3u8', category: 'local', region: 'Barcelona', hd: true },
+  { id: 61, name: '8tv', description: 'TV privada catalana', logo: 'https://upload.wikimedia.org/wikipedia/commons/7/7c/8tv_logo.svg', streamUrl: 'https://streaming-8tv.streaming-br.com/8tv/smil:live.smil/playlist.m3u8', category: 'local', region: 'Catalunya', hd: true },
+  { id: 62, name: 'TAC 12', description: 'TV Terrassa i Rubí', logo: 'https://tac12.tv/favicon.ico', streamUrl: 'https://cdnlive.shooowit.net/tac12live/smil:tac12.smil/playlist.m3u8', category: 'local', region: 'Barcelona', hd: true },
+  { id: 63, name: 'El Punt Avui TV', description: 'Actualitat catalana', logo: 'https://www.elpuntavui.cat/favicon.ico', streamUrl: 'https://cdnlive.shooowit.net/elpuntavuilive/smil:elpuntavuitv.smil/playlist.m3u8', category: 'local', region: 'Catalunya', hd: true },
 
-  // === Música ===
-  { id: 90, name: 'MTV España', description: 'Canal de música', logo: 'https://www.mtv.es/favicon.ico', streamUrl: 'https://amtv-es.akamaized.net/hls/live/2029613/mtves/index.m3u8', category: 'música', region: 'Espanya', hd: true },
-  { id: 91, name: 'Sol Música', description: 'Música espanyola i llatina', logo: 'https://solmusica.com/favicon.ico', streamUrl: 'https://cdnlive.shooowit.net/solmusicalive/smil:solmusica.smil/playlist.m3u8', category: 'música', region: 'Espanya', hd: true },
-  { id: 92, name: 'Hit TV', description: 'Videoclips i música', logo: 'https://hittv.es/favicon.ico', streamUrl: 'https://hittv-live.akamaized.net/hls/live/2033979/hittv/master.m3u8', category: 'música', region: 'Espanya', hd: true },
+  // === Música i entreteniment ===
+  { id: 70, name: 'Hit TV', description: 'Videoclips i música', logo: 'https://hittv.es/favicon.ico', streamUrl: 'https://hittv-live.akamaized.net/hls/live/2033979/hittv/master.m3u8', category: 'música', region: 'Espanya', hd: true },
+  { id: 71, name: 'Sol Música', description: 'Música espanyola i llatina', logo: 'https://solmusica.com/favicon.ico', streamUrl: 'https://cdnlive.shooowit.net/solmusicalive/smil:solmusica.smil/playlist.m3u8', category: 'música', region: 'Espanya', hd: true },
 ];
 
 // ============================================================
-// EMISSORES DE RÀDIO
+// EMISSORES DE RÀDIO (URLs verificades novembre 2025)
+// Font: TDTChannels (github.com/LaQuay/TDTChannels)
 // ============================================================
 const RADIO_CHANNELS = [
-  // Catalunya Ràdio
-  { id: 100, name: 'Catalunya Ràdio', description: 'Emissora nacional', logo: 'https://www.3cat.cat/statics/images/favicons/catradio/apple-touch-icon-180x180.png', streamUrl: 'https://directes-radio-int.3catdirectes.cat/live-content/catradio-hls/master.m3u8', category: 'generalista', region: 'Catalunya' },
-  { id: 101, name: 'Catalunya Informació', description: 'Notícies 24h', logo: 'https://www.3cat.cat/statics/images/favicons/catradio/apple-touch-icon-180x180.png', streamUrl: 'https://directes-radio-int.3catdirectes.cat/live-content/catinfo-hls/master.m3u8', category: 'notícies', region: 'Catalunya' },
-  { id: 102, name: 'Catalunya Música', description: 'Música clàssica', logo: 'https://www.3cat.cat/statics/images/favicons/catradio/apple-touch-icon-180x180.png', streamUrl: 'https://directes-radio-int.3catdirectes.cat/live-content/catmusica-hls/master.m3u8', category: 'música', region: 'Catalunya' },
-  { id: 103, name: 'iCat', description: 'Música alternativa', logo: 'https://www.3cat.cat/statics/images/favicons/catradio/apple-touch-icon-180x180.png', streamUrl: 'https://directes-radio-int.3catdirectes.cat/live-content/icat-hls/master.m3u8', category: 'música', region: 'Catalunya' },
+  // === Catalunya Ràdio ===
+  { id: 100, name: 'Catalunya Ràdio', description: 'Emissora nacional catalana', logo: 'https://statics.3cat.cat/recursos/frontal/ico/icon_catradio_180.png', streamUrl: 'https://directes-radio-int.3catdirectes.cat/live-content/catalunya-radio-hls/master.m3u8', category: 'generalista', region: 'Catalunya' },
+  { id: 101, name: 'Catalunya Informació', description: 'Notícies 24h', logo: 'https://statics.3cat.cat/recursos/frontal/ico/icon_catinformacio_180.png', streamUrl: 'https://directes-radio-int.3catdirectes.cat/live-content/catinfo-hls/master.m3u8', category: 'notícies', region: 'Catalunya' },
+  { id: 102, name: 'Catalunya Música', description: 'Música clàssica', logo: 'https://statics.3cat.cat/recursos/frontal/ico/icon_catmusica_180.png', streamUrl: 'https://directes-radio-int.3catdirectes.cat/live-content/catmusica-hls/master.m3u8', category: 'música', region: 'Catalunya' },
+  { id: 103, name: 'iCat', description: 'Música alternativa i indie', logo: 'https://statics.3cat.cat/recursos/frontal/ico/icon_icat_180.png', streamUrl: 'https://directes-radio-int.3catdirectes.cat/live-content/icat-hls/master.m3u8', category: 'música', region: 'Catalunya' },
 
-  // RNE
-  { id: 110, name: 'RNE 1', description: 'Radio Nacional', logo: 'https://img.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVE.png', streamUrl: 'https://ztnr.rtve.es/ztnr/rne_r1_096.m3u8', category: 'generalista', region: 'Espanya' },
-  { id: 111, name: 'Radio 3', description: 'Música i cultura', logo: 'https://img.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVE.png', streamUrl: 'https://ztnr.rtve.es/ztnr/rne_r3_096.m3u8', category: 'música', region: 'Espanya' },
-  { id: 112, name: 'Radio 5', description: 'Notícies 24h', logo: 'https://img.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVE.png', streamUrl: 'https://ztnr.rtve.es/ztnr/rne_r5_096.m3u8', category: 'notícies', region: 'Espanya' },
-  { id: 113, name: 'Radio Clásica', description: 'Música clàssica', logo: 'https://img.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVE.png', streamUrl: 'https://ztnr.rtve.es/ztnr/rne_rca_096.m3u8', category: 'música', region: 'Espanya' },
+  // === RNE - Radio Nacional ===
+  { id: 110, name: 'RNE 1', description: 'Radio Nacional de España', logo: 'https://img.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVE.png', streamUrl: 'https://rtvelivestream.rtve.es/rtvesec/rne/rne_r1_main.m3u8', category: 'generalista', region: 'Espanya' },
+  { id: 111, name: 'Radio Clásica', description: 'RNE Música clàssica', logo: 'https://img.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVE.png', streamUrl: 'https://rtvelivestream.rtve.es/rtvesec/rne/rne_r2_main.m3u8', category: 'música', region: 'Espanya' },
+  { id: 112, name: 'Radio 3', description: 'Música i cultura', logo: 'https://img.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVE.png', streamUrl: 'https://rtvelivestream.rtve.es/rtvesec/rne/rne_r3_main.m3u8', category: 'música', region: 'Espanya' },
+  { id: 113, name: 'Ràdio 4', description: 'RNE Catalunya', logo: 'https://img.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVE.png', streamUrl: 'https://rtvelivestream.rtve.es/rtvesec/rne/rne_r4_main.m3u8', category: 'generalista', region: 'Catalunya' },
+  { id: 114, name: 'Radio 5', description: 'Notícies 24h', logo: 'https://img.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVE.png', streamUrl: 'https://rtvelivestream.rtve.es/rtvesec/rne/rne_r5_main.m3u8', category: 'notícies', region: 'Espanya' },
+  { id: 115, name: 'Radio Exterior', description: 'RNE Internacional', logo: 'https://img.rtve.es/css/rtve.commons/rtve.header.footer/i/logoRTVE.png', streamUrl: 'https://rtvelivestream.rtve.es/rtvesec/rne/rne_rne_main.m3u8', category: 'generalista', region: 'Internacional' },
 
-  // Comercials
-  { id: 120, name: 'Los 40', description: 'Èxits actuals', logo: 'https://los40.com/favicon.ico', streamUrl: 'https://24343.live.streamtheworld.com/LOS40.mp3', category: 'música', region: 'Espanya' },
-  { id: 121, name: 'Cadena SER', description: 'Ràdio generalista', logo: 'https://cadenaser.com/favicon.ico', streamUrl: 'https://24343.live.streamtheworld.com/CADENA_SER.mp3', category: 'generalista', region: 'Espanya' },
-  { id: 122, name: 'COPE', description: 'Ràdio generalista', logo: 'https://www.cope.es/favicon.ico', streamUrl: 'https://flucast-b05-01.flumotion.com/cope/live.mp3', category: 'generalista', region: 'Espanya' },
-  { id: 123, name: 'Onda Cero', description: 'Ràdio generalista', logo: 'https://www.ondacero.es/favicon.ico', streamUrl: 'https://livefastly-webradiobeta.antena3.com/ondacero/live.mp3', category: 'generalista', region: 'Espanya' },
+  // === Comercials nacionals ===
+  { id: 120, name: 'Cadena SER', description: 'Ràdio generalista', logo: 'https://upload.wikimedia.org/wikipedia/commons/d/d9/Cadena_SER_logo.svg', streamUrl: 'https://playerservices.streamtheworld.com/api/livestream-redirect/CADENASERAAC.aac', category: 'generalista', region: 'Espanya' },
+  { id: 121, name: 'COPE', description: 'Ràdio generalista', logo: 'https://upload.wikimedia.org/wikipedia/commons/5/5d/COPE_Logo.svg', streamUrl: 'https://flucast09-h-cloud.flumotion.com/cope/net1.aac', category: 'generalista', region: 'Espanya' },
+  { id: 122, name: 'Onda Cero', description: 'Ràdio generalista', logo: 'https://upload.wikimedia.org/wikipedia/commons/c/c0/Onda_Cero.svg', streamUrl: 'https://atres-live.ondacero.es/live/ondaceroeventos1/master.m3u8', category: 'generalista', region: 'Espanya' },
+
+  // === Música comercial ===
+  { id: 130, name: 'Los 40', description: 'Èxits actuals', logo: 'https://upload.wikimedia.org/wikipedia/commons/3/35/Los_40_Principales_logo.svg', streamUrl: 'https://playerservices.streamtheworld.com/api/livestream-redirect/LOS40AAC.aac', category: 'música', region: 'Espanya' },
+  { id: 131, name: 'Los 40 Classic', description: 'Clàssics', logo: 'https://upload.wikimedia.org/wikipedia/commons/3/35/Los_40_Principales_logo.svg', streamUrl: 'https://playerservices.streamtheworld.com/api/livestream-redirect/LOS40_CLASSICAAC.aac', category: 'música', region: 'Espanya' },
+  { id: 132, name: 'Cadena Dial', description: 'Música en espanyol', logo: 'https://upload.wikimedia.org/wikipedia/commons/c/c1/Cadena_Dial_logo.svg', streamUrl: 'https://playerservices.streamtheworld.com/api/livestream-redirect/CADENADIAL.aac', category: 'música', region: 'Espanya' },
+  { id: 133, name: 'Europa FM', description: 'Pop i rock actual', logo: 'https://upload.wikimedia.org/wikipedia/commons/0/07/Europa_FM_logo.svg', streamUrl: 'https://atres-live.europafm.com/live/europafm/master.m3u8', category: 'música', region: 'Espanya' },
+  { id: 134, name: 'Kiss FM', description: 'Dance i electrònica', logo: 'https://kissfm.es/favicon.ico', streamUrl: 'https://kissfm.kissfmradio.cires21.com/kissfm.mp3', category: 'música', region: 'Espanya' },
+  { id: 135, name: 'Rock FM', description: 'Rock clàssic i actual', logo: 'https://upload.wikimedia.org/wikipedia/commons/d/d4/Rock_FM_logo.svg', streamUrl: 'https://rockfm.cope.stream.flumotion.com/cope/rockfm.aac', category: 'música', region: 'Espanya' },
+
+  // === Ràdio catalana ===
+  { id: 140, name: 'RAC1', description: 'Ràdio catalana privada', logo: 'https://upload.wikimedia.org/wikipedia/commons/6/62/RAC1_logo.svg', streamUrl: 'https://streaming.rac1.cat/rac1-master.m3u8', category: 'generalista', region: 'Catalunya' },
+  { id: 141, name: 'RAC105', description: 'Pop i rock en català', logo: 'https://upload.wikimedia.org/wikipedia/commons/6/62/RAC1_logo.svg', streamUrl: 'https://streaming.rac105.cat/rac105-master.m3u8', category: 'música', region: 'Catalunya' },
+  { id: 142, name: 'Flaix FM', description: 'Dance i remember', logo: 'https://ffrm.es/favicon.ico', streamUrl: 'https://shoutcast.ccma.cat/flaix', category: 'música', region: 'Catalunya' },
+  { id: 143, name: 'Ràdio Flaixbac', description: 'Remember 80s 90s', logo: 'https://ffrm.es/favicon.ico', streamUrl: 'https://shoutcast.ccma.cat/flaixbac', category: 'música', region: 'Catalunya' },
+
+  // === Internacionals ===
+  { id: 150, name: 'BBC World Service', description: 'BBC en anglès', logo: 'https://upload.wikimedia.org/wikipedia/commons/e/eb/BBC_World_Service_red.svg', streamUrl: 'https://stream.live.vc.bbcmedia.co.uk/bbc_world_service', category: 'notícies', region: 'Internacional' },
+  { id: 151, name: 'France Inter', description: 'Ràdio francesa', logo: 'https://upload.wikimedia.org/wikipedia/commons/c/cf/France_Inter_logo.svg', streamUrl: 'https://icecast.radiofrance.fr/franceinter-hifi.aac', category: 'generalista', region: 'Internacional' },
 ];
 
 // Categories per filtrar

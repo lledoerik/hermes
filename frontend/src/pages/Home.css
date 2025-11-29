@@ -408,7 +408,7 @@
 /* Responsive - Mòbils (2 columnes) */
 @media (max-width: 767px) {
   .hero-section {
-    min-height: 60vh;
+    min-height: 70vh;
     padding: 20px 10px;
   }
 
@@ -418,16 +418,18 @@
   }
 
   .category-card {
-    height: 150px;
+    height: 180px;
   }
 
   .card-icon {
-    width: 36px;
-    height: 36px;
+    width: 56px;
+    height: 56px;
+    margin-bottom: 0.75rem;
   }
 
   .card-title {
-    font-size: 1rem;
+    font-size: 1.1rem;
+    font-weight: 600;
   }
 
   .search-bar input {
