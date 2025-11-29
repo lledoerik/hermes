@@ -627,6 +627,24 @@
     font-size: 15px;
   }
 
+  /* Seasons: wrap en lloc de scroll en mòbil */
+  .seasons-scroll-container {
+    overflow-x: visible;
+    overflow-y: visible;
+    margin: 0;
+    padding: 0;
+  }
+
+  .seasons-list {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .season-btn {
+    padding: var(--space-sm) var(--space-lg);
+    font-size: var(--font-size-xs);
+  }
+
   .secondary-btn {
     padding: 12px 18px;
     font-size: 14px;

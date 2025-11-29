@@ -384,6 +384,82 @@
 
 
 /* ============================================
+   SKIP INDICATOR (com Player.js)
+   ============================================ */
+
+.skip-indicator {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 50%;
+  color: var(--text-primary);
+  z-index: 50;
+  animation: skipPop 0.5s ease-out forwards;
+  pointer-events: none;
+}
+
+.skip-indicator.left {
+  left: 15%;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.skip-indicator.right {
+  right: 15%;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.skip-indicator.center {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.skip-indicator svg {
+  width: 36px;
+  height: 36px;
+}
+
+@keyframes skipPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) translateY(-50%);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1) translateY(-50%);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1) translateY(-50%);
+  }
+}
+
+.skip-indicator.center {
+  animation: skipPopCenter 0.5s ease-out forwards;
+}
+
+@keyframes skipPopCenter {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.5);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* ============================================
    CHANNEL NUMBER DISPLAY
    ============================================ */
 
@@ -767,6 +843,53 @@
 .play-btn:hover {
   transform: scale(1.1);
   box-shadow: 0 6px 25px rgba(234, 88, 12, 0.5);
+}
+
+/* Skip Buttons */
+.skip-btn {
+  width: 48px;
+  height: 48px;
+}
+
+.skip-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Live Button (Tornar al directe) */
+.live-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-lg);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.live-btn.active {
+  background: linear-gradient(135deg, var(--color-live) 0%, #dc2626 100%);
+  border-color: var(--color-live);
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
+}
+
+.live-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.live-btn.active:hover {
+  background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+}
+
+.live-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.live-btn .live-text {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.5px;
 }
 
 /* Volume Control */
