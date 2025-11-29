@@ -13,6 +13,8 @@ import Books from './pages/Books';
 import BookReader from './pages/BookReader';
 import Audiobooks from './pages/Audiobooks';
 import AudiobookPlayer from './pages/AudiobookPlayer';
+import TV from './pages/TV';
+import Programs from './pages/Programs';
 import Login from './pages/Login';
 import './App.css';
 
@@ -54,6 +56,8 @@ function App() {
                     <Route path="/series" element={<Series />} />
                     <Route path="/books" element={<Books />} />
                     <Route path="/audiobooks" element={<Audiobooks />} />
+                    <Route path="/tv" element={<TV />} />
+                    <Route path="/programs" element={<Programs />} />
                     <Route path="/movies/:id" element={<Details />} />
                     <Route path="/series/:id" element={<Details />} />
                     <Route path="/search" element={<Search />} />
