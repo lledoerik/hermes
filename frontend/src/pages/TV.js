@@ -1,28 +1,7 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import './TV.css';
 
-const API_URL = window.location.hostname === 'localhost'
-  ? 'http://localhost:8000'
-  : '';
-
-axios.defaults.baseURL = API_URL;
-
 // SVG Icons
-const TvIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect>
-    <polyline points="17 2 12 7 7 2"></polyline>
-  </svg>
-);
-
-const RadioIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <circle cx="12" cy="12" r="2"></circle>
-    <path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"></path>
-  </svg>
-);
-
 const PlayIcon = ({ size = 24 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
     <polygon points="5 3 19 12 5 21 5 3"></polygon>
@@ -30,175 +9,241 @@ const PlayIcon = ({ size = 24 }) => (
 );
 
 const LiveIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <circle cx="12" cy="12" r="10" fill="#ef4444" stroke="#ef4444"></circle>
+  <span className="live-dot"></span>
+);
+
+const CloseIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <line x1="18" y1="6" x2="6" y2="18"></line>
+    <line x1="6" y1="6" x2="18" y2="18"></line>
   </svg>
 );
 
-// Canals de TV públics catalans
+const VolumeIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+    <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+  </svg>
+);
+
+// Canals de TV - URLs actualitzades de TDTChannels (GitHub)
 const TV_CHANNELS = [
+  // 3Cat - Televisió de Catalunya
   {
     id: 'tv3',
     name: 'TV3',
-    description: 'Televisió de Catalunya',
-    logo: 'https://statics.ccma.cat/multimedia/jpg/7/4/1627980970247.jpg',
-    streamUrl: 'https://directes-tv-int.ccma.cat/live-origin/tv3-hls/master.m3u8',
-    category: 'generalista'
+    description: 'La televisió de Catalunya',
+    logo: 'https://www.3cat.cat/statics/images/favicons/tv3/apple-touch-icon-180x180.png',
+    streamUrl: 'https://directes-tv-int.3catdirectes.cat/live-content/tv3-hls/master.m3u8',
+    category: '3cat',
+    hd: true
   },
   {
     id: '324',
     name: '3/24',
     description: 'Canal de notícies 24 hores',
-    logo: 'https://statics.ccma.cat/multimedia/jpg/1/1/1627980994111.jpg',
-    streamUrl: 'https://directes-tv-int.ccma.cat/live-origin/324-hls/master.m3u8',
-    category: 'noticies'
+    logo: 'https://www.3cat.cat/statics/images/favicons/324/apple-touch-icon-180x180.png',
+    streamUrl: 'https://directes-tv-int.3catdirectes.cat/live-content/canal324-hls/master.m3u8',
+    category: '3cat',
+    hd: true
   },
   {
     id: '33',
     name: '33',
-    description: 'Canal cultural',
-    logo: 'https://statics.ccma.cat/multimedia/jpg/0/4/1627981009640.jpg',
-    streamUrl: 'https://directes-tv-int.ccma.cat/live-origin/c33-hls/master.m3u8',
-    category: 'cultural'
+    description: 'Canal cultural i de documentals',
+    logo: 'https://www.3cat.cat/statics/images/favicons/c33/apple-touch-icon-180x180.png',
+    streamUrl: 'https://directes-tv-int.3catdirectes.cat/live-content/c33-hls/master.m3u8',
+    category: '3cat',
+    hd: true
   },
   {
     id: 'sx3',
     name: 'SX3',
     description: 'Canal infantil i juvenil',
-    logo: 'https://statics.ccma.cat/multimedia/jpg/2/3/1627981028332.jpg',
-    streamUrl: 'https://directes-tv-int.ccma.cat/live-origin/sx3-hls/master.m3u8',
-    category: 'infantil'
+    logo: 'https://www.3cat.cat/statics/images/favicons/sx3/apple-touch-icon-180x180.png',
+    streamUrl: 'https://directes-tv-int.3catdirectes.cat/live-content/sx3-hls/master.m3u8',
+    category: '3cat',
+    hd: true
   },
   {
     id: 'esport3',
     name: 'Esport3',
     description: 'Canal esportiu',
-    logo: 'https://statics.ccma.cat/multimedia/jpg/6/0/1664888116706.jpg',
-    streamUrl: 'https://directes-tv-int.ccma.cat/live-origin/esport3-hls/master.m3u8',
-    category: 'esports'
+    logo: 'https://www.3cat.cat/statics/images/favicons/esport3/apple-touch-icon-180x180.png',
+    streamUrl: 'https://directes-tv-int.3catdirectes.cat/live-content/esport3-hls/master.m3u8',
+    category: '3cat',
+    hd: true
   },
+  {
+    id: 'bondia',
+    name: 'Bon Dia TV',
+    description: 'Informació i actualitat',
+    logo: 'https://www.3cat.cat/statics/images/favicons/324/apple-touch-icon-180x180.png',
+    streamUrl: 'https://directes-tv-int.3catdirectes.cat/live-content/bondia-hls/master.m3u8',
+    category: '3cat',
+    hd: false
+  },
+  // 3Cat FAST Channels
+  {
+    id: '3cat-bunquer',
+    name: '3Cat El Búnquer',
+    description: 'Canal temàtic',
+    logo: 'https://www.3cat.cat/statics/images/favicons/tv3/apple-touch-icon-180x180.png',
+    streamUrl: 'https://fast-tailor.3catdirectes.cat/v1/channel/bunquer/hls.m3u8',
+    category: '3cat-fast',
+    hd: false
+  },
+  {
+    id: '3cat-platsbruts',
+    name: '3Cat Plats Bruts',
+    description: 'Sèrie clàssica',
+    logo: 'https://www.3cat.cat/statics/images/favicons/tv3/apple-touch-icon-180x180.png',
+    streamUrl: 'https://fast-tailor.3catdirectes.cat/v1/channel/ccma-channel2/hls.m3u8',
+    category: '3cat-fast',
+    hd: false
+  },
+  // RTVE
   {
     id: 'la1',
     name: 'La 1',
-    description: 'TVE Catalunya',
-    logo: 'https://img.rtve.es/v/6543000/',
+    description: 'Primer canal de TVE',
+    logo: 'https://www.rtve.es/favicon.ico',
     streamUrl: 'https://ztnr.rtve.es/ztnr/1688877.m3u8',
-    category: 'generalista'
+    category: 'rtve',
+    hd: true
   },
   {
     id: 'la2',
     name: 'La 2',
-    description: 'TVE 2',
-    logo: 'https://img.rtve.es/v/6543006/',
+    description: 'Segon canal de TVE',
+    logo: 'https://www.rtve.es/favicon.ico',
     streamUrl: 'https://ztnr.rtve.es/ztnr/1688885.m3u8',
-    category: 'cultural'
+    category: 'rtve',
+    hd: true
   },
   {
     id: '24h',
     name: '24 Horas',
     description: 'Canal de notícies RTVE',
-    logo: 'https://img.rtve.es/v/6543009/',
+    logo: 'https://www.rtve.es/favicon.ico',
     streamUrl: 'https://ztnr.rtve.es/ztnr/1694255.m3u8',
-    category: 'noticies'
+    category: 'rtve',
+    hd: true
   },
   {
     id: 'clan',
     name: 'Clan',
     description: 'Canal infantil RTVE',
-    logo: 'https://img.rtve.es/v/6543013/',
+    logo: 'https://www.rtve.es/favicon.ico',
     streamUrl: 'https://ztnr.rtve.es/ztnr/1688893.m3u8',
-    category: 'infantil'
+    category: 'rtve',
+    hd: true
   },
   {
     id: 'teledeporte',
     name: 'Teledeporte',
     description: 'Canal esportiu RTVE',
-    logo: 'https://img.rtve.es/v/6543016/',
+    logo: 'https://www.rtve.es/favicon.ico',
     streamUrl: 'https://ztnr.rtve.es/ztnr/1712972.m3u8',
-    category: 'esports'
+    category: 'rtve',
+    hd: true
   }
 ];
 
-// Emissores de ràdio públiques catalanes
+// Emissores de ràdio
 const RADIO_CHANNELS = [
   {
     id: 'catradio',
     name: 'Catalunya Ràdio',
-    description: 'L\'emissora nacional de Catalunya',
-    logo: 'https://statics.ccma.cat/multimedia/jpg/5/8/1627981055885.jpg',
-    streamUrl: 'https://directes-radio-int.ccma.cat/live-content/catradio-hls/master.m3u8',
-    category: 'generalista'
+    description: "L'emissora nacional de Catalunya",
+    logo: 'https://www.3cat.cat/statics/images/favicons/catradio/apple-touch-icon-180x180.png',
+    streamUrl: 'https://directes-radio-int.3catdirectes.cat/live-content/catradio-hls/master.m3u8',
+    category: 'catradio'
   },
   {
     id: 'catinfo',
     name: 'Catalunya Informació',
     description: 'Notícies les 24 hores',
-    logo: 'https://statics.ccma.cat/multimedia/jpg/5/8/1627981055885.jpg',
-    streamUrl: 'https://directes-radio-int.ccma.cat/live-content/catinfo-hls/master.m3u8',
-    category: 'noticies'
+    logo: 'https://www.3cat.cat/statics/images/favicons/catradio/apple-touch-icon-180x180.png',
+    streamUrl: 'https://directes-radio-int.3catdirectes.cat/live-content/catinfo-hls/master.m3u8',
+    category: 'catradio'
   },
   {
     id: 'catmusica',
     name: 'Catalunya Música',
     description: 'Música clàssica i jazz',
-    logo: 'https://statics.ccma.cat/multimedia/jpg/5/8/1627981055885.jpg',
-    streamUrl: 'https://directes-radio-int.ccma.cat/live-content/catmusica-hls/master.m3u8',
-    category: 'musica'
+    logo: 'https://www.3cat.cat/statics/images/favicons/catradio/apple-touch-icon-180x180.png',
+    streamUrl: 'https://directes-radio-int.3catdirectes.cat/live-content/catmusica-hls/master.m3u8',
+    category: 'catradio'
   },
   {
-    id: 'icatfm',
+    id: 'icat',
     name: 'iCat',
     description: 'Música alternativa i cultura',
-    logo: 'https://statics.ccma.cat/multimedia/jpg/5/8/1627981055885.jpg',
-    streamUrl: 'https://directes-radio-int.ccma.cat/live-content/icat-hls/master.m3u8',
-    category: 'musica'
+    logo: 'https://www.3cat.cat/statics/images/favicons/catradio/apple-touch-icon-180x180.png',
+    streamUrl: 'https://directes-radio-int.3catdirectes.cat/live-content/icat-hls/master.m3u8',
+    category: 'catradio'
   },
   {
     id: 'rne1',
     name: 'RNE 1',
     description: 'Radio Nacional de España',
-    logo: 'https://img.rtve.es/v/6543019/',
+    logo: 'https://www.rtve.es/favicon.ico',
     streamUrl: 'https://ztnr.rtve.es/ztnr/rne_r1_096.m3u8',
-    category: 'generalista'
+    category: 'rne'
   },
   {
     id: 'rne5',
     name: 'Radio 5',
-    description: 'Notícies i esports',
-    logo: 'https://img.rtve.es/v/6543022/',
+    description: 'Notícies tot el dia',
+    logo: 'https://www.rtve.es/favicon.ico',
     streamUrl: 'https://ztnr.rtve.es/ztnr/rne_r5_096.m3u8',
-    category: 'noticies'
-  },
-  {
-    id: 'rneclasica',
-    name: 'Radio Clásica',
-    description: 'Música clàssica',
-    logo: 'https://img.rtve.es/v/6543025/',
-    streamUrl: 'https://ztnr.rtve.es/ztnr/rne_rca_096.m3u8',
-    category: 'musica'
+    category: 'rne'
   },
   {
     id: 'radio3',
     name: 'Radio 3',
     description: 'Música i cultura',
-    logo: 'https://img.rtve.es/v/6543028/',
+    logo: 'https://www.rtve.es/favicon.ico',
     streamUrl: 'https://ztnr.rtve.es/ztnr/rne_r3_096.m3u8',
-    category: 'musica'
+    category: 'rne'
+  },
+  {
+    id: 'rneclasica',
+    name: 'Radio Clásica',
+    description: 'Música clàssica',
+    logo: 'https://www.rtve.es/favicon.ico',
+    streamUrl: 'https://ztnr.rtve.es/ztnr/rne_rca_096.m3u8',
+    category: 'rne'
   }
 ];
 
+const CATEGORIES = {
+  tv: [
+    { id: 'all', name: 'Tots' },
+    { id: '3cat', name: '3Cat' },
+    { id: '3cat-fast', name: '3Cat FAST' },
+    { id: 'rtve', name: 'RTVE' }
+  ],
+  radio: [
+    { id: 'all', name: 'Totes' },
+    { id: 'catradio', name: 'Catalunya Ràdio' },
+    { id: 'rne', name: 'RNE' }
+  ]
+};
+
 function TV() {
   const [activeTab, setActiveTab] = useState('tv');
-  const [playingChannel, setPlayingChannel] = useState(null);
   const [filter, setFilter] = useState('all');
+  const [playingChannel, setPlayingChannel] = useState(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const channels = activeTab === 'tv' ? TV_CHANNELS : RADIO_CHANNELS;
+  const categories = CATEGORIES[activeTab];
 
   const filteredChannels = filter === 'all'
     ? channels
     : channels.filter(ch => ch.category === filter);
-
-  const categories = [...new Set(channels.map(ch => ch.category))];
 
   const handlePlay = (channel) => {
     setPlayingChannel(channel);
@@ -206,124 +251,155 @@ function TV() {
 
   const handleClose = () => {
     setPlayingChannel(null);
+    setIsFullscreen(false);
+  };
+
+  const toggleFullscreen = () => {
+    setIsFullscreen(!isFullscreen);
   };
 
   return (
-    <div className="tv-container">
+    <div className="tv-page">
       {/* Player Modal */}
       {playingChannel && (
-        <div className="tv-player-overlay" onClick={handleClose}>
-          <div className="tv-player-container" onClick={e => e.stopPropagation()}>
-            <div className="tv-player-header">
-              <div className="tv-player-info">
-                <img src={playingChannel.logo} alt={playingChannel.name} className="tv-player-logo" />
-                <div>
-                  <h2>{playingChannel.name}</h2>
-                  <p>{playingChannel.description}</p>
-                </div>
-              </div>
-              <button className="tv-player-close" onClick={handleClose}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              </button>
-            </div>
-            <div className="tv-player-video">
+        <div className={`tv-player-modal ${isFullscreen ? 'fullscreen' : ''}`}>
+          <div className="tv-player-wrapper">
+            {/* Video/Audio Player */}
+            <div className="tv-player-content">
               {activeTab === 'tv' ? (
                 <video
                   autoPlay
                   controls
-                  src={playingChannel.streamUrl}
-                  style={{ width: '100%', height: '100%', background: '#000' }}
+                  playsInline
+                  className="tv-video-player"
                 >
-                  El teu navegador no suporta vídeo HTML5.
+                  <source src={playingChannel.streamUrl} type="application/x-mpegURL" />
+                  El teu navegador no suporta vídeo HLS.
                 </video>
               ) : (
-                <audio
-                  autoPlay
-                  controls
-                  src={playingChannel.streamUrl}
-                  style={{ width: '100%', marginTop: '40%' }}
-                >
-                  El teu navegador no suporta àudio HTML5.
-                </audio>
+                <div className="radio-player-visual">
+                  <div className="radio-wave">
+                    <span></span><span></span><span></span><span></span><span></span>
+                  </div>
+                  <audio autoPlay controls src={playingChannel.streamUrl}>
+                    El teu navegador no suporta àudio.
+                  </audio>
+                </div>
               )}
             </div>
+
+            {/* Player Controls Bar */}
+            <div className="tv-player-bar">
+              <div className="player-channel-info">
+                <div className="player-live-badge">
+                  <LiveIcon /> EN DIRECTE
+                </div>
+                <h2>{playingChannel.name}</h2>
+                <p>{playingChannel.description}</p>
+              </div>
+              <div className="player-controls">
+                <button className="player-btn" onClick={toggleFullscreen}>
+                  {isFullscreen ? 'Minimitzar' : 'Pantalla completa'}
+                </button>
+                <button className="player-btn close-btn" onClick={handleClose}>
+                  <CloseIcon />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      <div className="tv-header">
-        <div className="tv-title">
-          <span className="icon">{activeTab === 'tv' ? <TvIcon /> : <RadioIcon />}</span>
-          <h1>{activeTab === 'tv' ? 'Televisió en Directe' : 'Ràdio en Directe'}</h1>
+      {/* Header */}
+      <header className="tv-header">
+        <div className="tv-header-content">
+          <h1>
+            {activeTab === 'tv' ? 'Televisió en Directe' : 'Ràdio en Directe'}
+          </h1>
+          <p className="tv-subtitle">
+            Canals públics gratuïts i legals
+          </p>
         </div>
 
-        <div className="tv-tabs">
+        {/* Tab Switcher */}
+        <div className="tv-tab-switcher">
           <button
-            className={activeTab === 'tv' ? 'active' : ''}
+            className={`tab-btn ${activeTab === 'tv' ? 'active' : ''}`}
             onClick={() => { setActiveTab('tv'); setFilter('all'); }}
           >
-            <TvIcon /> Televisió
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect>
+              <polyline points="17 2 12 7 7 2"></polyline>
+            </svg>
+            Televisió
           </button>
           <button
-            className={activeTab === 'radio' ? 'active' : ''}
+            className={`tab-btn ${activeTab === 'radio' ? 'active' : ''}`}
             onClick={() => { setActiveTab('radio'); setFilter('all'); }}
           >
-            <RadioIcon /> Ràdio
+            <VolumeIcon />
+            Ràdio
           </button>
         </div>
-      </div>
+      </header>
 
-      <div className="tv-filters">
-        <button
-          className={filter === 'all' ? 'active' : ''}
-          onClick={() => setFilter('all')}
-        >
-          Tots
-        </button>
+      {/* Category Filter */}
+      <div className="tv-categories">
         {categories.map(cat => (
           <button
-            key={cat}
-            className={filter === cat ? 'active' : ''}
-            onClick={() => setFilter(cat)}
+            key={cat.id}
+            className={`category-btn ${filter === cat.id ? 'active' : ''}`}
+            onClick={() => setFilter(cat.id)}
           >
-            {cat.charAt(0).toUpperCase() + cat.slice(1)}
+            {cat.name}
           </button>
         ))}
       </div>
 
-      <div className="tv-grid">
-        {filteredChannels.map((channel) => (
+      {/* Channels Grid */}
+      <div className="tv-channels-grid">
+        {filteredChannels.map(channel => (
           <div
             key={channel.id}
-            className="tv-card"
+            className="tv-channel-card"
             onClick={() => handlePlay(channel)}
           >
-            <div className="tv-card-logo">
-              <img src={channel.logo} alt={channel.name} />
-              <div className="tv-card-play">
-                <PlayIcon size={32} />
+            <div className="channel-logo-wrapper">
+              <img
+                src={channel.logo}
+                alt={channel.name}
+                className="channel-logo"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'flex';
+                }}
+              />
+              <div className="channel-logo-fallback" style={{ display: 'none' }}>
+                {channel.name.charAt(0)}
               </div>
-              <div className="tv-card-live">
-                <LiveIcon /> EN DIRECTE
+              <div className="channel-play-overlay">
+                <PlayIcon size={40} />
               </div>
+              <div className="channel-live-indicator">
+                <LiveIcon /> DIRECTE
+              </div>
+              {channel.hd && <span className="channel-hd-badge">HD</span>}
             </div>
-            <div className="tv-card-info">
+            <div className="channel-info">
               <h3>{channel.name}</h3>
               <p>{channel.description}</p>
-              <span className="tv-card-category">{channel.category}</span>
             </div>
           </div>
         ))}
       </div>
 
-      {filteredChannels.length === 0 && (
-        <div className="tv-empty">
-          <p>No hi ha canals disponibles en aquesta categoria</p>
-        </div>
-      )}
+      {/* Attribution */}
+      <footer className="tv-footer">
+        <p>
+          Streams proporcionats per <a href="https://github.com/LaQuay/TDTChannels" target="_blank" rel="noopener noreferrer">TDTChannels</a>.
+          100% legal i gratuït.
+        </p>
+      </footer>
     </div>
   );
 }
