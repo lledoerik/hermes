@@ -6,10 +6,10 @@
   right: 0;
   height: 70px;
   background: rgba(15, 23, 42, 0.85);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(16px);
   z-index: 1000;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  transition: background 0.3s;
+  border-bottom: 1px solid var(--border-light);
+  transition: background var(--transition-normal);
 }
 
 .navbar.scrolled {
@@ -54,10 +54,10 @@
 }
 
 .nav-link {
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 15px;
-  font-weight: 500;
-  transition: color 0.3s;
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  transition: color var(--transition-normal);
   position: relative;
   cursor: pointer;
   background: none;
@@ -67,7 +67,7 @@
 
 .nav-link:hover,
 .nav-link.active {
-  color: white;
+  color: var(--text-primary);
 }
 
 .nav-link::after {
@@ -77,8 +77,8 @@
   left: 0;
   width: 0;
   height: 2px;
-  background: #328492;
-  transition: width 0.3s;
+  background: var(--color-primary);
+  transition: width var(--transition-normal);
 }
 
 .nav-link:hover::after,
@@ -170,15 +170,15 @@
 .profile-avatar {
   width: 36px;
   height: 36px;
-  background: #328492;
-  color: white;
-  border-radius: 50%;
+  background: var(--color-primary);
+  color: var(--text-primary);
+  border-radius: var(--radius-circle);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   font-size: 16px;
-  transition: transform 0.3s;
+  transition: transform var(--transition-normal);
 }
 
 .profile-button:hover .profile-avatar {
@@ -191,10 +191,10 @@
   right: 0;
   background: rgba(30, 41, 59, 0.95);
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
   min-width: 250px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-xl);
   animation: dropdownFade 0.2s ease;
   overflow: visible;
   padding-top: 10px;
@@ -232,34 +232,34 @@
 
 .dropdown-divider {
   height: 1px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--border-light);
 }
 
 .dropdown-item {
   width: 100%;
-  padding: 12px 15px;
+  padding: var(--space-md) var(--space-lg);
   background: none;
   border: none;
-  color: white;
+  color: var(--text-primary);
   text-align: left;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background var(--transition-fast);
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-md);
 }
 
 .dropdown-item:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-glass-hover);
 }
 
 .dropdown-item.admin {
-  color: #328492;
+  color: var(--color-primary);
 }
 
 .dropdown-item.logout {
-  color: #ef4444;
+  color: var(--color-error);
 }
 
 .dropdown-item.logout:hover {
@@ -270,22 +270,22 @@
 .login-button-nav {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-lg);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
   border: none;
-  border-radius: 8px;
-  color: white;
-  font-size: 14px;
-  font-weight: 500;
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all var(--transition-normal);
   text-decoration: none;
 }
 
 .login-button-nav:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  box-shadow: var(--shadow-primary);
 }
 
 .login-button-nav svg {
