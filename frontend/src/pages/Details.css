@@ -627,16 +627,17 @@
     font-size: 15px;
   }
 
-  /* Seasons: wrap en lloc de scroll en mòbil */
+  /* Seasons: scroll horitzontal en mòbil */
   .seasons-scroll-container {
-    overflow-x: visible;
-    overflow-y: visible;
-    margin: 0;
-    padding: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    margin: 0 -4%;
+    padding: 0 4%;
+    -webkit-overflow-scrolling: touch;
   }
 
   .seasons-list {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 8px;
   }
 
