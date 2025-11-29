@@ -101,7 +101,7 @@ function ContentCard({ item, type, onClick }) {
       <div className="video-card-image">
         {hasImage ? (
           <img
-            src={`${API_URL}/api/images/${type}/${item.id}/poster`}
+            src={`${API_URL}/api/image/poster/${item.id}`}
             alt={item.name}
             onError={(e) => {
               e.target.style.display = 'none';
