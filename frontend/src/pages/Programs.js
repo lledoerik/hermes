@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Programs.css';
 
@@ -149,8 +149,6 @@ function Programs() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const searchTimeoutRef = useRef(null);
-
   // Load content from local library
   useEffect(() => {
     async function loadContent() {
@@ -216,9 +214,9 @@ function Programs() {
   // Handle item click
   const handleItemClick = (item, type) => {
     if (type === 'movies') {
-      navigate(`/details/movie/${item.id}`);
+      navigate(`/movies/${item.id}`);
     } else {
-      navigate(`/details/series/${item.id}`);
+      navigate(`/series/${item.id}`);
     }
   };
 
