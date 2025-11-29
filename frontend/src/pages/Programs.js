@@ -1,291 +1,180 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import React from 'react';
 import './Programs.css';
 
-const API_URL = window.location.hostname === 'localhost'
-  ? 'http://localhost:8000'
-  : '';
-
-axios.defaults.baseURL = API_URL;
-
 // SVG Icons
-const PlayIcon = ({ size = 24 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-    <polygon points="5 3 19 12 5 21 5 3"></polygon>
-  </svg>
-);
-
-const SearchIcon = () => (
+const ExternalLinkIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <circle cx="11" cy="11" r="8"></circle>
-    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-  </svg>
-);
-
-const CloseIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <line x1="18" y1="6" x2="6" y2="18"></line>
-    <line x1="6" y1="6" x2="18" y2="18"></line>
+    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+    <polyline points="15 3 21 3 21 9"></polyline>
+    <line x1="10" y1="14" x2="21" y2="3"></line>
   </svg>
 );
 
 const TvIcon = () => (
-  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
     <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect>
     <polyline points="17 2 12 7 7 2"></polyline>
   </svg>
 );
 
-const MovieIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
-    <line x1="7" y1="2" x2="7" y2="22"></line>
-    <line x1="17" y1="2" x2="17" y2="22"></line>
-    <line x1="2" y1="12" x2="22" y2="12"></line>
-  </svg>
-);
+// Programes destacats de 3Cat
+const FEATURED_PROGRAMS = [
+  {
+    id: 'polonia',
+    name: 'Polònia',
+    description: 'Sàtira política amb imitacions dels personatges més destacats',
+    image: 'https://statics.3cat.cat/multimedia/jpg/9/1/1699954684819.jpg',
+    url: 'https://www.3cat.cat/3cat/polonia/'
+  },
+  {
+    id: 'telenoticies',
+    name: 'Telenotícies',
+    description: 'Informatiu de referència de la televisió catalana',
+    image: 'https://statics.3cat.cat/multimedia/jpg/5/0/1697017994305.jpg',
+    url: 'https://www.3cat.cat/3cat/telenoticies/'
+  },
+  {
+    id: 'apm',
+    name: 'APM?',
+    description: 'El millor de la televisió amb humor',
+    image: 'https://statics.3cat.cat/multimedia/jpg/6/4/1697017895746.jpg',
+    url: 'https://www.3cat.cat/3cat/apm/'
+  },
+  {
+    id: 'criatures',
+    name: 'Crims',
+    description: 'Docusèrie sobre casos criminals reals',
+    image: 'https://statics.3cat.cat/multimedia/jpg/3/9/1697017843593.jpg',
+    url: 'https://www.3cat.cat/3cat/crims/'
+  },
+  {
+    id: 'elsuperchef',
+    name: 'El Superxef',
+    description: 'Competició culinària amb talent català',
+    image: 'https://statics.3cat.cat/multimedia/jpg/8/0/1697017790408.jpg',
+    url: 'https://www.3cat.cat/3cat/el-superxef/'
+  },
+  {
+    id: 'fora-de-joc',
+    name: 'Fora de Joc',
+    description: "Debat esportiu amb els millors analistes",
+    image: 'https://statics.3cat.cat/multimedia/jpg/1/2/1697017747321.jpg',
+    url: 'https://www.3cat.cat/3cat/fora-de-joc/'
+  }
+];
 
-const SeriesIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect>
-    <polyline points="17 2 12 7 7 2"></polyline>
-  </svg>
-);
+const CATEGORIES = [
+  { id: 'tots', name: 'Tots els programes', url: 'https://www.3cat.cat/3cat/programes/' },
+  { id: 'series', name: 'Sèries', url: 'https://www.3cat.cat/3cat/series/' },
+  { id: 'pelis', name: 'Pel·lícules', url: 'https://www.3cat.cat/3cat/cinema/' },
+  { id: 'documentals', name: 'Documentals', url: 'https://www.3cat.cat/3cat/documentals/' },
+  { id: 'info', name: 'Informatius', url: 'https://www.3cat.cat/3cat/informatius/' },
+  { id: 'infantil', name: 'Infantil', url: 'https://www.3cat.cat/3cat/sx3/' }
+];
 
 function Programs() {
-  const [videos, setVideos] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filter, setFilter] = useState('all');
-  const [playingVideo, setPlayingVideo] = useState(null);
-  const [videoDetails, setVideoDetails] = useState(null);
-
-  const loadVideos = useCallback(async () => {
-    setLoading(true);
-    try {
-      let url = '/api/3cat/latest?limit=100';
-      if (filter !== 'all') {
-        url += `&content_type=${filter}`;
-      }
-      const response = await axios.get(url);
-      setVideos(response.data.videos || []);
-    } catch (error) {
-      console.error('Error loading 3Cat content:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [filter]);
-
-  useEffect(() => {
-    loadVideos();
-  }, [loadVideos]);
-
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) {
-      loadVideos();
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await axios.get(`/api/3cat/search?q=${encodeURIComponent(searchQuery)}`);
-      let results = response.data.videos || [];
-      if (filter !== 'all') {
-        results = results.filter(v => v.type === filter);
-      }
-      setVideos(results);
-    } catch (error) {
-      console.error('Error searching 3Cat:', error);
-    } finally {
-      setLoading(false);
-    }
+  const openExternal = (url) => {
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
-
-  const handlePlay = async (video) => {
-    try {
-      const response = await axios.get(`/api/3cat/videos/${video.id}`);
-      setVideoDetails(response.data);
-      setPlayingVideo(video);
-    } catch (error) {
-      console.error('Error getting video details:', error);
-    }
-  };
-
-  const handleClose = () => {
-    setPlayingVideo(null);
-    setVideoDetails(null);
-  };
-
-  const formatDuration = (seconds) => {
-    if (!seconds) return '';
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) {
-      return `${hours}h ${minutes}min`;
-    }
-    return `${minutes} min`;
-  };
-
-  const getTypeIcon = (type) => {
-    switch (type) {
-      case 'movie': return <MovieIcon />;
-      case 'series': return <SeriesIcon />;
-      default: return <TvIcon />;
-    }
-  };
-
-  const getTypeLabel = (type) => {
-    switch (type) {
-      case 'movie': return 'Pel·lícula';
-      case 'series': return 'Sèrie';
-      default: return 'Programa';
-    }
-  };
-
-  if (loading && videos.length === 0) {
-    return (
-      <div className="loading-screen">
-        <img src="/img/hermes.png" alt="Hermes" className="loading-logo" />
-        <div className="loading-text">Carregant contingut de 3Cat...</div>
-      </div>
-    );
-  }
 
   return (
-    <div className="programs-container">
-      {/* Video Player Modal */}
-      {playingVideo && videoDetails && (
-        <div className="program-player-overlay" onClick={handleClose}>
-          <div className="program-player-container" onClick={e => e.stopPropagation()}>
-            <div className="program-player-header">
-              <div className="program-player-info">
-                <span className="program-type-badge">{getTypeLabel(playingVideo.type)}</span>
-                <h2>{playingVideo.title}</h2>
-                {playingVideo.program && <p className="program-name">{playingVideo.program}</p>}
-              </div>
-              <button className="program-player-close" onClick={handleClose}>
-                <CloseIcon />
-              </button>
-            </div>
-            <div className="program-player-video">
-              {videoDetails.stream_url ? (
-                <video
-                  autoPlay
-                  controls
-                  src={videoDetails.stream_url}
-                  style={{ width: '100%', height: '100%', background: '#000' }}
-                >
-                  El teu navegador no suporta vídeo HTML5.
-                </video>
-              ) : (
-                <div className="no-stream">
-                  <p>No s'ha pogut carregar el vídeo.</p>
-                  <p>Prova a veure'l directament a 3Cat.</p>
-                </div>
-              )}
-            </div>
-            {playingVideo.description && (
-              <div className="program-player-description">
-                <p>{playingVideo.description}</p>
-              </div>
-            )}
+    <div className="programs-page">
+      {/* Hero Section */}
+      <section className="programs-hero">
+        <div className="programs-hero-content">
+          <div className="programs-logo">
+            <img src="https://www.3cat.cat/statics/images/favicons/tv3/apple-touch-icon-180x180.png" alt="3Cat" />
           </div>
-        </div>
-      )}
-
-      <div className="programs-header">
-        <div className="programs-title">
-          <span className="icon"><TvIcon /></span>
-          <div>
-            <h1>Programes 3Cat</h1>
-            <p className="programs-subtitle">Contingut de la televisió pública catalana</p>
-          </div>
-        </div>
-
-        <form className="programs-search" onSubmit={handleSearch}>
-          <input
-            type="text"
-            placeholder="Cerca programes, pel·lícules, sèries..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          <button type="submit">
-            <SearchIcon />
+          <h1>Programes 3Cat</h1>
+          <p className="programs-hero-subtitle">
+            Tot el contingut de la televisió pública catalana: sèries, pel·lícules, documentals i molt més.
+            Contingut 100% legal i gratuït.
+          </p>
+          <button
+            className="programs-cta-btn"
+            onClick={() => openExternal('https://www.3cat.cat')}
+          >
+            Visita 3Cat.cat <ExternalLinkIcon />
           </button>
-        </form>
-      </div>
-
-      <div className="programs-filters">
-        <button
-          className={filter === 'all' ? 'active' : ''}
-          onClick={() => setFilter('all')}
-        >
-          Tot
-        </button>
-        <button
-          className={filter === 'movie' ? 'active' : ''}
-          onClick={() => setFilter('movie')}
-        >
-          <MovieIcon /> Pel·lícules
-        </button>
-        <button
-          className={filter === 'series' ? 'active' : ''}
-          onClick={() => setFilter('series')}
-        >
-          <SeriesIcon /> Sèries
-        </button>
-        <button
-          className={filter === 'program' ? 'active' : ''}
-          onClick={() => setFilter('program')}
-        >
-          <TvIcon /> Programes
-        </button>
-      </div>
-
-      {videos.length === 0 && !loading ? (
-        <div className="programs-empty">
-          <TvIcon />
-          <h2>No s'ha trobat contingut</h2>
-          <p>Prova amb una altra cerca o filtre</p>
         </div>
-      ) : (
-        <div className="programs-grid">
-          {videos.map((video) => (
-            <div
-              key={video.id}
-              className="program-card"
-              onClick={() => handlePlay(video)}
+      </section>
+
+      {/* Categories */}
+      <section className="programs-categories">
+        <h2>Categories</h2>
+        <div className="categories-grid">
+          {CATEGORIES.map(cat => (
+            <button
+              key={cat.id}
+              className="category-card"
+              onClick={() => openExternal(cat.url)}
             >
-              <div className="program-card-image">
-                {video.image ? (
-                  <img src={video.image} alt={video.title} />
-                ) : (
-                  <div className="program-card-placeholder">
-                    {getTypeIcon(video.type)}
-                  </div>
-                )}
-                <div className="program-card-play">
-                  <PlayIcon size={32} />
+              <span>{cat.name}</span>
+              <ExternalLinkIcon />
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* Featured Programs */}
+      <section className="programs-featured">
+        <h2>Programes destacats</h2>
+        <div className="featured-grid">
+          {FEATURED_PROGRAMS.map(program => (
+            <div
+              key={program.id}
+              className="featured-card"
+              onClick={() => openExternal(program.url)}
+            >
+              <div className="featured-image">
+                <img
+                  src={program.image}
+                  alt={program.name}
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    e.target.nextSibling.style.display = 'flex';
+                  }}
+                />
+                <div className="featured-placeholder" style={{ display: 'none' }}>
+                  <TvIcon />
                 </div>
-                <span className="program-card-type">{getTypeLabel(video.type)}</span>
-                {video.duration && (
-                  <span className="program-card-duration">{formatDuration(video.duration)}</span>
-                )}
+                <div className="featured-overlay">
+                  <span>Veure a 3Cat</span>
+                  <ExternalLinkIcon />
+                </div>
               </div>
-              <div className="program-card-info">
-                <h3>{video.title}</h3>
-                {video.program && <p className="program-card-program">{video.program}</p>}
-                {video.date && (
-                  <span className="program-card-date">
-                    {new Date(video.date).toLocaleDateString('ca-ES')}
-                  </span>
-                )}
+              <div className="featured-info">
+                <h3>{program.name}</h3>
+                <p>{program.description}</p>
               </div>
             </div>
           ))}
         </div>
-      )}
+      </section>
+
+      {/* Info Section */}
+      <section className="programs-info">
+        <div className="info-card">
+          <TvIcon />
+          <h3>Per què 3Cat?</h3>
+          <p>
+            3Cat és la plataforma de streaming de la Corporació Catalana de Mitjans Audiovisuals (CCMA).
+            Ofereix tot el contingut de TV3, 3/24, 33, SX3 i Esport3 de forma gratuïta.
+          </p>
+          <ul>
+            <li>Més de 75.000 vídeos disponibles</li>
+            <li>Contingut en català</li>
+            <li>100% legal i gratuït</li>
+            <li>Sèries, pel·lícules, documentals i informatius</li>
+          </ul>
+          <button
+            className="info-btn"
+            onClick={() => openExternal('https://www.3cat.cat')}
+          >
+            Descobreix 3Cat <ExternalLinkIcon />
+          </button>
+        </div>
+      </section>
     </div>
   );
 }
