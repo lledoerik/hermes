@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import Hls from 'hls.js';
 import './TV.css';
 
 // ============================================================
@@ -264,8 +265,77 @@ function TV() {
   const channelInfoTimeoutRef = useRef(null);
   const lastTapRef = useRef(0);
   const tapTimeoutRef = useRef(null);
+  const hlsRef = useRef(null);
 
   const skipSeconds = 10;
+
+  // HLS.js setup per streams .m3u8
+  useEffect(() => {
+    const mediaElement = mode === 'tv' ? videoRef.current : audioRef.current;
+    const streamUrl = currentChannel.streamUrl;
+
+    if (!mediaElement || !streamUrl) return;
+
+    // Destruir instància HLS anterior
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    const isHlsStream = streamUrl.includes('.m3u8');
+
+    if (isHlsStream && Hls.isSupported()) {
+      // Usar HLS.js per navegadors que no suporten HLS nativament
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: true,
+        backBufferLength: 90,
+      });
+      hlsRef.current = hls;
+
+      hls.loadSource(streamUrl);
+      hls.attachMedia(mediaElement);
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        mediaElement.play().catch(() => {});
+        setIsPlaying(true);
+        setIsLive(true);
+      });
+
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.error('HLS network error, trying to recover...');
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.error('HLS media error, trying to recover...');
+              hls.recoverMediaError();
+              break;
+            default:
+              console.error('HLS fatal error:', data);
+              hls.destroy();
+              break;
+          }
+        }
+      });
+    } else if (mediaElement.canPlayType('application/vnd.apple.mpegurl') || !isHlsStream) {
+      // Safari suporta HLS nativament, o és un stream directe (AAC, MP3, etc.)
+      mediaElement.src = streamUrl;
+      mediaElement.load();
+      mediaElement.play().catch(() => {});
+      setIsPlaying(true);
+      setIsLive(true);
+    }
+
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [currentChannel, mode]);
 
   const channels = mode === 'tv' ? TV_CHANNELS : RADIO_CHANNELS;
   const categories = mode === 'tv' ? TV_CATEGORIES : RADIO_CATEGORIES;
@@ -357,6 +427,7 @@ function TV() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channels, currentChannel, isFullscreen, showChannelList, resetControlsTimeout]);
 
   // Mostrar info del canal breument
@@ -697,16 +768,13 @@ function TV() {
         {mode === 'tv' ? (
           <video
             ref={videoRef}
-            autoPlay
             playsInline
             muted={isMuted}
             className="tv-video-player"
-            key={currentChannel.streamUrl}
+            key={currentChannel.id}
             onPlay={handleVideoPlay}
             onPause={() => setIsPlaying(false)}
-          >
-            <source src={currentChannel.streamUrl} type="application/x-mpegURL" />
-          </video>
+          />
         ) : (
           <div className="tv-radio-visual">
             <div className="radio-visualization">
@@ -723,14 +791,11 @@ function TV() {
             </div>
             <audio
               ref={audioRef}
-              autoPlay
               muted={isMuted}
-              key={currentChannel.streamUrl}
+              key={currentChannel.id}
               onPlay={() => setIsPlaying(true)}
               onPause={() => setIsPlaying(false)}
-            >
-              <source src={currentChannel.streamUrl} />
-            </audio>
+            />
           </div>
         )}
       </div>

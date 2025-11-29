@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Optional, List, Dict
 from contextlib import contextmanager
 
-from fastapi import FastAPI, HTTPException, Depends, Query, Request, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Depends, Query, Request, BackgroundTasks, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse, Response
 from pydantic import BaseModel
@@ -3099,6 +3099,122 @@ async def update_book_by_search_result(book_id: int, cover_id: int = Query(...))
             "status": "success",
             "message": f"Portada actualitzada per '{book['title']}'",
             "cover_downloaded": True
+        }
+
+
+@app.post("/api/metadata/books/{book_id}/upload-cover")
+async def upload_book_cover(book_id: int, file: UploadFile = File(...)):
+    """
+    Puja una portada personalitzada per a un llibre.
+    Útil quan Open Library no troba el llibre.
+    """
+    # Validar tipus de fitxer
+    if not file.content_type or not file.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail="El fitxer ha de ser una imatge")
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id, title, file_path FROM books WHERE id = ?", (book_id,))
+        book = cursor.fetchone()
+
+        if not book:
+            raise HTTPException(status_code=404, detail="Llibre no trobat")
+
+        book_path = Path(book["file_path"]).parent
+
+        # Determinar extensió
+        ext = '.jpg'
+        if file.content_type == 'image/png':
+            ext = '.png'
+        elif file.content_type == 'image/webp':
+            ext = '.webp'
+
+        cover_path = book_path / f"cover{ext}"
+
+        # Esborrar portada existent si n'hi ha
+        for old_ext in ['.jpg', '.png', '.webp', '.jpeg']:
+            old_cover = book_path / f"cover{old_ext}"
+            if old_cover.exists():
+                try:
+                    old_cover.unlink()
+                except Exception:
+                    pass
+
+        # Guardar nova portada
+        try:
+            content = await file.read()
+            with open(cover_path, 'wb') as f:
+                f.write(content)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error guardant la portada: {e}")
+
+        # Actualitzar base de dades
+        cursor.execute(
+            "UPDATE books SET cover = ? WHERE id = ?",
+            (str(cover_path), book_id)
+        )
+        conn.commit()
+
+        return {
+            "status": "success",
+            "message": f"Portada pujada per '{book['title']}'",
+            "cover_path": str(cover_path)
+        }
+
+
+@app.post("/api/metadata/audiobooks/{audiobook_id}/upload-cover")
+async def upload_audiobook_cover(audiobook_id: int, file: UploadFile = File(...)):
+    """
+    Puja una portada personalitzada per a un audiollibres.
+    """
+    if not file.content_type or not file.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail="El fitxer ha de ser una imatge")
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id, title, folder_path FROM audiobooks WHERE id = ?", (audiobook_id,))
+        audiobook = cursor.fetchone()
+
+        if not audiobook:
+            raise HTTPException(status_code=404, detail="Audiollibres no trobat")
+
+        folder_path = Path(audiobook["folder_path"])
+
+        ext = '.jpg'
+        if file.content_type == 'image/png':
+            ext = '.png'
+        elif file.content_type == 'image/webp':
+            ext = '.webp'
+
+        cover_path = folder_path / f"cover{ext}"
+
+        for old_ext in ['.jpg', '.png', '.webp', '.jpeg']:
+            old_cover = folder_path / f"cover{old_ext}"
+            if old_cover.exists():
+                try:
+                    old_cover.unlink()
+                except Exception:
+                    pass
+
+        try:
+            content = await file.read()
+            with open(cover_path, 'wb') as f:
+                f.write(content)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error guardant la portada: {e}")
+
+        cursor.execute(
+            "UPDATE audiobooks SET cover = ? WHERE id = ?",
+            (str(cover_path), audiobook_id)
+        )
+        conn.commit()
+
+        return {
+            "status": "success",
+            "message": f"Portada pujada per '{audiobook['title']}'",
+            "cover_path": str(cover_path)
         }
 
 
