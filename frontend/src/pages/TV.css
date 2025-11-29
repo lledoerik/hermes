@@ -1,0 +1,352 @@
+/* TV Page Styles */
+
+.tv-container {
+  min-height: 100vh;
+  padding: 100px 4% 60px;
+}
+
+.tv-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.tv-title {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.tv-title .icon {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tv-title .icon svg {
+  stroke: white;
+}
+
+.tv-title h1 {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.tv-tabs {
+  display: flex;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.25rem;
+  border-radius: 12px;
+}
+
+.tv-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.tv-tabs button:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tv-tabs button.active {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+}
+
+.tv-tabs button svg {
+  width: 20px;
+  height: 20px;
+}
+
+.tv-filters {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 2rem;
+}
+
+.tv-filters button {
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.tv-filters button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.tv-filters button.active {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #ef4444;
+}
+
+/* TV Grid */
+.tv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.tv-card {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.tv-card:hover {
+  transform: translateY(-5px);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+}
+
+.tv-card-logo {
+  position: relative;
+  aspect-ratio: 16/9;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.tv-card-logo img {
+  width: 80%;
+  height: 80%;
+  object-fit: contain;
+}
+
+.tv-card-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  width: 60px;
+  height: 60px;
+  background: rgba(239, 68, 68, 0.9);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.tv-card-play svg {
+  fill: white;
+  margin-left: 4px;
+}
+
+.tv-card:hover .tv-card-play {
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.tv-card-live {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.6rem;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: white;
+  letter-spacing: 0.5px;
+}
+
+.tv-card-live svg {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.tv-card-info {
+  padding: 1.25rem;
+}
+
+.tv-card-info h3 {
+  margin: 0 0 0.35rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: white;
+}
+
+.tv-card-info p {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.tv-card-category {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.7);
+  text-transform: capitalize;
+}
+
+.tv-empty {
+  text-align: center;
+  padding: 4rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Player Overlay */
+.tv-player-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 2rem;
+}
+
+.tv-player-container {
+  width: 100%;
+  max-width: 1200px;
+  background: #0f172a;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+}
+
+.tv-player-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tv-player-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.tv-player-logo {
+  width: 50px;
+  height: 50px;
+  border-radius: 10px;
+  object-fit: contain;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.tv-player-info h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.tv-player-info p {
+  margin: 0.25rem 0 0 0;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.tv-player-close {
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 10px;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.tv-player-close:hover {
+  background: rgba(239, 68, 68, 0.5);
+}
+
+.tv-player-video {
+  aspect-ratio: 16/9;
+  background: #000;
+}
+
+.tv-player-video video,
+.tv-player-video audio {
+  width: 100%;
+  height: 100%;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .tv-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .tv-title h1 {
+    font-size: 1.5rem;
+  }
+
+  .tv-tabs {
+    width: 100%;
+  }
+
+  .tv-tabs button {
+    flex: 1;
+    justify-content: center;
+    padding: 0.6rem 1rem;
+  }
+
+  .tv-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tv-player-overlay {
+    padding: 0;
+  }
+
+  .tv-player-container {
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .tv-player-video {
+    height: calc(100% - 80px);
+    aspect-ratio: auto;
+  }
+}

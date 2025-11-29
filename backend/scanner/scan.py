@@ -11,6 +11,7 @@ import sqlite3
 import hashlib
 import subprocess
 import logging
+import asyncio
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -21,12 +22,26 @@ from config import settings
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+def get_tmdb_api_key() -> Optional[str]:
+    """Get TMDB API key from config file or environment"""
+    # Try config file first
+    config_path = settings.BASE_DIR / "storage" / "tmdb_key.txt"
+    if config_path.exists():
+        key = config_path.read_text().strip()
+        if key:
+            return key
+    # Fall back to environment variable
+    return os.environ.get("TMDB_API_KEY", "")
+
 class HermesScanner:
     """Scanner per detectar i catalogar media"""
-    
-    def __init__(self):
+
+    def __init__(self, auto_fetch_metadata: bool = True):
         self.db_path = settings.DATABASE_PATH
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self.auto_fetch_metadata = auto_fetch_metadata
+        self.tmdb_api_key = get_tmdb_api_key() if auto_fetch_metadata else None
         self._init_database()
         
     def _init_database(self):
@@ -158,13 +173,104 @@ class HermesScanner:
         conn.commit()
         conn.close()
         
+    def _fetch_metadata_for_item(self, series_id: int, name: str, media_type: str, item_path: Path) -> bool:
+        """
+        Fetch metadata from TMDB for a series/movie that doesn't have metadata yet.
+        Only fetches if tmdb_id is null and auto_fetch is enabled.
+        Returns True if metadata was fetched successfully.
+        """
+        if not self.auto_fetch_metadata or not self.tmdb_api_key:
+            return False
+
+        try:
+            from backend.metadata.tmdb import TMDBClient
+
+            # Run async code in sync context
+            async def fetch():
+                client = TMDBClient(self.tmdb_api_key)
+
+                # Clean name for search
+                clean_name = re.sub(r'\s*\(\d{4}\)\s*$', '', name)  # Remove year
+                clean_name = re.sub(r'\s*-\s*(720p|1080p|4K|HDR).*$', '', clean_name, flags=re.IGNORECASE)
+
+                # Extract year if present
+                year_match = re.search(r'\((\d{4})\)', name)
+                year = int(year_match.group(1)) if year_match else None
+
+                # Determine poster/backdrop paths
+                poster_path = item_path / "folder.jpg" if item_path.is_dir() else item_path.parent / "folder.jpg"
+                backdrop_path = item_path / "backdrop.jpg" if item_path.is_dir() else item_path.parent / "backdrop.jpg"
+
+                # Fetch metadata based on type
+                if media_type == "movie":
+                    result = await client.fetch_movie_metadata(
+                        clean_name, year,
+                        poster_path if not poster_path.exists() else None,
+                        backdrop_path if not backdrop_path.exists() else None
+                    )
+                else:
+                    result = await client.fetch_tv_metadata(
+                        clean_name, year,
+                        poster_path if not poster_path.exists() else None,
+                        backdrop_path if not backdrop_path.exists() else None
+                    )
+
+                return result
+
+            # Run async function
+            result = asyncio.run(fetch())
+
+            if result and result.get("found"):
+                # Update database with metadata
+                conn = sqlite3.connect(self.db_path, check_same_thread=False)
+                cursor = conn.cursor()
+
+                genres_json = json.dumps(result.get("genres", []))
+
+                cursor.execute('''
+                    UPDATE series SET
+                        tmdb_id = ?,
+                        title = ?,
+                        year = ?,
+                        overview = ?,
+                        rating = ?,
+                        genres = ?,
+                        runtime = ?,
+                        poster = ?,
+                        backdrop = ?,
+                        updated_date = CURRENT_TIMESTAMP
+                    WHERE id = ? AND (tmdb_id IS NULL OR tmdb_id = 0)
+                ''', (
+                    result.get("tmdb_id"),
+                    result.get("title"),
+                    result.get("year"),
+                    result.get("overview"),
+                    result.get("rating"),
+                    genres_json,
+                    result.get("runtime"),
+                    str(poster_path) if result.get("poster_downloaded") else None,
+                    str(backdrop_path) if result.get("backdrop_downloaded") else None,
+                    series_id
+                ))
+
+                conn.commit()
+                conn.close()
+
+                logger.info(f"  → Metadades TMDB: {result.get('title')} ({result.get('year')})")
+                return True
+
+        except Exception as e:
+            logger.debug(f"  → Error obtenint metadades: {e}")
+
+        return False
+
     def scan_directory(self, base_path: str, media_type: str = "series"):
         """Escaneja un directori"""
         base = Path(base_path)
         if not base.exists():
             logger.error(f"No existeix: {base_path}")
             return
-            
+
         logger.info(f"Escanejant {base_path} ({media_type})...")
         
         conn = sqlite3.connect(self.db_path, check_same_thread=False)
@@ -231,7 +337,11 @@ class HermesScanner:
             ''', (movie_name, movie_path, str(poster) if poster else None,
                   str(backdrop) if backdrop else None))
             series_id = cursor.lastrowid
-        
+
+            # Auto-fetch metadata for new movies
+            conn.commit()  # Commit first to save the movie entry
+            self._fetch_metadata_for_item(series_id, movie_name, "movie", base_dir)
+
         # Obtenir info amb ffprobe
         metadata = self.probe_file(file_path)
         if metadata:
@@ -286,6 +396,10 @@ class HermesScanner:
 
             # Commit per assegurar que la sèrie existeix abans d'afegir episodis
             conn.commit()
+
+            # Auto-fetch metadata if new series and doesn't have metadata
+            if not existing:
+                self._fetch_metadata_for_item(series_id, series_dir.name, "series", series_dir)
 
             # Buscar temporades
             self._scan_seasons(series_dir, series_id, cursor, conn)
