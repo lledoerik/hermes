@@ -437,14 +437,15 @@ function Details() {
                 onClick={() => handlePlay(episode.id)}
               >
                 <div className="episode-thumbnail">
-                  {episode.thumbnail ? (
-                    <img
-                      src={`${API_URL}/api/image/thumbnail/${episode.id}`}
-                      alt={episode.name}
-                    />
-                  ) : (
-                    <span className="episode-number">{episode.episode_number}</span>
-                  )}
+                  <img
+                    src={`${API_URL}/api/media/${episode.id}/thumbnail`}
+                    alt={episode.name}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      e.target.nextSibling.style.display = 'flex';
+                    }}
+                  />
+                  <span className="episode-number" style={{ display: 'none' }}>{episode.episode_number}</span>
                   <div className="episode-play-icon"><PlayIcon size={20} /></div>
                   {episode.watch_progress > 0 && (
                     <div className="episode-progress">
