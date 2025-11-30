@@ -251,6 +251,11 @@ class AuthManager:
                 conn.close()
                 return {"status": "error", "message": "L'usuari ja existeix"}
 
+            # Convertir email buit a None per evitar problemes amb UNIQUE
+            email = email.strip() if email else None
+            if email == '':
+                email = None
+
             if email:
                 cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
                 if cursor.fetchone():
