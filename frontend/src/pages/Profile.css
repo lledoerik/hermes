@@ -160,6 +160,37 @@
   color: var(--text-primary);
 }
 
+.avatar-upload-section {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.file-upload-btn {
+  flex: 1;
+  padding: var(--space-md);
+  background: var(--bg-tertiary);
+  border: 2px dashed var(--border-light);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: var(--font-weight-medium);
+}
+
+.file-upload-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.upload-divider {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
 .avatar-modal .form-group {
   margin-bottom: var(--space-lg);
 }
