@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import './Programs.css';
 
 const API_URL = window.location.hostname === 'localhost'
@@ -263,6 +265,8 @@ function VideoPlayer({ video, onClose }) {
 // MAIN PROGRAMS COMPONENT
 // ============================================================
 function Programs() {
+  const navigate = useNavigate();
+  const { isAdmin, isAuthenticated } = useAuth();
   const [viewMode, setViewMode] = useState('grid');
   const [category, setCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -273,6 +277,13 @@ function Programs() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('programs'); // 'programs' or 'latest'
+
+  // Redirect non-admin users
+  useEffect(() => {
+    if (!isAuthenticated || !isAdmin) {
+      navigate('/');
+    }
+  }, [isAuthenticated, isAdmin, navigate]);
 
   // Load programs
   const loadPrograms = useCallback(async () => {
