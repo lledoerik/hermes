@@ -248,13 +248,31 @@
   50% { transform: translate(50px, 30px) scale(0.8); }
 }
 
-/* Gradient Colors */
-.gradient-movies { background: linear-gradient(to bottom right, #2563eb, #9333ea); }
-.gradient-series { background: linear-gradient(to bottom right, #9333ea, #ec4899); }
-.gradient-programs { background: linear-gradient(to bottom right, #ec4899, #ef4444); }
-.gradient-books { background: linear-gradient(to bottom right, #16a34a, #14b8a6); }
-.gradient-audiobooks { background: linear-gradient(to bottom right, #14b8a6, #06b6d4); }
-.gradient-tv { background: linear-gradient(to bottom right, #ea580c, #eab308); }
+/* Gradient Colors for floating bubbles */
+.floating-bubble.gradient-movies,
+.quick-bubble.gradient-movies {
+  background: linear-gradient(to bottom right, #2563eb, #9333ea);
+}
+.floating-bubble.gradient-series,
+.quick-bubble.gradient-series {
+  background: linear-gradient(to bottom right, #9333ea, #ec4899);
+}
+.floating-bubble.gradient-programs,
+.quick-bubble.gradient-programs {
+  background: linear-gradient(to bottom right, #ec4899, #ef4444);
+}
+.floating-bubble.gradient-books,
+.quick-bubble.gradient-books {
+  background: linear-gradient(to bottom right, #16a34a, #14b8a6);
+}
+.floating-bubble.gradient-audiobooks,
+.quick-bubble.gradient-audiobooks {
+  background: linear-gradient(to bottom right, #14b8a6, #06b6d4);
+}
+.floating-bubble.gradient-tv,
+.quick-bubble.gradient-tv {
+  background: linear-gradient(to bottom right, #ea580c, #eab308);
+}
 
 /* Card Content */
 .card-content {

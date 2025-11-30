@@ -623,7 +623,6 @@ function Player() {
     const timeDiff = now - lastTapRef.current;
     const touch = e.touches[0];
     const containerWidth = playerContainerRef.current?.offsetWidth || window.innerWidth;
-    const containerHeight = playerContainerRef.current?.offsetHeight || window.innerHeight;
     const touchX = touch.clientX;
     const touchY = touch.clientY;
 
