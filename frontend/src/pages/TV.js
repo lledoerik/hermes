@@ -219,22 +219,22 @@ const RADIO_CHANNELS = [
 
 // Categories per filtrar
 const TV_CATEGORIES = [
-  { id: 'all', name: 'Tots', icon: '📺' },
-  { id: 'autonòmica', name: 'Autonòmiques', icon: '🗺️' },
-  { id: 'notícies', name: 'Notícies', icon: '📰' },
-  { id: 'esports', name: 'Esports', icon: '⚽' },
-  { id: 'infantil', name: 'Infantil', icon: '🧸' },
-  { id: 'entreteniment', name: 'Entreteniment', icon: '🎬' },
-  { id: 'música', name: 'Música', icon: '🎵' },
-  { id: 'temàtica', name: 'Temàtiques', icon: '🎯' },
-  { id: 'local', name: 'Locals', icon: '📍' },
+  { id: 'all', name: 'Tots', icon: null },
+  { id: 'autonòmica', name: 'Autonòmiques', icon: null },
+  { id: 'notícies', name: 'Notícies', icon: null },
+  { id: 'esports', name: 'Esports', icon: null },
+  { id: 'infantil', name: 'Infantil', icon: null },
+  { id: 'entreteniment', name: 'Entreteniment', icon: null },
+  { id: 'música', name: 'Música', icon: null },
+  { id: 'temàtica', name: 'Temàtiques', icon: null },
+  { id: 'local', name: 'Locals', icon: null },
 ];
 
 const RADIO_CATEGORIES = [
-  { id: 'all', name: 'Totes', icon: '📻' },
-  { id: 'generalista', name: 'Generalistes', icon: '🎙️' },
-  { id: 'música', name: 'Música', icon: '🎵' },
-  { id: 'notícies', name: 'Notícies', icon: '📰' },
+  { id: 'all', name: 'Totes', icon: null },
+  { id: 'generalista', name: 'Generalistes', icon: null },
+  { id: 'música', name: 'Música', icon: null },
+  { id: 'notícies', name: 'Notícies', icon: null },
 ];
 
 // ============================================================
@@ -257,6 +257,8 @@ function TV() {
   const [hasAutoFullscreen, setHasAutoFullscreen] = useState(false);
   const [skipIndicator, setSkipIndicator] = useState(null); // 'left', 'right', 'center'
   const [isLive, setIsLive] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   const videoRef = useRef(null);
   const audioRef = useRef(null);
@@ -267,6 +269,7 @@ function TV() {
   const lastTapRef = useRef(0);
   const tapTimeoutRef = useRef(null);
   const hlsRef = useRef(null);
+  const loadingTimeoutRef = useRef(null);
 
   const skipSeconds = 10;
 
@@ -277,8 +280,25 @@ function TV() {
 
     if (!mediaElement || !streamUrl) return;
 
+    // Iniciar càrrega
+    setIsLoading(true);
+    setLoadError(null);
+
     // Pausar i netejar abans de canviar
     mediaElement.pause();
+
+    // Cancel·lar timeout anterior
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+    }
+
+    // Timeout per evitar càrrega infinita (15 segons)
+    loadingTimeoutRef.current = setTimeout(() => {
+      if (isLoading) {
+        setIsLoading(false);
+        setLoadError('El canal no respon. Pot estar temporalment no disponible.');
+      }
+    }, 15000);
 
     // Destruir instància HLS anterior
     if (hlsRef.current) {
@@ -296,15 +316,44 @@ function TV() {
           .then(() => {
             setIsPlaying(true);
             setIsLive(true);
+            setIsLoading(false);
+            setLoadError(null);
+            if (loadingTimeoutRef.current) {
+              clearTimeout(loadingTimeoutRef.current);
+            }
           })
           .catch((error) => {
             // Ignorar errors d'interrupció (usuari canvia de canal ràpidament)
             if (error.name !== 'AbortError') {
               console.warn('Playback error:', error.message);
+              setLoadError('Error reproduint el canal');
+              setIsLoading(false);
             }
           });
       }
     };
+
+    // Event handlers per l'element media
+    const handleCanPlay = () => {
+      setIsLoading(false);
+      setLoadError(null);
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+    };
+
+    const handleWaiting = () => {
+      setIsLoading(true);
+    };
+
+    const handleError = (e) => {
+      setIsLoading(false);
+      setLoadError('Error carregant el canal. Prova amb un altre.');
+    };
+
+    mediaElement.addEventListener('canplay', handleCanPlay);
+    mediaElement.addEventListener('waiting', handleWaiting);
+    mediaElement.addEventListener('error', handleError);
 
     if (isHlsStream && Hls.isSupported()) {
       // Usar HLS.js per navegadors que no suporten HLS nativament
@@ -360,6 +409,8 @@ function TV() {
               break;
             default:
               console.warn('HLS fatal error:', data.details);
+              setLoadError('Error amb el stream. Prova amb un altre canal.');
+              setIsLoading(false);
               hls.destroy();
               break;
           }
@@ -373,6 +424,12 @@ function TV() {
     }
 
     return () => {
+      mediaElement.removeEventListener('canplay', handleCanPlay);
+      mediaElement.removeEventListener('waiting', handleWaiting);
+      mediaElement.removeEventListener('error', handleError);
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
@@ -843,6 +900,33 @@ function TV() {
     >
       {/* Video/Audio Player */}
       <div className="tv-video-container">
+        {/* Indicador de càrrega */}
+        {isLoading && (
+          <div className="tv-loading-overlay">
+            <div className="tv-loading-spinner"></div>
+            <div className="tv-loading-text">Carregant {currentChannel.name}...</div>
+          </div>
+        )}
+
+        {/* Missatge d'error */}
+        {loadError && (
+          <div className="tv-error-overlay">
+            <div className="tv-error-icon">!</div>
+            <div className="tv-error-text">{loadError}</div>
+            <button className="tv-retry-btn" onClick={() => {
+              setLoadError(null);
+              setIsLoading(true);
+              const media = mode === 'tv' ? videoRef.current : audioRef.current;
+              if (media) {
+                media.load();
+                media.play().catch(() => {});
+              }
+            }}>
+              Reintentar
+            </button>
+          </div>
+        )}
+
         {mode === 'tv' ? (
           <video
             ref={videoRef}

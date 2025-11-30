@@ -4,6 +4,11 @@
   inset: 0;
   background: #000;
   z-index: 9999;
+  /* Prevenir comportaments no desitjats en mòbils */
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .player-wrapper {
@@ -65,6 +70,15 @@
   height: 48px;
 }
 
+.skip-indicator .skip-icon-wrapper {
+  width: 48px;
+  height: 48px;
+}
+
+.skip-indicator .skip-icon-wrapper .skip-seconds {
+  font-size: 14px;
+}
+
 .skip-indicator.left {
   left: 15%;
 }
@@ -101,6 +115,72 @@
   100% {
     opacity: 0;
     transform: translate(-50%, -50%) scale(1.2);
+  }
+}
+
+/* Ripple effect per doble toc mòbil */
+.tap-ripple {
+  position: absolute;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0) 70%);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 50;
+  animation: rippleExpand 0.6s ease-out forwards;
+}
+
+.tap-ripple.left,
+.tap-ripple.right {
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 70%);
+}
+
+.tap-ripple.center {
+  background: radial-gradient(circle, rgba(var(--color-primary-rgb), 0.5) 0%, rgba(var(--color-primary-rgb), 0) 70%);
+}
+
+@keyframes rippleExpand {
+  0% {
+    width: 50px;
+    height: 50px;
+    opacity: 1;
+  }
+  100% {
+    width: 200px;
+    height: 200px;
+    opacity: 0;
+  }
+}
+
+/* Indicadors de zona de toc (esquerra/dreta) */
+.tap-zone-indicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 33.33%;
+  pointer-events: none;
+  z-index: 40;
+}
+
+.tap-zone-indicator.left {
+  left: 0;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.15) 0%, transparent 100%);
+  animation: zoneFlash 0.4s ease-out forwards;
+}
+
+.tap-zone-indicator.right {
+  right: 0;
+  background: linear-gradient(-90deg, rgba(255, 255, 255, 0.15) 0%, transparent 100%);
+  animation: zoneFlash 0.4s ease-out forwards;
+}
+
+@keyframes zoneFlash {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
   }
 }
 
@@ -450,6 +530,32 @@
   height: 24px;
 }
 
+/* Skip icon wrapper amb número */
+.skip-icon-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.skip-icon-wrapper svg {
+  width: 100%;
+  height: 100%;
+}
+
+.skip-icon-wrapper .skip-seconds {
+  position: absolute;
+  font-size: 8px;
+  font-weight: 700;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -30%);
+  line-height: 1;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
 .control-btn:hover {
   background: rgba(255, 255, 255, 0.1);
 }
@@ -653,8 +759,10 @@
   position: absolute;
   inset: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 15px;
   background: rgba(0, 0, 0, 0.5);
 }
 
@@ -665,6 +773,12 @@
   border-top-color: var(--color-primary);
   border-radius: var(--radius-circle);
   animation: spin 1s linear infinite;
+}
+
+.loading-text {
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 @keyframes spin {
@@ -780,6 +894,27 @@
 
 .intro-editor-content {
   padding: 20px;
+}
+
+/* Estat de la intro */
+.intro-status {
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.intro-status-found {
+  background: rgba(40, 167, 69, 0.2);
+  border: 1px solid rgba(40, 167, 69, 0.4);
+  color: #6fdc8c;
+}
+
+.intro-status-missing {
+  background: rgba(255, 193, 7, 0.15);
+  border: 1px solid rgba(255, 193, 7, 0.4);
+  color: #ffc107;
 }
 
 .intro-times {

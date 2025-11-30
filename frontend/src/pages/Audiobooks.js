@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 import './Library.css';
 import './Books.css';
 
@@ -88,6 +89,7 @@ function Audiobooks() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('authors');
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
 
   // Metadata editing state
   const [editingAudiobook, setEditingAudiobook] = useState(null);
@@ -374,13 +376,15 @@ function Audiobooks() {
                 <div className="book-format-badge audiobook-badge">
                   <ClockIcon /> {formatDuration(audiobook.total_duration)}
                 </div>
-                <button
-                  className="book-edit-btn"
-                  onClick={(e) => handleOpenMetadataEdit(e, audiobook)}
-                  title="Editar metadades"
-                >
-                  <EditIcon size={14} />
-                </button>
+                {isAdmin && (
+                  <button
+                    className="book-edit-btn"
+                    onClick={(e) => handleOpenMetadataEdit(e, audiobook)}
+                    title="Editar metadades"
+                  >
+                    <EditIcon size={14} />
+                  </button>
+                )}
               </div>
               <div className="book-info">
                 <h3 className="book-title">{audiobook.title}</h3>
@@ -476,13 +480,15 @@ function Audiobooks() {
                 <div className="book-format-badge audiobook-badge">
                   <ClockIcon /> {formatDuration(audiobook.total_duration)}
                 </div>
-                <button
-                  className="book-edit-btn"
-                  onClick={(e) => handleOpenMetadataEdit(e, audiobook)}
-                  title="Editar metadades"
-                >
-                  <EditIcon size={14} />
-                </button>
+                {isAdmin && (
+                  <button
+                    className="book-edit-btn"
+                    onClick={(e) => handleOpenMetadataEdit(e, audiobook)}
+                    title="Editar metadades"
+                  >
+                    <EditIcon size={14} />
+                  </button>
+                )}
               </div>
               <div className="book-info">
                 <h3 className="book-title">{audiobook.title}</h3>

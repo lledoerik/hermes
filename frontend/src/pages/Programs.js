@@ -73,13 +73,13 @@ const ExternalIcon = () => (
 // CATEGORIES 3Cat
 // ============================================================
 const CATEGORIES = [
-  { id: 'all', name: 'Tot', icon: '📺' },
-  { id: 'informatius', name: 'Informatius', icon: '📰' },
-  { id: 'entreteniment', name: 'Entreteniment', icon: '🎭' },
-  { id: 'esports', name: 'Esports', icon: '⚽' },
-  { id: 'infantil', name: 'Infantil', icon: '👶' },
-  { id: 'documentals', name: 'Documentals', icon: '🎬' },
-  { id: 'cultura', name: 'Cultura', icon: '🎨' },
+  { id: 'all', name: 'Tot', icon: null },
+  { id: 'informatius', name: 'Informatius', icon: null },
+  { id: 'entreteniment', name: 'Entreteniment', icon: null },
+  { id: 'esports', name: 'Esports', icon: null },
+  { id: 'infantil', name: 'Infantil', icon: null },
+  { id: 'documentals', name: 'Documentals', icon: null },
+  { id: 'cultura', name: 'Cultura', icon: null },
 ];
 
 // ============================================================
@@ -421,7 +421,7 @@ function Programs() {
             </>
           ) : (
             <>
-              <h1>📺 A la carta - 3Cat</h1>
+              <h1>A la carta - 3Cat</h1>
               <p className="programs-subtitle">
                 Programes i continguts de TV3, 3/24, 33 i més
               </p>

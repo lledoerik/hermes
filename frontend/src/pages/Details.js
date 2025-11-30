@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 import './Details.css';
 
 const API_URL = window.location.hostname === 'localhost'
@@ -80,6 +81,7 @@ function Details() {
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   // Determinar el tipus segons la ruta
   const type = location.pathname.startsWith('/movies') ? 'movies' : 'series';
   const [item, setItem] = useState(null);
@@ -325,9 +327,46 @@ function Details() {
               )}
             </div>
 
+            {/* Tagline */}
+            {item.tagline && (
+              <p className="details-tagline">"{item.tagline}"</p>
+            )}
+
             {item.overview && (
               <p className="details-overview">{item.overview}</p>
             )}
+
+            {/* Credits: Director/Creadors i Repartiment */}
+            <div className="details-credits">
+              {/* Director (per pel·lícules) o Creadors (per sèries) */}
+              {type === 'movies' && item.director && (
+                <div className="credit-row">
+                  <span className="credit-label">Director:</span>
+                  <span className="credit-value">{item.director}</span>
+                </div>
+              )}
+              {type === 'series' && item.creators && item.creators.length > 0 && (
+                <div className="credit-row">
+                  <span className="credit-label">Creadors:</span>
+                  <span className="credit-value">{item.creators.join(', ')}</span>
+                </div>
+              )}
+              {/* Repartiment principal */}
+              {item.cast && item.cast.length > 0 && (
+                <div className="credit-row cast-row">
+                  <span className="credit-label">Repartiment:</span>
+                  <span className="credit-value">
+                    {item.cast.slice(0, 5).map((c, i) => (
+                      <span key={i} className="cast-member">
+                        {c.name}
+                        {c.character && <span className="cast-character"> ({c.character})</span>}
+                        {i < Math.min(4, item.cast.length - 1) && ', '}
+                      </span>
+                    ))}
+                  </span>
+                </div>
+              )}
+            </div>
 
             <div className="details-actions">
               <button className="play-btn" onClick={() => handlePlay()}>
@@ -336,17 +375,19 @@ function Details() {
               <button className="secondary-btn">
                 + La meva llista
               </button>
-              <button
-                className="secondary-btn edit-metadata-btn"
-                onClick={() => setShowTmdbInput(!showTmdbInput)}
-                title="Corregir metadades amb TMDB ID"
-              >
-                <EditIcon size={16} />
-              </button>
+              {isAdmin && (
+                <button
+                  className="secondary-btn edit-metadata-btn"
+                  onClick={() => setShowTmdbInput(!showTmdbInput)}
+                  title="Corregir metadades amb TMDB ID"
+                >
+                  <EditIcon size={16} />
+                </button>
+              )}
             </div>
 
-            {/* TMDB ID Input Form */}
-            {showTmdbInput && (
+            {/* TMDB ID Input Form - només admins */}
+            {isAdmin && showTmdbInput && (
               <div className="tmdb-input-form">
                 <label>
                   {item?.tmdb_id ? 'TMDB ID actual (canvia per actualitzar):' : 'Introdueix l\'ID de TMDB:'}
