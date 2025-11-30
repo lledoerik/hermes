@@ -202,6 +202,29 @@ function Profile() {
     setLoading(false);
   };
 
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Verificar que sigui una imatge
+    if (!file.type.startsWith('image/')) {
+      showMessage('Si us plau, selecciona una imatge', 'error');
+      return;
+    }
+
+    // Verificar mida (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      showMessage('La imatge no pot superar 2MB', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setTempAvatarUrl(event.target.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -283,16 +306,6 @@ function Profile() {
     try {
       await axios.put(`${API_URL}/api/admin/users/${userId}/toggle-active?active=${active}`);
       showMessage(`Usuari ${active ? 'activat' : 'desactivat'}`);
-      loadAdminData();
-    } catch (e) {
-      showMessage(e.response?.data?.detail || 'Error', 'error');
-    }
-  };
-
-  const toggleUserAdmin = async (userId, isAdmin) => {
-    try {
-      await axios.put(`${API_URL}/api/admin/users/${userId}/toggle-admin?is_admin=${isAdmin}`);
-      showMessage(`Rol d'admin ${isAdmin ? 'assignat' : 'retirat'}`);
       loadAdminData();
     } catch (e) {
       showMessage(e.response?.data?.detail || 'Error', 'error');
@@ -651,6 +664,20 @@ function Profile() {
         <div className="avatar-modal-overlay" onClick={() => setShowAvatarModal(false)}>
           <div className="avatar-modal" onClick={e => e.stopPropagation()}>
             <h3>Canviar foto de perfil</h3>
+
+            <div className="avatar-upload-section">
+              <label className="file-upload-btn">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  style={{ display: 'none' }}
+                />
+                Pujar imatge local
+              </label>
+              <span className="upload-divider">o</span>
+            </div>
+
             <div className="form-group">
               <label>URL de la imatge</label>
               <input
