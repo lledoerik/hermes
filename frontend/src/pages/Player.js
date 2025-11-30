@@ -157,6 +157,7 @@ function Player() {
 
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [videoLoading, setVideoLoading] = useState(true);
   const [videoReady, setVideoReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -438,6 +439,7 @@ function Player() {
       }
     } catch (error) {
       console.error('Error carregant media:', error);
+      setError('No s\'ha pogut carregar el contingut');
     } finally {
       setLoading(false);
     }
@@ -1158,6 +1160,24 @@ function Player() {
       <div className="player-container">
         <div className="player-loading">
           <div className="loading-spinner"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="player-container">
+        <div className="player-error">
+          <div className="error-icon">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="48" height="48">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+            </svg>
+          </div>
+          <div className="error-message">{error}</div>
+          <button className="error-back-btn" onClick={() => navigate(-1)}>
+            Tornar enrere
+          </button>
         </div>
       </div>
     );
