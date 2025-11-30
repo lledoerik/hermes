@@ -318,27 +318,33 @@ function Home() {
         <section className="quick-access">
           <h2 className="row-title">Explorar</h2>
           <div className="quick-access-grid">
-            <Link to="/series" className="quick-card gradient-series">
+            <Link to="/series" className="quick-card">
+              <div className="quick-bubble gradient-series"></div>
               <SeriesIcon />
               <span>Sèries</span>
             </Link>
-            <Link to="/movies" className="quick-card gradient-movies">
+            <Link to="/movies" className="quick-card">
+              <div className="quick-bubble gradient-movies"></div>
               <MovieIcon />
               <span>Pel·lícules</span>
             </Link>
-            <Link to="/books" className="quick-card gradient-books">
+            <Link to="/books" className="quick-card">
+              <div className="quick-bubble gradient-books"></div>
               <BookIcon />
               <span>Llibres</span>
             </Link>
-            <Link to="/audiobooks" className="quick-card gradient-audiobooks">
+            <Link to="/audiobooks" className="quick-card">
+              <div className="quick-bubble gradient-audiobooks"></div>
               <AudiobookIcon />
               <span>Audiollibres</span>
             </Link>
-            <Link to="/tv" className="quick-card gradient-tv">
+            <Link to="/tv" className="quick-card">
+              <div className="quick-bubble gradient-tv"></div>
               <TvIcon />
               <span>TV en directe</span>
             </Link>
-            <Link to="/programs" className="quick-card gradient-programs">
+            <Link to="/programs" className="quick-card">
+              <div className="quick-bubble gradient-programs"></div>
               <ProgramsIcon />
               <span>3Cat</span>
             </Link>
