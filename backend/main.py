@@ -164,6 +164,27 @@ def init_all_tables():
             )
         """)
 
+        # Migracions per la taula books (columnes que necessita el scanner)
+        books_columns = [
+            ("file_hash", "TEXT"),
+            ("format", "TEXT"),
+            ("cover", "TEXT"),
+            ("file_size", "INTEGER"),
+            ("converted_path", "TEXT"),
+            ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+        ]
+        for col_name, col_type in books_columns:
+            try:
+                cursor.execute(f"ALTER TABLE books ADD COLUMN {col_name} {col_type}")
+            except:
+                pass
+
+        # Migracions per la taula authors (columnes que necessita el scanner)
+        try:
+            cursor.execute("ALTER TABLE authors ADD COLUMN photo TEXT")
+        except:
+            pass
+
         # Taula audiobooks (si no existeix)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS audiobooks (
@@ -184,12 +205,73 @@ def init_all_tables():
             )
         """)
 
-        # Migració: afegir columna tmdb_id a series si no existeix
+        # Migracions per la taula audiobooks (columnes que necessita el scanner)
+        audiobooks_columns = [
+            ("cover", "TEXT"),
+            ("total_duration", "INTEGER DEFAULT 0"),
+            ("total_files", "INTEGER DEFAULT 0"),
+            ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+        ]
+        for col_name, col_type in audiobooks_columns:
+            try:
+                cursor.execute(f"ALTER TABLE audiobooks ADD COLUMN {col_name} {col_type}")
+            except:
+                pass
+
+        # Migracions per la taula audiobook_authors
         try:
-            cursor.execute("ALTER TABLE series ADD COLUMN tmdb_id INTEGER")
+            cursor.execute("ALTER TABLE audiobook_authors ADD COLUMN photo TEXT")
         except:
             pass
 
+        # Taula audiobook_files (necessària per l'scanner)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS audiobook_files (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                audiobook_id INTEGER NOT NULL,
+                file_path TEXT UNIQUE NOT NULL,
+                file_name TEXT NOT NULL,
+                title TEXT,
+                track_number INTEGER DEFAULT 0,
+                duration INTEGER DEFAULT 0,
+                file_size INTEGER DEFAULT 0,
+                format TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (audiobook_id) REFERENCES audiobooks(id)
+            )
+        """)
+
+        # Taula reading_progress (necessària per l'scanner de llibres)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS reading_progress (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER DEFAULT 1,
+                book_id INTEGER NOT NULL,
+                current_position TEXT,
+                current_page INTEGER DEFAULT 0,
+                total_pages INTEGER,
+                percentage REAL DEFAULT 0,
+                last_read TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (book_id) REFERENCES books(id),
+                UNIQUE(user_id, book_id)
+            )
+        """)
+
+        # Taula audiobook_progress (necessària per audiollibres)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS audiobook_progress (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER DEFAULT 1,
+                audiobook_id INTEGER NOT NULL,
+                current_file_id INTEGER,
+                current_position INTEGER DEFAULT 0,
+                percentage REAL DEFAULT 0,
+                last_played TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (audiobook_id) REFERENCES audiobooks(id),
+                FOREIGN KEY (current_file_id) REFERENCES audiobook_files(id),
+                UNIQUE(user_id, audiobook_id)
+            )
+        """)
         conn.commit()
         logger.info("Totes les taules inicialitzades correctament")
 
@@ -824,16 +906,73 @@ async def get_movie_detail(movie_id: int):
 async def scan_library(request: ScanRequest = None):
     """Escaneja la biblioteca"""
     scanner = HermesScanner()
-    
+
     for library in settings.MEDIA_LIBRARIES:
         if Path(library["path"]).exists():
             logger.info(f"Escanejant {library['name']}")
             scanner.scan_directory(library["path"], library["type"])
-    
+
     stats = scanner.get_stats()
     return {
         "status": "success",
         "stats": stats
+    }
+
+@app.post("/api/library/scan-all")
+async def scan_all_libraries(background_tasks: BackgroundTasks):
+    """Escaneja TOTES les biblioteques: sèries, pel·lícules, llibres i audiollibres"""
+    from backend.books.scanner import BooksScanner
+    from backend.audiobooks.scanner import AudiobooksScanner
+
+    def do_scan_all():
+        results = {
+            "media": {"series": 0, "movies": 0},
+            "books": {"authors": 0, "books": 0},
+            "audiobooks": {"authors": 0, "audiobooks": 0},
+            "errors": []
+        }
+
+        # 1. Escanejar sèries i pel·lícules
+        try:
+            scanner = HermesScanner()
+            for library in settings.MEDIA_LIBRARIES:
+                if Path(library["path"]).exists():
+                    logger.info(f"Escanejant biblioteca de media: {library['name']}")
+                    scanner.scan_directory(library["path"], library["type"])
+            stats = scanner.get_stats()
+            results["media"]["series"] = stats.get("series", 0)
+            results["media"]["movies"] = stats.get("movies", 0)
+        except Exception as e:
+            logger.error(f"Error escanejant media: {e}")
+            results["errors"].append(f"Media: {str(e)}")
+
+        # 2. Escanejar llibres
+        try:
+            books_scanner = BooksScanner()
+            books_result = books_scanner.scan_all_libraries()
+            results["books"]["authors"] = books_result.get("authors_found", 0)
+            results["books"]["books"] = books_result.get("books_found", 0)
+        except Exception as e:
+            logger.error(f"Error escanejant llibres: {e}")
+            results["errors"].append(f"Llibres: {str(e)}")
+
+        # 3. Escanejar audiollibres
+        try:
+            audiobooks_scanner = AudiobooksScanner()
+            audiobooks_result = audiobooks_scanner.scan_all_libraries()
+            results["audiobooks"]["authors"] = audiobooks_result.get("authors_found", 0)
+            results["audiobooks"]["audiobooks"] = audiobooks_result.get("audiobooks_found", 0)
+        except Exception as e:
+            logger.error(f"Error escanejant audiollibres: {e}")
+            results["errors"].append(f"Audiollibres: {str(e)}")
+
+        logger.info(f"Escaneig complet: {results}")
+        return results
+
+    background_tasks.add_task(do_scan_all)
+    return {
+        "status": "scanning",
+        "message": "Escanejant totes les biblioteques en segon pla..."
     }
 
 @app.get("/api/image/poster/{item_id}")

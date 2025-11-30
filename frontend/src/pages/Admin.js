@@ -223,6 +223,20 @@ function Admin() {
 
   const [scanningBooks, setScanningBooks] = useState(false);
   const [scanningAudiobooks, setScanningAudiobooks] = useState(false);
+  const [scanningAll, setScanningAll] = useState(false);
+
+  const handleScanAll = async () => {
+    setScanningAll(true);
+    addLog('info', 'Escanejant TOTES les biblioteques (sèries, pel·lícules, llibres, audiollibres)...');
+    try {
+      await axios.post('/api/library/scan-all');
+      addLog('success', 'Escaneig complet iniciat en segon pla. Pot trigar uns minuts...');
+    } catch (error) {
+      addLog('error', `Error: ${error.response?.data?.detail || error.message}`);
+    } finally {
+      setScanningAll(false);
+    }
+  };
 
   const handleScanBooks = async () => {
     setScanningBooks(true);
@@ -468,30 +482,32 @@ function Admin() {
           <h2><BroomIcon /> Manteniment de la biblioteca</h2>
         </div>
         <div className="section-content">
+          {/* Botó principal: Escanejar-ho TOT */}
+          <div className="scanner-actions" style={{ marginBottom: '1rem' }}>
+            <button
+              className="action-btn primary"
+              onClick={handleScanAll}
+              disabled={scanningAll || scanning || scanningBooks || scanningAudiobooks}
+              style={{ width: '100%', padding: '1rem', fontSize: '1.1rem' }}
+              title="Escaneja totes les biblioteques: sèries, pel·lícules, llibres i audiollibres"
+            >
+              {scanningAll ? <><RefreshIcon /> Escanejant tot...</> : <><SearchIcon /> Escanejar-ho TOT</>}
+            </button>
+          </div>
+
           <div className="scanner-actions">
             <button
               className="action-btn"
               onClick={handleScan}
-              disabled={scanning}
+              disabled={scanning || scanningAll}
             >
-              {scanning ? <><RefreshIcon /> Escanejant...</> : <><SearchIcon /> Escanejar biblioteca</>}
+              {scanning ? <><RefreshIcon /> Escanejant...</> : <><SearchIcon /> Escanejar vídeos</>}
             </button>
 
-            <button
-              className="action-btn danger"
-              onClick={handleCleanupAll}
-              disabled={cleaning}
-            >
-              {cleaning ? <><RefreshIcon /> Netejant...</> : <><BroomIcon /> Netejar tot</>}
-            </button>
-          </div>
-
-          {/* Escaneig de llibres i audiollibres */}
-          <div className="scanner-actions" style={{ marginTop: '1rem' }}>
             <button
               className="action-btn secondary"
               onClick={handleScanBooks}
-              disabled={scanningBooks}
+              disabled={scanningBooks || scanningAll}
               title="Escaneja la biblioteca de llibres"
             >
               {scanningBooks ? <><RefreshIcon /> Escanejant...</> : <><BookIcon /> Escanejar llibres</>}
@@ -500,10 +516,18 @@ function Admin() {
             <button
               className="action-btn secondary"
               onClick={handleScanAudiobooks}
-              disabled={scanningAudiobooks}
+              disabled={scanningAudiobooks || scanningAll}
               title="Escaneja la biblioteca d'audiollibres"
             >
               {scanningAudiobooks ? <><RefreshIcon /> Escanejant...</> : <><HeadphonesIcon /> Escanejar audiollibres</>}
+            </button>
+
+            <button
+              className="action-btn danger"
+              onClick={handleCleanupAll}
+              disabled={cleaning}
+            >
+              {cleaning ? <><RefreshIcon /> Netejant...</> : <><BroomIcon /> Netejar tot</>}
             </button>
           </div>
 
