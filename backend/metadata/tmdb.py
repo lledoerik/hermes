@@ -189,6 +189,19 @@ class TMDBClient:
 
         return result
 
+    async def get_movie_credits(self, movie_id: int) -> Optional[Dict[str, Any]]:
+        """Get cast and crew for a movie."""
+        return await self._request(f"/movie/{movie_id}/credits")
+
+    async def get_tv_credits(self, tv_id: int) -> Optional[Dict[str, Any]]:
+        """Get cast and crew for a TV series."""
+        # aggregate_credits gives us all cast across seasons
+        data = await self._request(f"/tv/{tv_id}/aggregate_credits")
+        if not data:
+            # Fallback to regular credits
+            data = await self._request(f"/tv/{tv_id}/credits")
+        return data
+
     def get_poster_url(self, poster_path: str, size: str = "w500") -> Optional[str]:
         """
         Get poster image URL.
@@ -249,9 +262,12 @@ class TMDBClient:
             "original_title": None,
             "year": None,
             "overview": None,
+            "tagline": None,
             "rating": None,
             "genres": [],
             "runtime": None,
+            "director": None,
+            "cast": [],
             "poster_downloaded": False,
             "backdrop_downloaded": False
         }
@@ -270,6 +286,7 @@ class TMDBClient:
         result["title"] = movie.get("title")
         result["original_title"] = movie.get("original_title")
         result["overview"] = movie.get("overview")
+        result["tagline"] = movie.get("tagline")
         result["rating"] = movie.get("vote_average")
         result["runtime"] = movie.get("runtime")
 
@@ -281,6 +298,21 @@ class TMDBClient:
         # Extract genres
         if movie.get("genres"):
             result["genres"] = [g["name"] for g in movie["genres"]]
+
+        # Get credits (director and cast)
+        credits = await self.get_movie_credits(movie["id"])
+        if credits:
+            # Get director from crew
+            for person in credits.get("crew", []):
+                if person.get("job") == "Director":
+                    result["director"] = person.get("name")
+                    break
+            # Get top cast (first 10)
+            cast_list = credits.get("cast", [])[:10]
+            result["cast"] = [
+                {"name": c.get("name"), "character": c.get("character")}
+                for c in cast_list
+            ]
 
         # Download poster
         if poster_path and movie.get("poster_path"):
@@ -307,10 +339,13 @@ class TMDBClient:
             "original_title": None,
             "year": None,
             "overview": None,
+            "tagline": None,
             "rating": None,
             "genres": [],
             "seasons": None,
             "episodes": None,
+            "creators": [],
+            "cast": [],
             "poster_downloaded": False,
             "backdrop_downloaded": False
         }
@@ -329,6 +364,7 @@ class TMDBClient:
         result["title"] = tv.get("name")
         result["original_title"] = tv.get("original_name")
         result["overview"] = tv.get("overview")
+        result["tagline"] = tv.get("tagline")
         result["rating"] = tv.get("vote_average")
         result["seasons"] = tv.get("number_of_seasons")
         result["episodes"] = tv.get("number_of_episodes")
@@ -341,6 +377,23 @@ class TMDBClient:
         # Extract genres
         if tv.get("genres"):
             result["genres"] = [g["name"] for g in tv["genres"]]
+
+        # Extract creators
+        if tv.get("created_by"):
+            result["creators"] = [c.get("name") for c in tv["created_by"]]
+
+        # Get credits (cast)
+        credits = await self.get_tv_credits(tv["id"])
+        if credits:
+            # Get top cast (first 10)
+            cast_list = credits.get("cast", [])[:10]
+            result["cast"] = [
+                {
+                    "name": c.get("name"),
+                    "character": c.get("character") or (c.get("roles", [{}])[0].get("character") if c.get("roles") else None)
+                }
+                for c in cast_list
+            ]
 
         # Download poster
         if poster_path and tv.get("poster_path"):
@@ -389,9 +442,12 @@ async def fetch_movie_by_tmdb_id(api_key: str, tmdb_id: int,
             "original_title": None,
             "year": None,
             "overview": None,
+            "tagline": None,
             "rating": None,
             "genres": [],
             "runtime": None,
+            "director": None,
+            "cast": [],
             "poster_downloaded": False,
             "backdrop_downloaded": False
         }
@@ -404,6 +460,7 @@ async def fetch_movie_by_tmdb_id(api_key: str, tmdb_id: int,
         result["title"] = movie.get("title")
         result["original_title"] = movie.get("original_title")
         result["overview"] = movie.get("overview")
+        result["tagline"] = movie.get("tagline")
         result["rating"] = movie.get("vote_average")
         result["runtime"] = movie.get("runtime")
 
@@ -413,6 +470,19 @@ async def fetch_movie_by_tmdb_id(api_key: str, tmdb_id: int,
 
         if movie.get("genres"):
             result["genres"] = [g["name"] for g in movie["genres"]]
+
+        # Get credits (director and cast)
+        credits = await client.get_movie_credits(tmdb_id)
+        if credits:
+            for person in credits.get("crew", []):
+                if person.get("job") == "Director":
+                    result["director"] = person.get("name")
+                    break
+            cast_list = credits.get("cast", [])[:10]
+            result["cast"] = [
+                {"name": c.get("name"), "character": c.get("character")}
+                for c in cast_list
+            ]
 
         if poster_path and movie.get("poster_path"):
             result["poster_downloaded"] = await client.download_image(
@@ -441,10 +511,13 @@ async def fetch_tv_by_tmdb_id(api_key: str, tmdb_id: int,
             "original_title": None,
             "year": None,
             "overview": None,
+            "tagline": None,
             "rating": None,
             "genres": [],
             "seasons": None,
             "episodes": None,
+            "creators": [],
+            "cast": [],
             "poster_downloaded": False,
             "backdrop_downloaded": False
         }
@@ -457,6 +530,7 @@ async def fetch_tv_by_tmdb_id(api_key: str, tmdb_id: int,
         result["title"] = tv.get("name")
         result["original_title"] = tv.get("original_name")
         result["overview"] = tv.get("overview")
+        result["tagline"] = tv.get("tagline")
         result["rating"] = tv.get("vote_average")
         result["seasons"] = tv.get("number_of_seasons")
         result["episodes"] = tv.get("number_of_episodes")
@@ -467,6 +541,22 @@ async def fetch_tv_by_tmdb_id(api_key: str, tmdb_id: int,
 
         if tv.get("genres"):
             result["genres"] = [g["name"] for g in tv["genres"]]
+
+        # Extract creators
+        if tv.get("created_by"):
+            result["creators"] = [c.get("name") for c in tv["created_by"]]
+
+        # Get credits (cast)
+        credits = await client.get_tv_credits(tmdb_id)
+        if credits:
+            cast_list = credits.get("cast", [])[:10]
+            result["cast"] = [
+                {
+                    "name": c.get("name"),
+                    "character": c.get("character") or (c.get("roles", [{}])[0].get("character") if c.get("roles") else None)
+                }
+                for c in cast_list
+            ]
 
         if poster_path and tv.get("poster_path"):
             result["poster_downloaded"] = await client.download_image(

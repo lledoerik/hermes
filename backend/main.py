@@ -980,15 +980,36 @@ async def get_series_detail(series_id: int):
             except (json_module.JSONDecodeError, TypeError):
                 genres = None
 
+        # Parsejar creadors si existeixen
+        creators = None
+        if series.get("creators"):
+            try:
+                creators = json_module.loads(series["creators"])
+            except (json_module.JSONDecodeError, TypeError):
+                creators = None
+
+        # Parsejar repartiment si existeix
+        cast_members = None
+        if series.get("cast_members"):
+            try:
+                cast_members = json_module.loads(series["cast_members"])
+            except (json_module.JSONDecodeError, TypeError):
+                cast_members = None
+
         return {
             "id": series["id"],
             "name": series["name"],
             "title": series.get("title"),
+            "original_title": series.get("original_title"),
             "year": series.get("year"),
             "overview": series.get("overview"),
+            "tagline": series.get("tagline"),
             "rating": series.get("rating"),
             "genres": genres,
             "runtime": series.get("runtime"),
+            "director": series.get("director"),
+            "creators": creators,
+            "cast": cast_members,
             "tmdb_id": series.get("tmdb_id"),
             "poster": series.get("poster"),
             "backdrop": series.get("backdrop"),
@@ -1498,16 +1519,28 @@ async def get_library_movie_detail(movie_id: int):
             except (json_module.JSONDecodeError, TypeError):
                 genres = None
 
+        # Parsejar repartiment si existeix
+        cast_members = None
+        if movie.get("cast_members"):
+            try:
+                cast_members = json_module.loads(movie["cast_members"])
+            except (json_module.JSONDecodeError, TypeError):
+                cast_members = None
+
         return {
             "id": movie["id"],
             "media_id": movie.get("media_id"),
             "name": movie["name"],
             "title": movie.get("title"),
+            "original_title": movie.get("original_title"),
             "year": movie.get("year"),
             "overview": movie.get("overview"),
+            "tagline": movie.get("tagline"),
             "rating": movie.get("rating"),
             "genres": genres,
             "runtime": movie.get("runtime"),
+            "director": movie.get("director"),
+            "cast": cast_members,
             "tmdb_id": movie.get("tmdb_id"),
             "poster": movie.get("poster"),
             "backdrop": movie.get("backdrop"),
@@ -3116,6 +3149,29 @@ async def update_series_by_tmdb_id(series_id: int, request: UpdateByTmdbIdReques
         if metadata.get("runtime"):
             update_fields.append("runtime = ?")
             update_values.append(metadata["runtime"])
+
+        if metadata.get("tagline"):
+            update_fields.append("tagline = ?")
+            update_values.append(metadata["tagline"])
+
+        if metadata.get("original_title"):
+            update_fields.append("original_title = ?")
+            update_values.append(metadata["original_title"])
+
+        # Per pel·lícules: director
+        if metadata.get("director"):
+            update_fields.append("director = ?")
+            update_values.append(metadata["director"])
+
+        # Per sèries: creadors
+        if metadata.get("creators"):
+            update_fields.append("creators = ?")
+            update_values.append(json.dumps(metadata["creators"]))
+
+        # Repartiment (cast)
+        if metadata.get("cast"):
+            update_fields.append("cast_members = ?")
+            update_values.append(json.dumps(metadata["cast"]))
 
         if metadata["poster_downloaded"]:
             update_fields.append("poster = ?")

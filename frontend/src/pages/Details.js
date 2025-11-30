@@ -327,9 +327,46 @@ function Details() {
               )}
             </div>
 
+            {/* Tagline */}
+            {item.tagline && (
+              <p className="details-tagline">"{item.tagline}"</p>
+            )}
+
             {item.overview && (
               <p className="details-overview">{item.overview}</p>
             )}
+
+            {/* Credits: Director/Creadors i Repartiment */}
+            <div className="details-credits">
+              {/* Director (per pel·lícules) o Creadors (per sèries) */}
+              {type === 'movies' && item.director && (
+                <div className="credit-row">
+                  <span className="credit-label">Director:</span>
+                  <span className="credit-value">{item.director}</span>
+                </div>
+              )}
+              {type === 'series' && item.creators && item.creators.length > 0 && (
+                <div className="credit-row">
+                  <span className="credit-label">Creadors:</span>
+                  <span className="credit-value">{item.creators.join(', ')}</span>
+                </div>
+              )}
+              {/* Repartiment principal */}
+              {item.cast && item.cast.length > 0 && (
+                <div className="credit-row cast-row">
+                  <span className="credit-label">Repartiment:</span>
+                  <span className="credit-value">
+                    {item.cast.slice(0, 5).map((c, i) => (
+                      <span key={i} className="cast-member">
+                        {c.name}
+                        {c.character && <span className="cast-character"> ({c.character})</span>}
+                        {i < Math.min(4, item.cast.length - 1) && ', '}
+                      </span>
+                    ))}
+                  </span>
+                </div>
+              )}
+            </div>
 
             <div className="details-actions">
               <button className="play-btn" onClick={() => handlePlay()}>
