@@ -343,11 +343,13 @@ function Home() {
               <TvIcon />
               <span>TV en directe</span>
             </Link>
-            <Link to="/programs" className="quick-card">
-              <div className="quick-bubble gradient-programs"></div>
-              <ProgramsIcon />
-              <span>3Cat</span>
-            </Link>
+            {user?.is_admin && (
+              <Link to="/programs" className="quick-card">
+                <div className="quick-bubble gradient-programs"></div>
+                <ProgramsIcon />
+                <span>Programes</span>
+              </Link>
+            )}
           </div>
         </section>
       </div>
@@ -411,21 +413,6 @@ function Home() {
               <div className="card-content">
                 <SeriesIcon />
                 <h3 className="card-title">Sèries</h3>
-              </div>
-              <div className="hover-border"></div>
-            </Link>
-
-            {/* Programes */}
-            <Link to="/programs" className="category-card active">
-              <div className="card-glass"></div>
-              <div className="hover-bubbles">
-                <div className="floating-bubble bubble-1 gradient-programs"></div>
-                <div className="floating-bubble bubble-2 gradient-programs"></div>
-                <div className="floating-bubble bubble-3 gradient-programs"></div>
-              </div>
-              <div className="card-content">
-                <ProgramsIcon />
-                <h3 className="card-title">Programes</h3>
               </div>
               <div className="hover-border"></div>
             </Link>
