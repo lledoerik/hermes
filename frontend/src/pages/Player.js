@@ -169,6 +169,10 @@ function Player() {
   const [showNextEpisode, setShowNextEpisode] = useState(false);
   const skipButtonTimerRef = useRef(null);
 
+  // Progress saving
+  const progressSaveIntervalRef = useRef(null);
+  const [initialProgress, setInitialProgress] = useState(null);
+
   // Editor d'intros manual
   const [showIntroEditor, setShowIntroEditor] = useState(false);
   const [introStart, setIntroStart] = useState(null);
@@ -304,6 +308,16 @@ function Player() {
         console.log('No hi ha segments definits');
       }
 
+      // Carregar progrés de visualització per continuar on es va quedar
+      try {
+        const progressRes = await axios.get(`/api/media/${id}/progress`);
+        if (progressRes.data && progressRes.data.progress_seconds > 0) {
+          setInitialProgress(progressRes.data);
+        }
+      } catch (e) {
+        console.log('No hi ha progrés guardat');
+      }
+
       // Carregar navegació d'episodis (només per sèries)
       if (type === 'episode' && response.data.series_id) {
         const seriesId = response.data.series_id;
@@ -399,12 +413,76 @@ function Player() {
     }
   };
 
-  const handleVideoPause = () => setIsPlaying(false);
+  const handleVideoPause = () => {
+    setIsPlaying(false);
+    // Guardar progrés quan es pausa
+    saveProgress();
+  };
   const handleVideoWaiting = () => setVideoLoading(true);
   const handleVideoCanPlay = () => {
     setVideoLoading(false);
     setVideoReady(true);
+
+    // Si hi ha progrés inicial, posicionar el vídeo
+    if (initialProgress && initialProgress.progress_seconds > 30 && videoRef.current) {
+      // Només si no s'ha acabat (< 90%)
+      if (initialProgress.progress_percentage < 90) {
+        videoRef.current.currentTime = initialProgress.progress_seconds;
+      }
+      setInitialProgress(null); // Només una vegada
+    }
   };
+
+  // Funció per guardar progrés de visualització
+  const saveProgress = useCallback(async () => {
+    if (!videoRef.current || !id || duration === 0) return;
+
+    const currentSec = videoRef.current.currentTime;
+    // Només guardar si s'ha vist més de 10 segons
+    if (currentSec < 10) return;
+
+    try {
+      await axios.post(`/api/media/${id}/progress`, {
+        progress_seconds: currentSec,
+        total_seconds: duration
+      });
+    } catch (error) {
+      console.error('Error guardant progrés:', error);
+    }
+  }, [id, duration]);
+
+  // Guardar progrés periòdicament mentre es reprodueix (cada 15 segons)
+  useEffect(() => {
+    if (isPlaying && duration > 0) {
+      progressSaveIntervalRef.current = setInterval(() => {
+        saveProgress();
+      }, 15000); // Cada 15 segons
+    } else {
+      if (progressSaveIntervalRef.current) {
+        clearInterval(progressSaveIntervalRef.current);
+      }
+    }
+
+    return () => {
+      if (progressSaveIntervalRef.current) {
+        clearInterval(progressSaveIntervalRef.current);
+      }
+    };
+  }, [isPlaying, duration, saveProgress]);
+
+  // Guardar progrés quan l'usuari surt de la pàgina
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      saveProgress();
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      // Guardar progrés al desmuntar el component
+      saveProgress();
+    };
+  }, [saveProgress]);
 
   // Funció per mostrar indicador de skip
   const showSkipIndicator = (direction) => {
@@ -674,6 +752,8 @@ function Player() {
 
   const goToNextEpisode = () => {
     if (!nextEpisode) return;
+    // Guardar progrés abans de navegar al següent episodi
+    saveProgress();
     navigate(`/play/episode/${nextEpisode.id}`);
   };
 
