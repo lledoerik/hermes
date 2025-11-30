@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import Hls from 'hls.js';
 import './Player.css';
 
 const API_URL = window.location.hostname === 'localhost'
@@ -188,6 +189,12 @@ function Player() {
   const [selectedSubtitle, setSelectedSubtitle] = useState(-1);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
 
+  // HLS streaming per canvi de pistes
+  const [hlsUrl, setHlsUrl] = useState(null);
+  const [isUsingHls, setIsUsingHls] = useState(false);
+  const [hlsLoading, setHlsLoading] = useState(false);
+  const hlsRef = useRef(null);
+
   const speeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
   // Preferences from localStorage
@@ -256,6 +263,56 @@ function Player() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type, id, videoReady]);
+
+  // Gestionar HLS quan canvia l'URL
+  useEffect(() => {
+    if (!hlsUrl || !videoRef.current) return;
+
+    // Destruir instància HLS anterior si existeix
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    if (Hls.isSupported()) {
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+      });
+
+      hls.loadSource(hlsUrl);
+      hls.attachMedia(videoRef.current);
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        setVideoLoading(false);
+        videoRef.current.play().catch(() => {});
+      });
+
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        if (data.fatal) {
+          console.error('HLS error fatal:', data);
+          // Si falla HLS, tornar a streaming directe
+          setIsUsingHls(false);
+          setHlsUrl(null);
+        }
+      });
+
+      hlsRef.current = hls;
+    } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+      // Safari suporta HLS nativament
+      videoRef.current.src = hlsUrl;
+      videoRef.current.addEventListener('loadedmetadata', () => {
+        videoRef.current.play().catch(() => {});
+      });
+    }
+
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [hlsUrl]);
 
   const loadMedia = async () => {
     try {
@@ -926,15 +983,56 @@ function Player() {
     }
   };
 
-  const handleAudioChange = (index) => {
+  // Funció per crear un stream HLS amb les pistes seleccionades
+  const createHlsStream = async (audioIndex, subtitleIndex) => {
+    if (!item) return;
+
+    // Guardar posició actual
+    const currentPosition = videoRef.current ? videoRef.current.currentTime : 0;
+
+    setHlsLoading(true);
+    setVideoLoading(true);
+
+    try {
+      // Cridar l'API per crear el stream HLS
+      const response = await axios.post(`/api/stream/${id}/hls`, {
+        audio_index: audioIndex >= 0 ? audioIndex : null,
+        subtitle_index: subtitleIndex >= 0 ? subtitleIndex : null,
+        quality: '1080p'
+      });
+
+      if (response.data.playlist_url) {
+        const fullUrl = `${API_URL}${response.data.playlist_url}`;
+        setHlsUrl(fullUrl);
+        setIsUsingHls(true);
+
+        // Esperar una mica perquè el stream es generi
+        setTimeout(() => {
+          if (videoRef.current && currentPosition > 0) {
+            videoRef.current.currentTime = currentPosition;
+          }
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Error creant stream HLS:', error);
+      // Si falla, mantenir el vídeo actual
+    } finally {
+      setHlsLoading(false);
+    }
+  };
+
+  const handleAudioChange = async (index) => {
     setSelectedAudio(index);
     if (audioTracks[index]?.language) {
       localStorage.setItem('hermes_audio_lang', audioTracks[index].language.toLowerCase());
     }
     setShowAudioMenu(false);
+
+    // Crear nou stream HLS amb la pista d'àudio seleccionada
+    await createHlsStream(index, selectedSubtitle);
   };
 
-  const handleSubtitleChange = (index) => {
+  const handleSubtitleChange = async (index) => {
     setSelectedSubtitle(index);
     if (index === -1) {
       localStorage.setItem('hermes_subtitle_lang', 'off');
@@ -942,6 +1040,9 @@ function Player() {
       localStorage.setItem('hermes_subtitle_lang', subtitleTracks[index].language.toLowerCase());
     }
     setShowSubtitleMenu(false);
+
+    // Crear nou stream HLS amb els subtítols seleccionats
+    await createHlsStream(selectedAudio, index);
   };
 
   const handleSpeedChange = (speed) => {
@@ -1002,7 +1103,7 @@ function Player() {
         <video
           ref={videoRef}
           className="video-player"
-          src={getVideoUrl()}
+          src={isUsingHls ? undefined : getVideoUrl()}
           autoPlay
           onPlay={handleVideoPlay}
           onPause={handleVideoPause}
@@ -1012,9 +1113,10 @@ function Player() {
           onLoadedMetadata={handleLoadedMetadata}
         />
 
-        {videoLoading && (
+        {(videoLoading || hlsLoading) && (
           <div className="player-loading">
             <div className="loading-spinner"></div>
+            {hlsLoading && <div className="loading-text">Canviant pista...</div>}
           </div>
         )}
 
