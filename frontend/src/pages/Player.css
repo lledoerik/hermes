@@ -70,6 +70,15 @@
   height: 48px;
 }
 
+.skip-indicator .skip-icon-wrapper {
+  width: 48px;
+  height: 48px;
+}
+
+.skip-indicator .skip-icon-wrapper .skip-seconds {
+  font-size: 14px;
+}
+
 .skip-indicator.left {
   left: 15%;
 }
@@ -519,6 +528,32 @@
 .control-btn svg {
   width: 24px;
   height: 24px;
+}
+
+/* Skip icon wrapper amb número */
+.skip-icon-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.skip-icon-wrapper svg {
+  width: 100%;
+  height: 100%;
+}
+
+.skip-icon-wrapper .skip-seconds {
+  position: absolute;
+  font-size: 8px;
+  font-weight: 700;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -30%);
+  line-height: 1;
+  font-family: system-ui, -apple-system, sans-serif;
 }
 
 .control-btn:hover {

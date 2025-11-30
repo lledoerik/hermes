@@ -24,18 +24,28 @@ const PauseIcon = () => (
   </svg>
 );
 
+// Icona de retrocedir (cercle amb fletxa anti-horari i número)
 const SkipBackIcon = ({ seconds }) => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12.5 4V1l-5 4 5 4V6c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4.5c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
-    <text x="12.5" y="14" textAnchor="middle" fontSize="7" fontWeight="bold" fill="currentColor">{seconds}</text>
-  </svg>
+  <div className="skip-icon-wrapper">
+    <svg viewBox="0 0 24 24" fill="currentColor">
+      {/* Fletxa circular anti-horari */}
+      <path d="M12.5 3C7.81 3 4 6.81 4 11.5c0 4.69 3.81 8.5 8.5 8.5s8.5-3.81 8.5-8.5h-2c0 3.59-2.91 6.5-6.5 6.5S6 15.09 6 11.5 8.91 5 12.5 5V3z"/>
+      <path d="M10.5 3L7 6.5l3.5 3.5V3z"/>
+    </svg>
+    <span className="skip-seconds">{seconds}</span>
+  </div>
 );
 
+// Icona d'avançar (cercle amb fletxa horari i número)
 const SkipForwardIcon = ({ seconds }) => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M11.5 4V1l5 4-5 4V6c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/>
-    <text x="11.5" y="14" textAnchor="middle" fontSize="7" fontWeight="bold" fill="currentColor">{seconds}</text>
-  </svg>
+  <div className="skip-icon-wrapper">
+    <svg viewBox="0 0 24 24" fill="currentColor">
+      {/* Fletxa circular horari */}
+      <path d="M11.5 3C16.19 3 20 6.81 20 11.5c0 4.69-3.81 8.5-8.5 8.5S3 16.19 3 11.5h2c0 3.59 2.91 6.5 6.5 6.5s6.5-2.91 6.5-6.5S15.09 5 11.5 5V3z"/>
+      <path d="M13.5 3L17 6.5l-3.5 3.5V3z"/>
+    </svg>
+    <span className="skip-seconds">{seconds}</span>
+  </div>
 );
 
 const VolumeHighIcon = () => (
