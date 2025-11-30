@@ -1516,7 +1516,7 @@ function Player() {
                       {audioTracks.length > 0 ? (
                         audioTracks.map((track, index) => (
                           <div
-                            key={index}
+                            key={track.index || `audio-${index}`}
                             className={`menu-item ${selectedAudio === index ? 'selected' : ''}`}
                             onClick={() => handleAudioChange(index)}
                           >
@@ -1565,7 +1565,7 @@ function Player() {
                       </div>
                       {subtitleTracks.map((track, index) => (
                         <div
-                          key={index}
+                          key={track.index || `sub-${index}`}
                           className={`menu-item ${selectedSubtitle === index ? 'selected' : ''}`}
                           onClick={() => handleSubtitleChange(index)}
                         >

@@ -246,4 +246,5 @@ function MediaCard({ item, type = 'series', width = 180 }) {
   );
 }
 
-export default MediaCard;
+// Memoitzem el component per evitar re-renderitzats innecessaris
+export default React.memo(MediaCard);

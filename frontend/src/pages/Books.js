@@ -613,7 +613,7 @@ function Books() {
                     <div className="search-results">
                       {searchResults.map((result, index) => (
                         <div
-                          key={index}
+                          key={result.key || result.cover_id || `result-${index}`}
                           className={`search-result ${!result.cover_id ? 'no-cover' : ''}`}
                           onClick={() => handleSelectSearchResult(result)}
                         >
