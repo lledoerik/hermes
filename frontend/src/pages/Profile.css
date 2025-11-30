@@ -295,8 +295,12 @@
 .profile-content {
   background: var(--bg-glass);
   border-radius: var(--radius-xl);
-  padding: var(--space-2xl);
+  padding: var(--space-2xl) var(--space-2xl) var(--space-2xl) var(--space-2xl);
   min-height: 500px;
+}
+
+.profile-section {
+  padding: 0 var(--space-md);
 }
 
 .profile-section h1 {
@@ -609,6 +613,16 @@
   margin-left: var(--space-xs);
 }
 
+.premium-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  background: linear-gradient(135deg, #f59e0b 0%, #eab308 100%);
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  color: white;
+  margin-left: var(--space-xs);
+}
+
 .user-actions {
   display: flex;
   gap: var(--space-sm);
@@ -631,21 +645,51 @@
 }
 
 .action-btn.danger {
-  color: #ef4444;
+  background: #ef4444;
+  border-color: #ef4444;
+  color: white;
 }
 
 .action-btn.danger:hover {
-  background: rgba(239, 68, 68, 0.1);
-  border-color: #ef4444;
+  background: #dc2626;
+  border-color: #dc2626;
+  color: white;
 }
 
 .action-btn.success {
-  color: #10b981;
+  background: #10b981;
+  border-color: #10b981;
+  color: white;
 }
 
 .action-btn.success:hover {
-  background: rgba(16, 185, 129, 0.1);
-  border-color: #10b981;
+  background: #059669;
+  border-color: #059669;
+  color: white;
+}
+
+.action-btn.warning {
+  background: #f59e0b;
+  border-color: #f59e0b;
+  color: white;
+}
+
+.action-btn.warning:hover {
+  background: #d97706;
+  border-color: #d97706;
+  color: white;
+}
+
+.action-btn.premium {
+  background: linear-gradient(135deg, #f59e0b 0%, #eab308 100%);
+  border-color: #f59e0b;
+  color: white;
+}
+
+.action-btn.premium:hover {
+  background: linear-gradient(135deg, #d97706 0%, #ca8a04 100%);
+  border-color: #d97706;
+  color: white;
 }
 
 /* Responsive */

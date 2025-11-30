@@ -669,6 +669,24 @@ async def toggle_admin(request: Request, user_id: int, is_admin: bool = True):
     return result
 
 
+@app.put("/api/admin/users/{user_id}/toggle-premium")
+async def toggle_premium(request: Request, user_id: int, is_premium: bool = True):
+    """Canvia l'estat de premium d'un usuari"""
+    from backend.auth import get_auth_manager
+
+    admin = require_auth(request)
+    if not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Accés només per administradors")
+
+    auth = get_auth_manager()
+    result = auth.toggle_premium(user_id, is_premium)
+
+    if result["status"] == "error":
+        raise HTTPException(status_code=400, detail=result["message"])
+
+    return result
+
+
 @app.delete("/api/admin/users/{user_id}")
 async def delete_user(request: Request, user_id: int):
     """Elimina un usuari"""

@@ -122,6 +122,7 @@ class AuthManager:
                 display_name TEXT,
                 avatar TEXT,
                 is_admin BOOLEAN DEFAULT FALSE,
+                is_premium BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_login TIMESTAMP
             )
@@ -161,6 +162,10 @@ class AuthManager:
         columns = [col[1] for col in cursor.fetchall()]
         if 'is_active' not in columns:
             cursor.execute("ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT TRUE")
+
+        # Afegir camp 'is_premium' a users si no existeix
+        if 'is_premium' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN is_premium BOOLEAN DEFAULT FALSE")
 
         conn.commit()
         conn.close()
@@ -344,7 +349,7 @@ class AuthManager:
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT id, username, display_name, email, avatar, is_admin
+            SELECT id, username, display_name, email, avatar, is_admin, is_premium
             FROM users WHERE id = ?
         """, (payload.get("user_id"),))
 
@@ -360,7 +365,8 @@ class AuthManager:
             "display_name": user["display_name"],
             "email": user["email"],
             "avatar": user["avatar"],
-            "is_admin": bool(user["is_admin"])
+            "is_admin": bool(user["is_admin"]),
+            "is_premium": bool(user["is_premium"]) if user["is_premium"] is not None else False
         }
 
     def get_user(self, user_id: int) -> Optional[Dict]:
@@ -370,7 +376,7 @@ class AuthManager:
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT id, username, display_name, email, avatar, is_admin, created_at
+            SELECT id, username, display_name, email, avatar, is_admin, is_premium, created_at
             FROM users WHERE id = ?
         """, (user_id,))
 
@@ -564,6 +570,7 @@ class AuthManager:
 
         cursor.execute("""
             SELECT id, username, display_name, email, is_admin,
+                   COALESCE(is_premium, 0) as is_premium,
                    COALESCE(is_active, 1) as is_active, created_at, last_login
             FROM users
             ORDER BY created_at DESC
@@ -658,6 +665,20 @@ class AuthManager:
         conn.close()
 
         return {"status": "success", "message": f"Usuari {'promogut a' if is_admin else 'tret de'} admin"}
+
+    def toggle_premium(self, user_id: int, is_premium: bool) -> Dict:
+        """Canvia l'estat de premium d'un usuari"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            UPDATE users SET is_premium = ? WHERE id = ?
+        """, (is_premium, user_id))
+
+        conn.commit()
+        conn.close()
+
+        return {"status": "success", "message": f"Usuari {'ara és' if is_premium else 'ja no és'} premium"}
 
     def register_with_invitation(self, username: str, password: str,
                                  invitation_code: str, email: str = None,
