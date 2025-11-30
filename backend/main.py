@@ -8,6 +8,7 @@ import sys
 import json
 import sqlite3
 import logging
+import asyncio
 from pathlib import Path
 from typing import Optional, List, Dict
 from contextlib import contextmanager
