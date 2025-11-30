@@ -1336,7 +1336,7 @@ function Player() {
                       {propagateResult.status === 'success' ? (
                         <>
                           <div className="result-summary">
-                            ✓ {propagateResult.episodes_found} trobats
+                            <span className="check-icon">&#10003;</span> {propagateResult.episodes_found} trobats
                             {propagateResult.episodes_not_found > 0 &&
                               ` · ${propagateResult.episodes_not_found} sense intro`
                             }
