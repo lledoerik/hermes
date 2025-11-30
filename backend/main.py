@@ -74,16 +74,22 @@ def init_all_tables():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS media_segments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                media_id INTEGER NOT NULL,
+                media_id INTEGER,
+                series_id INTEGER,
                 segment_type TEXT NOT NULL,
                 start_time REAL NOT NULL,
                 end_time REAL NOT NULL,
                 source TEXT DEFAULT 'manual',
                 confidence REAL DEFAULT 1.0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(media_id, segment_type, start_time)
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+        # Afegir columna series_id si no existeix (migració)
+        try:
+            cursor.execute("ALTER TABLE media_segments ADD COLUMN series_id INTEGER")
+        except:
+            pass  # La columna ja existeix
 
         # Taula authors (llibres)
         cursor.execute("""
@@ -1128,12 +1134,22 @@ async def stream_movie(movie_id: int, request: Request):
     """Streaming directe d'una pel·lícula amb suport Range"""
     with get_db() as conn:
         cursor = conn.cursor()
+        # Primer intentar amb series.id (movie_id és l'ID de la pel·lícula a series)
         cursor.execute("""
             SELECT m.file_path FROM media_files m
             JOIN series s ON m.series_id = s.id
             WHERE s.id = ? AND s.media_type = 'movie'
         """, (movie_id,))
         result = cursor.fetchone()
+
+        # Si no trobat, intentar amb media_files.id directament
+        if not result:
+            cursor.execute("""
+                SELECT m.file_path FROM media_files m
+                JOIN series s ON m.series_id = s.id
+                WHERE m.id = ? AND s.media_type = 'movie'
+            """, (movie_id,))
+            result = cursor.fetchone()
 
         if not result:
             raise HTTPException(status_code=404, detail="Pel·lícula no trobada")
