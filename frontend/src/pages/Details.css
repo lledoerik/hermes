@@ -2,6 +2,7 @@
 .details-container {
   min-height: 100vh;
   background: var(--bg-primary);
+  overflow-x: hidden; /* Evitar scroll horitzontal del contingut */
 }
 
 /* ========================================
@@ -338,6 +339,7 @@
 .seasons-tabs {
   position: relative;
   text-align: left;
+  overflow: hidden; /* Contenir el scroll horitzontal de les temporades */
 }
 
 .seasons-scroll-container {
