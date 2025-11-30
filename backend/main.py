@@ -313,6 +313,7 @@ class RegisterRequest(BaseModel):
 class ProfileUpdateRequest(BaseModel):
     display_name: Optional[str] = None
     email: Optional[str] = None
+    avatar: Optional[str] = None
 
 class PasswordChangeRequest(BaseModel):
     old_password: str
@@ -490,7 +491,8 @@ async def update_profile(request: Request, data: ProfileUpdateRequest):
     result = auth.update_profile(
         user_id=user["id"],
         display_name=data.display_name,
-        email=data.email
+        email=data.email,
+        avatar=data.avatar
     )
 
     if result["status"] == "error":
