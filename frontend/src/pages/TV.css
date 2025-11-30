@@ -358,6 +358,90 @@
   background: #000;
 }
 
+/* Loading Overlay */
+.tv-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 100;
+  gap: var(--space-lg);
+}
+
+.tv-loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--color-accent-tv);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.tv-loading-text {
+  color: var(--text-primary);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Error Overlay */
+.tv-error-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.9);
+  z-index: 100;
+  gap: var(--space-lg);
+  padding: var(--space-xl);
+}
+
+.tv-error-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.2);
+  border: 2px solid #ef4444;
+  color: #ef4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  font-weight: bold;
+}
+
+.tv-error-text {
+  color: var(--text-primary);
+  font-size: var(--font-size-lg);
+  text-align: center;
+  max-width: 400px;
+}
+
+.tv-retry-btn {
+  padding: var(--space-md) var(--space-xl);
+  background: var(--color-accent-tv);
+  border: none;
+  border-radius: var(--radius-md);
+  color: white;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.tv-retry-btn:hover {
+  background: #c2410c;
+  transform: scale(1.05);
+}
+
 /* Radio Visual (when in radio mode) */
 .tv-radio-visual {
   width: 100%;
