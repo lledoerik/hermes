@@ -146,6 +146,8 @@ function AudiobookPlayer() {
   const sleepTimerRef = useRef(null);
   const containerRef = useRef(null);
   const lastTapRef = useRef({ time: 0, side: null });
+  const chaptersPanelRef = useRef(null);
+  const currentChapterRef = useRef(null);
 
   const [audiobook, setAudiobook] = useState(null);
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
@@ -158,6 +160,7 @@ function AudiobookPlayer() {
   const [showChapters, setShowChapters] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [skipIndicator, setSkipIndicator] = useState(null);
 
   // Sleep timer state
@@ -188,6 +191,7 @@ function AudiobookPlayer() {
         }
       } catch (error) {
         console.error('Error carregant audiollibres:', error);
+        setError('No s\'ha pogut carregar l\'audiollibre');
       } finally {
         setLoading(false);
       }
@@ -245,6 +249,27 @@ function AudiobookPlayer() {
       }
     };
   }, [sleepMode, sleepEndTime]);
+
+  // Scroll automàtic al capítol actual quan s'obre el panell
+  useEffect(() => {
+    if (showChapters && currentChapterRef.current && chaptersPanelRef.current) {
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          if (currentChapterRef.current && chaptersPanelRef.current) {
+            const panel = chaptersPanelRef.current;
+            const element = currentChapterRef.current;
+            const panelRect = panel.getBoundingClientRect();
+
+            const scrollTop = element.offsetTop - (panelRect.height / 2) + (element.offsetHeight / 2);
+            panel.scrollTo({
+              top: Math.max(0, scrollTop),
+              behavior: 'smooth'
+            });
+          }
+        }, 150);
+      });
+    }
+  }, [showChapters]);
 
   // Guardar velocitat a localStorage
   useEffect(() => {
@@ -595,6 +620,22 @@ function AudiobookPlayer() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="audiobook-player-container">
+        <div className="audiobook-error">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="48" height="48" style={{color: '#ef4444', marginBottom: '10px'}}>
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+          </svg>
+          <h2>{error}</h2>
+          <button onClick={() => navigate('/audiobooks')}>
+            <BackIcon /> Tornar a la biblioteca
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!audiobook) {
     return (
       <div className="audiobook-player-container">
@@ -776,22 +817,26 @@ function AudiobookPlayer() {
       <div className={`sidebar-panel ${showChapters ? 'open' : ''}`}>
         <div className="panel-header">
           <h3>Capitols</h3>
-          <button onClick={() => setShowChapters(false)}><CloseIcon /></button>
+          <button onClick={() => setShowChapters(false)} aria-label="Tancar"><CloseIcon /></button>
         </div>
-        <div className="panel-content">
-          {audiobook.files.map((file, index) => (
-            <div
-              key={file.id}
-              className={`chapter-item ${index === currentFileIndex ? 'active' : ''}`}
-              onClick={() => selectTrack(index)}
-            >
-              <span className="chapter-number">{index + 1}</span>
-              <div className="chapter-info">
-                <span className="chapter-title">{file.title || file.file_name}</span>
-                <span className="chapter-duration">{formatTime(file.duration)}</span>
+        <div className="panel-content" ref={chaptersPanelRef}>
+          {audiobook.files.map((file, index) => {
+            const isCurrent = index === currentFileIndex;
+            return (
+              <div
+                key={file.id}
+                ref={isCurrent ? currentChapterRef : null}
+                className={`chapter-item ${isCurrent ? 'active' : ''}`}
+                onClick={() => selectTrack(index)}
+              >
+                <span className="chapter-number">{index + 1}</span>
+                <div className="chapter-info">
+                  <span className="chapter-title">{file.title || file.file_name}</span>
+                  <span className="chapter-duration">{formatTime(file.duration)}</span>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -799,7 +844,7 @@ function AudiobookPlayer() {
       <div className={`sidebar-panel ${showBookmarks ? 'open' : ''}`}>
         <div className="panel-header">
           <h3>Marcadors</h3>
-          <button onClick={() => setShowBookmarks(false)}><CloseIcon /></button>
+          <button onClick={() => setShowBookmarks(false)} aria-label="Tancar"><CloseIcon /></button>
         </div>
         <div className="panel-content">
           {bookmarks.length === 0 ? (
@@ -815,7 +860,7 @@ function AudiobookPlayer() {
                   <span className="bookmark-file">{bookmark.fileTitle}</span>
                   <span className="bookmark-position">{formatTime(bookmark.position)}</span>
                 </div>
-                <button className="delete-bookmark" onClick={() => removeBookmark(bookmark.id)}>
+                <button className="delete-bookmark" onClick={() => removeBookmark(bookmark.id)} aria-label="Eliminar marcador">
                   <CloseIcon />
                 </button>
               </div>
@@ -828,7 +873,7 @@ function AudiobookPlayer() {
       <div className={`sidebar-panel ${showSettings ? 'open' : ''}`}>
         <div className="panel-header">
           <h3>Configuracio</h3>
-          <button onClick={() => setShowSettings(false)}><CloseIcon /></button>
+          <button onClick={() => setShowSettings(false)} aria-label="Tancar"><CloseIcon /></button>
         </div>
         <div className="panel-content">
           {/* Sleep Timer */}

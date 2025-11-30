@@ -651,14 +651,14 @@ class AudioFingerprinterV2:
                     "intro_start": found_start,
                     "intro_end": found_end
                 })
-                logger.info(f"  ✓ Intro trobada: {found_start:.1f}s - {found_end:.1f}s")
+                logger.info(f"  [OK] Intro trobada: {found_start:.1f}s - {found_end:.1f}s")
             else:
                 results["episodes_not_found"] += 1
                 results["details"].append({
                     "episode_id": ep_dict["id"],
                     "status": "not_found"
                 })
-                logger.info(f"  ✗ Intro no trobada")
+                logger.info(f"  [--] Intro no trobada")
 
         conn.commit()
         conn.close()
@@ -800,14 +800,14 @@ def detect_intros_for_all_series(progress_callback=None) -> Dict:
             if result["status"] == "success":
                 results["series_with_intros"] += 1
                 results["total_episodes_with_intros"] += result.get("episodes_with_intro", 0)
-                logger.info(f"✓ Intros trobades per {result.get('episodes_with_intro', 0)} episodis")
+                logger.info(f"[OK] Intros trobades per {result.get('episodes_with_intro', 0)} episodis")
 
                 # Mostrar grups d'opening si n'hi ha més d'un
                 if result.get("opening_groups", 1) > 1:
                     logger.info(f"  Detectats {result['opening_groups']} openings diferents")
             else:
                 results["series_failed"] += 1
-                logger.info(f"✗ {result.get('message', 'Error desconegut')}")
+                logger.info(f"[!!] {result.get('message', 'Error desconegut')}")
 
         except Exception as e:
             logger.error(f"Error processant {series_name}: {e}")
