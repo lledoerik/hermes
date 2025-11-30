@@ -104,7 +104,27 @@ class HermesScanner:
             cursor.execute("ALTER TABLE series ADD COLUMN runtime INTEGER")
         except sqlite3.OperationalError:
             pass
-        
+        try:
+            cursor.execute("ALTER TABLE series ADD COLUMN tagline TEXT")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE series ADD COLUMN original_title TEXT")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE series ADD COLUMN director TEXT")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE series ADD COLUMN creators TEXT")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE series ADD COLUMN cast_members TEXT")
+        except sqlite3.OperationalError:
+            pass
+
         # Taula media_files
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS media_files (

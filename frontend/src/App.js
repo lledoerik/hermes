@@ -16,6 +16,7 @@ import AudiobookPlayer from './pages/AudiobookPlayer';
 import TV from './pages/TV';
 import Programs from './pages/Programs';
 import Login from './pages/Login';
+import Profile from './pages/Profile';
 import './App.css';
 
 function App() {
@@ -62,6 +63,7 @@ function App() {
                     <Route path="/series/:id" element={<Details />} />
                     <Route path="/search" element={<Search />} />
                     <Route path="/admin" element={<Admin />} />
+                    <Route path="/profile" element={<Profile />} />
                   </Routes>
                 </main>
               </>
