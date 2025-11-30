@@ -1250,8 +1250,8 @@ function Player() {
           </button>
         )}
 
-        {/* Editor d'intros */}
-        {showIntroEditor && (
+        {/* Editor d'intros - només visible per admins */}
+        {showIntroEditor && isAdmin && (
           <div className="intro-editor">
             <div className="intro-editor-header">
               <h3>Editor d'Intro</h3>
