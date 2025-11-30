@@ -502,8 +502,8 @@ function Audiobooks() {
         </div>
       )}
 
-      {/* Modal for editing audiobook metadata */}
-      {editingAudiobook && (
+      {/* Modal for editing audiobook metadata - només visible per admins */}
+      {editingAudiobook && isAdmin && (
         <div className="metadata-modal-overlay" onClick={handleCloseMetadataEdit}>
           <div className="metadata-modal" onClick={(e) => e.stopPropagation()}>
             <div className="metadata-modal-header">

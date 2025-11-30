@@ -512,8 +512,8 @@ function Books() {
         </div>
       )}
 
-      {/* Modal for editing book metadata */}
-      {editingBook && (
+      {/* Modal for editing book metadata - només visible per admins */}
+      {editingBook && isAdmin && (
         <div className="metadata-modal-overlay" onClick={handleCloseMetadataEdit}>
           <div className="metadata-modal" onClick={(e) => e.stopPropagation()}>
             <div className="metadata-modal-header">
