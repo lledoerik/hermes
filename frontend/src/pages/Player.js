@@ -331,13 +331,26 @@ function Player() {
   // Scroll automàtic a l'episodi actual quan s'obre el menú
   useEffect(() => {
     if (showEpisodesMenu && currentEpisodeRef.current && episodesMenuRef.current) {
-      // Petit delay per assegurar que el menú està renderitzat
-      setTimeout(() => {
-        currentEpisodeRef.current?.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center'
-        });
-      }, 50);
+      // Utilitzem requestAnimationFrame per assegurar que el DOM està pintat
+      requestAnimationFrame(() => {
+        // Delay addicional per assegurar que el menú està completament renderitzat
+        setTimeout(() => {
+          if (currentEpisodeRef.current && episodesMenuRef.current) {
+            // Calcular la posició per centrar l'element
+            const menu = episodesMenuRef.current;
+            const element = currentEpisodeRef.current;
+            const menuRect = menu.getBoundingClientRect();
+            const elementRect = element.getBoundingClientRect();
+
+            // Scroll per centrar l'element al menú
+            const scrollTop = element.offsetTop - (menuRect.height / 2) + (elementRect.height / 2);
+            menu.scrollTo({
+              top: Math.max(0, scrollTop),
+              behavior: 'smooth'
+            });
+          }
+        }, 100);
+      });
     }
   }, [showEpisodesMenu]);
 
