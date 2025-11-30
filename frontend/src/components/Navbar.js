@@ -113,7 +113,7 @@ function Navbar() {
               onMouseLeave={() => setShowProfile(false)}
             >
               <button className="profile-button">
-                <span className="navbar-avatar">
+                <span className={`navbar-avatar ${user?.avatar ? 'has-image' : ''}`}>
                   {user?.avatar ? (
                     <img src={user.avatar} alt="Avatar" />
                   ) : (
