@@ -1,48 +1,114 @@
 """
 CCMA (3Cat) API integration for fetching public Catalan TV content.
 
-NOTA: L'API de la CCMA/3Cat ha canviat el domini de ccma.cat a 3cat.cat
-i ara requereix headers específics (Origin, Referer) per evitar errors 403.
+NOTA: L'API de la CCMA/3Cat utilitza diversos endpoints que poden canviar.
+S'intenten múltiples URLs de fallback per assegurar la compatibilitat.
 """
 import asyncio
 import json
 import urllib.request
 import urllib.parse
+import logging
 from typing import Optional, Dict, Any, List
 import re
+
+logger = logging.getLogger(__name__)
 
 
 class CCMAClient:
     """Client per accedir a l'API de 3Cat (CCMA)"""
 
-    # URLs actualitzades al nou domini 3cat.cat
-    BASE_URL = "https://api.3cat.cat/videos"
-    PROGRAMS_URL = "https://api.3cat.cat/programes"
-    IMAGE_BASE = "https://statics.3cat.cat"
+    # URLs possibles - s'intenten en ordre
+    API_URLS = [
+        {
+            'videos': "https://api.3cat.cat/videos",
+            'programs': "https://api.3cat.cat/programes",
+            'images': "https://statics.3cat.cat",
+        },
+        {
+            'videos': "https://dinamics.3cat.cat/api/videos",
+            'programs': "https://dinamics.3cat.cat/api/programes",
+            'images': "https://statics.3cat.cat",
+        },
+    ]
 
-    # Headers necessaris per evitar 403 Forbidden
+    # Headers necessaris per simular un navegador
     REQUIRED_HEADERS = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json',
-        'Origin': 'https://www.3cat.cat',
-        'Referer': 'https://www.3cat.cat/',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'ca,es;q=0.9,en;q=0.8',
+        'Connection': 'keep-alive',
     }
 
     def __init__(self):
-        pass
+        self.current_api_index = 0
+        self._api_status = {}  # Caché d'estat de les APIs
 
-    def _sync_request(self, url: str) -> Optional[Dict]:
-        """Make a synchronous API request with required headers."""
-        try:
-            req = urllib.request.Request(url)
-            for header, value in self.REQUIRED_HEADERS.items():
-                req.add_header(header, value)
+    @property
+    def BASE_URL(self):
+        return self.API_URLS[self.current_api_index]['videos']
 
-            with urllib.request.urlopen(req, timeout=30) as response:
-                return json.loads(response.read().decode('utf-8'))
-        except Exception as e:
-            print(f"CCMA API error: {e}")
-            return None
+    @property
+    def PROGRAMS_URL(self):
+        return self.API_URLS[self.current_api_index]['programs']
+
+    @property
+    def IMAGE_BASE(self):
+        return self.API_URLS[self.current_api_index]['images']
+
+    def _sync_request(self, url: str, retry_other_apis: bool = True) -> Optional[Dict]:
+        """Make a synchronous API request with required headers and fallback."""
+        errors = []
+
+        for api_index in range(len(self.API_URLS)):
+            try:
+                # Construir URL amb l'API actual
+                current_url = url
+                if api_index != self.current_api_index:
+                    # Substituir el domini si estem provant una API alternativa
+                    for key in ['videos', 'programs']:
+                        old_base = self.API_URLS[self.current_api_index][key]
+                        new_base = self.API_URLS[api_index][key]
+                        if old_base in current_url:
+                            current_url = current_url.replace(old_base, new_base)
+                            break
+
+                req = urllib.request.Request(current_url)
+                for header, value in self.REQUIRED_HEADERS.items():
+                    req.add_header(header, value)
+
+                logger.debug(f"CCMA API request: {current_url}")
+
+                with urllib.request.urlopen(req, timeout=15) as response:
+                    data = json.loads(response.read().decode('utf-8'))
+                    # Si funciona, actualitzar l'índex preferit
+                    if api_index != self.current_api_index:
+                        logger.info(f"CCMA: Canviat a API alternativa {api_index}")
+                        self.current_api_index = api_index
+                    return data
+
+            except urllib.error.HTTPError as e:
+                error_msg = f"HTTP {e.code}: {e.reason}"
+                errors.append(f"API {api_index}: {error_msg}")
+                logger.warning(f"CCMA API {api_index} error: {error_msg}")
+                if not retry_other_apis:
+                    break
+            except urllib.error.URLError as e:
+                error_msg = f"URL Error: {e.reason}"
+                errors.append(f"API {api_index}: {error_msg}")
+                logger.warning(f"CCMA API {api_index} error: {error_msg}")
+                if not retry_other_apis:
+                    break
+            except Exception as e:
+                error_msg = str(e)
+                errors.append(f"API {api_index}: {error_msg}")
+                logger.warning(f"CCMA API {api_index} error: {error_msg}")
+                if not retry_other_apis:
+                    break
+
+        # Totes les APIs han fallat
+        logger.error(f"CCMA API: Totes les APIs han fallat. Errors: {'; '.join(errors)}")
+        return None
 
     async def _request(self, url: str) -> Optional[Dict]:
         """Make an async API request."""

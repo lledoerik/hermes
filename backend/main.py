@@ -4242,8 +4242,24 @@ async def regenerate_all_thumbnails():
 async def get_3cat_programs(limit: int = 50):
     """Get list of 3Cat programs."""
     from backend.metadata.ccma import get_3cat_programs as fetch_programs
-    programs = await fetch_programs(limit)
-    return {"programs": programs, "count": len(programs)}
+    try:
+        programs = await fetch_programs(limit)
+        if not programs:
+            return {
+                "programs": [],
+                "count": 0,
+                "status": "unavailable",
+                "message": "L'API de 3Cat no està disponible temporalment"
+            }
+        return {"programs": programs, "count": len(programs), "status": "ok"}
+    except Exception as e:
+        logger.error(f"Error fetching 3Cat programs: {e}")
+        return {
+            "programs": [],
+            "count": 0,
+            "status": "error",
+            "message": str(e)
+        }
 
 
 @app.get("/api/3cat/videos")
@@ -4254,8 +4270,24 @@ async def get_3cat_videos(
 ):
     """Get 3Cat videos, optionally filtered by program or category."""
     from backend.metadata.ccma import get_3cat_videos as fetch_videos
-    videos = await fetch_videos(program_id, category, limit)
-    return {"videos": videos, "count": len(videos)}
+    try:
+        videos = await fetch_videos(program_id, category, limit)
+        if not videos:
+            return {
+                "videos": [],
+                "count": 0,
+                "status": "unavailable",
+                "message": "No s'han pogut obtenir els vídeos de 3Cat"
+            }
+        return {"videos": videos, "count": len(videos), "status": "ok"}
+    except Exception as e:
+        logger.error(f"Error fetching 3Cat videos: {e}")
+        return {
+            "videos": [],
+            "count": 0,
+            "status": "error",
+            "message": str(e)
+        }
 
 
 @app.get("/api/3cat/videos/{video_id}")
