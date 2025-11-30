@@ -799,7 +799,7 @@ function AudiobookPlayer() {
       <div className={`sidebar-panel ${showChapters ? 'open' : ''}`}>
         <div className="panel-header">
           <h3>Capitols</h3>
-          <button onClick={() => setShowChapters(false)}><CloseIcon /></button>
+          <button onClick={() => setShowChapters(false)} aria-label="Tancar"><CloseIcon /></button>
         </div>
         <div className="panel-content" ref={chaptersPanelRef}>
           {audiobook.files.map((file, index) => {
@@ -826,7 +826,7 @@ function AudiobookPlayer() {
       <div className={`sidebar-panel ${showBookmarks ? 'open' : ''}`}>
         <div className="panel-header">
           <h3>Marcadors</h3>
-          <button onClick={() => setShowBookmarks(false)}><CloseIcon /></button>
+          <button onClick={() => setShowBookmarks(false)} aria-label="Tancar"><CloseIcon /></button>
         </div>
         <div className="panel-content">
           {bookmarks.length === 0 ? (
@@ -842,7 +842,7 @@ function AudiobookPlayer() {
                   <span className="bookmark-file">{bookmark.fileTitle}</span>
                   <span className="bookmark-position">{formatTime(bookmark.position)}</span>
                 </div>
-                <button className="delete-bookmark" onClick={() => removeBookmark(bookmark.id)}>
+                <button className="delete-bookmark" onClick={() => removeBookmark(bookmark.id)} aria-label="Eliminar marcador">
                   <CloseIcon />
                 </button>
               </div>
@@ -855,7 +855,7 @@ function AudiobookPlayer() {
       <div className={`sidebar-panel ${showSettings ? 'open' : ''}`}>
         <div className="panel-header">
           <h3>Configuracio</h3>
-          <button onClick={() => setShowSettings(false)}><CloseIcon /></button>
+          <button onClick={() => setShowSettings(false)} aria-label="Tancar"><CloseIcon /></button>
         </div>
         <div className="panel-content">
           {/* Sleep Timer */}
