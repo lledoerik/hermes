@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 import './Library.css';
 import './Books.css';
 
@@ -94,6 +95,7 @@ function Books() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('authors'); // 'authors' o 'all'
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
 
   // Metadata editing state
   const [editingBook, setEditingBook] = useState(null);
@@ -384,13 +386,15 @@ function Books() {
                   </div>
                 )}
                 <div className="book-format-badge">{book.format.toUpperCase()}</div>
-                <button
-                  className="book-edit-btn"
-                  onClick={(e) => handleOpenMetadataEdit(e, book)}
-                  title="Editar metadades"
-                >
-                  <EditIcon size={14} />
-                </button>
+                {isAdmin && (
+                  <button
+                    className="book-edit-btn"
+                    onClick={(e) => handleOpenMetadataEdit(e, book)}
+                    title="Editar metadades"
+                  >
+                    <EditIcon size={14} />
+                  </button>
+                )}
               </div>
               <div className="book-info">
                 <h3 className="book-title">{book.title}</h3>
@@ -489,13 +493,15 @@ function Books() {
                   </div>
                 )}
                 <div className="book-format-badge">{book.format.toUpperCase()}</div>
-                <button
-                  className="book-edit-btn"
-                  onClick={(e) => handleOpenMetadataEdit(e, book)}
-                  title="Editar metadades"
-                >
-                  <EditIcon size={14} />
-                </button>
+                {isAdmin && (
+                  <button
+                    className="book-edit-btn"
+                    onClick={(e) => handleOpenMetadataEdit(e, book)}
+                    title="Editar metadades"
+                  >
+                    <EditIcon size={14} />
+                  </button>
+                )}
               </div>
               <div className="book-info">
                 <h3 className="book-title">{book.title}</h3>

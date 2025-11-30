@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Hls from 'hls.js';
+import { useAuth } from '../context/AuthContext';
 import './Player.css';
 
 const API_URL = window.location.hostname === 'localhost'
@@ -131,6 +132,7 @@ const getLanguageName = (lang) => {
 function Player() {
   const { type, id } = useParams();
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const videoRef = useRef(null);
   const controlsTimeoutRef = useRef(null);
   const progressRef = useRef(null);
@@ -1513,8 +1515,8 @@ function Player() {
                   </div>
                 )}
 
-                {/* Edit Intro Button (només per episodis) */}
-                {type === 'episode' && (
+                {/* Edit Intro Button (només per episodis i admins) */}
+                {type === 'episode' && isAdmin && (
                   <button
                     className={`control-btn ${showIntroEditor ? 'active' : ''}`}
                     onClick={toggleIntroEditor}
