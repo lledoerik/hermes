@@ -244,30 +244,46 @@ class AuthManager:
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
-        # Comprovar si ja existeix
-        cursor.execute("SELECT id FROM users WHERE username = ?", (username,))
-        if cursor.fetchone():
-            conn.close()
-            return {"status": "error", "message": "L'usuari ja existeix"}
-
-        if email:
-            cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
+        try:
+            # Comprovar si ja existeix
+            cursor.execute("SELECT id FROM users WHERE username = ?", (username,))
             if cursor.fetchone():
                 conn.close()
+                return {"status": "error", "message": "L'usuari ja existeix"}
+
+            if email:
+                cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
+                if cursor.fetchone():
+                    conn.close()
+                    return {"status": "error", "message": "L'email ja està registrat"}
+
+            # Crear usuari
+            password_hash = self._hash_password(password)
+            display_name = display_name or username
+
+            cursor.execute("""
+                INSERT INTO users (username, email, password_hash, display_name)
+                VALUES (?, ?, ?, ?)
+            """, (username, email, password_hash, display_name))
+
+            user_id = cursor.lastrowid
+            conn.commit()
+        except sqlite3.IntegrityError as e:
+            conn.close()
+            if 'email' in str(e):
                 return {"status": "error", "message": "L'email ja està registrat"}
-
-        # Crear usuari
-        password_hash = self._hash_password(password)
-        display_name = display_name or username
-
-        cursor.execute("""
-            INSERT INTO users (username, email, password_hash, display_name)
-            VALUES (?, ?, ?, ?)
-        """, (username, email, password_hash, display_name))
-
-        user_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
+            elif 'username' in str(e):
+                return {"status": "error", "message": "L'usuari ja existeix"}
+            return {"status": "error", "message": "Error de registre"}
+        except Exception as e:
+            conn.close()
+            logger.error(f"Error en registre: {e}")
+            return {"status": "error", "message": "Error en el registre"}
+        finally:
+            try:
+                conn.close()
+            except:
+                pass
 
         # Generar token
         token = self.jwt.encode({
