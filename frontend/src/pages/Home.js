@@ -318,16 +318,30 @@ function Home() {
         <section className="quick-access">
           <h2 className="row-title">Explorar</h2>
           <div className="quick-access-grid">
-            <Link to="/series" className="quick-card">
-              <div className="quick-bubble gradient-series"></div>
-              <SeriesIcon />
-              <span>Sèries</span>
-            </Link>
             <Link to="/movies" className="quick-card">
               <div className="quick-bubble gradient-movies"></div>
               <MovieIcon />
               <span>Pel·lícules</span>
             </Link>
+            <Link to="/series" className="quick-card">
+              <div className="quick-bubble gradient-series"></div>
+              <SeriesIcon />
+              <span>Sèries</span>
+            </Link>
+            {user?.is_admin ? (
+              <Link to="/programs" className="quick-card">
+                <div className="quick-bubble gradient-programs"></div>
+                <ProgramsIcon />
+                <span>Programes</span>
+              </Link>
+            ) : (
+              <div className="quick-card inactive">
+                <div className="quick-bubble gradient-programs"></div>
+                <ProgramsIcon />
+                <span>Programes</span>
+                <span className="coming-soon">Properament</span>
+              </div>
+            )}
             <Link to="/books" className="quick-card">
               <div className="quick-bubble gradient-books"></div>
               <BookIcon />
@@ -343,13 +357,6 @@ function Home() {
               <TvIcon />
               <span>TV en directe</span>
             </Link>
-            {user?.is_admin && (
-              <Link to="/programs" className="quick-card">
-                <div className="quick-bubble gradient-programs"></div>
-                <ProgramsIcon />
-                <span>Programes</span>
-              </Link>
-            )}
           </div>
         </section>
       </div>
@@ -390,11 +397,7 @@ function Home() {
             {/* Pel·lícules */}
             <Link to="/movies" className="category-card active">
               <div className="card-glass"></div>
-              <div className="hover-bubbles">
-                <div className="floating-bubble bubble-1 gradient-movies"></div>
-                <div className="floating-bubble bubble-2 gradient-movies"></div>
-                <div className="floating-bubble bubble-3 gradient-movies"></div>
-              </div>
+              <div className="category-bubble gradient-movies"></div>
               <div className="card-content">
                 <MovieIcon />
                 <h3 className="card-title">Pel·lícules</h3>
@@ -405,11 +408,7 @@ function Home() {
             {/* Sèries */}
             <Link to="/series" className="category-card active">
               <div className="card-glass"></div>
-              <div className="hover-bubbles">
-                <div className="floating-bubble bubble-1 gradient-series"></div>
-                <div className="floating-bubble bubble-2 gradient-series"></div>
-                <div className="floating-bubble bubble-3 gradient-series"></div>
-              </div>
+              <div className="category-bubble gradient-series"></div>
               <div className="card-content">
                 <SeriesIcon />
                 <h3 className="card-title">Sèries</h3>
@@ -420,11 +419,7 @@ function Home() {
             {/* Programes - Inactiu */}
             <div className="category-card inactive">
               <div className="card-glass"></div>
-              <div className="hover-bubbles">
-                <div className="floating-bubble bubble-1 gradient-programs"></div>
-                <div className="floating-bubble bubble-2 gradient-programs"></div>
-                <div className="floating-bubble bubble-3 gradient-programs"></div>
-              </div>
+              <div className="category-bubble gradient-programs"></div>
               <div className="card-content">
                 <ProgramsIcon />
                 <h3 className="card-title">Programes</h3>
@@ -436,11 +431,7 @@ function Home() {
             {/* Llibres */}
             <Link to="/books" className="category-card active">
               <div className="card-glass"></div>
-              <div className="hover-bubbles">
-                <div className="floating-bubble bubble-1 gradient-books"></div>
-                <div className="floating-bubble bubble-2 gradient-books"></div>
-                <div className="floating-bubble bubble-3 gradient-books"></div>
-              </div>
+              <div className="category-bubble gradient-books"></div>
               <div className="card-content">
                 <BookIcon />
                 <h3 className="card-title">Llibres</h3>
@@ -451,11 +442,7 @@ function Home() {
             {/* Audiollibres */}
             <Link to="/audiobooks" className="category-card active">
               <div className="card-glass"></div>
-              <div className="hover-bubbles">
-                <div className="floating-bubble bubble-1 gradient-audiobooks"></div>
-                <div className="floating-bubble bubble-2 gradient-audiobooks"></div>
-                <div className="floating-bubble bubble-3 gradient-audiobooks"></div>
-              </div>
+              <div className="category-bubble gradient-audiobooks"></div>
               <div className="card-content">
                 <AudiobookIcon />
                 <h3 className="card-title">Audiollibres</h3>
@@ -466,11 +453,7 @@ function Home() {
             {/* Televisió */}
             <Link to="/tv" className="category-card active">
               <div className="card-glass"></div>
-              <div className="hover-bubbles">
-                <div className="floating-bubble bubble-1 gradient-tv"></div>
-                <div className="floating-bubble bubble-2 gradient-tv"></div>
-                <div className="floating-bubble bubble-3 gradient-tv"></div>
-              </div>
+              <div className="category-bubble gradient-tv"></div>
               <div className="card-content">
                 <TvIcon />
                 <h3 className="card-title">Televisió</h3>
