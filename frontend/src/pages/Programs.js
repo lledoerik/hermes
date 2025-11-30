@@ -282,7 +282,7 @@ function Programs() {
       const res = await fetch(`${API_URL}/api/3cat/programs?limit=100`);
       if (res.ok) {
         const data = await res.json();
-        setPrograms(data);
+        setPrograms(data.programs || []);
       } else {
         setError('Error carregant programes');
       }
@@ -301,7 +301,7 @@ function Programs() {
       const res = await fetch(`${API_URL}/api/3cat/latest?limit=50`);
       if (res.ok) {
         const data = await res.json();
-        setVideos(data);
+        setVideos(data.videos || []);
       } else {
         setError('Error carregant vídeos');
       }
@@ -320,7 +320,7 @@ function Programs() {
       const res = await fetch(`${API_URL}/api/3cat/videos?program_id=${programId}&limit=50`);
       if (res.ok) {
         const data = await res.json();
-        setVideos(data);
+        setVideos(data.videos || []);
       } else {
         setError('Error carregant vídeos');
       }
@@ -348,7 +348,7 @@ function Programs() {
       const res = await fetch(`${API_URL}/api/3cat/search?q=${encodeURIComponent(query)}&limit=50`);
       if (res.ok) {
         const data = await res.json();
-        setVideos(data);
+        setVideos(data.videos || []);
         setActiveTab('latest'); // Switch to videos view for search results
       } else {
         setError('Error cercant');
