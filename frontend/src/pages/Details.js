@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 import './Details.css';
 
 const API_URL = window.location.hostname === 'localhost'
@@ -80,6 +81,7 @@ function Details() {
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   // Determinar el tipus segons la ruta
   const type = location.pathname.startsWith('/movies') ? 'movies' : 'series';
   const [item, setItem] = useState(null);
@@ -336,17 +338,19 @@ function Details() {
               <button className="secondary-btn">
                 + La meva llista
               </button>
-              <button
-                className="secondary-btn edit-metadata-btn"
-                onClick={() => setShowTmdbInput(!showTmdbInput)}
-                title="Corregir metadades amb TMDB ID"
-              >
-                <EditIcon size={16} />
-              </button>
+              {isAdmin && (
+                <button
+                  className="secondary-btn edit-metadata-btn"
+                  onClick={() => setShowTmdbInput(!showTmdbInput)}
+                  title="Corregir metadades amb TMDB ID"
+                >
+                  <EditIcon size={16} />
+                </button>
+              )}
             </div>
 
-            {/* TMDB ID Input Form */}
-            {showTmdbInput && (
+            {/* TMDB ID Input Form - només admins */}
+            {isAdmin && showTmdbInput && (
               <div className="tmdb-input-form">
                 <label>
                   {item?.tmdb_id ? 'TMDB ID actual (canvia per actualitzar):' : 'Introdueix l\'ID de TMDB:'}
