@@ -299,6 +299,16 @@ function Profile() {
     }
   };
 
+  const toggleUserPremium = async (userId, isPremium) => {
+    try {
+      await axios.put(`${API_URL}/api/admin/users/${userId}/toggle-premium?is_premium=${isPremium}`);
+      showMessage(`Usuari ${isPremium ? 'ara és' : 'ja no és'} premium`);
+      loadAdminData();
+    } catch (e) {
+      showMessage(e.response?.data?.detail || 'Error', 'error');
+    }
+  };
+
   const deleteUser = async (userId) => {
     if (!window.confirm('Segur que vols eliminar aquest usuari?')) return;
     try {
@@ -602,22 +612,22 @@ function Profile() {
                         </div>
                         <div>
                           <h4>{u.display_name || u.username}</h4>
-                          <p>@{u.username} {u.is_admin && <span className="admin-badge">Admin</span>}</p>
+                          <p>@{u.username} {u.is_admin && <span className="admin-badge">Admin</span>}{u.is_premium && <span className="premium-badge">Premium</span>}</p>
                         </div>
                       </div>
                       {u.id !== user.id && (
                         <div className="user-actions">
                           <button
-                            className={`action-btn ${u.is_active ? 'danger' : 'success'}`}
+                            className={`action-btn ${u.is_active ? 'warning' : 'success'}`}
                             onClick={() => toggleUserActive(u.id, !u.is_active)}
                           >
                             {u.is_active ? 'Desactivar' : 'Activar'}
                           </button>
                           <button
-                            className="action-btn"
-                            onClick={() => toggleUserAdmin(u.id, !u.is_admin)}
+                            className={`action-btn ${u.is_premium ? 'warning' : 'premium'}`}
+                            onClick={() => toggleUserPremium(u.id, !u.is_premium)}
                           >
-                            {u.is_admin ? 'Treure admin' : 'Fer admin'}
+                            {u.is_premium ? 'Treure premium' : 'Fer premium'}
                           </button>
                           <button
                             className="action-btn danger"
