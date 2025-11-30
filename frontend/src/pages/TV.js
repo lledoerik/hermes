@@ -245,6 +245,7 @@ function TV() {
   const [viewMode, setViewMode] = useState('fullscreen'); // 'fullscreen' o 'grid'
   const [currentChannel, setCurrentChannel] = useState(TV_CHANNELS[0]);
   const [filter, setFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('number'); // 'number', 'name', 'category'
   const [showChannelList, setShowChannelList] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [isPlaying, setIsPlaying] = useState(true);
@@ -307,17 +308,42 @@ function TV() {
 
     if (isHlsStream && Hls.isSupported()) {
       // Usar HLS.js per navegadors que no suporten HLS nativament
+      // Configuració optimitzada per màxima qualitat
       const hls = new Hls({
         enableWorker: true,
-        lowLatencyMode: true,
+        lowLatencyMode: false, // Desactivar per millor qualitat
         backBufferLength: 90,
+        maxBufferLength: 30,
+        maxMaxBufferLength: 600,
+        maxBufferSize: 60 * 1000 * 1000, // 60MB buffer
+        maxBufferHole: 0.5,
+        // ABR config per prioritzar qualitat
+        startLevel: -1, // Auto-seleccionar basant-se en bandwidth
+        abrEwmaDefaultEstimate: 5000000, // 5Mbps estimació inicial (afavoreix HD)
+        abrBandWidthFactor: 0.95,
+        abrBandWidthUpFactor: 0.7,
+        abrMaxWithRealBitrate: true,
+        // Cap quality al tamany del reproductor
+        capLevelToPlayerSize: true,
+        // Recuperació d'errors
+        fragLoadingMaxRetry: 6,
+        manifestLoadingMaxRetry: 4,
+        levelLoadingMaxRetry: 4,
       });
       hlsRef.current = hls;
 
       hls.loadSource(streamUrl);
       hls.attachMedia(mediaElement);
 
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+        // Seleccionar automàticament la millor qualitat disponible
+        if (data.levels && data.levels.length > 0) {
+          // Trobar el nivell HD més alt (preferir 1080p o 720p)
+          const hdLevel = data.levels.findIndex(l => l.height >= 720);
+          if (hdLevel !== -1) {
+            hls.currentLevel = hdLevel;
+          }
+        }
         safePlay();
       });
 
@@ -357,9 +383,27 @@ function TV() {
   const channels = mode === 'tv' ? TV_CHANNELS : RADIO_CHANNELS;
   const categories = mode === 'tv' ? TV_CATEGORIES : RADIO_CATEGORIES;
 
-  const filteredChannels = filter === 'all'
-    ? channels
-    : channels.filter(ch => ch.category === filter);
+  // Filtrar i ordenar canals
+  const filteredChannels = (() => {
+    let result = filter === 'all'
+      ? [...channels]
+      : channels.filter(ch => ch.category === filter);
+
+    // Ordenar
+    switch (sortBy) {
+      case 'name':
+        result.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case 'category':
+        result.sort((a, b) => (a.category || '').localeCompare(b.category || ''));
+        break;
+      case 'number':
+      default:
+        result.sort((a, b) => a.id - b.id);
+        break;
+    }
+    return result;
+  })();
 
   // Ocultar controls després d'un temps
   const resetControlsTimeout = useCallback(() => {
@@ -696,22 +740,39 @@ function TV() {
           </button>
         </div>
 
-        <div className="tv-view-switcher">
-          <button
-            className={`view-btn ${viewMode === 'fullscreen' ? 'active' : ''}`}
-            onClick={() => setViewMode('fullscreen')}
-            title="Vista reproductor"
+        <div className="tv-header-right">
+          <select
+            className="tv-sort-select"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
           >
-            <FullscreenIcon />
-          </button>
-          <button
-            className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`}
-            onClick={() => setViewMode('grid')}
-            title="Vista graella"
-          >
-            <GridIcon />
-          </button>
+            <option value="number">Ordenar per número</option>
+            <option value="name">Ordenar per nom</option>
+            <option value="category">Ordenar per categoria</option>
+          </select>
+
+          <div className="tv-view-switcher">
+            <button
+              className={`view-btn ${viewMode === 'fullscreen' ? 'active' : ''}`}
+              onClick={() => setViewMode('fullscreen')}
+              title="Vista reproductor"
+            >
+              <FullscreenIcon />
+            </button>
+            <button
+              className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`}
+              onClick={() => setViewMode('grid')}
+              title="Vista graella"
+            >
+              <GridIcon />
+            </button>
+          </div>
         </div>
+      </div>
+
+      {/* Comptador de canals */}
+      <div className="tv-channels-count">
+        {filteredChannels.length} {mode === 'tv' ? 'canals' : 'emissores'} disponibles
       </div>
 
       <div className="tv-categories-bar">
