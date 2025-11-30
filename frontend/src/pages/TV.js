@@ -219,22 +219,22 @@ const RADIO_CHANNELS = [
 
 // Categories per filtrar
 const TV_CATEGORIES = [
-  { id: 'all', name: 'Tots', icon: '📺' },
-  { id: 'autonòmica', name: 'Autonòmiques', icon: '🗺️' },
-  { id: 'notícies', name: 'Notícies', icon: '📰' },
-  { id: 'esports', name: 'Esports', icon: '⚽' },
-  { id: 'infantil', name: 'Infantil', icon: '🧸' },
-  { id: 'entreteniment', name: 'Entreteniment', icon: '🎬' },
-  { id: 'música', name: 'Música', icon: '🎵' },
-  { id: 'temàtica', name: 'Temàtiques', icon: '🎯' },
-  { id: 'local', name: 'Locals', icon: '📍' },
+  { id: 'all', name: 'Tots', icon: null },
+  { id: 'autonòmica', name: 'Autonòmiques', icon: null },
+  { id: 'notícies', name: 'Notícies', icon: null },
+  { id: 'esports', name: 'Esports', icon: null },
+  { id: 'infantil', name: 'Infantil', icon: null },
+  { id: 'entreteniment', name: 'Entreteniment', icon: null },
+  { id: 'música', name: 'Música', icon: null },
+  { id: 'temàtica', name: 'Temàtiques', icon: null },
+  { id: 'local', name: 'Locals', icon: null },
 ];
 
 const RADIO_CATEGORIES = [
-  { id: 'all', name: 'Totes', icon: '📻' },
-  { id: 'generalista', name: 'Generalistes', icon: '🎙️' },
-  { id: 'música', name: 'Música', icon: '🎵' },
-  { id: 'notícies', name: 'Notícies', icon: '📰' },
+  { id: 'all', name: 'Totes', icon: null },
+  { id: 'generalista', name: 'Generalistes', icon: null },
+  { id: 'música', name: 'Música', icon: null },
+  { id: 'notícies', name: 'Notícies', icon: null },
 ];
 
 // ============================================================
