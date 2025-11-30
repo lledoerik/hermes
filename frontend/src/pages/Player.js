@@ -139,6 +139,8 @@ function Player() {
   const lastTapRef = useRef(0);
   const tapTimeoutRef = useRef(null);
   const playerContainerRef = useRef(null);
+  const episodesMenuRef = useRef(null);
+  const currentEpisodeRef = useRef(null);
 
   // Segons per avançar/retrocedir (configurable)
   const skipSeconds = 10;
@@ -315,6 +317,19 @@ function Player() {
       }
     };
   }, [hlsUrl]);
+
+  // Scroll automàtic a l'episodi actual quan s'obre el menú
+  useEffect(() => {
+    if (showEpisodesMenu && currentEpisodeRef.current && episodesMenuRef.current) {
+      // Petit delay per assegurar que el menú està renderitzat
+      setTimeout(() => {
+        currentEpisodeRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+      }, 50);
+    }
+  }, [showEpisodesMenu]);
 
   const loadMedia = async () => {
     try {
@@ -1490,26 +1505,30 @@ function Player() {
                       <EpisodesIcon />
                     </button>
                     {showEpisodesMenu && (
-                      <div className="control-menu episodes-menu">
+                      <div className="control-menu episodes-menu" ref={episodesMenuRef}>
                         <div className="menu-header">
                           Temporada {item?.season_number}
                         </div>
-                        {seriesEpisodes.map((ep) => (
-                          <div
-                            key={ep.id}
-                            className={`menu-item ${ep.id === parseInt(id) ? 'selected current' : ''}`}
-                            onClick={() => {
-                              if (ep.id !== parseInt(id)) {
-                                navigate(`/play/episode/${ep.id}`);
-                              }
-                              setShowEpisodesMenu(false);
-                            }}
-                          >
-                            {ep.id === parseInt(id) && <span className="check-icon"><PlayIcon /></span>}
-                            <span className="episode-num">{ep.episode_number}.</span>
-                            <span className="episode-title">{ep.title || `Episodi ${ep.episode_number}`}</span>
-                          </div>
-                        ))}
+                        {seriesEpisodes.map((ep) => {
+                          const isCurrent = ep.id === parseInt(id);
+                          return (
+                            <div
+                              key={ep.id}
+                              ref={isCurrent ? currentEpisodeRef : null}
+                              className={`menu-item ${isCurrent ? 'selected current' : ''}`}
+                              onClick={() => {
+                                if (!isCurrent) {
+                                  navigate(`/play/episode/${ep.id}`);
+                                }
+                                setShowEpisodesMenu(false);
+                              }}
+                            >
+                              {isCurrent && <span className="check-icon"><PlayIcon /></span>}
+                              <span className="episode-num">{ep.episode_number}.</span>
+                              <span className="episode-title">{ep.title || `Episodi ${ep.episode_number}`}</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
