@@ -114,7 +114,11 @@ function Navbar() {
             >
               <button className="profile-button">
                 <span className="navbar-avatar">
-                  {user?.display_name?.charAt(0).toUpperCase() || user?.username?.charAt(0).toUpperCase() || 'U'}
+                  {user?.avatar ? (
+                    <img src={user.avatar} alt="Avatar" />
+                  ) : (
+                    user?.display_name?.charAt(0).toUpperCase() || user?.username?.charAt(0).toUpperCase() || 'U'
+                  )}
                 </span>
               </button>
 
