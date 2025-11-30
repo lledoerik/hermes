@@ -2289,7 +2289,7 @@ async def fetch_all_metadata(request: MetadataRequest):
                 with get_db() as conn:
                     # Movies
                     movies = conn.execute(
-                        "SELECT id, name, path FROM series WHERE media_type = 'movie'"
+                        "SELECT id, name, path, tmdb_id FROM series WHERE media_type = 'movie'"
                     ).fetchall()
                     for movie in movies:
                         results["movies"]["processed"] += 1
@@ -2298,61 +2298,128 @@ async def fetch_all_metadata(request: MetadataRequest):
                             # Si el path és un fitxer (carpeta plana), usar el parent
                             if movie_path.is_file():
                                 poster_dir = movie_path.parent
-                                poster_path = poster_dir / f"{movie_path.stem}_poster.jpg"
-                                backdrop_path = poster_dir / f"{movie_path.stem}_backdrop.jpg"
+                                poster_path = poster_dir / "folder.jpg"
+                                backdrop_path = poster_dir / "backdrop.jpg"
                             else:
-                                poster_path = movie_path / "poster.jpg"
+                                poster_dir = movie_path
+                                poster_path = movie_path / "folder.jpg"
                                 backdrop_path = movie_path / "backdrop.jpg"
 
-                            # Skip if poster already exists
-                            if poster_path.exists():
+                            # Skip if already has tmdb_id (already identified)
+                            if movie.get("tmdb_id"):
                                 continue
+
+                            # Check if poster already exists (folder.jpg or poster.jpg)
+                            existing_poster = None
+                            for pname in ["folder.jpg", "poster.jpg"]:
+                                p = poster_dir / pname
+                                if p.exists():
+                                    existing_poster = p
+                                    break
 
                             metadata = await tmdb_client.fetch_movie_metadata(
                                 movie["name"],
                                 None,
-                                poster_path,
-                                backdrop_path
+                                poster_path if not existing_poster else None,
+                                backdrop_path if not backdrop_path.exists() else None
                             )
                             if metadata["found"]:
-                                if metadata["poster_downloaded"]:
-                                    conn.execute(
-                                        "UPDATE series SET poster = ? WHERE id = ?",
-                                        (str(poster_path), movie["id"])
-                                    )
+                                # Save ALL metadata, not just poster
+                                genres_json = json.dumps(metadata.get("genres", []))
+                                conn.execute('''
+                                    UPDATE series SET
+                                        tmdb_id = ?,
+                                        title = ?,
+                                        year = ?,
+                                        overview = ?,
+                                        rating = ?,
+                                        genres = ?,
+                                        runtime = ?,
+                                        poster = CASE WHEN ? = 1 THEN ? ELSE poster END,
+                                        backdrop = CASE WHEN ? = 1 THEN ? ELSE backdrop END,
+                                        updated_date = CURRENT_TIMESTAMP
+                                    WHERE id = ?
+                                ''', (
+                                    metadata.get("tmdb_id"),
+                                    metadata.get("title"),
+                                    metadata.get("year"),
+                                    metadata.get("overview"),
+                                    metadata.get("rating"),
+                                    genres_json,
+                                    metadata.get("runtime"),
+                                    1 if metadata.get("poster_downloaded") else 0,
+                                    str(poster_path) if metadata.get("poster_downloaded") else None,
+                                    1 if metadata.get("backdrop_downloaded") else 0,
+                                    str(backdrop_path) if metadata.get("backdrop_downloaded") else None,
+                                    movie["id"]
+                                ))
                                 results["movies"]["updated"] += 1
+                                logger.info(f"Metadata updated: {movie['name']} -> {metadata.get('title')}")
                         except Exception as e:
                             results["movies"]["errors"] += 1
                             logger.error(f"Error fetching movie metadata: {e}")
 
                     # Series
                     series_list = conn.execute(
-                        "SELECT id, name, path FROM series WHERE media_type = 'series'"
+                        "SELECT id, name, path, tmdb_id FROM series WHERE media_type = 'series'"
                     ).fetchall()
                     for series in series_list:
                         results["series"]["processed"] += 1
                         try:
                             series_path = Path(series["path"])
-                            poster_path = series_path / "poster.jpg"
+                            poster_path = series_path / "folder.jpg"
                             backdrop_path = series_path / "backdrop.jpg"
 
-                            # Skip if poster already exists
-                            if poster_path.exists():
+                            # Skip if already has tmdb_id (already identified)
+                            if series.get("tmdb_id"):
                                 continue
+
+                            # Check if poster already exists (folder.jpg or poster.jpg)
+                            existing_poster = None
+                            for pname in ["folder.jpg", "poster.jpg"]:
+                                p = series_path / pname
+                                if p.exists():
+                                    existing_poster = p
+                                    break
 
                             metadata = await tmdb_client.fetch_tv_metadata(
                                 series["name"],
                                 None,
-                                poster_path,
-                                backdrop_path
+                                poster_path if not existing_poster else None,
+                                backdrop_path if not backdrop_path.exists() else None
                             )
                             if metadata["found"]:
-                                if metadata["poster_downloaded"]:
-                                    conn.execute(
-                                        "UPDATE series SET poster = ? WHERE id = ?",
-                                        (str(poster_path), series["id"])
-                                    )
+                                # Save ALL metadata, not just poster
+                                genres_json = json.dumps(metadata.get("genres", []))
+                                conn.execute('''
+                                    UPDATE series SET
+                                        tmdb_id = ?,
+                                        title = ?,
+                                        year = ?,
+                                        overview = ?,
+                                        rating = ?,
+                                        genres = ?,
+                                        runtime = ?,
+                                        poster = CASE WHEN ? = 1 THEN ? ELSE poster END,
+                                        backdrop = CASE WHEN ? = 1 THEN ? ELSE backdrop END,
+                                        updated_date = CURRENT_TIMESTAMP
+                                    WHERE id = ?
+                                ''', (
+                                    metadata.get("tmdb_id"),
+                                    metadata.get("title"),
+                                    metadata.get("year"),
+                                    metadata.get("overview"),
+                                    metadata.get("rating"),
+                                    genres_json,
+                                    metadata.get("runtime"),
+                                    1 if metadata.get("poster_downloaded") else 0,
+                                    str(poster_path) if metadata.get("poster_downloaded") else None,
+                                    1 if metadata.get("backdrop_downloaded") else 0,
+                                    str(backdrop_path) if metadata.get("backdrop_downloaded") else None,
+                                    series["id"]
+                                ))
                                 results["series"]["updated"] += 1
+                                logger.info(f"Metadata updated: {series['name']} -> {metadata.get('title')}")
                         except Exception as e:
                             results["series"]["errors"] += 1
                             logger.error(f"Error fetching series metadata: {e}")
