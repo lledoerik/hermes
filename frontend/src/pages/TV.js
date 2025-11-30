@@ -276,6 +276,9 @@ function TV() {
 
     if (!mediaElement || !streamUrl) return;
 
+    // Pausar i netejar abans de canviar
+    mediaElement.pause();
+
     // Destruir instància HLS anterior
     if (hlsRef.current) {
       hlsRef.current.destroy();
@@ -283,6 +286,24 @@ function TV() {
     }
 
     const isHlsStream = streamUrl.includes('.m3u8');
+
+    // Funció per reproduir amb gestió d'errors
+    const safePlay = () => {
+      const playPromise = mediaElement.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setIsPlaying(true);
+            setIsLive(true);
+          })
+          .catch((error) => {
+            // Ignorar errors d'interrupció (usuari canvia de canal ràpidament)
+            if (error.name !== 'AbortError') {
+              console.warn('Playback error:', error.message);
+            }
+          });
+      }
+    };
 
     if (isHlsStream && Hls.isSupported()) {
       // Usar HLS.js per navegadors que no suporten HLS nativament
@@ -297,24 +318,22 @@ function TV() {
       hls.attachMedia(mediaElement);
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        mediaElement.play().catch(() => {});
-        setIsPlaying(true);
-        setIsLive(true);
+        safePlay();
       });
 
       hls.on(Hls.Events.ERROR, (event, data) => {
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              console.error('HLS network error, trying to recover...');
+              console.warn('HLS network error, trying to recover...');
               hls.startLoad();
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
-              console.error('HLS media error, trying to recover...');
+              console.warn('HLS media error, trying to recover...');
               hls.recoverMediaError();
               break;
             default:
-              console.error('HLS fatal error:', data);
+              console.warn('HLS fatal error:', data.details);
               hls.destroy();
               break;
           }
@@ -324,9 +343,7 @@ function TV() {
       // Safari suporta HLS nativament, o és un stream directe (AAC, MP3, etc.)
       mediaElement.src = streamUrl;
       mediaElement.load();
-      mediaElement.play().catch(() => {});
-      setIsPlaying(true);
-      setIsLive(true);
+      safePlay();
     }
 
     return () => {
@@ -816,8 +833,8 @@ function TV() {
         </div>
       )}
 
-      {/* Info del canal (estil Movistar+) */}
-      {showChannelInfo && (
+      {/* Info del canal (estil Movistar+) - només quan no hi ha controls */}
+      {showChannelInfo && !showControls && (
         <div className="tv-channel-info-overlay">
           <div className="channel-info-content">
             <div className="channel-info-number">{currentChannel.id}</div>
