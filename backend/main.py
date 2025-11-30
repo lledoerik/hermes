@@ -65,6 +65,90 @@ def get_db():
     finally:
         conn.close()
 
+def init_all_tables():
+    """Inicialitza totes les taules necessàries a la BD"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Taula media_segments
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS media_segments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                media_id INTEGER NOT NULL,
+                segment_type TEXT NOT NULL,
+                start_time REAL NOT NULL,
+                end_time REAL NOT NULL,
+                source TEXT DEFAULT 'manual',
+                confidence REAL DEFAULT 1.0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(media_id, segment_type, start_time)
+            )
+        """)
+
+        # Taula authors (llibres)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS authors (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Taula audiobook_authors
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS audiobook_authors (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Taula books (si no existeix)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS books (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                author_id INTEGER,
+                isbn TEXT,
+                description TEXT,
+                cover_path TEXT,
+                file_path TEXT NOT NULL,
+                file_format TEXT,
+                pages INTEGER,
+                language TEXT,
+                publisher TEXT,
+                published_date TEXT,
+                added_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (author_id) REFERENCES authors(id)
+            )
+        """)
+
+        # Taula audiobooks (si no existeix)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS audiobooks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                author_id INTEGER,
+                narrator TEXT,
+                isbn TEXT,
+                description TEXT,
+                cover_path TEXT,
+                folder_path TEXT NOT NULL,
+                duration INTEGER,
+                language TEXT,
+                publisher TEXT,
+                published_date TEXT,
+                added_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (author_id) REFERENCES audiobook_authors(id)
+            )
+        """)
+
+        conn.commit()
+        logger.info("Totes les taules inicialitzades correctament")
+
+# Inicialitzar taules al arrancar
+init_all_tables()
+
 # === MODELS ===
 class ScanRequest(BaseModel):
     libraries: Optional[List[str]] = None

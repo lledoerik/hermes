@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
 import './Programs.css';
 
 const API_URL = window.location.hostname === 'localhost'
@@ -22,22 +21,10 @@ const SearchIcon = () => (
   </svg>
 );
 
-const MovieIcon = () => (
+const TvIcon = () => (
   <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-    <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
-    <line x1="7" y1="2" x2="7" y2="22"></line>
-    <line x1="17" y1="2" x2="17" y2="22"></line>
-    <line x1="2" y1="12" x2="22" y2="12"></line>
-    <line x1="2" y1="7" x2="7" y2="7"></line>
-    <line x1="2" y1="17" x2="7" y2="17"></line>
-    <line x1="17" y1="17" x2="22" y2="17"></line>
-    <line x1="17" y1="7" x2="22" y2="7"></line>
-  </svg>
-);
-
-const SeriesIcon = () => (
-  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+    <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect>
+    <polyline points="17 2 12 7 7 2"></polyline>
   </svg>
 );
 
@@ -68,13 +55,31 @@ const ClockIcon = () => (
   </svg>
 );
 
+const BackIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polyline points="15 18 9 12 15 6" />
+  </svg>
+);
+
+const ExternalIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+    <polyline points="15 3 21 3 21 9" />
+    <line x1="10" y1="14" x2="21" y2="3" />
+  </svg>
+);
+
 // ============================================================
-// CATEGORIES
+// CATEGORIES 3Cat
 // ============================================================
 const CATEGORIES = [
   { id: 'all', name: 'Tot', icon: '📺' },
-  { id: 'movies', name: 'Pel·lícules', icon: '🎬' },
-  { id: 'series', name: 'Sèries', icon: '📺' },
+  { id: 'informatius', name: 'Informatius', icon: '📰' },
+  { id: 'entreteniment', name: 'Entreteniment', icon: '🎭' },
+  { id: 'esports', name: 'Esports', icon: '⚽' },
+  { id: 'infantil', name: 'Infantil', icon: '👶' },
+  { id: 'documentals', name: 'Documentals', icon: '🎬' },
+  { id: 'cultura', name: 'Cultura', icon: '🎨' },
 ];
 
 // ============================================================
@@ -90,47 +95,165 @@ function formatDuration(seconds) {
   return `${minutes} min`;
 }
 
-// ============================================================
-// CONTENT CARD COMPONENT
-// ============================================================
-function ContentCard({ item, type, onClick }) {
-  const hasImage = item.poster || item.backdrop;
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('ca-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+}
 
+// ============================================================
+// PROGRAM CARD COMPONENT
+// ============================================================
+function ProgramCard({ program, onClick }) {
   return (
     <div className="video-card" onClick={onClick}>
       <div className="video-card-image">
-        {hasImage ? (
+        {program.image ? (
           <img
-            src={`${API_URL}/api/image/poster/${item.id}`}
-            alt={item.name}
+            src={program.image}
+            alt={program.title}
             onError={(e) => {
               e.target.style.display = 'none';
               e.target.nextSibling.style.display = 'flex';
             }}
           />
         ) : null}
-        <div className="video-card-placeholder" style={{ display: hasImage ? 'none' : 'flex' }}>
-          {type === 'movies' ? <MovieIcon /> : <SeriesIcon />}
+        <div className="video-card-placeholder" style={{ display: program.image ? 'none' : 'flex' }}>
+          <TvIcon />
         </div>
         <div className="video-card-overlay">
           <PlayIcon size={32} />
         </div>
-        {type === 'movies' && item.duration && (
+        {program.video_count > 0 && (
           <span className="video-duration">
-            <ClockIcon /> {formatDuration(item.duration)}
-          </span>
-        )}
-        {type === 'series' && item.episode_count > 0 && (
-          <span className="video-duration">
-            {item.season_count} temp · {item.episode_count} ep
+            {program.video_count} vídeos
           </span>
         )}
       </div>
       <div className="video-card-info">
-        <h3>{item.name}</h3>
+        <h3>{program.title}</h3>
         <span className="video-program-tag">
-          {type === 'movies' ? 'Pel·lícula' : 'Sèrie'}
+          {program.channel || '3Cat'}
         </span>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// VIDEO CARD COMPONENT
+// ============================================================
+function VideoCard({ video, onClick }) {
+  return (
+    <div className="video-card" onClick={onClick}>
+      <div className="video-card-image">
+        {video.image ? (
+          <img
+            src={video.image}
+            alt={video.title}
+            onError={(e) => {
+              e.target.style.display = 'none';
+              e.target.nextSibling.style.display = 'flex';
+            }}
+          />
+        ) : null}
+        <div className="video-card-placeholder" style={{ display: video.image ? 'none' : 'flex' }}>
+          <TvIcon />
+        </div>
+        <div className="video-card-overlay">
+          <PlayIcon size={32} />
+        </div>
+        {video.duration && (
+          <span className="video-duration">
+            <ClockIcon /> {formatDuration(video.duration)}
+          </span>
+        )}
+      </div>
+      <div className="video-card-info">
+        <h3>{video.title}</h3>
+        <div className="video-meta">
+          {video.program && <span className="video-program-tag">{video.program}</span>}
+          {video.date && <span className="video-date">{formatDate(video.date)}</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// VIDEO PLAYER MODAL
+// ============================================================
+function VideoPlayer({ video, onClose }) {
+  const [streamUrl, setStreamUrl] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    async function loadStream() {
+      try {
+        const res = await fetch(`${API_URL}/api/3cat/videos/${video.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setStreamUrl(data.stream_url);
+        } else {
+          setError('No s\'ha pogut obtenir el vídeo');
+        }
+      } catch (err) {
+        setError('Error carregant el vídeo');
+      }
+      setLoading(false);
+    }
+    loadStream();
+  }, [video.id]);
+
+  // Close on escape
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [onClose]);
+
+  return (
+    <div className="video-player-modal" onClick={onClose}>
+      <div className="video-player-content" onClick={(e) => e.stopPropagation()}>
+        <button className="video-player-close" onClick={onClose}>✕</button>
+        <div className="video-player-header">
+          <h2>{video.title}</h2>
+          {video.program && <span className="video-player-program">{video.program}</span>}
+        </div>
+
+        {loading ? (
+          <div className="video-player-loading">
+            <div className="spinner"></div>
+            <p>Carregant vídeo...</p>
+          </div>
+        ) : error ? (
+          <div className="video-player-error">
+            <p>{error}</p>
+            <a
+              href={`https://www.3cat.cat/3cat/video/${video.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-primary"
+            >
+              Veure a 3Cat <ExternalIcon />
+            </a>
+          </div>
+        ) : (
+          <video
+            className="video-player-video"
+            src={streamUrl}
+            controls
+            autoPlay
+            playsInline
+          />
+        )}
+
+        {video.description && (
+          <p className="video-player-description">{video.description}</p>
+        )}
       </div>
     </div>
   );
@@ -140,113 +263,210 @@ function ContentCard({ item, type, onClick }) {
 // MAIN PROGRAMS COMPONENT
 // ============================================================
 function Programs() {
-  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState('grid');
   const [category, setCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [movies, setMovies] = useState([]);
-  const [series, setSeries] = useState([]);
+  const [programs, setPrograms] = useState([]);
+  const [videos, setVideos] = useState([]);
+  const [selectedProgram, setSelectedProgram] = useState(null);
+  const [selectedVideo, setSelectedVideo] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState('programs'); // 'programs' or 'latest'
 
-  // Load content from local library
-  useEffect(() => {
-    async function loadContent() {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const [moviesRes, seriesRes] = await Promise.all([
-          fetch(`${API_URL}/api/library/movies`),
-          fetch(`${API_URL}/api/library/series`)
-        ]);
-
-        if (moviesRes.ok) {
-          const moviesData = await moviesRes.json();
-          setMovies(moviesData);
-        }
-
-        if (seriesRes.ok) {
-          const seriesData = await seriesRes.json();
-          setSeries(seriesData);
-        }
-      } catch (err) {
-        console.error('Error loading content:', err);
-        setError('Error carregant contingut');
+  // Load programs
+  const loadPrograms = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/3cat/programs?limit=100`);
+      if (res.ok) {
+        const data = await res.json();
+        setPrograms(data);
+      } else {
+        setError('Error carregant programes');
       }
-      setIsLoading(false);
+    } catch (err) {
+      console.error('Error loading programs:', err);
+      setError('Error de connexió');
     }
-    loadContent();
+    setIsLoading(false);
   }, []);
 
-  // Handle search with debounce
-  const handleSearch = (e) => {
-    const query = e.target.value;
-    setSearchQuery(query);
-  };
-
-  // Filter content based on search and category
-  const filterContent = (items) => {
-    if (!searchQuery.trim()) return items;
-    const query = searchQuery.toLowerCase();
-    return items.filter(item =>
-      item.name.toLowerCase().includes(query)
-    );
-  };
-
-  const filteredMovies = filterContent(movies);
-  const filteredSeries = filterContent(series);
-
-  // Get content to display based on category
-  const getDisplayContent = () => {
-    switch (category) {
-      case 'movies':
-        return { movies: filteredMovies, series: [] };
-      case 'series':
-        return { movies: [], series: filteredSeries };
-      default:
-        return { movies: filteredMovies, series: filteredSeries };
+  // Load latest videos
+  const loadLatest = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/3cat/latest?limit=50`);
+      if (res.ok) {
+        const data = await res.json();
+        setVideos(data);
+      } else {
+        setError('Error carregant vídeos');
+      }
+    } catch (err) {
+      console.error('Error loading videos:', err);
+      setError('Error de connexió');
     }
-  };
+    setIsLoading(false);
+  }, []);
 
-  const displayContent = getDisplayContent();
-  const totalCount = displayContent.movies.length + displayContent.series.length;
+  // Load program videos
+  const loadProgramVideos = useCallback(async (programId) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/3cat/videos?program_id=${programId}&limit=50`);
+      if (res.ok) {
+        const data = await res.json();
+        setVideos(data);
+      } else {
+        setError('Error carregant vídeos');
+      }
+    } catch (err) {
+      console.error('Error loading program videos:', err);
+      setError('Error de connexió');
+    }
+    setIsLoading(false);
+  }, []);
 
-  // Handle item click
-  const handleItemClick = (item, type) => {
-    if (type === 'movies') {
-      navigate(`/movies/${item.id}`);
+  // Search content
+  const searchContent = useCallback(async (query) => {
+    if (!query.trim()) {
+      if (activeTab === 'programs') {
+        loadPrograms();
+      } else {
+        loadLatest();
+      }
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/3cat/search?q=${encodeURIComponent(query)}&limit=50`);
+      if (res.ok) {
+        const data = await res.json();
+        setVideos(data);
+        setActiveTab('latest'); // Switch to videos view for search results
+      } else {
+        setError('Error cercant');
+      }
+    } catch (err) {
+      console.error('Error searching:', err);
+      setError('Error de connexió');
+    }
+    setIsLoading(false);
+  }, [activeTab, loadPrograms, loadLatest]);
+
+  // Initial load
+  useEffect(() => {
+    if (selectedProgram) {
+      loadProgramVideos(selectedProgram.id);
+    } else if (activeTab === 'programs') {
+      loadPrograms();
     } else {
-      navigate(`/series/${item.id}`);
+      loadLatest();
     }
+  }, [activeTab, selectedProgram, loadPrograms, loadLatest, loadProgramVideos]);
+
+  // Handle search with debounce
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery) {
+        searchContent(searchQuery);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery, searchContent]);
+
+  // Filter programs by category
+  const filteredPrograms = category === 'all'
+    ? programs
+    : programs.filter(p => p.category?.toLowerCase().includes(category));
+
+  // Handle program click
+  const handleProgramClick = (program) => {
+    setSelectedProgram(program);
   };
+
+  // Handle back to programs
+  const handleBack = () => {
+    setSelectedProgram(null);
+    setSearchQuery('');
+  };
+
+  // Handle video click
+  const handleVideoClick = (video) => {
+    setSelectedVideo(video);
+  };
+
+  const totalCount = selectedProgram ? videos.length : (activeTab === 'programs' ? filteredPrograms.length : videos.length);
 
   return (
     <div className="programs-page">
       {/* Header */}
       <header className="programs-header">
         <div className="programs-header-content">
-          <h1>A la carta</h1>
-          <p className="programs-subtitle">
-            Contingut sota demanda de la teva biblioteca
-          </p>
+          {selectedProgram ? (
+            <>
+              <button className="back-btn" onClick={handleBack}>
+                <BackIcon /> Tornar
+              </button>
+              <h1>{selectedProgram.title}</h1>
+              <p className="programs-subtitle">
+                {selectedProgram.description || `Vídeos del programa ${selectedProgram.title}`}
+              </p>
+            </>
+          ) : (
+            <>
+              <h1>📺 A la carta - 3Cat</h1>
+              <p className="programs-subtitle">
+                Programes i continguts de TV3, 3/24, 33 i més
+              </p>
+            </>
+          )}
         </div>
 
         {/* Search Bar */}
-        <div className="programs-search">
-          <SearchIcon />
-          <input
-            type="text"
-            placeholder="Cercar pel·lícules, sèries..."
-            value={searchQuery}
-            onChange={handleSearch}
-          />
-        </div>
+        {!selectedProgram && (
+          <div className="programs-search">
+            <SearchIcon />
+            <input
+              type="text"
+              placeholder="Cercar programes, vídeos..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        )}
       </header>
+
+      {/* Tabs */}
+      {!selectedProgram && !searchQuery && (
+        <div className="programs-tabs">
+          <button
+            className={`tab-btn ${activeTab === 'programs' ? 'active' : ''}`}
+            onClick={() => setActiveTab('programs')}
+          >
+            Programes
+          </button>
+          <button
+            className={`tab-btn ${activeTab === 'latest' ? 'active' : ''}`}
+            onClick={() => setActiveTab('latest')}
+          >
+            Últims vídeos
+          </button>
+        </div>
+      )}
 
       {/* View Toggle & Categories */}
       <div className="programs-controls">
         <div className="programs-stats">
-          <span className="stats-count">{totalCount} títols disponibles</span>
+          <span className="stats-count">
+            {totalCount} {selectedProgram || activeTab === 'latest' ? 'vídeos' : 'programes'}
+          </span>
         </div>
 
         <div className="programs-view-toggle">
@@ -268,29 +488,31 @@ function Programs() {
       </div>
 
       {/* Categories Bar */}
-      <div className="programs-categories">
-        {CATEGORIES.map(cat => (
-          <button
-            key={cat.id}
-            className={`category-chip ${category === cat.id ? 'active' : ''}`}
-            onClick={() => setCategory(cat.id)}
-          >
-            <span className="category-icon">{cat.icon}</span>
-            {cat.name}
-          </button>
-        ))}
-      </div>
+      {!selectedProgram && activeTab === 'programs' && !searchQuery && (
+        <div className="programs-categories">
+          {CATEGORIES.map(cat => (
+            <button
+              key={cat.id}
+              className={`category-chip ${category === cat.id ? 'active' : ''}`}
+              onClick={() => setCategory(cat.id)}
+            >
+              <span className="category-icon">{cat.icon}</span>
+              {cat.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Content */}
       <main className="programs-content">
         {isLoading ? (
           <div className="programs-loading">
             <div className="spinner"></div>
-            <p>Carregant contingut...</p>
+            <p>Carregant contingut de 3Cat...</p>
           </div>
         ) : error ? (
           <div className="programs-error">
-            <MovieIcon />
+            <TvIcon />
             <h3>Error</h3>
             <p>{error}</p>
             <button onClick={() => window.location.reload()} className="btn btn-primary btn-md">
@@ -299,7 +521,7 @@ function Programs() {
           </div>
         ) : totalCount === 0 ? (
           <div className="no-content">
-            <MovieIcon />
+            <TvIcon />
             <p>No s'ha trobat contingut</p>
             {searchQuery && (
               <button
@@ -312,48 +534,37 @@ function Programs() {
           </div>
         ) : (
           <div className={`videos-grid ${viewMode === 'list' ? 'list-view' : ''}`}>
-            {/* Movies Section */}
-            {displayContent.movies.length > 0 && (
-              <>
-                {category === 'all' && (
-                  <div className="content-section-header">
-                    <h2>🎬 Pel·lícules</h2>
-                    <span className="section-count">{displayContent.movies.length}</span>
-                  </div>
-                )}
-                {displayContent.movies.map(movie => (
-                  <ContentCard
-                    key={`movie-${movie.id}`}
-                    item={movie}
-                    type="movies"
-                    onClick={() => handleItemClick(movie, 'movies')}
-                  />
-                ))}
-              </>
-            )}
-
-            {/* Series Section */}
-            {displayContent.series.length > 0 && (
-              <>
-                {category === 'all' && (
-                  <div className="content-section-header">
-                    <h2>📺 Sèries</h2>
-                    <span className="section-count">{displayContent.series.length}</span>
-                  </div>
-                )}
-                {displayContent.series.map(serie => (
-                  <ContentCard
-                    key={`series-${serie.id}`}
-                    item={serie}
-                    type="series"
-                    onClick={() => handleItemClick(serie, 'series')}
-                  />
-                ))}
-              </>
+            {/* Programs or Videos */}
+            {selectedProgram || activeTab === 'latest' || searchQuery ? (
+              // Show videos
+              videos.map(video => (
+                <VideoCard
+                  key={video.id}
+                  video={video}
+                  onClick={() => handleVideoClick(video)}
+                />
+              ))
+            ) : (
+              // Show programs
+              filteredPrograms.map(program => (
+                <ProgramCard
+                  key={program.id}
+                  program={program}
+                  onClick={() => handleProgramClick(program)}
+                />
+              ))
             )}
           </div>
         )}
       </main>
+
+      {/* Video Player Modal */}
+      {selectedVideo && (
+        <VideoPlayer
+          video={selectedVideo}
+          onClose={() => setSelectedVideo(null)}
+        />
+      )}
     </div>
   );
 }
