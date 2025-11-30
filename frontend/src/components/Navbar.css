@@ -167,7 +167,7 @@
   padding: 0;
 }
 
-.profile-avatar {
+.navbar-avatar {
   width: 36px;
   height: 36px;
   background: var(--color-primary);
@@ -181,7 +181,7 @@
   transition: transform var(--transition-normal);
 }
 
-.profile-button:hover .profile-avatar {
+.profile-button:hover .navbar-avatar {
   transform: scale(1.1);
 }
 

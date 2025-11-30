@@ -113,7 +113,7 @@ function Navbar() {
               onMouseLeave={() => setShowProfile(false)}
             >
               <button className="profile-button">
-                <span className="profile-avatar">
+                <span className="navbar-avatar">
                   {user?.display_name?.charAt(0).toUpperCase() || user?.username?.charAt(0).toUpperCase() || 'U'}
                 </span>
               </button>
