@@ -295,8 +295,12 @@
 .profile-content {
   background: var(--bg-glass);
   border-radius: var(--radius-xl);
-  padding: var(--space-2xl);
+  padding: var(--space-2xl) var(--space-2xl) var(--space-2xl) var(--space-2xl);
   min-height: 500px;
+}
+
+.profile-section {
+  padding: 0 var(--space-md);
 }
 
 .profile-section h1 {
