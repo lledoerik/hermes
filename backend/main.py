@@ -320,6 +320,12 @@ class SeriesSegmentRequest(BaseModel):
     end_time: float
 
 
+class WatchProgressRequest(BaseModel):
+    """Per guardar el progrés de visualització"""
+    progress_seconds: float
+    total_seconds: float
+
+
 # === STREAMING AMB RANGE SUPPORT ===
 
 def get_range_header(range_header: str, file_size: int):
@@ -585,6 +591,85 @@ async def get_recently_watched(request: Request, limit: int = 10):
         """, (user_id, limit))
 
         return [dict(row) for row in cursor.fetchall()]
+
+
+@app.post("/api/media/{media_id}/progress")
+async def save_watch_progress(media_id: int, data: WatchProgressRequest, request: Request):
+    """Guarda el progrés de visualització d'un vídeo/episodi"""
+    user = get_current_user(request)
+    user_id = user["id"] if user else 1  # Default user_id 1 si no autenticat
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Verificar que el media existeix
+        cursor.execute("SELECT id FROM media_files WHERE id = ?", (media_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Media no trobat")
+
+        # Comprovar si ja existeix un registre per aquest usuari i media
+        cursor.execute("""
+            SELECT id FROM watch_progress
+            WHERE user_id = ? AND media_id = ?
+        """, (user_id, media_id))
+        existing = cursor.fetchone()
+
+        if existing:
+            # Actualitzar el registre existent
+            cursor.execute("""
+                UPDATE watch_progress
+                SET progress_seconds = ?, total_seconds = ?, updated_date = datetime('now')
+                WHERE user_id = ? AND media_id = ?
+            """, (data.progress_seconds, data.total_seconds, user_id, media_id))
+        else:
+            # Insertar nou registre
+            cursor.execute("""
+                INSERT INTO watch_progress (user_id, media_id, progress_seconds, total_seconds, updated_date)
+                VALUES (?, ?, ?, ?, datetime('now'))
+            """, (user_id, media_id, data.progress_seconds, data.total_seconds))
+
+        conn.commit()
+
+        return {
+            "status": "success",
+            "message": "Progrés guardat",
+            "progress_percentage": round((data.progress_seconds / data.total_seconds) * 100, 1) if data.total_seconds > 0 else 0
+        }
+
+
+@app.get("/api/media/{media_id}/progress")
+async def get_watch_progress(media_id: int, request: Request):
+    """Obté el progrés de visualització d'un vídeo/episodi"""
+    user = get_current_user(request)
+    user_id = user["id"] if user else 1
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT progress_seconds, total_seconds, updated_date
+            FROM watch_progress
+            WHERE user_id = ? AND media_id = ?
+        """, (user_id, media_id))
+
+        row = cursor.fetchone()
+        if not row:
+            return {
+                "progress_seconds": 0,
+                "total_seconds": 0,
+                "progress_percentage": 0
+            }
+
+        progress_pct = 0
+        if row["total_seconds"] and row["total_seconds"] > 0:
+            progress_pct = (row["progress_seconds"] / row["total_seconds"]) * 100
+
+        return {
+            "progress_seconds": row["progress_seconds"],
+            "total_seconds": row["total_seconds"],
+            "progress_percentage": round(progress_pct, 1),
+            "last_watched": row["updated_date"]
+        }
 
 
 # === ENDPOINTS ===
@@ -1172,21 +1257,32 @@ async def cleanup_library():
 
 
 @app.get("/api/library/series/{series_id}/seasons/{season_number}/episodes")
-async def get_library_season_episodes(series_id: int, season_number: int):
+async def get_library_season_episodes(series_id: int, season_number: int, request: Request):
     """Retorna episodis d'una temporada - format frontend"""
+    user = get_current_user(request)
+    user_id = user["id"] if user else 1
+
     with get_db() as conn:
         cursor = conn.cursor()
 
+        # Consulta amb LEFT JOIN a watch_progress per obtenir el progrés
         cursor.execute("""
-            SELECT m.*, s.name as series_name, s.poster, s.backdrop
+            SELECT m.*, s.name as series_name, s.poster, s.backdrop,
+                   wp.progress_seconds, wp.total_seconds
             FROM media_files m
             LEFT JOIN series s ON m.series_id = s.id
+            LEFT JOIN watch_progress wp ON m.id = wp.media_id AND wp.user_id = ?
             WHERE m.series_id = ? AND m.season_number = ?
             ORDER BY m.episode_number
-        """, (series_id, season_number))
+        """, (user_id, series_id, season_number))
 
         episodes = []
         for row in cursor.fetchall():
+            # Calcular percentatge de progrés
+            watch_progress = 0
+            if row["progress_seconds"] and row["total_seconds"] and row["total_seconds"] > 0:
+                watch_progress = round((row["progress_seconds"] / row["total_seconds"]) * 100, 1)
+
             episodes.append({
                 "id": row["id"],
                 "series_id": series_id,
@@ -1200,7 +1296,7 @@ async def get_library_season_episodes(series_id: int, season_number: int):
                 "subtitles": row["subtitle_tracks"],
                 "poster": row["poster"],
                 "backdrop": row["backdrop"],
-                "watch_progress": 0  # TODO: Implementar progress
+                "watch_progress": watch_progress
             })
 
         return episodes
