@@ -140,6 +140,28 @@ class AuthManager:
             )
         """)
 
+        # Taula d'invitacions
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS invitations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT UNIQUE NOT NULL,
+                created_by INTEGER NOT NULL,
+                used_by INTEGER,
+                max_uses INTEGER DEFAULT 1,
+                uses INTEGER DEFAULT 0,
+                expires_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (created_by) REFERENCES users(id),
+                FOREIGN KEY (used_by) REFERENCES users(id)
+            )
+        """)
+
+        # Afegir camp 'is_active' a users si no existeix
+        cursor.execute("PRAGMA table_info(users)")
+        columns = [col[1] for col in cursor.fetchall()]
+        if 'is_active' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT TRUE")
+
         conn.commit()
         conn.close()
         logger.info("Taules d'autenticació inicialitzades")
@@ -415,6 +437,245 @@ class AuthManager:
         conn.close()
 
         return {"status": "success", "message": "Contrasenya canviada"}
+
+    # ============================================================
+    # GESTIÓ D'INVITACIONS
+    # ============================================================
+
+    def create_invitation(self, created_by: int, max_uses: int = 1,
+                          expires_days: int = 7) -> Dict:
+        """Crea un codi d'invitació"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # Generar codi únic
+        code = secrets.token_urlsafe(16)
+
+        # Calcular expiració
+        expires_at = (datetime.utcnow() + timedelta(days=expires_days)).isoformat()
+
+        cursor.execute("""
+            INSERT INTO invitations (code, created_by, max_uses, expires_at)
+            VALUES (?, ?, ?, ?)
+        """, (code, created_by, max_uses, expires_at))
+
+        invitation_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+
+        return {
+            "status": "success",
+            "invitation": {
+                "id": invitation_id,
+                "code": code,
+                "max_uses": max_uses,
+                "expires_at": expires_at
+            }
+        }
+
+    def validate_invitation(self, code: str) -> Dict:
+        """Valida un codi d'invitació"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT * FROM invitations WHERE code = ?
+        """, (code,))
+
+        invitation = cursor.fetchone()
+        conn.close()
+
+        if not invitation:
+            return {"valid": False, "message": "Codi d'invitació no vàlid"}
+
+        # Comprovar expiració
+        if invitation["expires_at"]:
+            expires_at = datetime.fromisoformat(invitation["expires_at"])
+            if datetime.utcnow() > expires_at:
+                return {"valid": False, "message": "Codi d'invitació caducat"}
+
+        # Comprovar usos
+        if invitation["uses"] >= invitation["max_uses"]:
+            return {"valid": False, "message": "Codi d'invitació ja utilitzat"}
+
+        return {"valid": True, "invitation_id": invitation["id"]}
+
+    def use_invitation(self, code: str, user_id: int) -> bool:
+        """Marca una invitació com a utilitzada"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            UPDATE invitations
+            SET uses = uses + 1, used_by = ?
+            WHERE code = ?
+        """, (user_id, code))
+
+        conn.commit()
+        conn.close()
+        return True
+
+    def get_invitations(self, created_by: int = None) -> list:
+        """Obté llista d'invitacions"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        if created_by:
+            cursor.execute("""
+                SELECT i.*, u.username as created_by_username
+                FROM invitations i
+                JOIN users u ON i.created_by = u.id
+                WHERE i.created_by = ?
+                ORDER BY i.created_at DESC
+            """, (created_by,))
+        else:
+            cursor.execute("""
+                SELECT i.*, u.username as created_by_username
+                FROM invitations i
+                JOIN users u ON i.created_by = u.id
+                ORDER BY i.created_at DESC
+            """)
+
+        invitations = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return invitations
+
+    def delete_invitation(self, invitation_id: int) -> bool:
+        """Elimina una invitació"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM invitations WHERE id = ?", (invitation_id,))
+        deleted = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        return deleted
+
+    # ============================================================
+    # GESTIÓ D'USUARIS (ADMIN)
+    # ============================================================
+
+    def get_all_users(self) -> list:
+        """Obté tots els usuaris (per admin)"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT id, username, display_name, email, is_admin,
+                   COALESCE(is_active, 1) as is_active, created_at, last_login
+            FROM users
+            ORDER BY created_at DESC
+        """)
+
+        users = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return users
+
+    def toggle_user_active(self, user_id: int, active: bool) -> Dict:
+        """Activa o desactiva un usuari"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # No permetre desactivar l'últim admin
+        if not active:
+            cursor.execute("""
+                SELECT COUNT(*) FROM users
+                WHERE is_admin = TRUE AND COALESCE(is_active, 1) = 1 AND id != ?
+            """, (user_id,))
+            active_admins = cursor.fetchone()[0]
+            if active_admins == 0:
+                cursor.execute("SELECT is_admin FROM users WHERE id = ?", (user_id,))
+                user = cursor.fetchone()
+                if user and user[0]:
+                    conn.close()
+                    return {"status": "error", "message": "No es pot desactivar l'últim administrador"}
+
+        cursor.execute("""
+            UPDATE users SET is_active = ? WHERE id = ?
+        """, (active, user_id))
+
+        conn.commit()
+        conn.close()
+
+        return {"status": "success", "message": f"Usuari {'activat' if active else 'desactivat'}"}
+
+    def delete_user(self, user_id: int, requesting_user_id: int) -> Dict:
+        """Elimina un usuari"""
+        if user_id == requesting_user_id:
+            return {"status": "error", "message": "No et pots eliminar a tu mateix"}
+
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # No permetre eliminar l'últim admin
+        cursor.execute("""
+            SELECT is_admin FROM users WHERE id = ?
+        """, (user_id,))
+        user = cursor.fetchone()
+
+        if user and user[0]:
+            cursor.execute("SELECT COUNT(*) FROM users WHERE is_admin = TRUE")
+            admin_count = cursor.fetchone()[0]
+            if admin_count <= 1:
+                conn.close()
+                return {"status": "error", "message": "No es pot eliminar l'últim administrador"}
+
+        # Eliminar dades relacionades
+        cursor.execute("DELETE FROM watch_progress WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM book_progress WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM audiobook_progress WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM user_sessions WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM invitations WHERE created_by = ?", (user_id,))
+
+        # Eliminar usuari
+        cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+
+        conn.commit()
+        conn.close()
+
+        return {"status": "success", "message": "Usuari eliminat"}
+
+    def toggle_admin(self, user_id: int, is_admin: bool) -> Dict:
+        """Canvia l'estat d'administrador d'un usuari"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # No permetre treure admin a l'últim admin
+        if not is_admin:
+            cursor.execute("SELECT COUNT(*) FROM users WHERE is_admin = TRUE")
+            admin_count = cursor.fetchone()[0]
+            if admin_count <= 1:
+                conn.close()
+                return {"status": "error", "message": "Cal almenys un administrador"}
+
+        cursor.execute("""
+            UPDATE users SET is_admin = ? WHERE id = ?
+        """, (is_admin, user_id))
+
+        conn.commit()
+        conn.close()
+
+        return {"status": "success", "message": f"Usuari {'promogut a' if is_admin else 'tret de'} admin"}
+
+    def register_with_invitation(self, username: str, password: str,
+                                 invitation_code: str, email: str = None,
+                                 display_name: str = None) -> Dict:
+        """Registra un nou usuari amb codi d'invitació"""
+        # Validar invitació
+        validation = self.validate_invitation(invitation_code)
+        if not validation["valid"]:
+            return {"status": "error", "message": validation["message"]}
+
+        # Registrar usuari normalment
+        result = self.register(username, password, email, display_name)
+
+        if result["status"] == "success":
+            # Marcar invitació com a utilitzada
+            self.use_invitation(invitation_code, result["user"]["id"])
+
+        return result
 
 
 # Singleton
