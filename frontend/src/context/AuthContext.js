@@ -113,6 +113,7 @@ export function AuthProvider({ children }) {
     user,
     loading,
     isAuthenticated: !!user,
+    isAdmin: user?.is_admin || false,
     login,
     register,
     logout,

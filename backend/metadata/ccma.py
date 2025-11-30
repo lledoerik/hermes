@@ -1,5 +1,8 @@
 """
 CCMA (3Cat) API integration for fetching public Catalan TV content.
+
+NOTA: L'API de la CCMA/3Cat ha canviat el domini de ccma.cat a 3cat.cat
+i ara requereix headers específics (Origin, Referer) per evitar errors 403.
 """
 import asyncio
 import json
@@ -12,19 +15,28 @@ import re
 class CCMAClient:
     """Client per accedir a l'API de 3Cat (CCMA)"""
 
-    BASE_URL = "https://api.ccma.cat/videos"
-    PROGRAMS_URL = "https://api.ccma.cat/programes"
-    IMAGE_BASE = "https://statics.ccma.cat"
+    # URLs actualitzades al nou domini 3cat.cat
+    BASE_URL = "https://api.3cat.cat/videos"
+    PROGRAMS_URL = "https://api.3cat.cat/programes"
+    IMAGE_BASE = "https://statics.3cat.cat"
+
+    # Headers necessaris per evitar 403 Forbidden
+    REQUIRED_HEADERS = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+        'Origin': 'https://www.3cat.cat',
+        'Referer': 'https://www.3cat.cat/',
+    }
 
     def __init__(self):
         pass
 
     def _sync_request(self, url: str) -> Optional[Dict]:
-        """Make a synchronous API request."""
+        """Make a synchronous API request with required headers."""
         try:
             req = urllib.request.Request(url)
-            req.add_header('User-Agent', 'Hermes Media Server/1.0')
-            req.add_header('Accept', 'application/json')
+            for header, value in self.REQUIRED_HEADERS.items():
+                req.add_header(header, value)
 
             with urllib.request.urlopen(req, timeout=30) as response:
                 return json.loads(response.read().decode('utf-8'))

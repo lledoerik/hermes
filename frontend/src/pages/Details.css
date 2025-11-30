@@ -107,17 +107,60 @@
   color: rgba(255, 255, 255, 0.7);
 }
 
+/* Tagline */
+.details-tagline {
+  font-size: 15px;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 16px;
+  text-align: left;
+}
+
 /* Sinopsi - SEMPRE a l'esquerra */
 .details-overview {
   font-size: 16px;
   line-height: 1.75;
   color: rgba(255, 255, 255, 0.85);
-  margin-bottom: 28px;
+  margin-bottom: 20px;
   text-align: left;
   display: -webkit-box;
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Credits: Director, Creadors i Repartiment */
+.details-credits {
+  margin-bottom: 24px;
+}
+
+.credit-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.credit-label {
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: var(--font-weight-medium);
+  min-width: 90px;
+}
+
+.credit-value {
+  color: rgba(255, 255, 255, 0.9);
+  flex: 1;
+}
+
+.cast-member {
+  display: inline;
+}
+
+.cast-character {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
 }
 
 /* ========================================

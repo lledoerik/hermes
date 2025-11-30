@@ -134,9 +134,9 @@ function Navbar() {
 
                   <div className="dropdown-divider"></div>
 
-                  <button className="dropdown-item">
-                    <PreferencesIcon /> Preferències
-                  </button>
+                  <Link to="/profile" className="dropdown-item">
+                    <PreferencesIcon /> El meu perfil
+                  </Link>
                   <button className="dropdown-item logout" onClick={handleLogout}>
                     <LogoutIcon /> Tancar sessió
                   </button>

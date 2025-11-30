@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import Hls from 'hls.js';
+import { useAuth } from '../context/AuthContext';
 import './Player.css';
 
 const API_URL = window.location.hostname === 'localhost'
@@ -22,18 +24,28 @@ const PauseIcon = () => (
   </svg>
 );
 
+// Icona de retrocedir (cercle amb fletxa anti-horari i número)
 const SkipBackIcon = ({ seconds }) => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12.5 4V1l-5 4 5 4V6c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4.5c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
-    <text x="12.5" y="14" textAnchor="middle" fontSize="7" fontWeight="bold" fill="currentColor">{seconds}</text>
-  </svg>
+  <div className="skip-icon-wrapper">
+    <svg viewBox="0 0 24 24" fill="currentColor">
+      {/* Fletxa circular anti-horari */}
+      <path d="M12.5 3C7.81 3 4 6.81 4 11.5c0 4.69 3.81 8.5 8.5 8.5s8.5-3.81 8.5-8.5h-2c0 3.59-2.91 6.5-6.5 6.5S6 15.09 6 11.5 8.91 5 12.5 5V3z"/>
+      <path d="M10.5 3L7 6.5l3.5 3.5V3z"/>
+    </svg>
+    <span className="skip-seconds">{seconds}</span>
+  </div>
 );
 
+// Icona d'avançar (cercle amb fletxa horari i número)
 const SkipForwardIcon = ({ seconds }) => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M11.5 4V1l5 4-5 4V6c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/>
-    <text x="11.5" y="14" textAnchor="middle" fontSize="7" fontWeight="bold" fill="currentColor">{seconds}</text>
-  </svg>
+  <div className="skip-icon-wrapper">
+    <svg viewBox="0 0 24 24" fill="currentColor">
+      {/* Fletxa circular horari */}
+      <path d="M11.5 3C16.19 3 20 6.81 20 11.5c0 4.69-3.81 8.5-8.5 8.5S3 16.19 3 11.5h2c0 3.59 2.91 6.5 6.5 6.5s6.5-2.91 6.5-6.5S15.09 5 11.5 5V3z"/>
+      <path d="M13.5 3L17 6.5l-3.5 3.5V3z"/>
+    </svg>
+    <span className="skip-seconds">{seconds}</span>
+  </div>
 );
 
 const VolumeHighIcon = () => (
@@ -130,12 +142,15 @@ const getLanguageName = (lang) => {
 function Player() {
   const { type, id } = useParams();
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const videoRef = useRef(null);
   const controlsTimeoutRef = useRef(null);
   const progressRef = useRef(null);
   const lastTapRef = useRef(0);
   const tapTimeoutRef = useRef(null);
   const playerContainerRef = useRef(null);
+  const episodesMenuRef = useRef(null);
+  const currentEpisodeRef = useRef(null);
 
   // Segons per avançar/retrocedir (configurable)
   const skipSeconds = 10;
@@ -187,6 +202,12 @@ function Player() {
   const [selectedAudio, setSelectedAudio] = useState(0);
   const [selectedSubtitle, setSelectedSubtitle] = useState(-1);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+
+  // HLS streaming per canvi de pistes
+  const [hlsUrl, setHlsUrl] = useState(null);
+  const [isUsingHls, setIsUsingHls] = useState(false);
+  const [hlsLoading, setHlsLoading] = useState(false);
+  const hlsRef = useRef(null);
 
   const speeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
@@ -256,6 +277,69 @@ function Player() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type, id, videoReady]);
+
+  // Gestionar HLS quan canvia l'URL
+  useEffect(() => {
+    if (!hlsUrl || !videoRef.current) return;
+
+    // Destruir instància HLS anterior si existeix
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    if (Hls.isSupported()) {
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+      });
+
+      hls.loadSource(hlsUrl);
+      hls.attachMedia(videoRef.current);
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        setVideoLoading(false);
+        videoRef.current.play().catch(() => {});
+      });
+
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        if (data.fatal) {
+          console.error('HLS error fatal:', data);
+          // Si falla HLS, tornar a streaming directe
+          setIsUsingHls(false);
+          setHlsUrl(null);
+        }
+      });
+
+      hlsRef.current = hls;
+    } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+      // Safari suporta HLS nativament
+      videoRef.current.src = hlsUrl;
+      videoRef.current.addEventListener('loadedmetadata', () => {
+        videoRef.current.play().catch(() => {});
+      });
+    }
+
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [hlsUrl]);
+
+  // Scroll automàtic a l'episodi actual quan s'obre el menú
+  useEffect(() => {
+    if (showEpisodesMenu && currentEpisodeRef.current && episodesMenuRef.current) {
+      // Petit delay per assegurar que el menú està renderitzat
+      setTimeout(() => {
+        currentEpisodeRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+      }, 50);
+    }
+  }, [showEpisodesMenu]);
 
   const loadMedia = async () => {
     try {
@@ -490,6 +574,14 @@ function Player() {
     setTimeout(() => setSkipIndicator(null), 500);
   };
 
+  // Ripple effect per feedback visual al toc
+  const [ripple, setRipple] = useState(null);
+
+  const showRipple = (x, y, zone) => {
+    setRipple({ x, y, zone });
+    setTimeout(() => setRipple(null), 600);
+  };
+
   // Touch handling per doble toc
   const handleTouchStart = (e) => {
     if (!videoReady) return;
@@ -501,7 +593,8 @@ function Player() {
                             target.closest('.control-menu') ||
                             target.closest('.back-btn') ||
                             target.closest('.skip-segment-btn') ||
-                            target.closest('.next-episode-btn');
+                            target.closest('.next-episode-btn') ||
+                            target.closest('.intro-editor');
 
     if (isControlElement) {
       // Si toquem un control, cancel·lar qualsevol timeout d'amagar
@@ -515,15 +608,21 @@ function Player() {
     const timeDiff = now - lastTapRef.current;
     const touch = e.touches[0];
     const containerWidth = playerContainerRef.current?.offsetWidth || window.innerWidth;
+    const containerHeight = playerContainerRef.current?.offsetHeight || window.innerHeight;
     const touchX = touch.clientX;
+    const touchY = touch.clientY;
 
     // Determinar zona: esquerra (0-33%), centre (33-66%), dreta (66-100%)
     const zone = touchX < containerWidth * 0.33 ? 'left' : touchX > containerWidth * 0.66 ? 'right' : 'center';
 
     if (timeDiff < 300 && timeDiff > 0) {
-      // Doble toc - fer l'acció sense mostrar/amagar la barra
+      // Doble toc - prevenir comportament per defecte i fer l'acció
+      e.preventDefault();
       clearTimeout(tapTimeoutRef.current);
       lastTapRef.current = 0;
+
+      // Mostrar ripple effect
+      showRipple(touchX, touchY, zone);
 
       if (zone === 'left') {
         skip(-skipSeconds);
@@ -926,15 +1025,56 @@ function Player() {
     }
   };
 
-  const handleAudioChange = (index) => {
+  // Funció per crear un stream HLS amb les pistes seleccionades
+  const createHlsStream = async (audioIndex, subtitleIndex) => {
+    if (!item) return;
+
+    // Guardar posició actual
+    const currentPosition = videoRef.current ? videoRef.current.currentTime : 0;
+
+    setHlsLoading(true);
+    setVideoLoading(true);
+
+    try {
+      // Cridar l'API per crear el stream HLS
+      const response = await axios.post(`/api/stream/${id}/hls`, {
+        audio_index: audioIndex >= 0 ? audioIndex : null,
+        subtitle_index: subtitleIndex >= 0 ? subtitleIndex : null,
+        quality: '1080p'
+      });
+
+      if (response.data.playlist_url) {
+        const fullUrl = `${API_URL}${response.data.playlist_url}`;
+        setHlsUrl(fullUrl);
+        setIsUsingHls(true);
+
+        // Esperar una mica perquè el stream es generi
+        setTimeout(() => {
+          if (videoRef.current && currentPosition > 0) {
+            videoRef.current.currentTime = currentPosition;
+          }
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Error creant stream HLS:', error);
+      // Si falla, mantenir el vídeo actual
+    } finally {
+      setHlsLoading(false);
+    }
+  };
+
+  const handleAudioChange = async (index) => {
     setSelectedAudio(index);
     if (audioTracks[index]?.language) {
       localStorage.setItem('hermes_audio_lang', audioTracks[index].language.toLowerCase());
     }
     setShowAudioMenu(false);
+
+    // Crear nou stream HLS amb la pista d'àudio seleccionada
+    await createHlsStream(index, selectedSubtitle);
   };
 
-  const handleSubtitleChange = (index) => {
+  const handleSubtitleChange = async (index) => {
     setSelectedSubtitle(index);
     if (index === -1) {
       localStorage.setItem('hermes_subtitle_lang', 'off');
@@ -942,6 +1082,9 @@ function Player() {
       localStorage.setItem('hermes_subtitle_lang', subtitleTracks[index].language.toLowerCase());
     }
     setShowSubtitleMenu(false);
+
+    // Crear nou stream HLS amb els subtítols seleccionats
+    await createHlsStream(selectedAudio, index);
   };
 
   const handleSpeedChange = (speed) => {
@@ -1002,7 +1145,7 @@ function Player() {
         <video
           ref={videoRef}
           className="video-player"
-          src={getVideoUrl()}
+          src={isUsingHls ? undefined : getVideoUrl()}
           autoPlay
           onPlay={handleVideoPlay}
           onPause={handleVideoPause}
@@ -1012,10 +1155,25 @@ function Player() {
           onLoadedMetadata={handleLoadedMetadata}
         />
 
-        {videoLoading && (
+        {(videoLoading || hlsLoading) && (
           <div className="player-loading">
             <div className="loading-spinner"></div>
+            {hlsLoading && <div className="loading-text">Canviant pista...</div>}
           </div>
+        )}
+
+        {/* Ripple effect i indicador de zona per doble toc */}
+        {ripple && (
+          <>
+            <div
+              className={`tap-ripple ${ripple.zone}`}
+              style={{ left: ripple.x, top: ripple.y }}
+            />
+            {/* Indicador de zona només per esquerra/dreta */}
+            {(ripple.zone === 'left' || ripple.zone === 'right') && (
+              <div className={`tap-zone-indicator ${ripple.zone}`} />
+            )}
+          </>
         )}
 
         {/* Indicadors de skip/play per doble toc */}
@@ -1059,6 +1217,17 @@ function Player() {
             </div>
 
             <div className="intro-editor-content">
+              {/* Estat actual de la intro */}
+              {segments.find(s => s.segment_type === 'intro') ? (
+                <div className="intro-status intro-status-found">
+                  Intro definida: {formatTime(segments.find(s => s.segment_type === 'intro').start_time)} - {formatTime(segments.find(s => s.segment_type === 'intro').end_time)}
+                </div>
+              ) : (
+                <div className="intro-status intro-status-missing">
+                  Cap intro definida per aquest episodi
+                </div>
+              )}
+
               <div className="intro-times">
                 <div className="time-field">
                   <label>Inici:</label>
@@ -1386,33 +1555,37 @@ function Player() {
                       <EpisodesIcon />
                     </button>
                     {showEpisodesMenu && (
-                      <div className="control-menu episodes-menu">
+                      <div className="control-menu episodes-menu" ref={episodesMenuRef}>
                         <div className="menu-header">
                           Temporada {item?.season_number}
                         </div>
-                        {seriesEpisodes.map((ep) => (
-                          <div
-                            key={ep.id}
-                            className={`menu-item ${ep.id === parseInt(id) ? 'selected current' : ''}`}
-                            onClick={() => {
-                              if (ep.id !== parseInt(id)) {
-                                navigate(`/play/episode/${ep.id}`);
-                              }
-                              setShowEpisodesMenu(false);
-                            }}
-                          >
-                            {ep.id === parseInt(id) && <span className="check-icon"><PlayIcon /></span>}
-                            <span className="episode-num">{ep.episode_number}.</span>
-                            <span className="episode-title">{ep.title || `Episodi ${ep.episode_number}`}</span>
-                          </div>
-                        ))}
+                        {seriesEpisodes.map((ep) => {
+                          const isCurrent = ep.id === parseInt(id);
+                          return (
+                            <div
+                              key={ep.id}
+                              ref={isCurrent ? currentEpisodeRef : null}
+                              className={`menu-item ${isCurrent ? 'selected current' : ''}`}
+                              onClick={() => {
+                                if (!isCurrent) {
+                                  navigate(`/play/episode/${ep.id}`);
+                                }
+                                setShowEpisodesMenu(false);
+                              }}
+                            >
+                              {isCurrent && <span className="check-icon"><PlayIcon /></span>}
+                              <span className="episode-num">{ep.episode_number}.</span>
+                              <span className="episode-title">{ep.title || `Episodi ${ep.episode_number}`}</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* Edit Intro Button (només per episodis) */}
-                {type === 'episode' && (
+                {/* Edit Intro Button (només per episodis i admins) */}
+                {type === 'episode' && isAdmin && (
                   <button
                     className={`control-btn ${showIntroEditor ? 'active' : ''}`}
                     onClick={toggleIntroEditor}
