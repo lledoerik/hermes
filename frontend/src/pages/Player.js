@@ -564,6 +564,14 @@ function Player() {
     setTimeout(() => setSkipIndicator(null), 500);
   };
 
+  // Ripple effect per feedback visual al toc
+  const [ripple, setRipple] = useState(null);
+
+  const showRipple = (x, y, zone) => {
+    setRipple({ x, y, zone });
+    setTimeout(() => setRipple(null), 600);
+  };
+
   // Touch handling per doble toc
   const handleTouchStart = (e) => {
     if (!videoReady) return;
@@ -575,7 +583,8 @@ function Player() {
                             target.closest('.control-menu') ||
                             target.closest('.back-btn') ||
                             target.closest('.skip-segment-btn') ||
-                            target.closest('.next-episode-btn');
+                            target.closest('.next-episode-btn') ||
+                            target.closest('.intro-editor');
 
     if (isControlElement) {
       // Si toquem un control, cancel·lar qualsevol timeout d'amagar
@@ -589,15 +598,21 @@ function Player() {
     const timeDiff = now - lastTapRef.current;
     const touch = e.touches[0];
     const containerWidth = playerContainerRef.current?.offsetWidth || window.innerWidth;
+    const containerHeight = playerContainerRef.current?.offsetHeight || window.innerHeight;
     const touchX = touch.clientX;
+    const touchY = touch.clientY;
 
     // Determinar zona: esquerra (0-33%), centre (33-66%), dreta (66-100%)
     const zone = touchX < containerWidth * 0.33 ? 'left' : touchX > containerWidth * 0.66 ? 'right' : 'center';
 
     if (timeDiff < 300 && timeDiff > 0) {
-      // Doble toc - fer l'acció sense mostrar/amagar la barra
+      // Doble toc - prevenir comportament per defecte i fer l'acció
+      e.preventDefault();
       clearTimeout(tapTimeoutRef.current);
       lastTapRef.current = 0;
+
+      // Mostrar ripple effect
+      showRipple(touchX, touchY, zone);
 
       if (zone === 'left') {
         skip(-skipSeconds);
@@ -1135,6 +1150,20 @@ function Player() {
             <div className="loading-spinner"></div>
             {hlsLoading && <div className="loading-text">Canviant pista...</div>}
           </div>
+        )}
+
+        {/* Ripple effect i indicador de zona per doble toc */}
+        {ripple && (
+          <>
+            <div
+              className={`tap-ripple ${ripple.zone}`}
+              style={{ left: ripple.x, top: ripple.y }}
+            />
+            {/* Indicador de zona només per esquerra/dreta */}
+            {(ripple.zone === 'left' || ripple.zone === 'right') && (
+              <div className={`tap-zone-indicator ${ripple.zone}`} />
+            )}
+          </>
         )}
 
         {/* Indicadors de skip/play per doble toc */}

@@ -4,6 +4,11 @@
   inset: 0;
   background: #000;
   z-index: 9999;
+  /* Prevenir comportaments no desitjats en mòbils */
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .player-wrapper {
@@ -101,6 +106,72 @@
   100% {
     opacity: 0;
     transform: translate(-50%, -50%) scale(1.2);
+  }
+}
+
+/* Ripple effect per doble toc mòbil */
+.tap-ripple {
+  position: absolute;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0) 70%);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 50;
+  animation: rippleExpand 0.6s ease-out forwards;
+}
+
+.tap-ripple.left,
+.tap-ripple.right {
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 70%);
+}
+
+.tap-ripple.center {
+  background: radial-gradient(circle, rgba(var(--color-primary-rgb), 0.5) 0%, rgba(var(--color-primary-rgb), 0) 70%);
+}
+
+@keyframes rippleExpand {
+  0% {
+    width: 50px;
+    height: 50px;
+    opacity: 1;
+  }
+  100% {
+    width: 200px;
+    height: 200px;
+    opacity: 0;
+  }
+}
+
+/* Indicadors de zona de toc (esquerra/dreta) */
+.tap-zone-indicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 33.33%;
+  pointer-events: none;
+  z-index: 40;
+}
+
+.tap-zone-indicator.left {
+  left: 0;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.15) 0%, transparent 100%);
+  animation: zoneFlash 0.4s ease-out forwards;
+}
+
+.tap-zone-indicator.right {
+  right: 0;
+  background: linear-gradient(-90deg, rgba(255, 255, 255, 0.15) 0%, transparent 100%);
+  animation: zoneFlash 0.4s ease-out forwards;
+}
+
+@keyframes zoneFlash {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
   }
 }
 
