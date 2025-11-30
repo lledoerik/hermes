@@ -227,6 +227,8 @@ class HermesScanner:
 
                 genres_json = json.dumps(result.get("genres", []))
 
+                # Only update poster/backdrop if they were actually downloaded
+                # Use CASE WHEN to preserve existing values
                 cursor.execute('''
                     UPDATE series SET
                         tmdb_id = ?,
@@ -236,8 +238,8 @@ class HermesScanner:
                         rating = ?,
                         genres = ?,
                         runtime = ?,
-                        poster = ?,
-                        backdrop = ?,
+                        poster = CASE WHEN ? = 1 THEN ? ELSE poster END,
+                        backdrop = CASE WHEN ? = 1 THEN ? ELSE backdrop END,
                         updated_date = CURRENT_TIMESTAMP
                     WHERE id = ? AND (tmdb_id IS NULL OR tmdb_id = 0)
                 ''', (
@@ -248,7 +250,9 @@ class HermesScanner:
                     result.get("rating"),
                     genres_json,
                     result.get("runtime"),
+                    1 if result.get("poster_downloaded") else 0,
                     str(poster_path) if result.get("poster_downloaded") else None,
+                    1 if result.get("backdrop_downloaded") else 0,
                     str(backdrop_path) if result.get("backdrop_downloaded") else None,
                     series_id
                 ))
@@ -287,15 +291,15 @@ class HermesScanner:
         
     def _scan_movies(self, base: Path, cursor, conn):
         """Escaneja pel·lícules"""
+        video_extensions = ['.mkv', '.mp4', '.avi', '.m4v', '.webm']
         for item in base.iterdir():
-            if item.is_file() and item.suffix.lower() in ['.mkv', '.mp4', '.avi']:
+            if item.is_file() and item.suffix.lower() in video_extensions:
                 self._add_movie(item, cursor, conn)
             elif item.is_dir():
-                # Buscar pel·lícula dins carpeta
-                for video_file in item.glob('*.mkv'):
-                    self._add_movie(video_file, cursor, conn, item)
-                for video_file in item.glob('*.mp4'):
-                    self._add_movie(video_file, cursor, conn, item)
+                # Buscar pel·lícula dins carpeta (suporta tots els formats)
+                for ext in video_extensions:
+                    for video_file in item.glob(f'*{ext}'):
+                        self._add_movie(video_file, cursor, conn, item)
                     
     def _add_movie(self, file_path: Path, cursor, conn, movie_dir: Path = None):
         """Afegeix una pel·lícula"""
