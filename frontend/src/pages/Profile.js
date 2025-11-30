@@ -110,6 +110,11 @@ function Profile() {
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(user?.avatar || '');
   const [tempAvatarUrl, setTempAvatarUrl] = useState('');
+  const [showCropEditor, setShowCropEditor] = useState(false);
+  const [cropZoom, setCropZoom] = useState(1);
+  const [cropPosition, setCropPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
   // Password change
   const [oldPassword, setOldPassword] = useState('');
@@ -212,17 +217,93 @@ function Profile() {
       return;
     }
 
-    // Verificar mida (max 2MB)
-    if (file.size > 2 * 1024 * 1024) {
-      showMessage('La imatge no pot superar 2MB', 'error');
+    // Verificar mida (max 5MB per editar)
+    if (file.size > 5 * 1024 * 1024) {
+      showMessage('La imatge no pot superar 5MB', 'error');
       return;
     }
 
     const reader = new FileReader();
     reader.onload = (event) => {
       setTempAvatarUrl(event.target.result);
+      setCropZoom(1);
+      setCropPosition({ x: 0, y: 0 });
+      setShowCropEditor(true);
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleUrlSubmit = () => {
+    if (tempAvatarUrl && !tempAvatarUrl.startsWith('data:')) {
+      setCropZoom(1);
+      setCropPosition({ x: 0, y: 0 });
+      setShowCropEditor(true);
+    }
+  };
+
+  const handleCropMouseDown = (e) => {
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - cropPosition.x, y: e.clientY - cropPosition.y });
+  };
+
+  const handleCropMouseMove = (e) => {
+    if (!isDragging) return;
+    const newX = e.clientX - dragStart.x;
+    const newY = e.clientY - dragStart.y;
+    // Limitar el moviment
+    const limit = 100 * cropZoom;
+    setCropPosition({
+      x: Math.max(-limit, Math.min(limit, newX)),
+      y: Math.max(-limit, Math.min(limit, newY))
+    });
+  };
+
+  const handleCropMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const applyCrop = () => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+
+    img.onload = () => {
+      const size = 200;
+      canvas.width = size;
+      canvas.height = size;
+
+      const scale = cropZoom;
+      const imgSize = Math.min(img.width, img.height);
+      const srcSize = imgSize / scale;
+
+      const centerX = img.width / 2;
+      const centerY = img.height / 2;
+
+      const offsetX = (cropPosition.x / 100) * (srcSize / 2);
+      const offsetY = (cropPosition.y / 100) * (srcSize / 2);
+
+      const srcX = centerX - srcSize / 2 - offsetX;
+      const srcY = centerY - srcSize / 2 - offsetY;
+
+      ctx.drawImage(img, srcX, srcY, srcSize, srcSize, 0, 0, size, size);
+
+      const croppedUrl = canvas.toDataURL('image/jpeg', 0.9);
+      setTempAvatarUrl(croppedUrl);
+      setShowCropEditor(false);
+    };
+
+    img.onerror = () => {
+      showMessage('Error processant la imatge', 'error');
+      setShowCropEditor(false);
+    };
+
+    img.src = tempAvatarUrl;
+  };
+
+  const cancelCrop = () => {
+    setShowCropEditor(false);
+    setTempAvatarUrl('');
   };
 
   const handleProfileUpdate = async (e) => {
@@ -661,54 +742,111 @@ function Profile() {
 
       {/* Avatar Modal */}
       {showAvatarModal && (
-        <div className="avatar-modal-overlay" onClick={() => setShowAvatarModal(false)}>
+        <div className="avatar-modal-overlay" onClick={() => { setShowAvatarModal(false); setShowCropEditor(false); }}>
           <div className="avatar-modal" onClick={e => e.stopPropagation()}>
-            <h3>Canviar foto de perfil</h3>
+            {showCropEditor ? (
+              <>
+                <h3>Ajusta la imatge</h3>
+                <div
+                  className="crop-editor"
+                  onMouseDown={handleCropMouseDown}
+                  onMouseMove={handleCropMouseMove}
+                  onMouseUp={handleCropMouseUp}
+                  onMouseLeave={handleCropMouseUp}
+                >
+                  <div className="crop-container">
+                    <img
+                      src={tempAvatarUrl}
+                      alt="Crop"
+                      style={{
+                        transform: `translate(${cropPosition.x}px, ${cropPosition.y}px) scale(${cropZoom})`,
+                        cursor: isDragging ? 'grabbing' : 'grab'
+                      }}
+                      draggable={false}
+                    />
+                    <div className="crop-overlay">
+                      <div className="crop-circle"></div>
+                    </div>
+                  </div>
+                </div>
+                <div className="crop-controls">
+                  <label>Zoom</label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="3"
+                    step="0.1"
+                    value={cropZoom}
+                    onChange={(e) => setCropZoom(parseFloat(e.target.value))}
+                  />
+                  <span>{Math.round(cropZoom * 100)}%</span>
+                </div>
+                <div className="avatar-modal-actions">
+                  <button className="cancel-btn" onClick={cancelCrop}>
+                    Cancel·lar
+                  </button>
+                  <button className="save-btn" onClick={applyCrop}>
+                    Aplicar
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3>Canviar foto de perfil</h3>
 
-            <div className="avatar-upload-section">
-              <label className="file-upload-btn">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileUpload}
-                  style={{ display: 'none' }}
-                />
-                Pujar imatge local
-              </label>
-              <span className="upload-divider">o</span>
-            </div>
+                <div className="avatar-upload-section">
+                  <label className="file-upload-btn">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileUpload}
+                      style={{ display: 'none' }}
+                    />
+                    Pujar imatge local
+                  </label>
+                  <span className="upload-divider">o</span>
+                </div>
 
-            <div className="form-group">
-              <label>URL de la imatge</label>
-              <input
-                type="url"
-                value={tempAvatarUrl}
-                onChange={(e) => setTempAvatarUrl(e.target.value)}
-                placeholder="https://exemple.com/foto.jpg"
-              />
-            </div>
-            {tempAvatarUrl && (
-              <div className="avatar-preview">
-                <img
-                  src={tempAvatarUrl}
-                  alt="Preview"
-                  onError={(e) => e.target.style.display = 'none'}
-                />
-              </div>
+                <div className="form-group url-input-group">
+                  <label>URL de la imatge</label>
+                  <div className="url-input-row">
+                    <input
+                      type="url"
+                      value={tempAvatarUrl}
+                      onChange={(e) => setTempAvatarUrl(e.target.value)}
+                      placeholder="https://exemple.com/foto.jpg"
+                    />
+                    {tempAvatarUrl && !tempAvatarUrl.startsWith('data:') && (
+                      <button className="edit-url-btn" onClick={handleUrlSubmit} title="Editar imatge">
+                        Editar
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {tempAvatarUrl && (
+                  <div className="avatar-preview">
+                    <img
+                      src={tempAvatarUrl}
+                      alt="Preview"
+                      onError={(e) => e.target.style.display = 'none'}
+                    />
+                  </div>
+                )}
+                <div className="avatar-modal-actions">
+                  <button className="cancel-btn" onClick={() => setShowAvatarModal(false)}>
+                    Cancel·lar
+                  </button>
+                  {avatarUrl && (
+                    <button className="remove-btn" onClick={handleAvatarRemove} disabled={loading}>
+                      Eliminar
+                    </button>
+                  )}
+                  <button className="save-btn" onClick={handleAvatarSave} disabled={loading || !tempAvatarUrl}>
+                    {loading ? 'Guardant...' : 'Guardar'}
+                  </button>
+                </div>
+              </>
             )}
-            <div className="avatar-modal-actions">
-              <button className="cancel-btn" onClick={() => setShowAvatarModal(false)}>
-                Cancel·lar
-              </button>
-              {avatarUrl && (
-                <button className="remove-btn" onClick={handleAvatarRemove} disabled={loading}>
-                  Eliminar
-                </button>
-              )}
-              <button className="save-btn" onClick={handleAvatarSave} disabled={loading || !tempAvatarUrl}>
-                {loading ? 'Guardant...' : 'Guardar'}
-              </button>
-            </div>
           </div>
         </div>
       )}
