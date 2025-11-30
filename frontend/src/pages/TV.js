@@ -257,6 +257,8 @@ function TV() {
   const [hasAutoFullscreen, setHasAutoFullscreen] = useState(false);
   const [skipIndicator, setSkipIndicator] = useState(null); // 'left', 'right', 'center'
   const [isLive, setIsLive] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   const videoRef = useRef(null);
   const audioRef = useRef(null);
@@ -267,6 +269,7 @@ function TV() {
   const lastTapRef = useRef(0);
   const tapTimeoutRef = useRef(null);
   const hlsRef = useRef(null);
+  const loadingTimeoutRef = useRef(null);
 
   const skipSeconds = 10;
 
@@ -277,8 +280,25 @@ function TV() {
 
     if (!mediaElement || !streamUrl) return;
 
+    // Iniciar càrrega
+    setIsLoading(true);
+    setLoadError(null);
+
     // Pausar i netejar abans de canviar
     mediaElement.pause();
+
+    // Cancel·lar timeout anterior
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+    }
+
+    // Timeout per evitar càrrega infinita (15 segons)
+    loadingTimeoutRef.current = setTimeout(() => {
+      if (isLoading) {
+        setIsLoading(false);
+        setLoadError('El canal no respon. Pot estar temporalment no disponible.');
+      }
+    }, 15000);
 
     // Destruir instància HLS anterior
     if (hlsRef.current) {
@@ -296,15 +316,44 @@ function TV() {
           .then(() => {
             setIsPlaying(true);
             setIsLive(true);
+            setIsLoading(false);
+            setLoadError(null);
+            if (loadingTimeoutRef.current) {
+              clearTimeout(loadingTimeoutRef.current);
+            }
           })
           .catch((error) => {
             // Ignorar errors d'interrupció (usuari canvia de canal ràpidament)
             if (error.name !== 'AbortError') {
               console.warn('Playback error:', error.message);
+              setLoadError('Error reproduint el canal');
+              setIsLoading(false);
             }
           });
       }
     };
+
+    // Event handlers per l'element media
+    const handleCanPlay = () => {
+      setIsLoading(false);
+      setLoadError(null);
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+    };
+
+    const handleWaiting = () => {
+      setIsLoading(true);
+    };
+
+    const handleError = (e) => {
+      setIsLoading(false);
+      setLoadError('Error carregant el canal. Prova amb un altre.');
+    };
+
+    mediaElement.addEventListener('canplay', handleCanPlay);
+    mediaElement.addEventListener('waiting', handleWaiting);
+    mediaElement.addEventListener('error', handleError);
 
     if (isHlsStream && Hls.isSupported()) {
       // Usar HLS.js per navegadors que no suporten HLS nativament
@@ -360,6 +409,8 @@ function TV() {
               break;
             default:
               console.warn('HLS fatal error:', data.details);
+              setLoadError('Error amb el stream. Prova amb un altre canal.');
+              setIsLoading(false);
               hls.destroy();
               break;
           }
@@ -373,6 +424,12 @@ function TV() {
     }
 
     return () => {
+      mediaElement.removeEventListener('canplay', handleCanPlay);
+      mediaElement.removeEventListener('waiting', handleWaiting);
+      mediaElement.removeEventListener('error', handleError);
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
@@ -843,6 +900,33 @@ function TV() {
     >
       {/* Video/Audio Player */}
       <div className="tv-video-container">
+        {/* Indicador de càrrega */}
+        {isLoading && (
+          <div className="tv-loading-overlay">
+            <div className="tv-loading-spinner"></div>
+            <div className="tv-loading-text">Carregant {currentChannel.name}...</div>
+          </div>
+        )}
+
+        {/* Missatge d'error */}
+        {loadError && (
+          <div className="tv-error-overlay">
+            <div className="tv-error-icon">!</div>
+            <div className="tv-error-text">{loadError}</div>
+            <button className="tv-retry-btn" onClick={() => {
+              setLoadError(null);
+              setIsLoading(true);
+              const media = mode === 'tv' ? videoRef.current : audioRef.current;
+              if (media) {
+                media.load();
+                media.play().catch(() => {});
+              }
+            }}>
+              Reintentar
+            </button>
+          </div>
+        )}
+
         {mode === 'tv' ? (
           <video
             ref={videoRef}
