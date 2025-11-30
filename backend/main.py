@@ -272,6 +272,17 @@ def init_all_tables():
                 UNIQUE(user_id, audiobook_id)
             )
         """)
+
+        # Migració: Crear índex UNIQUE per watch_progress si no existeix
+        # (per bases de dades existents que no tenen la constraint)
+        try:
+            cursor.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_watch_progress_user_media
+                ON watch_progress(user_id, media_id)
+            """)
+        except:
+            pass  # L'índex ja existeix o la taula no existeix encara
+
         conn.commit()
         logger.info("Totes les taules inicialitzades correctament")
 
@@ -607,26 +618,15 @@ async def save_watch_progress(media_id: int, data: WatchProgressRequest, request
         if not cursor.fetchone():
             raise HTTPException(status_code=404, detail="Media no trobat")
 
-        # Comprovar si ja existeix un registre per aquest usuari i media
+        # Usar UPSERT per insertar o actualitzar de forma atòmica
         cursor.execute("""
-            SELECT id FROM watch_progress
-            WHERE user_id = ? AND media_id = ?
-        """, (user_id, media_id))
-        existing = cursor.fetchone()
-
-        if existing:
-            # Actualitzar el registre existent
-            cursor.execute("""
-                UPDATE watch_progress
-                SET progress_seconds = ?, total_seconds = ?, updated_date = datetime('now')
-                WHERE user_id = ? AND media_id = ?
-            """, (data.progress_seconds, data.total_seconds, user_id, media_id))
-        else:
-            # Insertar nou registre
-            cursor.execute("""
-                INSERT INTO watch_progress (user_id, media_id, progress_seconds, total_seconds, updated_date)
-                VALUES (?, ?, ?, ?, datetime('now'))
-            """, (user_id, media_id, data.progress_seconds, data.total_seconds))
+            INSERT INTO watch_progress (user_id, media_id, progress_seconds, total_seconds, updated_date)
+            VALUES (?, ?, ?, ?, datetime('now'))
+            ON CONFLICT(user_id, media_id) DO UPDATE SET
+                progress_seconds = excluded.progress_seconds,
+                total_seconds = excluded.total_seconds,
+                updated_date = datetime('now')
+        """, (user_id, media_id, data.progress_seconds, data.total_seconds))
 
         conn.commit()
 
@@ -2178,8 +2178,11 @@ async def get_all_audiobooks():
 
 
 @app.get("/api/audiobooks/{audiobook_id}")
-async def get_audiobook_detail(audiobook_id: int):
+async def get_audiobook_detail(audiobook_id: int, request: Request):
     """Retorna detalls d'un audiollibres"""
+    user = get_current_user(request)
+    user_id = user["id"] if user else 1
+
     with get_db() as conn:
         cursor = conn.cursor()
 
@@ -2202,11 +2205,11 @@ async def get_audiobook_detail(audiobook_id: int):
         """, (audiobook_id,))
         files = [dict(row) for row in cursor.fetchall()]
 
-        # Obtenir progrés
+        # Obtenir progrés de l'usuari actual
         cursor.execute("""
             SELECT * FROM audiobook_progress
-            WHERE audiobook_id = ? AND user_id = 1
-        """, (audiobook_id,))
+            WHERE audiobook_id = ? AND user_id = ?
+        """, (audiobook_id, user_id))
         progress = cursor.fetchone()
 
         return {
@@ -2318,8 +2321,11 @@ class AudiobookProgressRequest(BaseModel):
 
 
 @app.post("/api/audiobooks/{audiobook_id}/progress")
-async def update_audiobook_progress(audiobook_id: int, progress: AudiobookProgressRequest):
+async def update_audiobook_progress(audiobook_id: int, progress: AudiobookProgressRequest, request: Request):
     """Actualitza el progrés d'escolta"""
+    user = get_current_user(request)
+    user_id = user["id"] if user else 1
+
     with get_db() as conn:
         cursor = conn.cursor()
 
@@ -2344,17 +2350,17 @@ async def update_audiobook_progress(audiobook_id: int, progress: AudiobookProgre
         if audiobook['total_duration'] > 0:
             percentage = (total_listened / audiobook['total_duration']) * 100
 
-        # Actualitzar o inserir progrés
+        # Actualitzar o inserir progrés per l'usuari actual
         cursor.execute("""
             INSERT INTO audiobook_progress (user_id, audiobook_id, current_file_id, current_position, total_listened, percentage, last_listened)
-            VALUES (1, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(user_id, audiobook_id) DO UPDATE SET
                 current_file_id = excluded.current_file_id,
                 current_position = excluded.current_position,
                 total_listened = excluded.total_listened,
                 percentage = excluded.percentage,
                 last_listened = CURRENT_TIMESTAMP
-        """, (audiobook_id, progress.file_id, progress.position, total_listened, percentage))
+        """, (user_id, audiobook_id, progress.file_id, progress.position, total_listened, percentage))
 
         conn.commit()
 
@@ -2362,14 +2368,17 @@ async def update_audiobook_progress(audiobook_id: int, progress: AudiobookProgre
 
 
 @app.get("/api/audiobooks/{audiobook_id}/progress")
-async def get_audiobook_progress(audiobook_id: int):
+async def get_audiobook_progress(audiobook_id: int, request: Request):
     """Obté el progrés d'escolta"""
+    user = get_current_user(request)
+    user_id = user["id"] if user else 1
+
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT * FROM audiobook_progress
-            WHERE audiobook_id = ? AND user_id = 1
-        """, (audiobook_id,))
+            WHERE audiobook_id = ? AND user_id = ?
+        """, (audiobook_id, user_id))
         progress = cursor.fetchone()
 
         if not progress:
