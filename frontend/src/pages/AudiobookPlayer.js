@@ -146,6 +146,8 @@ function AudiobookPlayer() {
   const sleepTimerRef = useRef(null);
   const containerRef = useRef(null);
   const lastTapRef = useRef({ time: 0, side: null });
+  const chaptersPanelRef = useRef(null);
+  const currentChapterRef = useRef(null);
 
   const [audiobook, setAudiobook] = useState(null);
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
@@ -245,6 +247,27 @@ function AudiobookPlayer() {
       }
     };
   }, [sleepMode, sleepEndTime]);
+
+  // Scroll automàtic al capítol actual quan s'obre el panell
+  useEffect(() => {
+    if (showChapters && currentChapterRef.current && chaptersPanelRef.current) {
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          if (currentChapterRef.current && chaptersPanelRef.current) {
+            const panel = chaptersPanelRef.current;
+            const element = currentChapterRef.current;
+            const panelRect = panel.getBoundingClientRect();
+
+            const scrollTop = element.offsetTop - (panelRect.height / 2) + (element.offsetHeight / 2);
+            panel.scrollTo({
+              top: Math.max(0, scrollTop),
+              behavior: 'smooth'
+            });
+          }
+        }, 150);
+      });
+    }
+  }, [showChapters]);
 
   // Guardar velocitat a localStorage
   useEffect(() => {
@@ -778,20 +801,24 @@ function AudiobookPlayer() {
           <h3>Capitols</h3>
           <button onClick={() => setShowChapters(false)}><CloseIcon /></button>
         </div>
-        <div className="panel-content">
-          {audiobook.files.map((file, index) => (
-            <div
-              key={file.id}
-              className={`chapter-item ${index === currentFileIndex ? 'active' : ''}`}
-              onClick={() => selectTrack(index)}
-            >
-              <span className="chapter-number">{index + 1}</span>
-              <div className="chapter-info">
-                <span className="chapter-title">{file.title || file.file_name}</span>
-                <span className="chapter-duration">{formatTime(file.duration)}</span>
+        <div className="panel-content" ref={chaptersPanelRef}>
+          {audiobook.files.map((file, index) => {
+            const isCurrent = index === currentFileIndex;
+            return (
+              <div
+                key={file.id}
+                ref={isCurrent ? currentChapterRef : null}
+                className={`chapter-item ${isCurrent ? 'active' : ''}`}
+                onClick={() => selectTrack(index)}
+              >
+                <span className="chapter-number">{index + 1}</span>
+                <div className="chapter-info">
+                  <span className="chapter-title">{file.title || file.file_name}</span>
+                  <span className="chapter-duration">{formatTime(file.duration)}</span>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
