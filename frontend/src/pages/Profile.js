@@ -66,6 +66,13 @@ const TrashIcon = () => (
   </svg>
 );
 
+const CameraIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+    <circle cx="12" cy="13" r="4" />
+  </svg>
+);
+
 // Languages
 const LANGUAGES = [
   { code: 'ca', name: 'Catala' },
@@ -99,6 +106,11 @@ function Profile() {
   const [displayName, setDisplayName] = useState(user?.display_name || '');
   const [email, setEmail] = useState(user?.email || '');
 
+  // Avatar
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatar || '');
+  const [tempAvatarUrl, setTempAvatarUrl] = useState('');
+
   // Password change
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -125,6 +137,7 @@ function Profile() {
     }
     setDisplayName(user.display_name || '');
     setEmail(user.email || '');
+    setAvatarUrl(user.avatar || '');
 
     if (isAdmin) {
       loadAdminData();
@@ -147,6 +160,46 @@ function Profile() {
   const showMessage = (text, type = 'success') => {
     setMessage({ text, type });
     setTimeout(() => setMessage(null), 3000);
+  };
+
+  const openAvatarModal = () => {
+    setTempAvatarUrl(avatarUrl);
+    setShowAvatarModal(true);
+  };
+
+  const handleAvatarSave = async () => {
+    setLoading(true);
+    try {
+      const result = await updateProfile({ avatar: tempAvatarUrl });
+      if (result.success) {
+        setAvatarUrl(tempAvatarUrl);
+        showMessage('Foto de perfil actualitzada');
+        setShowAvatarModal(false);
+      } else {
+        showMessage(result.error, 'error');
+      }
+    } catch (e) {
+      showMessage('Error actualitzant la foto', 'error');
+    }
+    setLoading(false);
+  };
+
+  const handleAvatarRemove = async () => {
+    setLoading(true);
+    try {
+      const result = await updateProfile({ avatar: '' });
+      if (result.success) {
+        setAvatarUrl('');
+        setTempAvatarUrl('');
+        showMessage('Foto de perfil eliminada');
+        setShowAvatarModal(false);
+      } else {
+        showMessage(result.error, 'error');
+      }
+    } catch (e) {
+      showMessage('Error eliminant la foto', 'error');
+    }
+    setLoading(false);
   };
 
   const handleProfileUpdate = async (e) => {
@@ -276,8 +329,17 @@ function Profile() {
         {/* Sidebar */}
         <div className="profile-sidebar">
           <div className="profile-avatar">
-            <div className="avatar-circle">
-              {user.display_name?.charAt(0).toUpperCase() || user.username?.charAt(0).toUpperCase()}
+            <div className="avatar-wrapper">
+              <div className="avatar-circle">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="Avatar" />
+                ) : (
+                  user.display_name?.charAt(0).toUpperCase() || user.username?.charAt(0).toUpperCase()
+                )}
+              </div>
+              <button className="avatar-edit-btn" onClick={openAvatarModal} title="Canviar foto">
+                <CameraIcon />
+              </button>
             </div>
             <h2>{user.display_name || user.username}</h2>
             <p>@{user.username}</p>
@@ -573,6 +635,46 @@ function Profile() {
           )}
         </div>
       </div>
+
+      {/* Avatar Modal */}
+      {showAvatarModal && (
+        <div className="avatar-modal-overlay" onClick={() => setShowAvatarModal(false)}>
+          <div className="avatar-modal" onClick={e => e.stopPropagation()}>
+            <h3>Canviar foto de perfil</h3>
+            <div className="form-group">
+              <label>URL de la imatge</label>
+              <input
+                type="url"
+                value={tempAvatarUrl}
+                onChange={(e) => setTempAvatarUrl(e.target.value)}
+                placeholder="https://exemple.com/foto.jpg"
+              />
+            </div>
+            {tempAvatarUrl && (
+              <div className="avatar-preview">
+                <img
+                  src={tempAvatarUrl}
+                  alt="Preview"
+                  onError={(e) => e.target.style.display = 'none'}
+                />
+              </div>
+            )}
+            <div className="avatar-modal-actions">
+              <button className="cancel-btn" onClick={() => setShowAvatarModal(false)}>
+                Cancel·lar
+              </button>
+              {avatarUrl && (
+                <button className="remove-btn" onClick={handleAvatarRemove} disabled={loading}>
+                  Eliminar
+                </button>
+              )}
+              <button className="save-btn" onClick={handleAvatarSave} disabled={loading || !tempAvatarUrl}>
+                {loading ? 'Guardant...' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
