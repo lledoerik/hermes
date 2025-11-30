@@ -106,9 +106,9 @@ def init_all_tables():
 
         # Migració: afegir columna path a authors si no existeix
         try:
-            cursor.execute("ALTER TABLE authors ADD COLUMN path TEXT UNIQUE")
+            cursor.execute("ALTER TABLE authors ADD COLUMN path TEXT")
         except:
-            pass
+            pass  # La columna ja existeix
 
         # Taula audiobook_authors
         cursor.execute("""
@@ -124,9 +124,9 @@ def init_all_tables():
 
         # Migració: afegir columna path a audiobook_authors si no existeix
         try:
-            cursor.execute("ALTER TABLE audiobook_authors ADD COLUMN path TEXT UNIQUE")
+            cursor.execute("ALTER TABLE audiobook_authors ADD COLUMN path TEXT")
         except:
-            pass
+            pass  # La columna ja existeix
 
         # Migracions per la taula series (per bases de dades existents)
         series_columns = [
