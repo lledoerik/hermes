@@ -139,7 +139,8 @@ class HermesScanner:
                 total_seconds REAL,
                 completed BOOLEAN DEFAULT 0,
                 updated_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (media_id) REFERENCES media_files(id)
+                FOREIGN KEY (media_id) REFERENCES media_files(id),
+                UNIQUE(user_id, media_id)
             )
         ''')
 
