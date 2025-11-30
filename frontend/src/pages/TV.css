@@ -869,16 +869,22 @@
   transform: scale(1.1);
 }
 
-.play-btn {
-  width: 60px;
-  height: 60px;
-  background: linear-gradient(135deg, var(--color-accent-tv) 0%, #c2410c 100%);
-  box-shadow: 0 4px 20px rgba(234, 88, 12, 0.4);
+.tv-player-controls .play-btn {
+  width: 56px;
+  height: 56px;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
 }
 
-.play-btn:hover {
+.tv-player-controls .play-btn svg {
+  color: #000;
+  fill: #000;
+}
+
+.tv-player-controls .play-btn:hover {
   transform: scale(1.1);
-  box-shadow: 0 6px 25px rgba(234, 88, 12, 0.5);
+  background: #e5e5e5;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 /* Skip Buttons */
@@ -1269,9 +1275,9 @@
     gap: var(--space-md);
   }
 
-  .play-btn {
-    width: 50px;
-    height: 50px;
+  .tv-player-controls .play-btn {
+    width: 48px;
+    height: 48px;
   }
 
   .volume-control {
