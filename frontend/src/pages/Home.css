@@ -882,6 +882,7 @@
 }
 
 .quick-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -891,6 +892,10 @@
   border-radius: var(--radius-lg);
   text-decoration: none;
   color: var(--text-primary);
+  background: rgba(30, 41, 59, 0.4);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-primary);
+  overflow: hidden;
   transition: transform var(--transition-normal), box-shadow var(--transition-normal);
 }
 
@@ -899,39 +904,40 @@
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
+.quick-card:hover .quick-bubble {
+  transform: translate(-50%, -50%) scale(1.2);
+  opacity: 0.9;
+}
+
+/* Centered round bubble */
+.quick-bubble {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  filter: blur(25px);
+  opacity: 0.7;
+  transition: transform 0.4s ease, opacity 0.4s ease;
+  pointer-events: none;
+}
+
 .quick-card svg {
+  position: relative;
+  z-index: 1;
   width: 32px;
   height: 32px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
 }
 
 .quick-card span {
+  position: relative;
+  z-index: 1;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
-}
-
-/* Quick card gradients - matching hermes-frontend colors */
-.quick-card.gradient-movies {
-  background: linear-gradient(135deg, #2563eb 0%, #9333ea 100%);
-}
-
-.quick-card.gradient-series {
-  background: linear-gradient(135deg, #9333ea 0%, #ec4899 100%);
-}
-
-.quick-card.gradient-programs {
-  background: linear-gradient(135deg, #ec4899 0%, #ef4444 100%);
-}
-
-.quick-card.gradient-books {
-  background: linear-gradient(135deg, #16a34a 0%, #14b8a6 100%);
-}
-
-.quick-card.gradient-audiobooks {
-  background: linear-gradient(135deg, #14b8a6 0%, #06b6d4 100%);
-}
-
-.quick-card.gradient-tv {
-  background: linear-gradient(135deg, #ea580c 0%, #eab308 100%);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 /* Mobile responsive for authenticated view */
@@ -963,5 +969,11 @@
   .quick-card svg {
     width: 24px;
     height: 24px;
+  }
+
+  .quick-bubble {
+    width: 60px;
+    height: 60px;
+    filter: blur(20px);
   }
 }
