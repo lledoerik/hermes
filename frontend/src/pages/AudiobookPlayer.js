@@ -89,6 +89,40 @@ const SpeedIcon = () => (
   </svg>
 );
 
+const SleepIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+  </svg>
+);
+
+const BookmarkIcon = ({ filled }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+  </svg>
+);
+
+const CloseIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <line x1="18" y1="6" x2="6" y2="18"></line>
+    <line x1="6" y1="6" x2="18" y2="18"></line>
+  </svg>
+);
+
+// Sleep timer options (in minutes)
+const SLEEP_OPTIONS = [
+  { value: 0, label: 'Off' },
+  { value: 5, label: '5 min' },
+  { value: 10, label: '10 min' },
+  { value: 15, label: '15 min' },
+  { value: 30, label: '30 min' },
+  { value: 45, label: '45 min' },
+  { value: 60, label: '1 hora' },
+  { value: -1, label: 'Fi capitol' }
+];
+
+// Playback speed options
+const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+
 // Skip indicator icons
 const RewindIndicator = () => (
   <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor">
@@ -109,6 +143,7 @@ function AudiobookPlayer() {
   const navigate = useNavigate();
   const audioRef = useRef(null);
   const progressIntervalRef = useRef(null);
+  const sleepTimerRef = useRef(null);
   const containerRef = useRef(null);
   const lastTapRef = useRef({ time: 0, side: null });
 
@@ -119,10 +154,20 @@ function AudiobookPlayer() {
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
-  const [playbackRate, setPlaybackRate] = useState(1);
+  const [playbackRate, setPlaybackRate] = useState(() => parseFloat(localStorage.getItem('audiobook_speed')) || 1);
   const [showChapters, setShowChapters] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [skipIndicator, setSkipIndicator] = useState(null); // { side: 'left' | 'right', seconds: number }
+  const [skipIndicator, setSkipIndicator] = useState(null);
+
+  // Sleep timer state
+  const [sleepTimer, setSleepTimer] = useState(0); // minuts restants
+  const [sleepMode, setSleepMode] = useState(0); // 0=off, -1=fi capitol, >0=minuts
+  const [sleepEndTime, setSleepEndTime] = useState(null);
+
+  // Bookmarks state
+  const [bookmarks, setBookmarks] = useState([]);
+  const [showBookmarks, setShowBookmarks] = useState(false);
 
   // Carregar audiollibres
   useEffect(() => {
@@ -150,12 +195,64 @@ function AudiobookPlayer() {
 
     loadAudiobook();
 
+    // Carregar marcadors des de localStorage
+    const savedBookmarks = localStorage.getItem(`audiobook_bookmarks_${id}`);
+    if (savedBookmarks) {
+      try {
+        setBookmarks(JSON.parse(savedBookmarks));
+      } catch {
+        setBookmarks([]);
+      }
+    }
+
     return () => {
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
       }
+      if (sleepTimerRef.current) {
+        clearInterval(sleepTimerRef.current);
+      }
     };
   }, [id]);
+
+  // Sleep timer effect
+  useEffect(() => {
+    if (sleepTimerRef.current) {
+      clearInterval(sleepTimerRef.current);
+    }
+
+    if (sleepMode > 0 && sleepEndTime) {
+      sleepTimerRef.current = setInterval(() => {
+        const remaining = Math.max(0, Math.ceil((sleepEndTime - Date.now()) / 60000));
+        setSleepTimer(remaining);
+
+        if (remaining <= 0) {
+          // Temps esgotat - pausar
+          if (audioRef.current) {
+            audioRef.current.pause();
+          }
+          setIsPlaying(false);
+          setSleepMode(0);
+          setSleepEndTime(null);
+          clearInterval(sleepTimerRef.current);
+        }
+      }, 1000);
+    }
+
+    return () => {
+      if (sleepTimerRef.current) {
+        clearInterval(sleepTimerRef.current);
+      }
+    };
+  }, [sleepMode, sleepEndTime]);
+
+  // Guardar velocitat a localStorage
+  useEffect(() => {
+    localStorage.setItem('audiobook_speed', playbackRate.toString());
+    if (audioRef.current) {
+      audioRef.current.playbackRate = playbackRate;
+    }
+  }, [playbackRate]);
 
   // Guardar progrés periòdicament
   const saveProgress = useCallback(async () => {
@@ -210,6 +307,14 @@ function AudiobookPlayer() {
   };
 
   const handleEnded = () => {
+    // Si el sleep timer està en mode "fi de capítol", pausar
+    if (sleepMode === -1) {
+      setIsPlaying(false);
+      setSleepMode(0);
+      saveProgress();
+      return;
+    }
+
     // Passar al següent fitxer
     if (currentFileIndex < audiobook.files.length - 1) {
       setCurrentFileIndex(prev => prev + 1);
@@ -219,6 +324,63 @@ function AudiobookPlayer() {
       saveProgress();
     }
   };
+
+  // Sleep timer functions
+  const setSleepTimerMinutes = (minutes) => {
+    if (minutes === 0) {
+      setSleepMode(0);
+      setSleepEndTime(null);
+      setSleepTimer(0);
+    } else if (minutes === -1) {
+      setSleepMode(-1); // Fi de capítol
+      setSleepTimer(-1);
+    } else {
+      setSleepMode(minutes);
+      setSleepEndTime(Date.now() + minutes * 60 * 1000);
+      setSleepTimer(minutes);
+    }
+    setShowSettings(false);
+  };
+
+  // Bookmark functions
+  const addBookmark = useCallback(() => {
+    if (!audiobook || !audioRef.current) return;
+
+    const currentFile = audiobook.files[currentFileIndex];
+    const newBookmark = {
+      id: Date.now(),
+      fileIndex: currentFileIndex,
+      fileId: currentFile.id,
+      fileTitle: currentFile.title || currentFile.file_name,
+      position: Math.floor(audioRef.current.currentTime),
+      createdAt: new Date().toISOString()
+    };
+
+    const updatedBookmarks = [...bookmarks, newBookmark];
+    setBookmarks(updatedBookmarks);
+    localStorage.setItem(`audiobook_bookmarks_${id}`, JSON.stringify(updatedBookmarks));
+  }, [audiobook, currentFileIndex, bookmarks, id]);
+
+  const removeBookmark = useCallback((bookmarkId) => {
+    const updatedBookmarks = bookmarks.filter(b => b.id !== bookmarkId);
+    setBookmarks(updatedBookmarks);
+    localStorage.setItem(`audiobook_bookmarks_${id}`, JSON.stringify(updatedBookmarks));
+  }, [bookmarks, id]);
+
+  const goToBookmark = useCallback((bookmark) => {
+    if (bookmark.fileIndex !== currentFileIndex) {
+      saveProgress();
+      setCurrentFileIndex(bookmark.fileIndex);
+    }
+    // Esperar a que carregui el fitxer si cal
+    setTimeout(() => {
+      if (audioRef.current) {
+        audioRef.current.currentTime = bookmark.position;
+      }
+    }, 100);
+    setShowBookmarks(false);
+    setIsPlaying(true);
+  }, [currentFileIndex, saveProgress]);
 
   const togglePlay = () => {
     if (audioRef.current) {
@@ -301,15 +463,15 @@ function AudiobookPlayer() {
   };
 
   const cyclePlaybackRate = () => {
-    const rates = [0.75, 1, 1.25, 1.5, 1.75, 2];
-    const currentIndex = rates.indexOf(playbackRate);
-    const nextIndex = (currentIndex + 1) % rates.length;
-    const newRate = rates[nextIndex];
-
+    const currentIndex = SPEED_OPTIONS.indexOf(playbackRate);
+    const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % SPEED_OPTIONS.length : 0;
+    const newRate = SPEED_OPTIONS[nextIndex];
     setPlaybackRate(newRate);
-    if (audioRef.current) {
-      audioRef.current.playbackRate = newRate;
-    }
+  };
+
+  const setSpeed = (speed) => {
+    setPlaybackRate(speed);
+    setShowSettings(false);
   };
 
   // Show skip indicator
@@ -483,12 +645,34 @@ function AudiobookPlayer() {
           <h1>{audiobook.title}</h1>
           <span className="author">{audiobook.author_name}</span>
         </div>
-        <button
-          className={`chapters-btn ${showChapters ? 'active' : ''}`}
-          onClick={() => setShowChapters(!showChapters)}
-        >
-          <ListIcon />
-        </button>
+        <div className="header-actions">
+          <button
+            className={`header-btn ${showBookmarks ? 'active' : ''}`}
+            onClick={() => { setShowBookmarks(!showBookmarks); setShowChapters(false); setShowSettings(false); }}
+            title="Marcadors"
+          >
+            <BookmarkIcon filled={bookmarks.length > 0} />
+          </button>
+          <button
+            className={`header-btn ${showChapters ? 'active' : ''}`}
+            onClick={() => { setShowChapters(!showChapters); setShowBookmarks(false); setShowSettings(false); }}
+            title="Capitols"
+          >
+            <ListIcon />
+          </button>
+          <button
+            className={`header-btn ${showSettings ? 'active' : ''}`}
+            onClick={() => { setShowSettings(!showSettings); setShowChapters(false); setShowBookmarks(false); }}
+            title="Configuracio"
+          >
+            <SleepIcon />
+            {sleepMode !== 0 && (
+              <span className="sleep-badge">
+                {sleepMode === -1 ? 'Fi' : sleepTimer}
+              </span>
+            )}
+          </button>
+        </div>
       </header>
 
       {/* Main content */}
@@ -510,10 +694,27 @@ function AudiobookPlayer() {
         {/* Current track info */}
         <div className="current-track-info">
           <h2 className="track-title">{currentFile?.title || currentFile?.file_name}</h2>
-          <p className="track-number">
-            Capítol {currentFileIndex + 1} de {audiobook.files.length}
-          </p>
+          <div className="track-meta">
+            <p className="track-number">
+              Capitol {currentFileIndex + 1} de {audiobook.files.length}
+            </p>
+            <button className="bookmark-current-btn" onClick={addBookmark} title="Afegir marcador">
+              <BookmarkIcon filled={false} />
+            </button>
+          </div>
         </div>
+
+        {/* Sleep timer indicator */}
+        {sleepMode !== 0 && (
+          <div className="sleep-indicator">
+            <SleepIcon />
+            <span>
+              {sleepMode === -1
+                ? 'Aturaras al final del capitol'
+                : `Aturara en ${sleepTimer} min`}
+            </span>
+          </div>
+        )}
 
         {/* Progress bar */}
         <div className="audiobook-progress">
@@ -572,12 +773,12 @@ function AudiobookPlayer() {
       </main>
 
       {/* Chapters sidebar */}
-      <div className={`chapters-panel ${showChapters ? 'open' : ''}`}>
-        <div className="chapters-header">
-          <h3>Capítols</h3>
-          <button onClick={() => setShowChapters(false)}>&times;</button>
+      <div className={`sidebar-panel ${showChapters ? 'open' : ''}`}>
+        <div className="panel-header">
+          <h3>Capitols</h3>
+          <button onClick={() => setShowChapters(false)}><CloseIcon /></button>
         </div>
-        <div className="chapters-list">
+        <div className="panel-content">
           {audiobook.files.map((file, index) => (
             <div
               key={file.id}
@@ -593,6 +794,84 @@ function AudiobookPlayer() {
           ))}
         </div>
       </div>
+
+      {/* Bookmarks sidebar */}
+      <div className={`sidebar-panel ${showBookmarks ? 'open' : ''}`}>
+        <div className="panel-header">
+          <h3>Marcadors</h3>
+          <button onClick={() => setShowBookmarks(false)}><CloseIcon /></button>
+        </div>
+        <div className="panel-content">
+          {bookmarks.length === 0 ? (
+            <div className="empty-panel">
+              <BookmarkIcon filled={false} />
+              <p>Cap marcador encara</p>
+              <span>Prem el boto de marcador per desar la posicio actual</span>
+            </div>
+          ) : (
+            bookmarks.map((bookmark) => (
+              <div key={bookmark.id} className="bookmark-item">
+                <div className="bookmark-info" onClick={() => goToBookmark(bookmark)}>
+                  <span className="bookmark-file">{bookmark.fileTitle}</span>
+                  <span className="bookmark-position">{formatTime(bookmark.position)}</span>
+                </div>
+                <button className="delete-bookmark" onClick={() => removeBookmark(bookmark.id)}>
+                  <CloseIcon />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Settings sidebar */}
+      <div className={`sidebar-panel ${showSettings ? 'open' : ''}`}>
+        <div className="panel-header">
+          <h3>Configuracio</h3>
+          <button onClick={() => setShowSettings(false)}><CloseIcon /></button>
+        </div>
+        <div className="panel-content">
+          {/* Sleep Timer */}
+          <div className="settings-section">
+            <h4>Temporitzador de son</h4>
+            <div className="sleep-options">
+              {SLEEP_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  className={`sleep-option ${sleepMode === option.value ? 'active' : ''}`}
+                  onClick={() => setSleepTimerMinutes(option.value)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Playback Speed */}
+          <div className="settings-section">
+            <h4>Velocitat de reproduccio</h4>
+            <div className="speed-options">
+              {SPEED_OPTIONS.map((speed) => (
+                <button
+                  key={speed}
+                  className={`speed-option ${playbackRate === speed ? 'active' : ''}`}
+                  onClick={() => setSpeed(speed)}
+                >
+                  {speed}x
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Overlay to close panels */}
+      {(showChapters || showBookmarks || showSettings) && (
+        <div
+          className="panel-overlay"
+          onClick={() => { setShowChapters(false); setShowBookmarks(false); setShowSettings(false); }}
+        />
+      )}
 
       {/* Audio element */}
       {streamUrl && (
