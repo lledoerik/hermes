@@ -183,6 +183,12 @@ def init_all_tables():
             )
         """)
 
+        # Migració: afegir columna tmdb_id a series si no existeix
+        try:
+            cursor.execute("ALTER TABLE series ADD COLUMN tmdb_id INTEGER")
+        except:
+            pass
+
         conn.commit()
         logger.info("Totes les taules inicialitzades correctament")
 
