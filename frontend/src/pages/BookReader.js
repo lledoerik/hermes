@@ -103,6 +103,7 @@ function BookReader() {
   const [readingTime, setReadingTime] = useState(null);
 
   const contentRef = useRef(null);
+  // eslint-disable-next-line no-unused-vars
   const controlsTimeoutRef = useRef(null);
 
   // Guardar preferències
