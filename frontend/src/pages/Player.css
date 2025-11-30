@@ -896,6 +896,27 @@
   padding: 20px;
 }
 
+/* Estat de la intro */
+.intro-status {
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.intro-status-found {
+  background: rgba(40, 167, 69, 0.2);
+  border: 1px solid rgba(40, 167, 69, 0.4);
+  color: #6fdc8c;
+}
+
+.intro-status-missing {
+  background: rgba(255, 193, 7, 0.15);
+  border: 1px solid rgba(255, 193, 7, 0.4);
+  color: #ffc107;
+}
+
 .intro-times {
   display: flex;
   flex-direction: column;

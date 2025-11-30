@@ -1217,6 +1217,17 @@ function Player() {
             </div>
 
             <div className="intro-editor-content">
+              {/* Estat actual de la intro */}
+              {segments.find(s => s.segment_type === 'intro') ? (
+                <div className="intro-status intro-status-found">
+                  Intro definida: {formatTime(segments.find(s => s.segment_type === 'intro').start_time)} - {formatTime(segments.find(s => s.segment_type === 'intro').end_time)}
+                </div>
+              ) : (
+                <div className="intro-status intro-status-missing">
+                  Cap intro definida per aquest episodi
+                </div>
+              )}
+
               <div className="intro-times">
                 <div className="time-field">
                   <label>Inici:</label>
