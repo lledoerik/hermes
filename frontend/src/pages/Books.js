@@ -518,7 +518,7 @@ function Books() {
           <div className="metadata-modal" onClick={(e) => e.stopPropagation()}>
             <div className="metadata-modal-header">
               <h2>Editar metadades</h2>
-              <button className="close-btn" onClick={handleCloseMetadataEdit}>
+              <button className="close-btn" onClick={handleCloseMetadataEdit} aria-label="Tancar">
                 <CloseIcon />
               </button>
             </div>

@@ -1258,7 +1258,7 @@ function Player() {
               <button className="close-editor" onClick={() => {
                 setShowIntroEditor(false);
                 setPropagateResult(null);
-              }}>×</button>
+              }} aria-label="Tancar editor">×</button>
             </div>
 
             <div className="intro-editor-content">
