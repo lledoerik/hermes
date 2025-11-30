@@ -127,6 +127,22 @@ def init_all_tables():
         except:
             pass
 
+        # Migracions per la taula series (per bases de dades existents)
+        series_columns = [
+            ("tmdb_id", "INTEGER"),
+            ("title", "TEXT"),
+            ("year", "INTEGER"),
+            ("overview", "TEXT"),
+            ("rating", "REAL"),
+            ("genres", "TEXT"),
+            ("runtime", "INTEGER"),
+        ]
+        for col_name, col_type in series_columns:
+            try:
+                cursor.execute(f"ALTER TABLE series ADD COLUMN {col_name} {col_type}")
+            except:
+                pass  # La columna ja existeix
+
         # Taula books (si no existeix)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS books (
