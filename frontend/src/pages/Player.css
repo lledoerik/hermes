@@ -653,8 +653,10 @@
   position: absolute;
   inset: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 15px;
   background: rgba(0, 0, 0, 0.5);
 }
 
@@ -665,6 +667,12 @@
   border-top-color: var(--color-primary);
   border-radius: var(--radius-circle);
   animation: spin 1s linear infinite;
+}
+
+.loading-text {
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 @keyframes spin {
