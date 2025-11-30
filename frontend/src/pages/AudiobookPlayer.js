@@ -160,6 +160,7 @@ function AudiobookPlayer() {
   const [showChapters, setShowChapters] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [skipIndicator, setSkipIndicator] = useState(null);
 
   // Sleep timer state
@@ -190,6 +191,7 @@ function AudiobookPlayer() {
         }
       } catch (error) {
         console.error('Error carregant audiollibres:', error);
+        setError('No s\'ha pogut carregar l\'audiollibre');
       } finally {
         setLoading(false);
       }
@@ -614,6 +616,22 @@ function AudiobookPlayer() {
       <div className="loading-screen">
         <img src="/img/hermes.png" alt="Hermes" className="loading-logo" />
         <div className="loading-text">Carregant audiollibres...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="audiobook-player-container">
+        <div className="audiobook-error">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="48" height="48" style={{color: '#ef4444', marginBottom: '10px'}}>
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+          </svg>
+          <h2>{error}</h2>
+          <button onClick={() => navigate('/audiobooks')}>
+            <BackIcon /> Tornar a la biblioteca
+          </button>
+        </div>
       </div>
     );
   }
