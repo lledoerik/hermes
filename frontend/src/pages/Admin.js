@@ -139,6 +139,21 @@ const KeyIcon = () => (
   </svg>
 );
 
+// Check icon (substitueix el símbol ✓)
+const CheckIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+    <polyline points="20 6 9 17 4 12"></polyline>
+  </svg>
+);
+
+// X icon (substitueix el símbol ✗)
+const XIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+    <line x1="18" y1="6" x2="6" y2="18"></line>
+    <line x1="6" y1="6" x2="18" y2="18"></line>
+  </svg>
+);
+
 function Admin() {
   const [stats, setStats] = useState(null);
   const [scanning, setScanning] = useState(false);
@@ -675,9 +690,9 @@ function Admin() {
                   }}
                 />
               </div>
-              <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', fontSize: '12px', color: 'rgba(255,255,255,0.6)' }}>
-                <span>✓ {thumbnailProgress.generated} generades</span>
-                {thumbnailProgress.errors > 0 && <span style={{ color: '#ef4444' }}>✗ {thumbnailProgress.errors} errors</span>}
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', fontSize: '12px', color: 'rgba(255,255,255,0.6)', alignItems: 'center' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><CheckIcon /> {thumbnailProgress.generated} generades</span>
+                {thumbnailProgress.errors > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#ef4444' }}><XIcon /> {thumbnailProgress.errors} errors</span>}
               </div>
             </div>
           )}

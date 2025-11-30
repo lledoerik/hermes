@@ -157,6 +157,7 @@ function Player() {
 
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [videoLoading, setVideoLoading] = useState(true);
   const [videoReady, setVideoReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -331,13 +332,26 @@ function Player() {
   // Scroll automàtic a l'episodi actual quan s'obre el menú
   useEffect(() => {
     if (showEpisodesMenu && currentEpisodeRef.current && episodesMenuRef.current) {
-      // Petit delay per assegurar que el menú està renderitzat
-      setTimeout(() => {
-        currentEpisodeRef.current?.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center'
-        });
-      }, 50);
+      // Utilitzem requestAnimationFrame per assegurar que el DOM està pintat
+      requestAnimationFrame(() => {
+        // Delay addicional per assegurar que el menú està completament renderitzat
+        setTimeout(() => {
+          if (currentEpisodeRef.current && episodesMenuRef.current) {
+            // Calcular la posició per centrar l'element
+            const menu = episodesMenuRef.current;
+            const element = currentEpisodeRef.current;
+            const menuRect = menu.getBoundingClientRect();
+            const elementRect = element.getBoundingClientRect();
+
+            // Scroll per centrar l'element al menú
+            const scrollTop = element.offsetTop - (menuRect.height / 2) + (elementRect.height / 2);
+            menu.scrollTo({
+              top: Math.max(0, scrollTop),
+              behavior: 'smooth'
+            });
+          }
+        }, 100);
+      });
     }
   }, [showEpisodesMenu]);
 
@@ -389,7 +403,7 @@ function Player() {
           setSegments(segmentsRes.data || []);
         }
       } catch (e) {
-        console.log('No hi ha segments definits');
+        // No segments defined - expected for new media
       }
 
       // Carregar progrés de visualització per continuar on es va quedar
@@ -399,7 +413,7 @@ function Player() {
           setInitialProgress(progressRes.data);
         }
       } catch (e) {
-        console.log('No hi ha progrés guardat');
+        // No saved progress - starting fresh
       }
 
       // Carregar navegació d'episodis (només per sèries)
@@ -412,7 +426,7 @@ function Player() {
           const nextRes = await axios.get(`/api/library/episodes/${id}/next`);
           setNextEpisode(nextRes.data);
         } catch (e) {
-          console.log('No hi ha següent episodi');
+          // No next episode - last in season
         }
 
         // Carregar tots els episodis de la temporada
@@ -420,11 +434,12 @@ function Player() {
           const episodesRes = await axios.get(`/api/library/series/${seriesId}/seasons/${seasonNum}/episodes`);
           setSeriesEpisodes(episodesRes.data || []);
         } catch (e) {
-          console.log('No s\'han pogut carregar els episodis');
+          // Could not load episodes list
         }
       }
     } catch (error) {
       console.error('Error carregant media:', error);
+      setError('No s\'ha pogut carregar el contingut');
     } finally {
       setLoading(false);
     }
@@ -1026,7 +1041,7 @@ function Player() {
   };
 
   // Funció per crear un stream HLS amb les pistes seleccionades
-  const createHlsStream = async (audioIndex, subtitleIndex) => {
+  const createHlsStream = async (audioArrayIndex, subtitleArrayIndex) => {
     if (!item) return;
 
     // Guardar posició actual
@@ -1035,25 +1050,57 @@ function Player() {
     setHlsLoading(true);
     setVideoLoading(true);
 
+    // Obtenir l'índex real del stream (no l'índex de l'array)
+    // Els tracks tenen un camp 'index' que és l'índex real del stream al fitxer
+    const actualAudioIndex = audioArrayIndex >= 0 && audioTracks[audioArrayIndex]
+      ? audioTracks[audioArrayIndex].index
+      : null;
+    const actualSubtitleIndex = subtitleArrayIndex >= 0 && subtitleTracks[subtitleArrayIndex]
+      ? subtitleTracks[subtitleArrayIndex].index
+      : null;
+
     try {
-      // Cridar l'API per crear el stream HLS
+      // Cridar l'API per crear el stream HLS amb els índexs reals
       const response = await axios.post(`/api/stream/${id}/hls`, {
-        audio_index: audioIndex >= 0 ? audioIndex : null,
-        subtitle_index: subtitleIndex >= 0 ? subtitleIndex : null,
+        audio_index: actualAudioIndex,
+        subtitle_index: actualSubtitleIndex,
         quality: '1080p'
       });
 
       if (response.data.playlist_url) {
         const fullUrl = `${API_URL}${response.data.playlist_url}`;
-        setHlsUrl(fullUrl);
-        setIsUsingHls(true);
 
-        // Esperar una mica perquè el stream es generi
-        setTimeout(() => {
-          if (videoRef.current && currentPosition > 0) {
-            videoRef.current.currentTime = currentPosition;
+        // Esperar que el playlist estigui disponible (FFmpeg necessita temps)
+        const waitForPlaylist = async (url, maxAttempts = 20) => {
+          for (let i = 0; i < maxAttempts; i++) {
+            try {
+              const checkResponse = await axios.head(url);
+              if (checkResponse.status === 200) {
+                return true;
+              }
+            } catch {
+              // Playlist encara no disponible, esperar
+            }
+            await new Promise(resolve => setTimeout(resolve, 500));
           }
-        }, 1000);
+          return false;
+        };
+
+        const playlistReady = await waitForPlaylist(fullUrl);
+
+        if (playlistReady) {
+          setHlsUrl(fullUrl);
+          setIsUsingHls(true);
+
+          // Restaurar posició després de carregar
+          setTimeout(() => {
+            if (videoRef.current && currentPosition > 0) {
+              videoRef.current.currentTime = currentPosition;
+            }
+          }, 500);
+        } else {
+          console.error('Timeout esperant el playlist HLS');
+        }
       }
     } catch (error) {
       console.error('Error creant stream HLS:', error);
@@ -1113,6 +1160,24 @@ function Player() {
       <div className="player-container">
         <div className="player-loading">
           <div className="loading-spinner"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="player-container">
+        <div className="player-error">
+          <div className="error-icon">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="48" height="48">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+            </svg>
+          </div>
+          <div className="error-message">{error}</div>
+          <button className="error-back-btn" onClick={() => navigate(-1)}>
+            Tornar enrere
+          </button>
         </div>
       </div>
     );
@@ -1205,15 +1270,15 @@ function Player() {
           </button>
         )}
 
-        {/* Editor d'intros */}
-        {showIntroEditor && (
+        {/* Editor d'intros - només visible per admins */}
+        {showIntroEditor && isAdmin && (
           <div className="intro-editor">
             <div className="intro-editor-header">
               <h3>Editor d'Intro</h3>
               <button className="close-editor" onClick={() => {
                 setShowIntroEditor(false);
                 setPropagateResult(null);
-              }}>×</button>
+              }} aria-label="Tancar editor">×</button>
             </div>
 
             <div className="intro-editor-content">
@@ -1291,7 +1356,7 @@ function Player() {
                       {propagateResult.status === 'success' ? (
                         <>
                           <div className="result-summary">
-                            ✓ {propagateResult.episodes_found} trobats
+                            <span className="check-icon">&#10003;</span> {propagateResult.episodes_found} trobats
                             {propagateResult.episodes_not_found > 0 &&
                               ` · ${propagateResult.episodes_not_found} sense intro`
                             }
@@ -1471,7 +1536,7 @@ function Player() {
                       {audioTracks.length > 0 ? (
                         audioTracks.map((track, index) => (
                           <div
-                            key={index}
+                            key={track.index || `audio-${index}`}
                             className={`menu-item ${selectedAudio === index ? 'selected' : ''}`}
                             onClick={() => handleAudioChange(index)}
                           >
@@ -1520,7 +1585,7 @@ function Player() {
                       </div>
                       {subtitleTracks.map((track, index) => (
                         <div
-                          key={index}
+                          key={track.index || `sub-${index}`}
                           className={`menu-item ${selectedSubtitle === index ? 'selected' : ''}`}
                           onClick={() => handleSubtitleChange(index)}
                         >

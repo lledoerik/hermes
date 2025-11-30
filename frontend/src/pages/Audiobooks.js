@@ -502,13 +502,13 @@ function Audiobooks() {
         </div>
       )}
 
-      {/* Modal for editing audiobook metadata */}
-      {editingAudiobook && (
+      {/* Modal for editing audiobook metadata - només visible per admins */}
+      {editingAudiobook && isAdmin && (
         <div className="metadata-modal-overlay" onClick={handleCloseMetadataEdit}>
           <div className="metadata-modal" onClick={(e) => e.stopPropagation()}>
             <div className="metadata-modal-header">
               <h2>Editar metadades</h2>
-              <button className="close-btn" onClick={handleCloseMetadataEdit}>
+              <button className="close-btn" onClick={handleCloseMetadataEdit} aria-label="Tancar">
                 <CloseIcon />
               </button>
             </div>
@@ -603,7 +603,7 @@ function Audiobooks() {
                     <div className="search-results">
                       {searchResults.map((result, index) => (
                         <div
-                          key={index}
+                          key={result.key || result.cover_id || `result-${index}`}
                           className={`search-result ${!result.cover_id ? 'no-cover' : ''}`}
                           onClick={() => handleSelectSearchResult(result)}
                         >
