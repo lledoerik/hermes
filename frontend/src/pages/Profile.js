@@ -434,7 +434,7 @@ function Profile() {
         <div className="profile-sidebar">
           <div className="profile-avatar">
             <div className="avatar-wrapper">
-              <div className="avatar-circle">
+              <div className={`avatar-circle ${avatarUrl ? 'has-image' : ''}`}>
                 {avatarUrl ? (
                   <img src={avatarUrl} alt="Avatar" />
                 ) : (
