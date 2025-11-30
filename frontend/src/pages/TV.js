@@ -435,6 +435,7 @@ function TV() {
         hlsRef.current = null;
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentChannel, mode]);
 
   const channels = mode === 'tv' ? TV_CHANNELS : RADIO_CHANNELS;
