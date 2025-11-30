@@ -95,19 +95,37 @@ def init_all_tables():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS authors (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,
+                name TEXT NOT NULL,
+                path TEXT UNIQUE,
+                photo_path TEXT,
+                bio TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+        # Migració: afegir columna path a authors si no existeix
+        try:
+            cursor.execute("ALTER TABLE authors ADD COLUMN path TEXT UNIQUE")
+        except:
+            pass
 
         # Taula audiobook_authors
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS audiobook_authors (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,
+                name TEXT NOT NULL,
+                path TEXT UNIQUE,
+                photo_path TEXT,
+                bio TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+        # Migració: afegir columna path a audiobook_authors si no existeix
+        try:
+            cursor.execute("ALTER TABLE audiobook_authors ADD COLUMN path TEXT UNIQUE")
+        except:
+            pass
 
         # Taula books (si no existeix)
         cursor.execute("""
