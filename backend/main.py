@@ -3262,7 +3262,7 @@ async def auto_fetch_all_book_covers(background_tasks: BackgroundTasks):
             cursor.execute("""
                 SELECT b.id, b.title, b.file_path, a.name as author
                 FROM books b
-                LEFT JOIN book_authors a ON b.author_id = a.id
+                LEFT JOIN authors a ON b.author_id = a.id
                 WHERE b.cover IS NULL OR b.cover = ''
             """)
             books = cursor.fetchall()
