@@ -573,18 +573,39 @@ class HermesScanner:
                         'height': stream.get('height')
                     }
                 elif stream.get('codec_type') == 'audio':
+                    # Intentar obtenir l'idioma de diversos camps possibles
+                    tags = stream.get('tags', {})
+                    language = (
+                        tags.get('language') or
+                        tags.get('LANGUAGE') or
+                        tags.get('lang') or
+                        'und'
+                    )
                     audio_streams.append({
                         'index': stream.get('index'),
                         'codec': stream.get('codec_name'),
-                        'language': stream.get('tags', {}).get('language', 'und'),
-                        'title': stream.get('tags', {}).get('title', '')
+                        'language': language,
+                        'title': tags.get('title', ''),
+                        'channels': stream.get('channels'),
+                        'channel_layout': stream.get('channel_layout', '')
                     })
                 elif stream.get('codec_type') == 'subtitle':
+                    tags = stream.get('tags', {})
+                    language = (
+                        tags.get('language') or
+                        tags.get('LANGUAGE') or
+                        tags.get('lang') or
+                        'und'
+                    )
+                    # Detectar si són subtítols forçats
+                    disposition = stream.get('disposition', {})
+                    forced = disposition.get('forced', 0) == 1
                     subtitle_streams.append({
                         'index': stream.get('index'),
                         'codec': stream.get('codec_name'),
-                        'language': stream.get('tags', {}).get('language', 'und'),
-                        'title': stream.get('tags', {}).get('title', '')
+                        'language': language,
+                        'title': tags.get('title', ''),
+                        'forced': forced
                     })
                     
             format_info = data.get('format', {})

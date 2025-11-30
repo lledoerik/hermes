@@ -75,19 +75,27 @@ class HermesStreamer:
         cmd.extend(['-map', '0:v:0'])
 
         # Àudio - seleccionar la pista específica o la primera
+        # audio_index ara és l'índex absolut del stream, utilitzem -map 0:{index}
         if audio_index is not None:
-            cmd.extend(['-map', f'0:a:{audio_index}'])
+            cmd.extend(['-map', f'0:{audio_index}'])
+            logger.info(f"Seleccionant àudio amb índex absolut {audio_index}")
         else:
             cmd.extend(['-map', '0:a:0?'])  # Primer àudio si existeix
 
         # Subtítols - burning (incrustar al vídeo)
         if subtitle_index is not None:
+            # Escapar el path per al filtre de FFmpeg (necessita escapar : i \)
+            escaped_path = file_path.replace('\\', '/').replace(':', '\\:').replace("'", "'\\''")
+
             # Utilitzar filtres per cremar subtítols al vídeo
-            subtitle_filter = f"subtitles='{file_path}':stream_index={subtitle_index}"
+            # El stream_index aquí és l'índex absolut del stream dins del fitxer
+            subtitle_filter = f"subtitles='{escaped_path}':si={subtitle_index}"
+
             # Escalar si cal + subtítols
             video_filter = subtitle_filter
             cmd.extend(['-vf', video_filter])
             cmd.extend(['-c:v', 'libx264', '-preset', 'fast', '-crf', '22'])
+            logger.info(f"Cremant subtítols amb índex {subtitle_index}")
         else:
             # Sense subtítols, copiar vídeo si és possible
             cmd.extend(['-c:v', 'copy'])

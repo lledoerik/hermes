@@ -1039,7 +1039,7 @@ function Player() {
   };
 
   // Funció per crear un stream HLS amb les pistes seleccionades
-  const createHlsStream = async (audioIndex, subtitleIndex) => {
+  const createHlsStream = async (audioArrayIndex, subtitleArrayIndex) => {
     if (!item) return;
 
     // Guardar posició actual
@@ -1048,25 +1048,57 @@ function Player() {
     setHlsLoading(true);
     setVideoLoading(true);
 
+    // Obtenir l'índex real del stream (no l'índex de l'array)
+    // Els tracks tenen un camp 'index' que és l'índex real del stream al fitxer
+    const actualAudioIndex = audioArrayIndex >= 0 && audioTracks[audioArrayIndex]
+      ? audioTracks[audioArrayIndex].index
+      : null;
+    const actualSubtitleIndex = subtitleArrayIndex >= 0 && subtitleTracks[subtitleArrayIndex]
+      ? subtitleTracks[subtitleArrayIndex].index
+      : null;
+
     try {
-      // Cridar l'API per crear el stream HLS
+      // Cridar l'API per crear el stream HLS amb els índexs reals
       const response = await axios.post(`/api/stream/${id}/hls`, {
-        audio_index: audioIndex >= 0 ? audioIndex : null,
-        subtitle_index: subtitleIndex >= 0 ? subtitleIndex : null,
+        audio_index: actualAudioIndex,
+        subtitle_index: actualSubtitleIndex,
         quality: '1080p'
       });
 
       if (response.data.playlist_url) {
         const fullUrl = `${API_URL}${response.data.playlist_url}`;
-        setHlsUrl(fullUrl);
-        setIsUsingHls(true);
 
-        // Esperar una mica perquè el stream es generi
-        setTimeout(() => {
-          if (videoRef.current && currentPosition > 0) {
-            videoRef.current.currentTime = currentPosition;
+        // Esperar que el playlist estigui disponible (FFmpeg necessita temps)
+        const waitForPlaylist = async (url, maxAttempts = 20) => {
+          for (let i = 0; i < maxAttempts; i++) {
+            try {
+              const checkResponse = await axios.head(url);
+              if (checkResponse.status === 200) {
+                return true;
+              }
+            } catch {
+              // Playlist encara no disponible, esperar
+            }
+            await new Promise(resolve => setTimeout(resolve, 500));
           }
-        }, 1000);
+          return false;
+        };
+
+        const playlistReady = await waitForPlaylist(fullUrl);
+
+        if (playlistReady) {
+          setHlsUrl(fullUrl);
+          setIsUsingHls(true);
+
+          // Restaurar posició després de carregar
+          setTimeout(() => {
+            if (videoRef.current && currentPosition > 0) {
+              videoRef.current.currentTime = currentPosition;
+            }
+          }, 500);
+        } else {
+          console.error('Timeout esperant el playlist HLS');
+        }
       }
     } catch (error) {
       console.error('Error creant stream HLS:', error);
