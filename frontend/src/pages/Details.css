@@ -130,29 +130,38 @@
   margin-bottom: 20px;
 }
 
-.play-btn {
+.details-actions .play-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-md);
-  padding: var(--space-lg) var(--space-3xl);
-  background: var(--text-primary);
+  gap: 10px;
+  padding: 14px 32px;
+  background: #fff;
   border: none;
-  border-radius: var(--radius-sm);
-  color: var(--bg-primary);
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-bold);
+  border-radius: 8px;
+  color: #000;
+  font-size: 16px;
+  font-weight: 600;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
-.play-btn:hover {
-  background: rgba(255, 255, 255, 0.85);
-  transform: scale(1.02);
+.details-actions .play-btn:hover {
+  background: #e5e5e5;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-.play-btn svg {
-  fill: var(--bg-primary);
+.details-actions .play-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.details-actions .play-btn svg {
+  width: 22px;
+  height: 22px;
+  fill: #000;
 }
 
 .secondary-btn {
@@ -622,7 +631,7 @@
     gap: 10px;
   }
 
-  .play-btn {
+  .details-actions .play-btn {
     flex: 1;
     padding: 12px 24px;
     font-size: 15px;
@@ -701,7 +710,7 @@
     align-items: stretch;
   }
 
-  .play-btn,
+  .details-actions .play-btn,
   .secondary-btn {
     width: 100%;
     justify-content: center;

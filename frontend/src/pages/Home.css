@@ -583,22 +583,31 @@
 }
 
 .continue-overlay .play-btn {
-  width: 60px;
-  height: 60px;
-  border-radius: var(--radius-circle);
-  background: rgba(var(--color-primary-rgb), 0.9);
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #fff;
   border: none;
-  color: var(--text-primary);
+  color: #000;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all var(--transition-normal);
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
+.continue-overlay .play-btn svg {
+  color: #000;
+  fill: #000;
+  width: 24px;
+  height: 24px;
 }
 
 .continue-overlay .play-btn:hover {
   transform: scale(1.1);
-  background: var(--color-primary);
+  background: #e5e5e5;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 .continue-thumbnail .progress-bar {
