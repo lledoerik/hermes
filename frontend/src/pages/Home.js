@@ -417,6 +417,22 @@ function Home() {
               <div className="hover-border"></div>
             </Link>
 
+            {/* Programes - Inactiu */}
+            <div className="category-card inactive">
+              <div className="card-glass"></div>
+              <div className="hover-bubbles">
+                <div className="floating-bubble bubble-1 gradient-programs"></div>
+                <div className="floating-bubble bubble-2 gradient-programs"></div>
+                <div className="floating-bubble bubble-3 gradient-programs"></div>
+              </div>
+              <div className="card-content">
+                <ProgramsIcon />
+                <h3 className="card-title">Programes</h3>
+                <span className="coming-soon">Properament</span>
+              </div>
+              <div className="hover-border"></div>
+            </div>
+
             {/* Llibres */}
             <Link to="/books" className="category-card active">
               <div className="card-glass"></div>
