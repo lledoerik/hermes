@@ -182,6 +182,10 @@
   overflow: hidden;
 }
 
+.navbar-avatar.has-image {
+  background: transparent;
+}
+
 .navbar-avatar img {
   width: 100%;
   height: 100%;
