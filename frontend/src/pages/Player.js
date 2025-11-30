@@ -402,7 +402,7 @@ function Player() {
           setSegments(segmentsRes.data || []);
         }
       } catch (e) {
-        console.log('No hi ha segments definits');
+        // No segments defined - expected for new media
       }
 
       // Carregar progrés de visualització per continuar on es va quedar
@@ -412,7 +412,7 @@ function Player() {
           setInitialProgress(progressRes.data);
         }
       } catch (e) {
-        console.log('No hi ha progrés guardat');
+        // No saved progress - starting fresh
       }
 
       // Carregar navegació d'episodis (només per sèries)
@@ -425,7 +425,7 @@ function Player() {
           const nextRes = await axios.get(`/api/library/episodes/${id}/next`);
           setNextEpisode(nextRes.data);
         } catch (e) {
-          console.log('No hi ha següent episodi');
+          // No next episode - last in season
         }
 
         // Carregar tots els episodis de la temporada
@@ -433,7 +433,7 @@ function Player() {
           const episodesRes = await axios.get(`/api/library/series/${seriesId}/seasons/${seasonNum}/episodes`);
           setSeriesEpisodes(episodesRes.data || []);
         } catch (e) {
-          console.log('No s\'han pogut carregar els episodis');
+          // Could not load episodes list
         }
       }
     } catch (error) {

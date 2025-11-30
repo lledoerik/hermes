@@ -142,7 +142,7 @@ class CCMAClient:
             return programs
 
         except Exception as e:
-            print(f"Error getting programs: {e}")
+            logger.warning(f"Error getting programs: {e}")
             return []
 
     async def get_program_videos(self, program_id: str, limit: int = 20) -> List[Dict]:
@@ -165,7 +165,7 @@ class CCMAClient:
             return videos
 
         except Exception as e:
-            print(f"Error getting program videos: {e}")
+            logger.warning(f"Error getting program videos: {e}")
             return []
 
     async def get_latest_videos(self, category: str = None, limit: int = 50) -> List[Dict]:
@@ -191,7 +191,7 @@ class CCMAClient:
             return videos
 
         except Exception as e:
-            print(f"Error getting latest videos: {e}")
+            logger.warning(f"Error getting latest videos: {e}")
             return []
 
     async def search_videos(self, query: str, limit: int = 30) -> List[Dict]:
@@ -216,7 +216,7 @@ class CCMAClient:
             return videos
 
         except Exception as e:
-            print(f"Error searching videos: {e}")
+            logger.warning(f"Error searching videos: {e}")
             return []
 
     async def get_video_details(self, video_id: str) -> Optional[Dict]:
@@ -232,7 +232,7 @@ class CCMAClient:
             return self._parse_video(item, include_stream=True)
 
         except Exception as e:
-            print(f"Error getting video details: {e}")
+            logger.warning(f"Error getting video details: {e}")
             return None
 
     def _parse_video(self, item: Dict, include_stream: bool = False) -> Optional[Dict]:
@@ -298,7 +298,7 @@ class CCMAClient:
             return video
 
         except Exception as e:
-            print(f"Error parsing video: {e}")
+            logger.warning(f"Error parsing video: {e}")
             return None
 
     def _classify_content(self, item: Dict) -> str:
