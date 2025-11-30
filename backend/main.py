@@ -518,6 +518,173 @@ async def change_password(request: Request, data: PasswordChangeRequest):
     return result
 
 
+# ============================================================
+# GESTIÓ D'INVITACIONS
+# ============================================================
+
+class InvitationRequest(BaseModel):
+    max_uses: int = 1
+    expires_days: int = 7
+
+class RegisterWithInviteRequest(BaseModel):
+    username: str
+    password: str
+    invitation_code: str
+    email: Optional[str] = None
+    display_name: Optional[str] = None
+
+
+@app.post("/api/invitations")
+async def create_invitation(request: Request, data: InvitationRequest):
+    """Crea un codi d'invitació (només admin)"""
+    from backend.auth import get_auth_manager
+
+    user = require_auth(request)
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Només els administradors poden crear invitacions")
+
+    auth = get_auth_manager()
+    result = auth.create_invitation(
+        created_by=user["id"],
+        max_uses=data.max_uses,
+        expires_days=data.expires_days
+    )
+
+    return result
+
+
+@app.get("/api/invitations")
+async def get_invitations(request: Request):
+    """Obté les invitacions (admin veu totes, usuaris només les seves)"""
+    from backend.auth import get_auth_manager
+
+    user = require_auth(request)
+    auth = get_auth_manager()
+
+    if user.get("is_admin"):
+        invitations = auth.get_invitations()
+    else:
+        invitations = auth.get_invitations(created_by=user["id"])
+
+    return {"invitations": invitations}
+
+
+@app.delete("/api/invitations/{invitation_id}")
+async def delete_invitation(request: Request, invitation_id: int):
+    """Elimina una invitació"""
+    from backend.auth import get_auth_manager
+
+    user = require_auth(request)
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Només els administradors poden eliminar invitacions")
+
+    auth = get_auth_manager()
+    if auth.delete_invitation(invitation_id):
+        return {"status": "success"}
+    raise HTTPException(status_code=404, detail="Invitació no trobada")
+
+
+@app.get("/api/invitations/validate/{code}")
+async def validate_invitation(code: str):
+    """Valida un codi d'invitació (endpoint públic)"""
+    from backend.auth import get_auth_manager
+
+    auth = get_auth_manager()
+    return auth.validate_invitation(code)
+
+
+@app.post("/api/auth/register-with-invite")
+async def register_with_invitation(data: RegisterWithInviteRequest):
+    """Registra un nou usuari amb codi d'invitació"""
+    from backend.auth import get_auth_manager
+
+    auth = get_auth_manager()
+    result = auth.register_with_invitation(
+        username=data.username,
+        password=data.password,
+        invitation_code=data.invitation_code,
+        email=data.email,
+        display_name=data.display_name
+    )
+
+    if result["status"] == "error":
+        raise HTTPException(status_code=400, detail=result["message"])
+
+    return result
+
+
+# ============================================================
+# GESTIÓ D'USUARIS (ADMIN)
+# ============================================================
+
+@app.get("/api/admin/users")
+async def get_all_users(request: Request):
+    """Obté tots els usuaris (només admin)"""
+    from backend.auth import get_auth_manager
+
+    user = require_auth(request)
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Accés només per administradors")
+
+    auth = get_auth_manager()
+    users = auth.get_all_users()
+    return {"users": users}
+
+
+@app.put("/api/admin/users/{user_id}/toggle-active")
+async def toggle_user_active(request: Request, user_id: int, active: bool = True):
+    """Activa o desactiva un usuari"""
+    from backend.auth import get_auth_manager
+
+    admin = require_auth(request)
+    if not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Accés només per administradors")
+
+    auth = get_auth_manager()
+    result = auth.toggle_user_active(user_id, active)
+
+    if result["status"] == "error":
+        raise HTTPException(status_code=400, detail=result["message"])
+
+    return result
+
+
+@app.put("/api/admin/users/{user_id}/toggle-admin")
+async def toggle_admin(request: Request, user_id: int, is_admin: bool = True):
+    """Canvia l'estat d'admin d'un usuari"""
+    from backend.auth import get_auth_manager
+
+    admin = require_auth(request)
+    if not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Accés només per administradors")
+
+    auth = get_auth_manager()
+    result = auth.toggle_admin(user_id, is_admin)
+
+    if result["status"] == "error":
+        raise HTTPException(status_code=400, detail=result["message"])
+
+    return result
+
+
+@app.delete("/api/admin/users/{user_id}")
+async def delete_user(request: Request, user_id: int):
+    """Elimina un usuari"""
+    from backend.auth import get_auth_manager
+
+    admin = require_auth(request)
+    if not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Accés només per administradors")
+
+    auth = get_auth_manager()
+    result = auth.delete_user(user_id, admin["id"])
+
+    if result["status"] == "error":
+        raise HTTPException(status_code=400, detail=result["message"])
+
+    return result
+
+
 @app.get("/api/user/continue-watching")
 async def get_continue_watching(request: Request):
     """Retorna el contingut que l'usuari està veient (per continuar)"""
