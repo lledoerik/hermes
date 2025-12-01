@@ -106,11 +106,6 @@ function Details() {
   const [externalUrlLoading, setExternalUrlLoading] = useState(false);
   const [showExternalPlayer, setShowExternalPlayer] = useState(false);
 
-  // Embed sources state (auto-generated from TMDB ID)
-  const [embedSources, setEmbedSources] = useState(null);
-  const [selectedEmbedSource, setSelectedEmbedSource] = useState(null);
-  const [showEmbedPlayer, setShowEmbedPlayer] = useState(false);
-
   // Scroll de temporades
   const seasonsScrollRef = useRef(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
