@@ -702,22 +702,63 @@
   gap: var(--space-sm);
 }
 
-/* Greeting Section */
-.greeting-section {
-  padding: 0 4%;
-  margin-bottom: var(--space-lg);
+/* Home Header - Salutació + Cerca en una línia */
+.home-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-xl) 4%;
+  margin-bottom: var(--space-md);
 }
 
-.greeting-title {
+.home-greeting {
   font-size: var(--font-size-2xl);
-  margin-bottom: 0;
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin: 0;
 }
 
-.greeting-subtitle {
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-normal);
+.home-header .search-bar.compact {
+  max-width: 300px;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+}
+
+.home-header .search-bar.compact input {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  padding: var(--space-xs);
+  flex: 1;
+  min-width: 150px;
+}
+
+.home-header .search-bar.compact input::placeholder {
+  color: var(--text-muted);
+}
+
+.home-header .search-bar.compact input:focus {
+  outline: none;
+}
+
+.home-header .search-bar.compact button {
+  background: transparent;
+  border: none;
   color: var(--text-secondary);
-  margin-left: var(--space-md);
+  cursor: pointer;
+  padding: var(--space-xs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.home-header .search-bar.compact button:hover {
+  color: var(--text-primary);
 }
 
 .row-title .title-icon {
