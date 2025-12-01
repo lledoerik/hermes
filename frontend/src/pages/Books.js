@@ -88,6 +88,19 @@ const LibraryIcon = () => (
   </svg>
 );
 
+const PlusIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <line x1="12" y1="5" x2="12" y2="19"></line>
+    <line x1="5" y1="12" x2="19" y2="12"></line>
+  </svg>
+);
+
+const CheckIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+    <polyline points="20 6 9 17 4 12"></polyline>
+  </svg>
+);
+
 function Books() {
   const [authors, setAuthors] = useState([]);
   const [books, setBooks] = useState([]);
@@ -107,6 +120,15 @@ function Books() {
   const [metadataLoading, setMetadataLoading] = useState(false);
   const [metadataMessage, setMetadataMessage] = useState(null);
   const [uploadPreview, setUploadPreview] = useState(null);
+
+  // Import state
+  const [showImport, setShowImport] = useState(false);
+  const [importQuery, setImportQuery] = useState('');
+  const [importResults, setImportResults] = useState([]);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importing, setImporting] = useState({});
+  const [imported, setImported] = useState({});
+  const [importError, setImportError] = useState(null);
 
   useEffect(() => {
     loadAuthors();
@@ -324,6 +346,59 @@ function Books() {
     }
   };
 
+  // Import handlers
+  const handleImportSearch = async (e) => {
+    e?.preventDefault();
+    if (!importQuery.trim()) return;
+
+    setImportLoading(true);
+    setImportError(null);
+    setImportResults([]);
+
+    try {
+      const response = await axios.post('/api/import/search', {
+        query: importQuery.trim(),
+        media_type: 'book'
+      });
+      setImportResults(response.data.results);
+      if (response.data.results.length === 0) {
+        setImportError('No s\'han trobat resultats');
+      }
+    } catch (err) {
+      setImportError(err.response?.data?.detail || 'Error en la cerca');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleImportBook = async (item) => {
+    const itemKey = item.id || item.title;
+    setImporting(prev => ({ ...prev, [itemKey]: true }));
+    try {
+      await axios.post('/api/import/book', {
+        title: item.title,
+        author: item.author,
+        olid: item.id?.replace('/works/', '')
+      });
+      setImported(prev => ({ ...prev, [itemKey]: true }));
+      loadAuthors();
+      if (viewMode === 'all') {
+        loadAllBooks();
+      }
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Error important');
+    } finally {
+      setImporting(prev => ({ ...prev, [itemKey]: false }));
+    }
+  };
+
+  const handleCloseImport = () => {
+    setShowImport(false);
+    setImportQuery('');
+    setImportResults([]);
+    setImportError(null);
+  };
+
   const getBookCover = (book) => {
     if (book.cover) {
       return `${API_URL}/api/books/${book.id}/cover`;
@@ -427,6 +502,9 @@ function Books() {
         </div>
 
         <div className="library-filters">
+          <button className="import-btn-header" onClick={() => setShowImport(true)}>
+            <PlusIcon /> Importar
+          </button>
           <div className="view-toggle">
             <button
               className={viewMode === 'authors' ? 'active' : ''}
@@ -450,7 +528,10 @@ function Books() {
           <div className="empty-state">
             <div className="empty-icon"><LibraryIcon /></div>
             <h2>No hi ha llibres</h2>
-            <p>Ves al panell d'administració per escanejar la biblioteca</p>
+            <p>Importa llibres des d'OpenLibrary o escaneja la biblioteca</p>
+            <button className="scan-btn" onClick={() => setShowImport(true)}>
+              <PlusIcon /> Importar llibres
+            </button>
           </div>
         ) : (
           <div className="authors-grid">
@@ -509,6 +590,81 @@ function Books() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Import Modal */}
+      {showImport && (
+        <div className="import-modal-overlay" onClick={handleCloseImport}>
+          <div className="import-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="import-modal-header">
+              <h2><PlusIcon /> Importar llibres</h2>
+              <button className="close-btn" onClick={handleCloseImport}>
+                <CloseIcon />
+              </button>
+            </div>
+
+            <form className="import-search-form" onSubmit={handleImportSearch}>
+              <input
+                type="text"
+                placeholder="Cerca llibres a OpenLibrary..."
+                value={importQuery}
+                onChange={(e) => setImportQuery(e.target.value)}
+                autoFocus
+              />
+              <button type="submit" disabled={importLoading}>
+                {importLoading ? <div className="spinner-small"></div> : <SearchIcon />}
+              </button>
+            </form>
+
+            {importError && (
+              <div className="import-error">{importError}</div>
+            )}
+
+            <div className="import-results">
+              {importResults.map((item) => {
+                const itemKey = item.id || item.title;
+                return (
+                  <div key={itemKey} className="import-result-card">
+                    <div className="import-result-poster">
+                      {item.poster ? (
+                        <img src={item.poster} alt={item.title} />
+                      ) : (
+                        <div className="no-poster"><BookIcon /></div>
+                      )}
+                    </div>
+                    <div className="import-result-info">
+                      <h3>{item.title}</h3>
+                      <div className="import-result-meta">
+                        {item.author && <span>{item.author}</span>}
+                        {item.year && <span>({item.year})</span>}
+                      </div>
+                    </div>
+                    <button
+                      className={`import-result-btn ${imported[itemKey] ? 'imported' : ''}`}
+                      onClick={() => handleImportBook(item)}
+                      disabled={importing[itemKey] || imported[itemKey]}
+                    >
+                      {importing[itemKey] ? (
+                        <div className="spinner-small"></div>
+                      ) : imported[itemKey] ? (
+                        <CheckIcon />
+                      ) : (
+                        <PlusIcon />
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {importResults.length === 0 && !importLoading && !importError && (
+              <div className="import-empty">
+                <p>Cerca un llibre per títol per importar-lo des d'OpenLibrary</p>
+                <small>No cal clau API - OpenLibrary és gratuït</small>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
