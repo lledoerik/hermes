@@ -4856,6 +4856,130 @@ async def delete_imported_item(media_type: str, item_id: int):
             raise HTTPException(status_code=400, detail="Tipus de contingut no vàlid")
 
 
+# === DISCOVER (Popular/Trending Content) ===
+
+@app.get("/api/discover/movies")
+async def discover_movies(page: int = 1, category: str = "popular"):
+    """
+    Descobreix pel·lícules populars o en tendència des de TMDB.
+    category: 'popular', 'top_rated', 'now_playing', 'upcoming'
+    """
+    api_key = get_tmdb_api_key()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
+
+    from backend.metadata.tmdb import TMDBClient
+    client = TMDBClient(api_key)
+
+    try:
+        endpoint_map = {
+            "popular": "/movie/popular",
+            "top_rated": "/movie/top_rated",
+            "now_playing": "/movie/now_playing",
+            "upcoming": "/movie/upcoming",
+            "trending": "/trending/movie/week"
+        }
+        endpoint = endpoint_map.get(category, "/movie/popular")
+
+        response = await client._request(endpoint, {"language": "ca-ES", "page": page})
+        results = []
+
+        if response and response.get("results"):
+            # Get IDs of movies already in our library
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT tmdb_id FROM series WHERE media_type = 'movie' AND tmdb_id IS NOT NULL")
+                existing_ids = {row[0] for row in cursor.fetchall()}
+
+            for item in response["results"]:
+                release_date = item.get("release_date", "")
+                year = int(release_date[:4]) if release_date and len(release_date) >= 4 else None
+                results.append({
+                    "id": item.get("id"),
+                    "title": item.get("title"),
+                    "original_title": item.get("original_title"),
+                    "year": year,
+                    "overview": item.get("overview", "")[:200] + "..." if item.get("overview") and len(item.get("overview", "")) > 200 else item.get("overview"),
+                    "poster": f"https://image.tmdb.org/t/p/w342{item['poster_path']}" if item.get("poster_path") else None,
+                    "backdrop": f"https://image.tmdb.org/t/p/w780{item['backdrop_path']}" if item.get("backdrop_path") else None,
+                    "rating": item.get("vote_average"),
+                    "type": "movie",
+                    "source": "tmdb",
+                    "in_library": item.get("id") in existing_ids
+                })
+
+        return {
+            "results": results,
+            "page": response.get("page", 1),
+            "total_pages": min(response.get("total_pages", 1), 500),  # TMDB limita a 500 pàgines
+            "total_results": response.get("total_results", 0),
+            "category": category
+        }
+    finally:
+        await client.close()
+
+
+@app.get("/api/discover/series")
+async def discover_series(page: int = 1, category: str = "popular"):
+    """
+    Descobreix sèries populars o en tendència des de TMDB.
+    category: 'popular', 'top_rated', 'on_the_air', 'airing_today'
+    """
+    api_key = get_tmdb_api_key()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
+
+    from backend.metadata.tmdb import TMDBClient
+    client = TMDBClient(api_key)
+
+    try:
+        endpoint_map = {
+            "popular": "/tv/popular",
+            "top_rated": "/tv/top_rated",
+            "on_the_air": "/tv/on_the_air",
+            "airing_today": "/tv/airing_today",
+            "trending": "/trending/tv/week"
+        }
+        endpoint = endpoint_map.get(category, "/tv/popular")
+
+        response = await client._request(endpoint, {"language": "ca-ES", "page": page})
+        results = []
+
+        if response and response.get("results"):
+            # Get IDs of series already in our library
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT tmdb_id FROM series WHERE media_type = 'series' AND tmdb_id IS NOT NULL")
+                existing_ids = {row[0] for row in cursor.fetchall()}
+
+            for item in response["results"]:
+                first_air_date = item.get("first_air_date", "")
+                year = int(first_air_date[:4]) if first_air_date and len(first_air_date) >= 4 else None
+                results.append({
+                    "id": item.get("id"),
+                    "title": item.get("name"),
+                    "original_title": item.get("original_name"),
+                    "year": year,
+                    "overview": item.get("overview", "")[:200] + "..." if item.get("overview") and len(item.get("overview", "")) > 200 else item.get("overview"),
+                    "poster": f"https://image.tmdb.org/t/p/w342{item['poster_path']}" if item.get("poster_path") else None,
+                    "backdrop": f"https://image.tmdb.org/t/p/w780{item['backdrop_path']}" if item.get("backdrop_path") else None,
+                    "rating": item.get("vote_average"),
+                    "type": "series",
+                    "source": "tmdb",
+                    "in_library": item.get("id") in existing_ids
+                })
+
+        return {
+            "results": results,
+            "page": response.get("page", 1),
+            "total_pages": min(response.get("total_pages", 1), 500),
+            "total_results": response.get("total_results", 0),
+            "category": category
+        }
+    finally:
+        await client.close()
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
