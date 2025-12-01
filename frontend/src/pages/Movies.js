@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import MediaCard from '../components/MediaCard';
 import './Library.css';
@@ -23,13 +24,6 @@ const MovieIcon = () => (
   </svg>
 );
 
-const PlusIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <line x1="12" y1="5" x2="12" y2="19"></line>
-    <line x1="5" y1="12" x2="19" y2="12"></line>
-  </svg>
-);
-
 const SearchIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <circle cx="11" cy="11" r="8"></circle>
@@ -37,22 +31,29 @@ const SearchIcon = () => (
   </svg>
 );
 
-const CloseIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+const PlusIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+    <line x1="12" y1="5" x2="12" y2="19"></line>
+    <line x1="5" y1="12" x2="19" y2="12"></line>
+  </svg>
+);
+
+const CheckIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+    <polyline points="20 6 9 17 4 12"></polyline>
+  </svg>
+);
+
+const ClearIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <line x1="18" y1="6" x2="6" y2="18"></line>
     <line x1="6" y1="6" x2="18" y2="18"></line>
   </svg>
 );
 
 const StarIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1">
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-  </svg>
-);
-
-const CheckIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-    <polyline points="20 6 9 17 4 12"></polyline>
   </svg>
 );
 
@@ -60,19 +61,32 @@ function Movies() {
   const [movies, setMovies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('name');
+  const navigate = useNavigate();
 
-  // Import state
-  const [showImport, setShowImport] = useState(false);
+  // Search state
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
+  const [externalResults, setExternalResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [importing, setImporting] = useState({});
   const [imported, setImported] = useState({});
-  const [importError, setImportError] = useState(null);
 
   useEffect(() => {
     loadMovies();
   }, []);
+
+  // Debounced external search
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setExternalResults([]);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      searchExternal(searchQuery);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const loadMovies = async () => {
     try {
@@ -85,31 +99,29 @@ function Movies() {
     }
   };
 
-  const handleSearch = async (e) => {
-    e?.preventDefault();
-    if (!searchQuery.trim()) return;
+  const searchExternal = async (query) => {
+    if (!query.trim()) return;
 
     setSearchLoading(true);
-    setImportError(null);
-    setSearchResults([]);
-
     try {
       const response = await axios.post('/api/import/search', {
-        query: searchQuery.trim(),
+        query: query.trim(),
         media_type: 'movie'
       });
-      setSearchResults(response.data.results);
-      if (response.data.results.length === 0) {
-        setImportError('No s\'han trobat resultats');
-      }
+      // Filter out movies that are already in our library
+      const existingTmdbIds = movies.filter(m => m.tmdb_id).map(m => m.tmdb_id);
+      const filtered = response.data.results.filter(r => !existingTmdbIds.includes(r.id));
+      setExternalResults(filtered);
     } catch (err) {
-      setImportError(err.response?.data?.detail || 'Error en la cerca. Comprova la clau TMDB.');
+      console.error('Error cercant externament:', err);
+      setExternalResults([]);
     } finally {
       setSearchLoading(false);
     }
   };
 
-  const handleImport = async (item) => {
+  const handleImport = async (item, e) => {
+    e.stopPropagation();
     setImporting(prev => ({ ...prev, [item.id]: true }));
     try {
       await axios.post('/api/import/tmdb', {
@@ -117,7 +129,9 @@ function Movies() {
         media_type: 'movie'
       });
       setImported(prev => ({ ...prev, [item.id]: true }));
-      loadMovies(); // Reload movies list
+      // Remove from external results and add to movies
+      setExternalResults(prev => prev.filter(r => r.id !== item.id));
+      loadMovies();
     } catch (err) {
       alert(err.response?.data?.detail || 'Error important');
     } finally {
@@ -125,17 +139,24 @@ function Movies() {
     }
   };
 
-  const handleCloseImport = () => {
-    setShowImport(false);
+  const clearSearch = () => {
     setSearchQuery('');
-    setSearchResults([]);
-    setImportError(null);
+    setExternalResults([]);
   };
 
-  const sortedMovies = [...movies].sort((a, b) => {
+  // Filter local movies by search
+  const filteredMovies = searchQuery.trim()
+    ? movies.filter(m =>
+        m.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        m.title?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : movies;
+
+  // Sort movies
+  const sortedMovies = [...filteredMovies].sort((a, b) => {
     switch (sortBy) {
       case 'name':
-        return a.name.localeCompare(b.name);
+        return (a.name || '').localeCompare(b.name || '');
       case 'year':
         return (b.year || 0) - (a.year || 0);
       case 'duration':
@@ -156,6 +177,8 @@ function Movies() {
     );
   }
 
+  const hasResults = sortedMovies.length > 0 || externalResults.length > 0;
+
   return (
     <div className="library-container">
       <div className="library-header">
@@ -166,9 +189,21 @@ function Movies() {
         </div>
 
         <div className="library-filters">
-          <button className="import-btn-header" onClick={() => setShowImport(true)}>
-            <PlusIcon /> Importar
-          </button>
+          <div className="search-box">
+            <SearchIcon />
+            <input
+              type="text"
+              placeholder="Cerca pel·lícules..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button className="clear-search" onClick={clearSearch}>
+                <ClearIcon />
+              </button>
+            )}
+            {searchLoading && <div className="search-spinner"></div>}
+          </div>
           <select
             className="sort-select"
             value={sortBy}
@@ -182,101 +217,78 @@ function Movies() {
         </div>
       </div>
 
-      {movies.length === 0 ? (
+      {!hasResults && !searchQuery ? (
         <div className="library-grid">
           <div className="empty-state">
             <div className="empty-icon"><MovieIcon /></div>
             <h2>No hi ha pel·lícules</h2>
-            <p>Importa pel·lícules des de TMDB o escaneja la biblioteca</p>
-            <button className="scan-btn" onClick={() => setShowImport(true)}>
-              <PlusIcon /> Importar pel·lícules
-            </button>
+            <p>Cerca pel·lícules per afegir-les a la biblioteca</p>
+          </div>
+        </div>
+      ) : !hasResults && searchQuery ? (
+        <div className="library-grid">
+          <div className="empty-state">
+            <div className="empty-icon"><SearchIcon /></div>
+            <h2>Sense resultats</h2>
+            <p>No s'han trobat pel·lícules per "{searchQuery}"</p>
           </div>
         </div>
       ) : (
         <div className="library-grid">
+          {/* Local movies */}
           {sortedMovies.map((movie) => (
             <MediaCard
-              key={movie.id}
+              key={`local-${movie.id}`}
               item={movie}
               type="movies"
               width="100%"
             />
           ))}
-        </div>
-      )}
 
-      {/* Import Modal */}
-      {showImport && (
-        <div className="import-modal-overlay" onClick={handleCloseImport}>
-          <div className="import-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="import-modal-header">
-              <h2><PlusIcon /> Importar pel·lícules</h2>
-              <button className="close-btn" onClick={handleCloseImport}>
-                <CloseIcon />
-              </button>
-            </div>
-
-            <form className="import-search-form" onSubmit={handleSearch}>
-              <input
-                type="text"
-                placeholder="Cerca pel·lícules a TMDB..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                autoFocus
-              />
-              <button type="submit" disabled={searchLoading}>
-                {searchLoading ? <div className="spinner-small"></div> : <SearchIcon />}
-              </button>
-            </form>
-
-            {importError && (
-              <div className="import-error">{importError}</div>
-            )}
-
-            <div className="import-results">
-              {searchResults.map((item) => (
-                <div key={item.id} className="import-result-card">
-                  <div className="import-result-poster">
-                    {item.poster ? (
-                      <img src={item.poster} alt={item.title} />
-                    ) : (
-                      <div className="no-poster"><MovieIcon /></div>
-                    )}
+          {/* External results (TMDB) */}
+          {externalResults.map((item) => (
+            <div
+              key={`tmdb-${item.id}`}
+              className="media-card external-card"
+              onClick={() => window.open(`https://www.themoviedb.org/movie/${item.id}`, '_blank')}
+            >
+              <div className="media-poster">
+                {item.poster ? (
+                  <img src={item.poster} alt={item.title} />
+                ) : (
+                  <div className="no-poster-placeholder">
+                    <MovieIcon />
                   </div>
-                  <div className="import-result-info">
-                    <h3>{item.title}</h3>
-                    <div className="import-result-meta">
-                      {item.year && <span>{item.year}</span>}
-                      {item.rating > 0 && (
-                        <span className="rating"><StarIcon /> {item.rating.toFixed(1)}</span>
-                      )}
-                    </div>
-                    {item.overview && <p className="import-result-overview">{item.overview}</p>}
-                  </div>
-                  <button
-                    className={`import-result-btn ${imported[item.id] ? 'imported' : ''}`}
-                    onClick={() => handleImport(item)}
-                    disabled={importing[item.id] || imported[item.id]}
-                  >
-                    {importing[item.id] ? (
-                      <div className="spinner-small"></div>
-                    ) : imported[item.id] ? (
-                      <CheckIcon />
-                    ) : (
-                      <PlusIcon />
-                    )}
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            {searchResults.length === 0 && !searchLoading && !importError && (
-              <div className="import-empty">
-                <p>Cerca una pel·lícula per títol per importar-la des de TMDB</p>
+                )}
+                <div className="external-badge">TMDB</div>
+                <button
+                  className={`add-btn ${imported[item.id] ? 'added' : ''}`}
+                  onClick={(e) => handleImport(item, e)}
+                  disabled={importing[item.id] || imported[item.id]}
+                  title="Afegir a la biblioteca"
+                >
+                  {importing[item.id] ? (
+                    <div className="btn-spinner"></div>
+                  ) : imported[item.id] ? (
+                    <CheckIcon />
+                  ) : (
+                    <PlusIcon />
+                  )}
+                </button>
               </div>
-            )}
-          </div>
+              <div className="media-info">
+                <h3 className="media-title">{item.title}</h3>
+                <div className="media-meta">
+                  {item.year && <span>{item.year}</span>}
+                  {item.rating > 0 && (
+                    <span className="rating">
+                      <StarIcon /> {item.rating.toFixed(1)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

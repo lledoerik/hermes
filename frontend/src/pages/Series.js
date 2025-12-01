@@ -17,13 +17,6 @@ const TvIcon = () => (
   </svg>
 );
 
-const PlusIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <line x1="12" y1="5" x2="12" y2="19"></line>
-    <line x1="5" y1="12" x2="19" y2="12"></line>
-  </svg>
-);
-
 const SearchIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <circle cx="11" cy="11" r="8"></circle>
@@ -31,22 +24,29 @@ const SearchIcon = () => (
   </svg>
 );
 
-const CloseIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+const PlusIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+    <line x1="12" y1="5" x2="12" y2="19"></line>
+    <line x1="5" y1="12" x2="19" y2="12"></line>
+  </svg>
+);
+
+const CheckIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+    <polyline points="20 6 9 17 4 12"></polyline>
+  </svg>
+);
+
+const ClearIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <line x1="18" y1="6" x2="6" y2="18"></line>
     <line x1="6" y1="6" x2="18" y2="18"></line>
   </svg>
 );
 
 const StarIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1">
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-  </svg>
-);
-
-const CheckIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-    <polyline points="20 6 9 17 4 12"></polyline>
   </svg>
 );
 
@@ -55,18 +55,30 @@ function Series() {
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('name');
 
-  // Import state
-  const [showImport, setShowImport] = useState(false);
+  // Search state
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
+  const [externalResults, setExternalResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [importing, setImporting] = useState({});
   const [imported, setImported] = useState({});
-  const [importError, setImportError] = useState(null);
 
   useEffect(() => {
     loadSeries();
   }, []);
+
+  // Debounced external search
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setExternalResults([]);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      searchExternal(searchQuery);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const loadSeries = async () => {
     try {
@@ -79,31 +91,29 @@ function Series() {
     }
   };
 
-  const handleSearch = async (e) => {
-    e?.preventDefault();
-    if (!searchQuery.trim()) return;
+  const searchExternal = async (query) => {
+    if (!query.trim()) return;
 
     setSearchLoading(true);
-    setImportError(null);
-    setSearchResults([]);
-
     try {
       const response = await axios.post('/api/import/search', {
-        query: searchQuery.trim(),
+        query: query.trim(),
         media_type: 'series'
       });
-      setSearchResults(response.data.results);
-      if (response.data.results.length === 0) {
-        setImportError('No s\'han trobat resultats');
-      }
+      // Filter out series that are already in our library
+      const existingTmdbIds = series.filter(s => s.tmdb_id).map(s => s.tmdb_id);
+      const filtered = response.data.results.filter(r => !existingTmdbIds.includes(r.id));
+      setExternalResults(filtered);
     } catch (err) {
-      setImportError(err.response?.data?.detail || 'Error en la cerca. Comprova la clau TMDB.');
+      console.error('Error cercant externament:', err);
+      setExternalResults([]);
     } finally {
       setSearchLoading(false);
     }
   };
 
-  const handleImport = async (item) => {
+  const handleImport = async (item, e) => {
+    e.stopPropagation();
     setImporting(prev => ({ ...prev, [item.id]: true }));
     try {
       await axios.post('/api/import/tmdb', {
@@ -111,7 +121,9 @@ function Series() {
         media_type: 'series'
       });
       setImported(prev => ({ ...prev, [item.id]: true }));
-      loadSeries(); // Reload series list
+      // Remove from external results and add to series
+      setExternalResults(prev => prev.filter(r => r.id !== item.id));
+      loadSeries();
     } catch (err) {
       alert(err.response?.data?.detail || 'Error important');
     } finally {
@@ -119,17 +131,24 @@ function Series() {
     }
   };
 
-  const handleCloseImport = () => {
-    setShowImport(false);
+  const clearSearch = () => {
     setSearchQuery('');
-    setSearchResults([]);
-    setImportError(null);
+    setExternalResults([]);
   };
 
-  const sortedSeries = [...series].sort((a, b) => {
+  // Filter local series by search
+  const filteredSeries = searchQuery.trim()
+    ? series.filter(s =>
+        s.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        s.title?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : series;
+
+  // Sort series
+  const sortedSeries = [...filteredSeries].sort((a, b) => {
     switch (sortBy) {
       case 'name':
-        return a.name.localeCompare(b.name);
+        return (a.name || '').localeCompare(b.name || '');
       case 'episodes':
         return (b.episode_count || 0) - (a.episode_count || 0);
       case 'seasons':
@@ -150,6 +169,8 @@ function Series() {
     );
   }
 
+  const hasResults = sortedSeries.length > 0 || externalResults.length > 0;
+
   return (
     <div className="library-container">
       <div className="library-header">
@@ -160,9 +181,21 @@ function Series() {
         </div>
 
         <div className="library-filters">
-          <button className="import-btn-header" onClick={() => setShowImport(true)}>
-            <PlusIcon /> Importar
-          </button>
+          <div className="search-box">
+            <SearchIcon />
+            <input
+              type="text"
+              placeholder="Cerca sèries..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button className="clear-search" onClick={clearSearch}>
+                <ClearIcon />
+              </button>
+            )}
+            {searchLoading && <div className="search-spinner"></div>}
+          </div>
           <select
             className="sort-select"
             value={sortBy}
@@ -176,101 +209,78 @@ function Series() {
         </div>
       </div>
 
-      {series.length === 0 ? (
+      {!hasResults && !searchQuery ? (
         <div className="library-grid">
           <div className="empty-state">
             <div className="empty-icon"><TvIcon /></div>
             <h2>No hi ha sèries</h2>
-            <p>Importa sèries des de TMDB o escaneja la biblioteca</p>
-            <button className="scan-btn" onClick={() => setShowImport(true)}>
-              <PlusIcon /> Importar sèries
-            </button>
+            <p>Cerca sèries per afegir-les a la biblioteca</p>
+          </div>
+        </div>
+      ) : !hasResults && searchQuery ? (
+        <div className="library-grid">
+          <div className="empty-state">
+            <div className="empty-icon"><SearchIcon /></div>
+            <h2>Sense resultats</h2>
+            <p>No s'han trobat sèries per "{searchQuery}"</p>
           </div>
         </div>
       ) : (
         <div className="library-grid">
+          {/* Local series */}
           {sortedSeries.map((show) => (
             <MediaCard
-              key={show.id}
+              key={`local-${show.id}`}
               item={show}
               type="series"
               width="100%"
             />
           ))}
-        </div>
-      )}
 
-      {/* Import Modal */}
-      {showImport && (
-        <div className="import-modal-overlay" onClick={handleCloseImport}>
-          <div className="import-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="import-modal-header">
-              <h2><PlusIcon /> Importar sèries</h2>
-              <button className="close-btn" onClick={handleCloseImport}>
-                <CloseIcon />
-              </button>
-            </div>
-
-            <form className="import-search-form" onSubmit={handleSearch}>
-              <input
-                type="text"
-                placeholder="Cerca sèries a TMDB..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                autoFocus
-              />
-              <button type="submit" disabled={searchLoading}>
-                {searchLoading ? <div className="spinner-small"></div> : <SearchIcon />}
-              </button>
-            </form>
-
-            {importError && (
-              <div className="import-error">{importError}</div>
-            )}
-
-            <div className="import-results">
-              {searchResults.map((item) => (
-                <div key={item.id} className="import-result-card">
-                  <div className="import-result-poster">
-                    {item.poster ? (
-                      <img src={item.poster} alt={item.title} />
-                    ) : (
-                      <div className="no-poster"><TvIcon /></div>
-                    )}
+          {/* External results (TMDB) */}
+          {externalResults.map((item) => (
+            <div
+              key={`tmdb-${item.id}`}
+              className="media-card external-card"
+              onClick={() => window.open(`https://www.themoviedb.org/tv/${item.id}`, '_blank')}
+            >
+              <div className="media-poster">
+                {item.poster ? (
+                  <img src={item.poster} alt={item.title} />
+                ) : (
+                  <div className="no-poster-placeholder">
+                    <TvIcon />
                   </div>
-                  <div className="import-result-info">
-                    <h3>{item.title}</h3>
-                    <div className="import-result-meta">
-                      {item.year && <span>{item.year}</span>}
-                      {item.rating > 0 && (
-                        <span className="rating"><StarIcon /> {item.rating.toFixed(1)}</span>
-                      )}
-                    </div>
-                    {item.overview && <p className="import-result-overview">{item.overview}</p>}
-                  </div>
-                  <button
-                    className={`import-result-btn ${imported[item.id] ? 'imported' : ''}`}
-                    onClick={() => handleImport(item)}
-                    disabled={importing[item.id] || imported[item.id]}
-                  >
-                    {importing[item.id] ? (
-                      <div className="spinner-small"></div>
-                    ) : imported[item.id] ? (
-                      <CheckIcon />
-                    ) : (
-                      <PlusIcon />
-                    )}
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            {searchResults.length === 0 && !searchLoading && !importError && (
-              <div className="import-empty">
-                <p>Cerca una sèrie per títol per importar-la des de TMDB</p>
+                )}
+                <div className="external-badge">TMDB</div>
+                <button
+                  className={`add-btn ${imported[item.id] ? 'added' : ''}`}
+                  onClick={(e) => handleImport(item, e)}
+                  disabled={importing[item.id] || imported[item.id]}
+                  title="Afegir a la biblioteca"
+                >
+                  {importing[item.id] ? (
+                    <div className="btn-spinner"></div>
+                  ) : imported[item.id] ? (
+                    <CheckIcon />
+                  ) : (
+                    <PlusIcon />
+                  )}
+                </button>
               </div>
-            )}
-          </div>
+              <div className="media-info">
+                <h3 className="media-title">{item.title}</h3>
+                <div className="media-meta">
+                  {item.year && <span>{item.year}</span>}
+                  {item.rating > 0 && (
+                    <span className="rating">
+                      <StarIcon /> {item.rating.toFixed(1)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
