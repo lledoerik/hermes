@@ -76,7 +76,7 @@ const styles = {
   overlay: {
     position: 'absolute',
     inset: 0,
-    background: 'rgba(0, 0, 0, 0.5)',
+    background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.3) 100%)',
     opacity: 0,
     transition: 'opacity 0.3s ease',
     display: 'flex',
@@ -91,7 +91,7 @@ const styles = {
     position: 'absolute',
     top: '50%',
     left: '50%',
-    transform: 'translate(-50%, -50%) scale(0.8)',
+    transform: 'translate(-50%, -50%)',
     background: 'none',
     border: 'none',
     display: 'flex',
@@ -101,10 +101,11 @@ const styles = {
     opacity: 0,
     transition: 'all 0.3s ease',
     color: 'white',
+    filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.5))',
   },
   playButtonVisible: {
     opacity: 1,
-    transform: 'translate(-50%, -50%) scale(1)',
+    transform: 'translate(-50%, -50%) scale(1.1)',
   },
   info: {
     padding: '12px',
