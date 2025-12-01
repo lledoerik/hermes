@@ -4480,7 +4480,7 @@ async def search_for_import(data: ImportSearchRequest):
 
     if data.media_type in ['movie', 'series']:
         # Cerca a TMDB
-        api_key = get_tmdb_key()
+        api_key = get_tmdb_api_key()
         if not api_key:
             raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB per importar pel·lícules i sèries")
 
@@ -4566,7 +4566,7 @@ async def import_from_tmdb(data: ImportTMDBRequest):
     Importa una pel·lícula o sèrie des de TMDB.
     Crea una entrada a la base de dades sense necessitat de fitxers físics.
     """
-    api_key = get_tmdb_key()
+    api_key = get_tmdb_api_key()
     if not api_key:
         raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
 
