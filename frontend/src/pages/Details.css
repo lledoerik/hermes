@@ -766,3 +766,74 @@
     width: 44px;
   }
 }
+
+/* ========================================
+   WATCH PROVIDERS (Streaming)
+   ======================================== */
+.watch-providers-section {
+  margin-top: var(--space-lg);
+  padding: var(--space-md) 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.providers-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-sm);
+}
+
+.providers-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  min-width: 90px;
+}
+
+.providers-logos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.provider-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 45px;
+  height: 45px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface-elevated);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.provider-logo:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.provider-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.provider-name {
+  font-size: 10px;
+  text-align: center;
+  color: var(--text-primary);
+  padding: 4px;
+}
+
+@media (max-width: 768px) {
+  .providers-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-sm);
+  }
+
+  .providers-label {
+    min-width: unset;
+  }
+}
