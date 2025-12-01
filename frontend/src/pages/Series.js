@@ -51,11 +51,22 @@ const StarIcon = () => (
   </svg>
 );
 
+// Content type filter labels
+const contentTypeLabels = {
+  all: 'Totes',
+  series: 'Sèries',
+  anime: 'Anime',
+  toons: 'Dibuixos'
+};
+
 function Series() {
   const { isAdmin } = useAuth();
   const [series, setSeries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('name');
+
+  // Content type filter state
+  const [contentTypeFilter, setContentTypeFilter] = useState('all');
 
   // Search state (només admin)
   const [searchQuery, setSearchQuery] = useState('');
@@ -81,9 +92,15 @@ function Series() {
     }
   }, [isAdmin]);
 
+  // Reload series when content type filter changes
+  useEffect(() => {
+    loadSeries();
+  }, [contentTypeFilter]);
+
   const loadSeries = async () => {
     try {
-      const response = await axios.get('/api/library/series');
+      const params = contentTypeFilter !== 'all' ? { content_type: contentTypeFilter } : {};
+      const response = await axios.get('/api/library/series', { params });
       setSeries(response.data);
     } catch (error) {
       console.error('Error carregant sèries:', error);
@@ -307,6 +324,19 @@ function Series() {
             <option value="recent">Afegides recentment</option>
           </select>
         </div>
+      </div>
+
+      {/* Content type filter switches */}
+      <div className="content-type-filters">
+        {Object.entries(contentTypeLabels).map(([key, label]) => (
+          <button
+            key={key}
+            className={`content-type-btn ${contentTypeFilter === key ? 'active' : ''}`}
+            onClick={() => setContentTypeFilter(key)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* Category tabs for discover - només admin */}

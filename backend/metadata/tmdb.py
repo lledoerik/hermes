@@ -216,6 +216,31 @@ class TMDBClient:
             return data["results"].get(country)
         return None
 
+    def _detect_content_type(self, media_type: str, genre_ids: List[int],
+                             original_language: str, origin_countries: List[str]) -> str:
+        """
+        Detect content type based on genres and origin.
+        - Animation (genre 16) from Japan -> anime/anime_movie
+        - Animation (genre 16) not from Japan -> toons/animated
+        - Otherwise -> series/movie
+        """
+        ANIMATION_GENRE_ID = 16
+
+        is_animation = ANIMATION_GENRE_ID in genre_ids
+        is_japanese = (
+            original_language == "ja" or
+            "JP" in (origin_countries or [])
+        )
+
+        if media_type == "movie":
+            if is_animation:
+                return "anime_movie" if is_japanese else "animated"
+            return "movie"
+        else:  # series
+            if is_animation:
+                return "anime" if is_japanese else "toons"
+            return "series"
+
     def get_poster_url(self, poster_path: str, size: str = "w500") -> Optional[str]:
         """
         Get poster image URL.
@@ -303,15 +328,27 @@ class TMDBClient:
         result["tagline"] = movie.get("tagline")
         result["rating"] = movie.get("vote_average")
         result["runtime"] = movie.get("runtime")
+        result["original_language"] = movie.get("original_language")
+        result["origin_country"] = movie.get("origin_country", [])
+        # For movies, production_countries is more reliable
+        if movie.get("production_countries"):
+            result["origin_country"] = [c.get("iso_3166_1") for c in movie["production_countries"]]
 
         # Extract year from release date
         release_date = movie.get("release_date", "")
         if release_date:
             result["year"] = int(release_date[:4])
 
-        # Extract genres
+        # Extract genres and genre IDs for content type detection
+        genre_ids = []
         if movie.get("genres"):
             result["genres"] = [g["name"] for g in movie["genres"]]
+            genre_ids = [g["id"] for g in movie["genres"]]
+
+        # Detect content type (movie, anime_movie, animated)
+        result["content_type"] = self._detect_content_type(
+            "movie", genre_ids, result["original_language"], result["origin_country"]
+        )
 
         # Get credits (director and cast)
         credits = await self.get_movie_credits(movie["id"])
@@ -382,15 +419,24 @@ class TMDBClient:
         result["rating"] = tv.get("vote_average")
         result["seasons"] = tv.get("number_of_seasons")
         result["episodes"] = tv.get("number_of_episodes")
+        result["original_language"] = tv.get("original_language")
+        result["origin_country"] = tv.get("origin_country", [])
 
         # Extract year from first air date
         first_air_date = tv.get("first_air_date", "")
         if first_air_date:
             result["year"] = int(first_air_date[:4])
 
-        # Extract genres
+        # Extract genres and genre IDs for content type detection
+        genre_ids = []
         if tv.get("genres"):
             result["genres"] = [g["name"] for g in tv["genres"]]
+            genre_ids = [g["id"] for g in tv["genres"]]
+
+        # Detect content type (series, anime, toons)
+        result["content_type"] = self._detect_content_type(
+            "series", genre_ids, result["original_language"], result["origin_country"]
+        )
 
         # Extract creators
         if tv.get("created_by"):
@@ -477,13 +523,26 @@ async def fetch_movie_by_tmdb_id(api_key: str, tmdb_id: int,
         result["tagline"] = movie.get("tagline")
         result["rating"] = movie.get("vote_average")
         result["runtime"] = movie.get("runtime")
+        result["original_language"] = movie.get("original_language")
+        # For movies, production_countries is more reliable
+        origin_country = []
+        if movie.get("production_countries"):
+            origin_country = [c.get("iso_3166_1") for c in movie["production_countries"]]
+        result["origin_country"] = origin_country
 
         release_date = movie.get("release_date", "")
         if release_date:
             result["year"] = int(release_date[:4])
 
+        genre_ids = []
         if movie.get("genres"):
             result["genres"] = [g["name"] for g in movie["genres"]]
+            genre_ids = [g["id"] for g in movie["genres"]]
+
+        # Detect content type
+        result["content_type"] = client._detect_content_type(
+            "movie", genre_ids, result["original_language"], origin_country
+        )
 
         # Get credits (director and cast)
         credits = await client.get_movie_credits(tmdb_id)
@@ -548,13 +607,22 @@ async def fetch_tv_by_tmdb_id(api_key: str, tmdb_id: int,
         result["rating"] = tv.get("vote_average")
         result["seasons"] = tv.get("number_of_seasons")
         result["episodes"] = tv.get("number_of_episodes")
+        result["original_language"] = tv.get("original_language")
+        result["origin_country"] = tv.get("origin_country", [])
 
         first_air_date = tv.get("first_air_date", "")
         if first_air_date:
             result["year"] = int(first_air_date[:4])
 
+        genre_ids = []
         if tv.get("genres"):
             result["genres"] = [g["name"] for g in tv["genres"]]
+            genre_ids = [g["id"] for g in tv["genres"]]
+
+        # Detect content type
+        result["content_type"] = client._detect_content_type(
+            "series", genre_ids, result["original_language"], result["origin_country"]
+        )
 
         # Extract creators
         if tv.get("created_by"):
