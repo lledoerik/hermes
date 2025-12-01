@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import TitleAudioPlayer from '../components/TitleAudioPlayer';
 import './Details.css';
 
 const API_URL = window.location.hostname === 'localhost'
@@ -327,7 +328,13 @@ function Details() {
 
         <div className="hero-content">
           <div className="details-info">
-            <h1 className="details-title">{item.title || item.name}</h1>
+            <div className="details-title-wrapper">
+              <h1 className="details-title">{item.title || item.name}</h1>
+              <TitleAudioPlayer
+                title={item.title || item.name}
+                size="large"
+              />
+            </div>
 
             <div className="details-meta">
               {item.year && (
