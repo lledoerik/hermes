@@ -52,9 +52,8 @@ const StarIcon = () => (
   </svg>
 );
 
-// Content type filter labels
+// Content type filter labels (toggle buttons)
 const contentTypeLabels = {
-  all: 'Totes',
   series: 'Sèries',
   anime: 'Anime',
   toons: 'Dibuixos'
@@ -86,8 +85,8 @@ function Series() {
   const [totalItems, setTotalItems] = useState(0);
   const itemsPerPage = 50;
 
-  // Content type filter state
-  const [contentTypeFilter, setContentTypeFilter] = useState('all');
+  // Content type filter state (array for multi-select, default to 'series')
+  const [selectedContentTypes, setSelectedContentTypes] = useState(['series']);
 
   // Search state (només admin)
   const [searchQuery, setSearchQuery] = useState('');
@@ -107,7 +106,8 @@ function Series() {
 
   // Initial load from cache
   useEffect(() => {
-    const cacheKey = `1-50-name-all`;
+    const contentTypeParam = selectedContentTypes.join(',');
+    const cacheKey = `1-50-name-${contentTypeParam}`;
     if (seriesCache.pages[cacheKey]?.data) {
       const cached = seriesCache.pages[cacheKey].data;
       setSeries(cached.items || []);
@@ -126,17 +126,32 @@ function Series() {
   // Reload series when content type filter or pagination changes
   useEffect(() => {
     loadSeries();
-  }, [contentTypeFilter, currentPage, sortBy]);
+  }, [selectedContentTypes, currentPage, sortBy]);
 
   // Reset to page 1 when filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [contentTypeFilter]);
+  }, [selectedContentTypes]);
+
+  // Toggle content type selection
+  const toggleContentType = (type) => {
+    setSelectedContentTypes(prev => {
+      if (prev.includes(type)) {
+        // Don't allow deselecting if it's the only one selected
+        if (prev.length === 1) return prev;
+        return prev.filter(t => t !== type);
+      } else {
+        return [...prev, type];
+      }
+    });
+  };
 
   const loadSeries = async () => {
     try {
       setLoading(true);
-      const data = await getSeries(currentPage, itemsPerPage, sortBy, contentTypeFilter);
+      // Join selected types with comma for the API
+      const contentTypeParam = selectedContentTypes.length > 0 ? selectedContentTypes.join(',') : null;
+      const data = await getSeries(currentPage, itemsPerPage, sortBy, contentTypeParam);
       setSeries(data.items || []);
       setTotalPages(data.total_pages || 1);
       setTotalItems(data.total || 0);
@@ -343,10 +358,25 @@ function Series() {
   return (
     <div className="library-container">
       <div className="library-header">
-        <div className="library-title">
-          <span className="icon"><TvIcon /></span>
-          <h1>Sèries</h1>
-          <span className="library-count">({totalItems})</span>
+        <div className="library-title-row">
+          <div className="library-title">
+            <span className="icon"><TvIcon /></span>
+            <h1>Sèries</h1>
+            <span className="library-count">({totalItems})</span>
+          </div>
+
+          {/* Content type toggle filters - next to title */}
+          <div className="content-type-toggles">
+            {Object.entries(contentTypeLabels).map(([key, label]) => (
+              <button
+                key={key}
+                className={`content-type-toggle ${selectedContentTypes.includes(key) ? 'active' : ''}`}
+                onClick={() => toggleContentType(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="library-filters">
@@ -376,19 +406,6 @@ function Series() {
             <option value="recent">Afegides recentment</option>
           </select>
         </div>
-      </div>
-
-      {/* Content type filter switches */}
-      <div className="content-type-filters">
-        {Object.entries(contentTypeLabels).map(([key, label]) => (
-          <button
-            key={key}
-            className={`content-type-btn ${contentTypeFilter === key ? 'active' : ''}`}
-            onClick={() => setContentTypeFilter(key)}
-          >
-            {label}
-          </button>
-        ))}
       </div>
 
       {/* Category tabs for discover - només admin */}
