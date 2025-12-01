@@ -284,30 +284,7 @@ function StreamPlayer() {
       onMouseMove={handleMouseMove}
       onClick={() => setShowControls(true)}
     >
-      {/* Header amb controls */}
-      <div className={`stream-player-header ${showControls ? 'visible' : ''}`}>
-        <button className="stream-back-btn" onClick={handleBack}>
-          <BackIcon />
-        </button>
-        <div className="stream-title">
-          {itemInfo && (
-            <>
-              <h1>{itemInfo.title || itemInfo.name}</h1>
-              {season && episode && (
-                <span>T{season} E{episode}</span>
-              )}
-            </>
-          )}
-        </div>
-        <div className="stream-source-info">
-          <span className="stream-source-badge">{currentSource?.name}</span>
-          <span className="stream-source-index">
-            {currentSourceIndex + 1} / {sources.length}
-          </span>
-        </div>
-      </div>
-
-      {/* Iframe del reproductor */}
+      {/* Iframe del reproductor - PANTALLA COMPLETA */}
       {currentSource && (
         <iframe
           ref={iframeRef}
@@ -329,46 +306,28 @@ function StreamPlayer() {
         </div>
       )}
 
-      {/* Footer amb controls */}
-      <div className={`stream-player-footer ${showControls ? 'visible' : ''}`}>
-        <div className="stream-source-buttons">
-          {sources.map((source, index) => (
-            <button
-              key={index}
-              className={`stream-source-btn ${index === currentSourceIndex ? 'active' : ''}`}
-              onClick={() => {
-                setIframeLoaded(false);
-                setCurrentSourceIndex(index);
-              }}
-            >
-              {source.name}
-            </button>
-          ))}
-        </div>
-        <div className="stream-controls-right">
-          {currentSourceIndex < sources.length - 1 && (
-            <button
-              className="stream-control-btn"
-              onClick={handleNextSource}
-              title="Provar següent font (N)"
-            >
-              <SkipIcon /> Següent font
-            </button>
-          )}
-          <button
-            className="stream-control-btn"
-            onClick={handleRetry}
-            title="Reintentar"
-          >
-            <RefreshIcon />
-          </button>
-          <button
-            className="stream-control-btn"
-            onClick={toggleFullscreen}
-            title="Pantalla completa (F)"
-          >
-            <FullscreenIcon />
-          </button>
+      {/* Mini controls - només botó tornar i selector de font */}
+      <div className={`stream-mini-controls ${showControls ? 'visible' : ''}`}>
+        <button className="stream-back-btn" onClick={handleBack} title="Tornar (Esc)">
+          <BackIcon />
+        </button>
+
+        <div className="stream-source-selector">
+          <span className="stream-current-source">{currentSource?.name}</span>
+          <div className="stream-source-dropdown">
+            {sources.map((source, index) => (
+              <button
+                key={index}
+                className={`stream-source-option ${index === currentSourceIndex ? 'active' : ''}`}
+                onClick={() => {
+                  setIframeLoaded(false);
+                  setCurrentSourceIndex(index);
+                }}
+              >
+                {source.name}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>
