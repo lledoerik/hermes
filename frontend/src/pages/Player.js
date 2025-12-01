@@ -24,25 +24,23 @@ const PauseIcon = () => (
   </svg>
 );
 
-// Icona de retrocedir (cercle amb fletxa anti-horari i número)
+// Icona de retrocedir - fletxes dobles cap a l'esquerra amb número
 const SkipBackIcon = ({ seconds }) => (
   <div className="skip-icon-wrapper">
     <svg viewBox="0 0 24 24" fill="currentColor">
-      {/* Fletxa circular anti-horari */}
-      <path d="M12.5 3C7.81 3 4 6.81 4 11.5c0 4.69 3.81 8.5 8.5 8.5s8.5-3.81 8.5-8.5h-2c0 3.59-2.91 6.5-6.5 6.5S6 15.09 6 11.5 8.91 5 12.5 5V3z"/>
-      <path d="M10.5 3L7 6.5l3.5 3.5V3z"/>
+      {/* Dues fletxes cap a l'esquerra */}
+      <path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/>
     </svg>
     <span className="skip-seconds">{seconds}</span>
   </div>
 );
 
-// Icona d'avançar (cercle amb fletxa horari i número)
+// Icona d'avançar - fletxes dobles cap a la dreta amb número
 const SkipForwardIcon = ({ seconds }) => (
   <div className="skip-icon-wrapper">
     <svg viewBox="0 0 24 24" fill="currentColor">
-      {/* Fletxa circular horari */}
-      <path d="M11.5 3C16.19 3 20 6.81 20 11.5c0 4.69-3.81 8.5-8.5 8.5S3 16.19 3 11.5h2c0 3.59 2.91 6.5 6.5 6.5s6.5-2.91 6.5-6.5S15.09 5 11.5 5V3z"/>
-      <path d="M13.5 3L17 6.5l-3.5 3.5V3z"/>
+      {/* Dues fletxes cap a la dreta */}
+      <path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/>
     </svg>
     <span className="skip-seconds">{seconds}</span>
   </div>
@@ -1587,6 +1585,7 @@ function Player() {
                       step="0.1"
                       value={isMuted ? 0 : volume}
                       onChange={handleVolumeChange}
+                      style={{ '--volume-percent': `${(isMuted ? 0 : volume) * 100}%` }}
                     />
                   </div>
                 </div>
