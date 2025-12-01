@@ -134,33 +134,48 @@
   margin-bottom: 24px;
 }
 
-.credit-row {
+.credit-section {
+  margin-bottom: 16px;
+}
+
+.credit-section-title {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+}
+
+.credit-section-value {
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 15px;
+  font-weight: var(--font-weight-medium);
+}
+
+/* Cast grid layout */
+.cast-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 12px 20px;
+}
+
+.cast-item {
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+}
+
+.cast-name {
+  color: rgba(255, 255, 255, 0.95);
   font-size: 14px;
-  line-height: 1.5;
-}
-
-.credit-label {
-  color: rgba(255, 255, 255, 0.6);
   font-weight: var(--font-weight-medium);
-  min-width: 90px;
-}
-
-.credit-value {
-  color: rgba(255, 255, 255, 0.9);
-  flex: 1;
-}
-
-.cast-member {
-  display: inline;
 }
 
 .cast-character {
   color: rgba(255, 255, 255, 0.5);
-  font-size: 13px;
+  font-size: 12px;
+  margin-top: 2px;
 }
 
 /* ========================================
