@@ -97,7 +97,6 @@ function Details() {
 
   // Watch providers state
   const [watchProviders, setWatchProviders] = useState(null);
-  const [loadingProviders, setLoadingProviders] = useState(false);
 
   // Scroll de temporades
   const seasonsScrollRef = useRef(null);
