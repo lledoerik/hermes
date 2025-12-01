@@ -268,12 +268,6 @@ function Home() {
   if (isAuthenticated) {
     return (
       <div className="home-container authenticated">
-        {/* Salutació */}
-        <div className="welcome-header">
-          <h1>Hola{user?.display_name ? `, ${user.display_name}` : ''}!</h1>
-          <p>Què et ve de gust veure avui?</p>
-        </div>
-
         {/* Barra de cerca */}
         <div className="search-container compact">
           <form className="search-bar" onSubmit={handleSearch}>
@@ -291,6 +285,14 @@ function Home() {
             </button>
           </form>
         </div>
+
+        {/* Salutació + Continue Watching - en el mateix nivell */}
+        <section className="greeting-section">
+          <h2 className="row-title greeting-title">
+            Hola{user?.display_name ? `, ${user.display_name}` : ''}!
+            <span className="greeting-subtitle">Què et ve de gust veure avui?</span>
+          </h2>
+        </section>
 
         {/* Continue Watching - Pel·lícules */}
         {continueWatchingMovies.length > 0 && (
