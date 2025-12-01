@@ -69,9 +69,68 @@ function Movies() {
   const [imported, setImported] = useState({});
   const [importingAll, setImportingAll] = useState(false);
 
+  // Discover state
+  const [discoverResults, setDiscoverResults] = useState([]);
+  const [discoverCategory, setDiscoverCategory] = useState('popular');
+  const [discoverPage, setDiscoverPage] = useState(1);
+  const [discoverTotalPages, setDiscoverTotalPages] = useState(1);
+  const [discoverLoading, setDiscoverLoading] = useState(false);
+
   useEffect(() => {
     loadMovies();
+    loadDiscover('popular', 1);
   }, []);
+
+  const loadDiscover = async (category, page, append = false) => {
+    setDiscoverLoading(true);
+    try {
+      const response = await axios.get(`/api/discover/movies?category=${category}&page=${page}`);
+      if (append) {
+        setDiscoverResults(prev => [...prev, ...response.data.results]);
+      } else {
+        setDiscoverResults(response.data.results);
+      }
+      setDiscoverTotalPages(response.data.total_pages);
+      setDiscoverPage(page);
+      setDiscoverCategory(category);
+    } catch (error) {
+      console.error('Error carregant descobrir:', error);
+    } finally {
+      setDiscoverLoading(false);
+    }
+  };
+
+  const handleCategoryChange = (category) => {
+    if (category !== discoverCategory) {
+      loadDiscover(category, 1);
+    }
+  };
+
+  const handleLoadMore = () => {
+    if (discoverPage < discoverTotalPages) {
+      loadDiscover(discoverCategory, discoverPage + 1, true);
+    }
+  };
+
+  const searchExternal = useCallback(async (query) => {
+    if (!query.trim()) return;
+
+    setSearchLoading(true);
+    try {
+      const response = await axios.post('/api/import/search', {
+        query: query.trim(),
+        media_type: 'movie'
+      });
+      const existingTmdbIds = movies.filter(m => m.tmdb_id).map(m => m.tmdb_id);
+      const filtered = response.data.results.filter(r => !existingTmdbIds.includes(r.id));
+      setExternalResults(filtered);
+    } catch (err) {
+      console.error('Error cercant externament:', err);
+      setExternalResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, [movies]);
 
   // Debounced external search
   useEffect(() => {
@@ -98,27 +157,6 @@ function Movies() {
     }
   };
 
-  const searchExternal = useCallback(async (query) => {
-    if (!query.trim()) return;
-
-    setSearchLoading(true);
-    try {
-      const response = await axios.post('/api/import/search', {
-        query: query.trim(),
-        media_type: 'movie'
-      });
-      // Filter out movies that are already in our library
-      const existingTmdbIds = movies.filter(m => m.tmdb_id).map(m => m.tmdb_id);
-      const filtered = response.data.results.filter(r => !existingTmdbIds.includes(r.id));
-      setExternalResults(filtered);
-    } catch (err) {
-      console.error('Error cercant externament:', err);
-      setExternalResults([]);
-    } finally {
-      setSearchLoading(false);
-    }
-  }, [movies]);
-
   const handleImport = async (item, e) => {
     e?.stopPropagation();
     setImporting(prev => ({ ...prev, [item.id]: true }));
@@ -128,8 +166,11 @@ function Movies() {
         media_type: 'movie'
       });
       setImported(prev => ({ ...prev, [item.id]: true }));
-      // Remove from external results and add to movies
       setExternalResults(prev => prev.filter(r => r.id !== item.id));
+      // Mark as in library in discover results
+      setDiscoverResults(prev => prev.map(r =>
+        r.id === item.id ? { ...r, in_library: true } : r
+      ));
       loadMovies();
     } catch (err) {
       console.error('Error important:', err);
@@ -138,11 +179,11 @@ function Movies() {
     }
   };
 
-  const handleImportAll = async () => {
-    if (externalResults.length === 0) return;
+  const handleImportAll = async (items) => {
+    if (items.length === 0) return;
 
     setImportingAll(true);
-    const toImport = [...externalResults];
+    const toImport = [...items].filter(item => !item.in_library);
 
     for (const item of toImport) {
       setImporting(prev => ({ ...prev, [item.id]: true }));
@@ -153,6 +194,9 @@ function Movies() {
         });
         setImported(prev => ({ ...prev, [item.id]: true }));
         setExternalResults(prev => prev.filter(r => r.id !== item.id));
+        setDiscoverResults(prev => prev.map(r =>
+          r.id === item.id ? { ...r, in_library: true } : r
+        ));
       } catch (err) {
         console.error(`Error important ${item.title}:`, err);
       } finally {
@@ -202,7 +246,21 @@ function Movies() {
     );
   }
 
-  const hasResults = sortedMovies.length > 0 || externalResults.length > 0;
+  const isSearching = searchQuery.trim().length > 0;
+  const hasLocalResults = sortedMovies.length > 0;
+  const hasExternalResults = externalResults.length > 0;
+  const hasDiscoverResults = discoverResults.length > 0;
+
+  // Items to show in add-all for discover (not in library)
+  const discoverNotInLibrary = discoverResults.filter(r => !r.in_library);
+
+  const categoryLabels = {
+    popular: 'Populars',
+    trending: 'En tendència',
+    top_rated: 'Millor valorades',
+    now_playing: 'En cartellera',
+    upcoming: 'Pròximament'
+  };
 
   return (
     <div className="library-container">
@@ -210,7 +268,7 @@ function Movies() {
         <div className="library-title">
           <span className="icon"><MovieIcon /></span>
           <h1>Pel·lícules</h1>
-          <span className="library-count">({movies.length})</span>
+          <span className="library-count">({movies.length} a la biblioteca)</span>
         </div>
 
         <div className="library-filters">
@@ -242,31 +300,30 @@ function Movies() {
         </div>
       </div>
 
-      {!hasResults && !searchQuery ? (
-        <div className="library-grid">
-          <div className="empty-state">
-            <div className="empty-icon"><MovieIcon /></div>
-            <h2>No hi ha pel·lícules</h2>
-            <p>Cerca pel·lícules per afegir-les a la biblioteca</p>
-          </div>
+      {/* Category tabs for discover */}
+      {!isSearching && (
+        <div className="category-tabs">
+          {Object.entries(categoryLabels).map(([key, label]) => (
+            <button
+              key={key}
+              className={`category-tab ${discoverCategory === key ? 'active' : ''}`}
+              onClick={() => handleCategoryChange(key)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
-      ) : !hasResults && searchQuery ? (
-        <div className="library-grid">
-          <div className="empty-state">
-            <div className="empty-icon"><SearchIcon /></div>
-            <h2>Sense resultats</h2>
-            <p>No s'han trobat pel·lícules per "{searchQuery}"</p>
-          </div>
-        </div>
-      ) : (
+      )}
+
+      {/* Search results */}
+      {isSearching ? (
         <>
-          {/* Add All button when there are external results */}
-          {externalResults.length > 0 && (
+          {hasExternalResults && (
             <div className="add-all-bar">
               <span>{externalResults.length} resultats de TMDB</span>
               <button
                 className="add-all-btn"
-                onClick={handleImportAll}
+                onClick={() => handleImportAll(externalResults)}
                 disabled={importingAll}
               >
                 {importingAll ? (
@@ -285,7 +342,7 @@ function Movies() {
           )}
 
           <div className="library-grid">
-            {/* Local movies */}
+            {/* Local matches */}
             {sortedMovies.map((movie) => (
               <MediaCard
                 key={`local-${movie.id}`}
@@ -295,51 +352,180 @@ function Movies() {
               />
             ))}
 
-            {/* External results (TMDB) */}
+            {/* External search results */}
             {externalResults.map((item) => (
-            <div
-              key={`tmdb-${item.id}`}
-              className="media-card external-card"
-              onClick={() => window.open(`https://www.themoviedb.org/movie/${item.id}`, '_blank')}
-            >
-              <div className="media-poster">
-                {item.poster ? (
-                  <img src={item.poster} alt={item.title} />
-                ) : (
-                  <div className="no-poster-placeholder">
-                    <MovieIcon />
-                  </div>
-                )}
-                <div className="external-badge">TMDB</div>
-                <button
-                  className={`add-btn ${imported[item.id] ? 'added' : ''}`}
-                  onClick={(e) => handleImport(item, e)}
-                  disabled={importing[item.id] || imported[item.id]}
-                  title="Afegir a la biblioteca"
-                >
-                  {importing[item.id] ? (
-                    <div className="btn-spinner"></div>
-                  ) : imported[item.id] ? (
-                    <CheckIcon />
+              <div
+                key={`tmdb-${item.id}`}
+                className="media-card external-card"
+                onClick={() => window.open(`https://www.themoviedb.org/movie/${item.id}`, '_blank')}
+              >
+                <div className="media-poster">
+                  {item.poster ? (
+                    <img src={item.poster} alt={item.title} />
                   ) : (
-                    <PlusIcon />
+                    <div className="no-poster-placeholder">
+                      <MovieIcon />
+                    </div>
                   )}
-                </button>
-              </div>
-              <div className="media-info">
-                <h3 className="media-title">{item.title}</h3>
-                <div className="media-meta">
-                  {item.year && <span>{item.year}</span>}
-                  {item.rating > 0 && (
-                    <span className="rating">
-                      <StarIcon /> {item.rating.toFixed(1)}
-                    </span>
-                  )}
+                  <div className="external-badge">TMDB</div>
+                  <button
+                    className={`add-btn ${imported[item.id] ? 'added' : ''}`}
+                    onClick={(e) => handleImport(item, e)}
+                    disabled={importing[item.id] || imported[item.id]}
+                    title="Afegir a la biblioteca"
+                  >
+                    {importing[item.id] ? (
+                      <div className="btn-spinner"></div>
+                    ) : imported[item.id] ? (
+                      <CheckIcon />
+                    ) : (
+                      <PlusIcon />
+                    )}
+                  </button>
+                </div>
+                <div className="media-info">
+                  <h3 className="media-title">{item.title}</h3>
+                  <div className="media-meta">
+                    {item.year && <span>{item.year}</span>}
+                    {item.rating > 0 && (
+                      <span className="rating">
+                        <StarIcon /> {item.rating.toFixed(1)}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
           </div>
+
+          {!hasLocalResults && !hasExternalResults && (
+            <div className="empty-state">
+              <div className="empty-icon"><SearchIcon /></div>
+              <h2>Sense resultats</h2>
+              <p>No s'han trobat pel·lícules per "{searchQuery}"</p>
+            </div>
+          )}
+        </>
+      ) : (
+        /* Discover view */
+        <>
+          {discoverNotInLibrary.length > 0 && (
+            <div className="add-all-bar">
+              <span>{discoverNotInLibrary.length} pel·lícules disponibles per afegir</span>
+              <button
+                className="add-all-btn"
+                onClick={() => handleImportAll(discoverResults)}
+                disabled={importingAll}
+              >
+                {importingAll ? (
+                  <>
+                    <div className="btn-spinner"></div>
+                    Important...
+                  </>
+                ) : (
+                  <>
+                    <PlusIcon />
+                    Afegir totes
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Local library section */}
+          {hasLocalResults && (
+            <>
+              <h3 className="section-title">La meva biblioteca</h3>
+              <div className="library-grid">
+                {sortedMovies.map((movie) => (
+                  <MediaCard
+                    key={`local-${movie.id}`}
+                    item={movie}
+                    type="movies"
+                    width="100%"
+                  />
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Discover section */}
+          {hasDiscoverResults && (
+            <>
+              <h3 className="section-title">
+                {categoryLabels[discoverCategory]} a TMDB
+              </h3>
+              <div className="library-grid">
+                {discoverResults.map((item) => (
+                  <div
+                    key={`discover-${item.id}`}
+                    className={`media-card external-card ${item.in_library ? 'in-library' : ''}`}
+                    onClick={() => window.open(`https://www.themoviedb.org/movie/${item.id}`, '_blank')}
+                  >
+                    <div className="media-poster">
+                      {item.poster ? (
+                        <img src={item.poster} alt={item.title} />
+                      ) : (
+                        <div className="no-poster-placeholder">
+                          <MovieIcon />
+                        </div>
+                      )}
+                      <div className="external-badge">
+                        {item.in_library ? '✓ Biblioteca' : 'TMDB'}
+                      </div>
+                      {!item.in_library && (
+                        <button
+                          className={`add-btn ${imported[item.id] ? 'added' : ''}`}
+                          onClick={(e) => handleImport(item, e)}
+                          disabled={importing[item.id] || imported[item.id]}
+                          title="Afegir a la biblioteca"
+                        >
+                          {importing[item.id] ? (
+                            <div className="btn-spinner"></div>
+                          ) : imported[item.id] ? (
+                            <CheckIcon />
+                          ) : (
+                            <PlusIcon />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                    <div className="media-info">
+                      <h3 className="media-title">{item.title}</h3>
+                      <div className="media-meta">
+                        {item.year && <span>{item.year}</span>}
+                        {item.rating > 0 && (
+                          <span className="rating">
+                            <StarIcon /> {item.rating.toFixed(1)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Load more button */}
+              {discoverPage < discoverTotalPages && (
+                <div className="load-more-container">
+                  <button
+                    className="load-more-btn"
+                    onClick={handleLoadMore}
+                    disabled={discoverLoading}
+                  >
+                    {discoverLoading ? 'Carregant...' : 'Carregar més'}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
+          {discoverLoading && !hasDiscoverResults && (
+            <div className="loading-inline">
+              <div className="spinner"></div>
+              <span>Carregant pel·lícules...</span>
+            </div>
+          )}
         </>
       )}
     </div>
