@@ -80,6 +80,27 @@ const PlayIcon = () => (
   </svg>
 );
 
+// Component per mostrar imatge amb fallback a placeholder
+const PosterImage = ({ src, alt, type }) => {
+  const [hasError, setHasError] = useState(false);
+
+  if (!src || hasError) {
+    return (
+      <div className="poster-placeholder">
+        {type === 'series' ? <SeriesIcon /> : <MovieIcon />}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      onError={() => setHasError(true)}
+    />
+  );
+};
+
 function Home() {
   const { isAuthenticated, user } = useAuth();
   const [continueWatchingMovies, setContinueWatchingMovies] = useState([]);
@@ -212,13 +233,11 @@ function Home() {
                 onClick={() => navigate(link)}
               >
                 <div className="content-poster">
-                  {image ? (
-                    <img src={image} alt={item.name || item.title} />
-                  ) : (
-                    <div className="poster-placeholder">
-                      {itemType === 'series' ? <SeriesIcon /> : <MovieIcon />}
-                    </div>
-                  )}
+                  <PosterImage
+                    src={image}
+                    alt={item.name || item.title}
+                    type={itemType}
+                  />
                   <div className="content-hover">
                     <button className="quick-play-btn">
                       <PlayIcon />
