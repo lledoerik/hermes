@@ -1600,6 +1600,53 @@ async def get_library_movie_detail(movie_id: int):
         }
 
 
+@app.get("/api/watch-providers/{media_type}/{tmdb_id}")
+async def get_watch_providers(media_type: str, tmdb_id: int, country: str = "ES"):
+    """
+    Obtenir on es pot veure una pel·lícula o sèrie (Netflix, Disney+, etc.)
+    Utilitza l'API de Watch Providers de TMDB.
+    """
+    api_key = get_tmdb_api_key()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
+
+    from backend.metadata.tmdb import TMDBClient
+
+    client = TMDBClient(api_key)
+    try:
+        if media_type == 'movie':
+            providers = await client.get_movie_watch_providers(tmdb_id, country)
+        elif media_type == 'series':
+            providers = await client.get_tv_watch_providers(tmdb_id, country)
+        else:
+            raise HTTPException(status_code=400, detail="Tipus de contingut no vàlid")
+
+        if not providers:
+            return {"available": False, "providers": {}}
+
+        # Processar els proveïdors
+        result = {
+            "available": True,
+            "link": providers.get("link"),  # Enllaç a JustWatch/TMDB
+            "flatrate": [],  # Streaming (Netflix, Disney+, etc.)
+            "rent": [],      # Lloguer (iTunes, Google Play, etc.)
+            "buy": []        # Compra (iTunes, Google Play, etc.)
+        }
+
+        for provider_type in ["flatrate", "rent", "buy"]:
+            if providers.get(provider_type):
+                for p in providers[provider_type]:
+                    result[provider_type].append({
+                        "id": p.get("provider_id"),
+                        "name": p.get("provider_name"),
+                        "logo": f"https://image.tmdb.org/t/p/w92{p.get('logo_path')}" if p.get("logo_path") else None
+                    })
+
+        return result
+    finally:
+        await client.close()
+
+
 @app.get("/api/library/episodes/{episode_id}")
 async def get_episode_detail(episode_id: int):
     """Detalls d'un episodi individual"""
