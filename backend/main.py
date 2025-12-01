@@ -2860,7 +2860,7 @@ async def fetch_all_metadata(request: MetadataRequest):
                                 backdrop_path = movie_path / "backdrop.jpg"
 
                             # Skip if already has tmdb_id (already identified)
-                            if movie.get("tmdb_id"):
+                            if movie["tmdb_id"]:
                                 continue
 
                             # Check if poster already exists (folder.jpg or poster.jpg)
@@ -2925,7 +2925,7 @@ async def fetch_all_metadata(request: MetadataRequest):
                             backdrop_path = series_path / "backdrop.jpg"
 
                             # Skip if already has tmdb_id (already identified)
-                            if series.get("tmdb_id"):
+                            if series["tmdb_id"]:
                                 continue
 
                             # Check if poster already exists (folder.jpg or poster.jpg)
