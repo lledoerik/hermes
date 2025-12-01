@@ -380,6 +380,63 @@
   font-weight: var(--font-weight-semibold);
 }
 
+/* Add All Bar */
+.add-all-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1800px;
+  margin: 0 auto var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--surface-elevated);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+}
+
+.add-all-bar span {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.add-all-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--accent-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.add-all-btn:hover:not(:disabled) {
+  background: var(--accent-secondary);
+  transform: translateY(-1px);
+}
+
+.add-all-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.add-all-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.add-all-btn .btn-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .library-container {
