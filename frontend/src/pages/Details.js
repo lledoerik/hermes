@@ -685,9 +685,8 @@ function Details() {
               <div
                 key={episode.id}
                 className="episode-card"
-                onClick={() => handlePlay(episode.id)}
               >
-                <div className="episode-thumbnail">
+                <div className="episode-thumbnail" onClick={() => handlePlay(episode.id)}>
                   <img
                     src={`${API_URL}/api/media/${episode.id}/thumbnail`}
                     alt={episode.name}
@@ -717,13 +716,31 @@ function Details() {
                       <span>{formatDuration(episode.duration)}</span>
                     )}
                   </div>
-                  <div className="audio-badges">
-                    {getAudioLanguages(episode).slice(0, 3).map((lang, i) => (
-                      <span key={i} className="badge audio">{getLanguageCode(lang)}</span>
-                    ))}
-                    {getSubtitleLanguages(episode).slice(0, 2).map((lang, i) => (
-                      <span key={i} className="badge sub">{getLanguageCode(lang)}</span>
-                    ))}
+                  <div className="episode-actions">
+                    <div className="audio-badges">
+                      {getAudioLanguages(episode).slice(0, 3).map((lang, i) => (
+                        <span key={i} className="badge audio">{getLanguageCode(lang)}</span>
+                      ))}
+                      {getSubtitleLanguages(episode).slice(0, 2).map((lang, i) => (
+                        <span key={i} className="badge sub">{getLanguageCode(lang)}</span>
+                      ))}
+                    </div>
+                    {/* Botó streaming online per episodi */}
+                    {item?.tmdb_id && (
+                      <button
+                        className="episode-stream-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/stream/series/${item.tmdb_id}?s=${selectedSeason}&e=${episode.episode_number}`);
+                        }}
+                        title="Veure online"
+                      >
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+                        </svg>
+                        Online
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
