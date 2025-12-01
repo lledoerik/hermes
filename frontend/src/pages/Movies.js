@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import MediaCard from '../components/MediaCard';
 import './Library.css';
@@ -74,7 +74,6 @@ function Movies() {
   }, []);
 
   // Debounced external search
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!searchQuery.trim()) {
       setExternalResults([]);
@@ -86,7 +85,7 @@ function Movies() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, searchExternal]);
 
   const loadMovies = async () => {
     try {
@@ -99,7 +98,7 @@ function Movies() {
     }
   };
 
-  const searchExternal = async (query) => {
+  const searchExternal = useCallback(async (query) => {
     if (!query.trim()) return;
 
     setSearchLoading(true);
@@ -118,7 +117,7 @@ function Movies() {
     } finally {
       setSearchLoading(false);
     }
-  };
+  }, [movies]);
 
   const handleImport = async (item, e) => {
     e?.stopPropagation();
