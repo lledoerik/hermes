@@ -124,6 +124,18 @@ class HermesScanner:
             cursor.execute("ALTER TABLE series ADD COLUMN cast_members TEXT")
         except sqlite3.OperationalError:
             pass
+        try:
+            cursor.execute("ALTER TABLE series ADD COLUMN content_type TEXT")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE series ADD COLUMN origin_country TEXT")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE series ADD COLUMN original_language TEXT")
+        except sqlite3.OperationalError:
+            pass
 
         # Taula media_files
         cursor.execute('''
