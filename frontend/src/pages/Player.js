@@ -196,6 +196,7 @@ function Player() {
   const [savingIntro, setSavingIntro] = useState(false);
   const [propagatingIntro, setPropagatingIntro] = useState(false);
   const [propagateResult, setPropagateResult] = useState(null);
+  const [applyingIntro, setApplyingIntro] = useState(null); // 'season' | 'all' | null
 
   // Track selections
   const [audioTracks, setAudioTracks] = useState([]);
@@ -863,6 +864,94 @@ function Player() {
     }
   };
 
+  // Aplicar intro directament a tots els episodis d'una temporada
+  const applyIntroToSeason = async () => {
+    if (introStart === null || introEnd === null || introStart >= introEnd) {
+      alert('Has de marcar inici i fi de la intro primer');
+      return;
+    }
+
+    if (!item?.series_id || !item?.season_number) {
+      alert('No s\'ha pogut identificar la temporada');
+      return;
+    }
+
+    if (!window.confirm(
+      `Això aplicarà els mateixos temps d'intro (${formatTime(introStart)} - ${formatTime(introEnd)}) ` +
+      `a tots els episodis de la Temporada ${item.season_number}. Continuar?`
+    )) return;
+
+    setApplyingIntro('season');
+    setPropagateResult(null);
+
+    try {
+      const response = await axios.post(`/api/segments/series/${item.series_id}/season/${item.season_number}/apply`, {
+        segment_type: 'intro',
+        start_time: introStart,
+        end_time: introEnd
+      });
+
+      setPropagateResult({
+        status: 'success',
+        message: `Intro aplicada a ${response.data.episodes_updated || 'tots els'} episodis de la temporada ${item.season_number}`
+      });
+
+      // Recarregar segments
+      const segmentsRes = await axios.get(`/api/segments/media/${id}`);
+      setSegments(segmentsRes.data || []);
+
+    } catch (error) {
+      console.error('Error aplicant intro a la temporada:', error);
+      setPropagateResult({ status: 'error', message: 'Error aplicant la intro a la temporada' });
+    } finally {
+      setApplyingIntro(null);
+    }
+  };
+
+  // Aplicar intro directament a tots els episodis de totes les temporades
+  const applyIntroToAllSeasons = async () => {
+    if (introStart === null || introEnd === null || introStart >= introEnd) {
+      alert('Has de marcar inici i fi de la intro primer');
+      return;
+    }
+
+    if (!item?.series_id) {
+      alert('No s\'ha pogut identificar la sèrie');
+      return;
+    }
+
+    if (!window.confirm(
+      `Això aplicarà els mateixos temps d'intro (${formatTime(introStart)} - ${formatTime(introEnd)}) ` +
+      `a TOTS els episodis de TOTES les temporades. Continuar?`
+    )) return;
+
+    setApplyingIntro('all');
+    setPropagateResult(null);
+
+    try {
+      const response = await axios.post(`/api/segments/series/${item.series_id}/apply-all`, {
+        segment_type: 'intro',
+        start_time: introStart,
+        end_time: introEnd
+      });
+
+      setPropagateResult({
+        status: 'success',
+        message: `Intro aplicada a ${response.data.episodes_updated || 'tots els'} episodis de totes les temporades`
+      });
+
+      // Recarregar segments
+      const segmentsRes = await axios.get(`/api/segments/media/${id}`);
+      setSegments(segmentsRes.data || []);
+
+    } catch (error) {
+      console.error('Error aplicant intro a totes les temporades:', error);
+      setPropagateResult({ status: 'error', message: 'Error aplicant la intro a totes les temporades' });
+    } finally {
+      setApplyingIntro(null);
+    }
+  };
+
   const goToNextEpisode = () => {
     if (!nextEpisode) return;
     // Guardar progrés abans de navegar al següent episodi
@@ -1333,13 +1422,34 @@ function Player() {
                 )}
               </div>
 
-              {/* Propagació intel·ligent */}
+              {/* Aplicar intro a múltiples episodis */}
               {item?.series_id && (
                 <div className="intro-propagate-section">
-                  <div className="section-divider">Aplicar a tota la sèrie</div>
+                  <div className="section-divider">Aplicar mateixos temps</div>
+                  <div className="apply-buttons-row">
+                    <button
+                      onClick={applyIntroToSeason}
+                      disabled={applyingIntro !== null || introStart === null || introEnd === null}
+                      className="apply-btn"
+                    >
+                      {applyingIntro === 'season' ? 'Aplicant...' : `Temporada ${item.season_number}`}
+                    </button>
+                    <button
+                      onClick={applyIntroToAllSeasons}
+                      disabled={applyingIntro !== null || introStart === null || introEnd === null}
+                      className="apply-btn apply-all"
+                    >
+                      {applyingIntro === 'all' ? 'Aplicant...' : 'Totes les temporades'}
+                    </button>
+                  </div>
+                  <p className="propagate-help">
+                    Aplica exactament els mateixos temps d'intro a tots els episodis
+                  </p>
+
+                  <div className="section-divider">Detecció automàtica</div>
                   <button
                     onClick={propagateIntroToAll}
-                    disabled={propagatingIntro || introStart === null || introEnd === null}
+                    disabled={propagatingIntro || applyingIntro !== null || introStart === null || introEnd === null}
                     className="propagate-btn"
                   >
                     {propagatingIntro ? 'Buscant intro a cada episodi...' : 'Detectar en tots els episodis'}
