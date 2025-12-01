@@ -141,6 +141,10 @@ def init_all_tables():
             ("is_imported", "INTEGER DEFAULT 0"),
             ("source_type", "TEXT"),  # 'tmdb', 'openlibrary', etc.
             ("external_url", "TEXT"),
+            # Camps per tipus de contingut
+            ("content_type", "TEXT"),  # movie, anime_movie, animated, series, anime, toons
+            ("origin_country", "TEXT"),
+            ("original_language", "TEXT"),
         ]
         for col_name, col_type in series_columns:
             try:
