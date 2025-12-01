@@ -108,6 +108,7 @@ const styles = {
   },
   info: {
     padding: '12px',
+    textAlign: 'left',
   },
   title: {
     fontSize: '14px',
@@ -116,10 +117,12 @@ const styles = {
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
+    textAlign: 'left',
   },
   meta: {
     fontSize: '12px',
     color: 'rgba(255, 255, 255, 0.6)',
+    textAlign: 'left',
   },
   badge: {
     position: 'absolute',

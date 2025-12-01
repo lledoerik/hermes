@@ -147,6 +147,7 @@
 
 .action-btn.danger {
   background: linear-gradient(135deg, var(--color-error) 0%, #b91c1c 100%);
+  color: white;
 }
 
 /* Scan Progress */
