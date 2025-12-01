@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import MediaCard from '../components/MediaCard';
 import { useAuth } from '../context/AuthContext';
+import { useLibrary } from '../context/LibraryContext';
 import './Library.css';
 
 const API_URL = window.location.hostname === 'localhost'
@@ -80,6 +81,7 @@ const ChevronRightIcon = () => (
 
 function Movies() {
   const { isAdmin } = useAuth();
+  const { getMovies, moviesCache, invalidateCache } = useLibrary();
   const [movies, setMovies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('name');
@@ -109,8 +111,18 @@ function Movies() {
   const [autoImporting, setAutoImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
 
+  // Initial load from cache
   useEffect(() => {
-    loadMovies();
+    const cacheKey = `1-50-name-all`;
+    if (moviesCache.pages[cacheKey]?.data) {
+      const cached = moviesCache.pages[cacheKey].data;
+      setMovies(cached.items || []);
+      setTotalPages(cached.total_pages || 1);
+      setTotalItems(cached.total || 0);
+      setLoading(false);
+    } else {
+      loadMovies();
+    }
     // Només auto-importar si és admin
     if (isAdmin) {
       loadAndImportDiscover('popular', 1);
@@ -129,18 +141,11 @@ function Movies() {
 
   const loadMovies = async () => {
     try {
-      const params = {
-        page: currentPage,
-        limit: itemsPerPage,
-        sort_by: sortBy
-      };
-      if (contentTypeFilter !== 'all') {
-        params.content_type = contentTypeFilter;
-      }
-      const response = await axios.get('/api/library/movies', { params });
-      setMovies(response.data.items || []);
-      setTotalPages(response.data.total_pages || 1);
-      setTotalItems(response.data.total || 0);
+      setLoading(true);
+      const data = await getMovies(currentPage, itemsPerPage, sortBy, contentTypeFilter);
+      setMovies(data.items || []);
+      setTotalPages(data.total_pages || 1);
+      setTotalItems(data.total || 0);
     } catch (error) {
       console.error('Error carregant pel·lícules:', error);
     } finally {
@@ -203,7 +208,8 @@ function Movies() {
         }
 
         setAutoImporting(false);
-        // Reload movies to show newly imported ones
+        // Invalidate cache and reload movies to show newly imported ones
+        invalidateCache('movies');
         await loadMovies();
       }
     } catch (error) {
@@ -269,6 +275,7 @@ function Movies() {
       });
       setImported(prev => ({ ...prev, [item.id]: true }));
       setExternalResults(prev => prev.filter(r => r.id !== item.id));
+      invalidateCache('movies');
       loadMovies();
     } catch (err) {
       console.error('Error important:', err);
@@ -298,6 +305,7 @@ function Movies() {
       }
     }
 
+    invalidateCache('movies');
     loadMovies();
     setImportingAll(false);
   };
