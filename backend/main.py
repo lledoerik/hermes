@@ -3776,9 +3776,10 @@ async def auto_fetch_all_audiobook_covers(background_tasks: BackgroundTasks):
 
             # Get all audiobooks without covers
             cursor.execute("""
-                SELECT id, title, author, folder_path
-                FROM audiobooks
-                WHERE cover IS NULL OR cover = ''
+                SELECT a.id, a.title, aa.name as author, a.folder_path
+                FROM audiobooks a
+                LEFT JOIN audiobook_authors aa ON a.author_id = aa.id
+                WHERE a.cover IS NULL OR a.cover = ''
             """)
             audiobooks = cursor.fetchall()
 
@@ -3804,7 +3805,7 @@ async def auto_fetch_all_audiobook_covers(background_tasks: BackgroundTasks):
                 # Fetch metadata and cover
                 result = await fetch_metadata_for_book(
                     audiobook["title"],
-                    audiobook.get("author"),
+                    audiobook["author"],
                     cover_path
                 )
 
