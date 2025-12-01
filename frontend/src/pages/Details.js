@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import TitleAudioPlayer from '../components/TitleAudioPlayer';
+import ExternalPlayer from '../components/ExternalPlayer';
 import './Details.css';
 
 const API_URL = window.location.hostname === 'localhost'
@@ -99,6 +100,12 @@ function Details() {
   // Watch providers state
   const [watchProviders, setWatchProviders] = useState(null);
 
+  // External URL state
+  const [showExternalUrlInput, setShowExternalUrlInput] = useState(false);
+  const [externalUrl, setExternalUrl] = useState('');
+  const [externalUrlLoading, setExternalUrlLoading] = useState(false);
+  const [showExternalPlayer, setShowExternalPlayer] = useState(false);
+
   // Scroll de temporades
   const seasonsScrollRef = useRef(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -171,6 +178,13 @@ function Details() {
   useEffect(() => {
     if (item?.tmdb_id) {
       setTmdbId(item.tmdb_id.toString());
+    }
+  }, [item]);
+
+  // Carregar la URL externa si existeix
+  useEffect(() => {
+    if (item?.external_url) {
+      setExternalUrl(item.external_url);
     }
   }, [item]);
 
@@ -258,6 +272,46 @@ function Details() {
       setTmdbMessage({ type: 'error', text: errorMsg });
     } finally {
       setTmdbLoading(false);
+    }
+  };
+
+  // Detecta el tipus de font a partir de la URL
+  const detectExternalSource = (url) => {
+    if (!url) return null;
+    const urlLower = url.toLowerCase();
+    if (urlLower.includes('youtube.com') || urlLower.includes('youtu.be')) return 'YouTube';
+    if (urlLower.includes('vimeo.com')) return 'Vimeo';
+    if (urlLower.includes('archive.org')) return 'Internet Archive';
+    if (urlLower.includes('3cat.cat') || urlLower.includes('ccma.cat') || urlLower.includes('tv3.cat')) return '3Cat';
+    if (urlLower.includes('dailymotion.com') || urlLower.includes('dai.ly')) return 'Dailymotion';
+    if (urlLower.includes('twitch.tv')) return 'Twitch';
+    if (urlLower.includes('superembed') || urlLower.includes('2embed') || urlLower.includes('vidsrc')) return 'Embed API';
+    if (urlLower.endsWith('.m3u8')) return 'HLS Stream';
+    if (urlLower.endsWith('.mp4') || urlLower.endsWith('.webm')) return 'Vídeo directe';
+    return 'Extern';
+  };
+
+  const handleSaveExternalUrl = async () => {
+    setExternalUrlLoading(true);
+    try {
+      const detectedSource = detectExternalSource(externalUrl);
+      await axios.patch(`/api/series/${id}/external-url`, {
+        external_url: externalUrl || null,
+        external_source: detectedSource
+      });
+
+      // Actualitzar l'item
+      setItem(prev => ({
+        ...prev,
+        external_url: externalUrl || null,
+        external_source: detectedSource
+      }));
+
+      setShowExternalUrlInput(false);
+    } catch (error) {
+      console.error('Error guardant URL externa:', error);
+    } finally {
+      setExternalUrlLoading(false);
     }
   };
 
@@ -450,19 +504,84 @@ function Details() {
               <button className="play-btn" onClick={() => handlePlay()}>
                 <PlayIcon /> Reproduir
               </button>
+              {/* Botó per reproduir contingut extern */}
+              {item?.external_url && (
+                <button
+                  className="play-btn external-play-btn"
+                  onClick={() => setShowExternalPlayer(!showExternalPlayer)}
+                >
+                  <PlayIcon /> {showExternalPlayer ? 'Amagar' : 'Veure online'}
+                  {item?.external_source && (
+                    <span className="external-source-badge">{item.external_source}</span>
+                  )}
+                </button>
+              )}
               <button className="secondary-btn">
                 + La meva llista
               </button>
               {isAdmin && (
-                <button
-                  className="secondary-btn edit-metadata-btn"
-                  onClick={() => setShowTmdbInput(!showTmdbInput)}
-                  title="Corregir metadades amb TMDB ID"
-                >
-                  <EditIcon size={16} />
-                </button>
+                <>
+                  <button
+                    className="secondary-btn edit-metadata-btn"
+                    onClick={() => setShowTmdbInput(!showTmdbInput)}
+                    title="Corregir metadades amb TMDB ID"
+                  >
+                    <EditIcon size={16} />
+                  </button>
+                  <button
+                    className="secondary-btn external-url-btn"
+                    onClick={() => setShowExternalUrlInput(!showExternalUrlInput)}
+                    title="Afegir URL externa per veure online"
+                  >
+                    🔗
+                  </button>
+                </>
               )}
             </div>
+
+            {/* External URL Input Form - només admins */}
+            {isAdmin && showExternalUrlInput && (
+              <div className="external-url-form">
+                <label>
+                  {item?.external_url ? 'URL externa actual (canvia per actualitzar):' : 'Introdueix una URL per veure online:'}
+                </label>
+                <div className="external-url-input-row">
+                  <input
+                    type="url"
+                    value={externalUrl}
+                    onChange={(e) => setExternalUrl(e.target.value)}
+                    placeholder="https://youtube.com/watch?v=... o URL directa .mp4/.m3u8"
+                    disabled={externalUrlLoading}
+                  />
+                  <button
+                    className="external-url-submit-btn"
+                    onClick={handleSaveExternalUrl}
+                    disabled={externalUrlLoading}
+                  >
+                    {externalUrlLoading ? 'Guardant...' : 'Guardar'}
+                  </button>
+                </div>
+                <small className="external-url-help">
+                  Suporta: YouTube, Vimeo, Dailymotion, Twitch, 3Cat, Internet Archive, URLs directes (.mp4, .m3u8)
+                </small>
+                {externalUrl && (
+                  <div className="external-url-preview">
+                    Font detectada: <strong>{detectExternalSource(externalUrl)}</strong>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* External Player */}
+            {showExternalPlayer && item?.external_url && (
+              <div className="external-player-section">
+                <ExternalPlayer
+                  url={item.external_url}
+                  title={item.title || item.name}
+                  autoplay={true}
+                />
+              </div>
+            )}
 
             {/* TMDB ID Input Form - només admins */}
             {isAdmin && showTmdbInput && (
