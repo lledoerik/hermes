@@ -1905,7 +1905,7 @@ async def extract_stream_url(media_type: str, tmdb_id: int, season: int = None, 
     Intenta extreure la URL directa del stream (HLS/MP4) d'un servei d'embed.
     Això permet reproduir el vídeo amb el reproductor natiu.
     """
-    import aiohttp
+    import httpx
     import re
 
     headers = {
@@ -1923,12 +1923,12 @@ async def extract_stream_url(media_type: str, tmdb_id: int, season: int = None, 
                 e = episode or 1
                 embed_url = f"https://vidsrc.to/embed/tv/{tmdb_id}/{s}/{e}"
 
-            async with aiohttp.ClientSession() as session:
+            async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as client:
                 # Primera petició per obtenir la pàgina d'embed
-                async with session.get(embed_url, headers=headers) as resp:
-                    if resp.status != 200:
-                        return None
-                    html = await resp.text()
+                resp = await client.get(embed_url, headers=headers)
+                if resp.status_code != 200:
+                    return None
+                html = resp.text
 
                 # Buscar l'ID del vídeo
                 match = re.search(r'data-id="([^"]+)"', html)
@@ -1942,10 +1942,10 @@ async def extract_stream_url(media_type: str, tmdb_id: int, season: int = None, 
 
                 # Obtenir les fonts del vídeo
                 sources_url = f"https://vidsrc.to/ajax/embed/episode/{video_id}/sources"
-                async with session.get(sources_url, headers=headers) as resp:
-                    if resp.status != 200:
-                        return None
-                    sources_data = await resp.json()
+                resp = await client.get(sources_url, headers=headers)
+                if resp.status_code != 200:
+                    return None
+                sources_data = resp.json()
 
                 if not sources_data.get("result"):
                     return None
@@ -1955,15 +1955,15 @@ async def extract_stream_url(media_type: str, tmdb_id: int, season: int = None, 
                     source_id = source_item.get("id")
                     if source_id:
                         source_url = f"https://vidsrc.to/ajax/embed/source/{source_id}"
-                        async with session.get(source_url, headers=headers) as resp:
-                            if resp.status == 200:
-                                source_data = await resp.json()
-                                if source_data.get("result", {}).get("url"):
-                                    return {
-                                        "url": source_data["result"]["url"],
-                                        "type": "hls",
-                                        "source": "VidSrc"
-                                    }
+                        resp = await client.get(source_url, headers=headers)
+                        if resp.status_code == 200:
+                            source_data = resp.json()
+                            if source_data.get("result", {}).get("url"):
+                                return {
+                                    "url": source_data["result"]["url"],
+                                    "type": "hls",
+                                    "source": "VidSrc"
+                                }
 
                 return None
         except Exception as e:
@@ -1980,11 +1980,11 @@ async def extract_stream_url(media_type: str, tmdb_id: int, season: int = None, 
                 e = episode or 1
                 api_url = f"https://vidsrc.me/embed/tv?tmdb={tmdb_id}&season={s}&episode={e}"
 
-            async with aiohttp.ClientSession() as session:
-                async with session.get(api_url, headers=headers, allow_redirects=True) as resp:
-                    if resp.status != 200:
-                        return None
-                    html = await resp.text()
+            async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as client:
+                resp = await client.get(api_url, headers=headers)
+                if resp.status_code != 200:
+                    return None
+                html = resp.text
 
                 # Buscar URLs HLS a la pàgina
                 hls_patterns = [
@@ -2017,11 +2017,11 @@ async def extract_stream_url(media_type: str, tmdb_id: int, season: int = None, 
                 e = episode or 1
                 api_url = f"https://multiembed.mov/?video_id={tmdb_id}&tmdb=1&s={s}&e={e}"
 
-            async with aiohttp.ClientSession() as session:
-                async with session.get(api_url, headers=headers, allow_redirects=True) as resp:
-                    if resp.status != 200:
-                        return None
-                    html = await resp.text()
+            async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as client:
+                resp = await client.get(api_url, headers=headers)
+                if resp.status_code != 200:
+                    return None
+                html = resp.text
 
                 # Buscar URLs HLS
                 hls_patterns = [
