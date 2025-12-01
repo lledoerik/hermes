@@ -54,7 +54,7 @@ _DEFAULT_MEDIA_LIBRARIES = [
 _DEFAULT_BOOKS_LIBRARIES = [
     {
         "name": "Llibres",
-        "path": "/media/books",
+        "path": "D:\\Llibres\\Llibres",
         "type": "books"
     }
 ]
@@ -62,7 +62,7 @@ _DEFAULT_BOOKS_LIBRARIES = [
 _DEFAULT_AUDIOBOOKS_LIBRARIES = [
     {
         "name": "Audiollibres",
-        "path": "/media/audiobooks",
+        "path": "D:\\Llibres\\Audiollibres",
         "type": "audiobooks"
     }
 ]
