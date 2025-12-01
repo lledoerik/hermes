@@ -689,9 +689,7 @@
 /* Content Rows (Netflix style) */
 .content-row,
 .continue-watching-section {
-  padding: 0;
-  margin-left: 4%;
-  margin-right: 4%;
+  padding: 0 4%;
   margin-bottom: var(--space-lg);
 }
 
@@ -711,9 +709,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: var(--space-md) 0;
-  margin-left: 4%;
-  margin-right: 4%;
+  padding: var(--space-md) 4%;
   margin-bottom: var(--space-sm);
 }
 
@@ -932,9 +928,7 @@
 
 /* Quick Access Grid */
 .quick-access {
-  padding: var(--space-xl) 0;
-  margin-left: 4%;
-  margin-right: 4%;
+  padding: var(--space-xl) 4%;
   margin-top: var(--space-md);
 }
 
