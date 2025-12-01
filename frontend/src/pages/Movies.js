@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import MediaCard from '../components/MediaCard';
+import { useAuth } from '../context/AuthContext';
 import './Library.css';
 
 const API_URL = window.location.hostname === 'localhost'
@@ -57,11 +58,12 @@ const StarIcon = () => (
 );
 
 function Movies() {
+  const { isAdmin } = useAuth();
   const [movies, setMovies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('name');
 
-  // Search state
+  // Search state (només admin)
   const [searchQuery, setSearchQuery] = useState('');
   const [externalResults, setExternalResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -69,7 +71,7 @@ function Movies() {
   const [imported, setImported] = useState({});
   const [importingAll, setImportingAll] = useState(false);
 
-  // Discover state
+  // Discover state (només admin)
   const [discoverCategory, setDiscoverCategory] = useState('popular');
   const [discoverPage, setDiscoverPage] = useState(1);
   const [discoverTotalPages, setDiscoverTotalPages] = useState(1);
@@ -79,8 +81,11 @@ function Movies() {
 
   useEffect(() => {
     loadMovies();
-    loadAndImportDiscover('popular', 1);
-  }, []);
+    // Només auto-importar si és admin
+    if (isAdmin) {
+      loadAndImportDiscover('popular', 1);
+    }
+  }, [isAdmin]);
 
   const loadMovies = async () => {
     try {
@@ -311,8 +316,8 @@ function Movies() {
         </div>
       </div>
 
-      {/* Category tabs for discover */}
-      {!isSearching && (
+      {/* Category tabs for discover - només admin */}
+      {isAdmin && !isSearching && (
         <div className="category-tabs">
           {Object.entries(categoryLabels).map(([key, label]) => (
             <button
@@ -327,8 +332,8 @@ function Movies() {
         </div>
       )}
 
-      {/* Auto-import progress */}
-      {autoImporting && (
+      {/* Auto-import progress - només admin */}
+      {isAdmin && autoImporting && (
         <div className="import-progress-bar">
           <div className="import-progress-text">
             Important pel·lícules... {importProgress.current}/{importProgress.total}
@@ -345,7 +350,8 @@ function Movies() {
       {/* Search results */}
       {isSearching ? (
         <>
-          {hasExternalResults && (
+          {/* External results - només admin */}
+          {isAdmin && hasExternalResults && (
             <div className="add-all-bar">
               <span>{externalResults.length} resultats de TMDB</span>
               <button
@@ -379,8 +385,8 @@ function Movies() {
               />
             ))}
 
-            {/* External search results */}
-            {externalResults.map((item) => (
+            {/* External search results - només admin */}
+            {isAdmin && externalResults.map((item) => (
               <div
                 key={`tmdb-${item.id}`}
                 className="media-card external-card"
@@ -447,7 +453,7 @@ function Movies() {
                 />
               ))}
             </div>
-          ) : discoverLoading || autoImporting ? (
+          ) : isAdmin && (discoverLoading || autoImporting) ? (
             <div className="loading-inline">
               <div className="spinner"></div>
               <span>
@@ -460,12 +466,12 @@ function Movies() {
             <div className="empty-state">
               <div className="empty-icon"><MovieIcon /></div>
               <h2>No hi ha pel·lícules</h2>
-              <p>Selecciona una categoria per importar pel·lícules</p>
+              <p>{isAdmin ? 'Selecciona una categoria per importar pel·lícules' : 'La biblioteca està buida'}</p>
             </div>
           )}
 
-          {/* Load more button */}
-          {hasLocalResults && discoverPage < discoverTotalPages && !autoImporting && (
+          {/* Load more button - només admin */}
+          {isAdmin && hasLocalResults && discoverPage < discoverTotalPages && !autoImporting && (
             <div className="load-more-container">
               <button
                 className="load-more-btn"
