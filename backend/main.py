@@ -1810,12 +1810,17 @@ async def get_watch_providers(media_type: str, tmdb_id: int, country: str = "ES"
 async def get_embed_sources(media_type: str, tmdb_id: int, season: int = None, episode: int = None):
     """
     Retorna URLs d'embed per veure contingut basat en TMDB ID.
-    Fonts: VidSrc, SuperEmbed, 2embed, etc.
+    Fonts ordenades per fiabilitat: 2embed primer, després VidSrc, SuperEmbed, etc.
     """
     sources = []
 
-    # VidSrc.to - Una de les fonts més fiables
+    # 2embed com a font principal, després les altres com a fallback
     if media_type == 'movie':
+        sources.append({
+            "name": "2embed",
+            "url": f"https://www.2embed.cc/embed/{tmdb_id}",
+            "type": "iframe"
+        })
         sources.append({
             "name": "VidSrc",
             "url": f"https://vidsrc.to/embed/movie/{tmdb_id}",
@@ -1832,11 +1837,16 @@ async def get_embed_sources(media_type: str, tmdb_id: int, season: int = None, e
             "type": "iframe"
         })
         sources.append({
-            "name": "2embed",
-            "url": f"https://www.2embed.cc/embed/{tmdb_id}",
+            "name": "NontonGo",
+            "url": f"https://www.NontonGo.win/embed/movie/{tmdb_id}",
             "type": "iframe"
         })
     elif media_type == 'series' and season is not None and episode is not None:
+        sources.append({
+            "name": "2embed",
+            "url": f"https://www.2embed.cc/embedtv/{tmdb_id}&s={season}&e={episode}",
+            "type": "iframe"
+        })
         sources.append({
             "name": "VidSrc",
             "url": f"https://vidsrc.to/embed/tv/{tmdb_id}/{season}/{episode}",
@@ -1853,12 +1863,17 @@ async def get_embed_sources(media_type: str, tmdb_id: int, season: int = None, e
             "type": "iframe"
         })
         sources.append({
-            "name": "2embed",
-            "url": f"https://www.2embed.cc/embedtv/{tmdb_id}&s={season}&e={episode}",
+            "name": "NontonGo",
+            "url": f"https://www.NontonGo.win/embed/tv/{tmdb_id}/{season}/{episode}",
             "type": "iframe"
         })
     elif media_type == 'series':
         # Sense temporada/episodi, donem la primera temporada/episodi per defecte
+        sources.append({
+            "name": "2embed",
+            "url": f"https://www.2embed.cc/embedtv/{tmdb_id}&s=1&e=1",
+            "type": "iframe"
+        })
         sources.append({
             "name": "VidSrc",
             "url": f"https://vidsrc.to/embed/tv/{tmdb_id}/1/1",
@@ -1867,6 +1882,11 @@ async def get_embed_sources(media_type: str, tmdb_id: int, season: int = None, e
         sources.append({
             "name": "VidSrc.me",
             "url": f"https://vidsrc.me/embed/tv?tmdb={tmdb_id}&season=1&episode=1",
+            "type": "iframe"
+        })
+        sources.append({
+            "name": "SuperEmbed",
+            "url": f"https://multiembed.mov/?video_id={tmdb_id}&tmdb=1&s=1&e=1",
             "type": "iframe"
         })
 
