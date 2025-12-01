@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import { useLibrary } from '../context/LibraryContext';
 import './Library.css';
 import './Books.css';
 
@@ -90,6 +91,7 @@ function Audiobooks() {
   const [viewMode, setViewMode] = useState('authors');
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
+  const { getAudiobooks, audiobooksCache, invalidateCache } = useLibrary();
 
   // Metadata editing state
   const [editingAudiobook, setEditingAudiobook] = useState(null);
@@ -102,7 +104,11 @@ function Audiobooks() {
   const [metadataMessage, setMetadataMessage] = useState(null);
   const [uploadPreview, setUploadPreview] = useState(null);
 
+  // Initial load from cache
   useEffect(() => {
+    if (audiobooksCache.data) {
+      setAudiobooks(audiobooksCache.data);
+    }
     loadAuthors();
   }, []);
 
@@ -119,8 +125,8 @@ function Audiobooks() {
 
   const loadAllAudiobooks = async () => {
     try {
-      const response = await axios.get('/api/audiobooks');
-      setAudiobooks(response.data);
+      const data = await getAudiobooks();
+      setAudiobooks(data);
     } catch (error) {
       console.error('Error carregant audiollibres:', error);
     }
@@ -183,6 +189,7 @@ function Audiobooks() {
       const response = await axios.post(`/api/metadata/audiobooks/${editingAudiobook.id}/update-by-isbn`, { isbn });
       if (response.data.status === 'success') {
         setMetadataMessage({ type: 'success', text: `Portada actualitzada per "${response.data.title || editingAudiobook.title}"` });
+        invalidateCache('audiobooks');
         if (selectedAuthor) {
           loadAuthorAudiobooks(selectedAuthor.id);
         } else if (viewMode === 'all') {
@@ -208,6 +215,7 @@ function Audiobooks() {
       const response = await axios.post(`/api/metadata/audiobooks/${editingAudiobook.id}/update-by-olid`, { olid });
       if (response.data.status === 'success') {
         setMetadataMessage({ type: 'success', text: `Portada actualitzada per "${response.data.title || editingAudiobook.title}"` });
+        invalidateCache('audiobooks');
         if (selectedAuthor) {
           loadAuthorAudiobooks(selectedAuthor.id);
         } else if (viewMode === 'all') {
@@ -255,6 +263,7 @@ function Audiobooks() {
       const response = await axios.post(`/api/metadata/audiobooks/${editingAudiobook.id}/update-by-search-result?cover_id=${result.cover_id}`);
       if (response.data.status === 'success') {
         setMetadataMessage({ type: 'success', text: 'Portada actualitzada!' });
+        invalidateCache('audiobooks');
         if (selectedAuthor) {
           loadAuthorAudiobooks(selectedAuthor.id);
         } else if (viewMode === 'all') {
@@ -302,6 +311,7 @@ function Audiobooks() {
 
       if (response.data.status === 'success') {
         setMetadataMessage({ type: 'success', text: 'Portada pujada correctament!' });
+        invalidateCache('audiobooks');
         if (selectedAuthor) {
           loadAuthorAudiobooks(selectedAuthor.id);
         } else if (viewMode === 'all') {
