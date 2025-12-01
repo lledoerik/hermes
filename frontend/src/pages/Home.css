@@ -829,6 +829,7 @@
 
 .content-meta {
   padding: var(--space-sm) 0;
+  text-align: left;
 }
 
 .content-meta h4 {
@@ -838,6 +839,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-align: left;
 }
 
 .content-year {
