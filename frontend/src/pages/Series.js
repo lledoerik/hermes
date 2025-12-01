@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import MediaCard from '../components/MediaCard';
 import './Library.css';
@@ -67,33 +67,7 @@ function Series() {
     loadSeries();
   }, []);
 
-  // Debounced external search
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      setExternalResults([]);
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      searchExternal(searchQuery);
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
-
-  const loadSeries = async () => {
-    try {
-      const response = await axios.get('/api/library/series');
-      setSeries(response.data);
-    } catch (error) {
-      console.error('Error carregant sèries:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const searchExternal = async (query) => {
+  const searchExternal = useCallback(async (query) => {
     if (!query.trim()) return;
 
     setSearchLoading(true);
@@ -111,6 +85,31 @@ function Series() {
       setExternalResults([]);
     } finally {
       setSearchLoading(false);
+    }
+  }, [series]);
+
+  // Debounced external search
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setExternalResults([]);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      searchExternal(searchQuery);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, searchExternal]);
+
+  const loadSeries = async () => {
+    try {
+      const response = await axios.get('/api/library/series');
+      setSeries(response.data);
+    } catch (error) {
+      console.error('Error carregant sèries:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
