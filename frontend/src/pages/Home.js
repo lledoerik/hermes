@@ -82,7 +82,11 @@ const PlayIcon = () => (
 
 function Home() {
   const { isAuthenticated, user } = useAuth();
-  const [continueWatching, setContinueWatching] = useState([]);
+  const [continueWatchingMovies, setContinueWatchingMovies] = useState([]);
+  const [continueWatchingSeries, setContinueWatchingSeries] = useState([]);
+  const [continueWatchingPrograms, setContinueWatchingPrograms] = useState([]);
+  const [continueReadingBooks, setContinueReadingBooks] = useState([]);
+  const [continueListeningAudiobooks, setContinueListeningAudiobooks] = useState([]);
   const [recentlyAdded, setRecentlyAdded] = useState([]);
   const [recentSeries, setRecentSeries] = useState([]);
   const [recentMovies, setRecentMovies] = useState([]);
@@ -94,12 +98,39 @@ function Home() {
     try {
       // Carregar contingut per usuaris autenticats
       if (isAuthenticated) {
-        // Continuar veient
+        // Continuar veient - separar per categories
         try {
           const continueRes = await axios.get('/api/user/continue-watching');
-          setContinueWatching(continueRes.data);
+          const data = continueRes.data || [];
+
+          // Separar per tipus de media
+          const movies = data.filter(item => item.media_type === 'movie');
+          const series = data.filter(item => item.media_type === 'series' || item.media_type === 'episode');
+          const programs = data.filter(item => item.media_type === 'program');
+
+          setContinueWatchingMovies(movies);
+          setContinueWatchingSeries(series);
+          setContinueWatchingPrograms(programs);
         } catch (e) {
           console.error('Error carregant continue watching:', e);
+        }
+
+        // Continuar llegint
+        try {
+          const booksRes = await axios.get('/api/user/continue-reading');
+          setContinueReadingBooks(booksRes.data || []);
+        } catch (e) {
+          // API pot no existir encara
+          console.debug('Continue reading no disponible');
+        }
+
+        // Continuar escoltant
+        try {
+          const audiobooksRes = await axios.get('/api/user/continue-listening');
+          setContinueListeningAudiobooks(audiobooksRes.data || []);
+        } catch (e) {
+          // API pot no existir encara
+          console.debug('Continue listening no disponible');
         }
 
         // Sèries recents
@@ -242,15 +273,64 @@ function Home() {
           </form>
         </div>
 
-        {/* Continue Watching */}
-        {continueWatching.length > 0 && (
+        {/* Continue Watching - Pel·lícules */}
+        {continueWatchingMovies.length > 0 && (
           <section className="continue-watching-section">
             <h2 className="row-title">
-              <span className="title-icon"><PlayIcon /></span>
-              Continuar veient
+              <span className="title-icon"><MovieIcon /></span>
+              Continuar veient pel·lícules
             </h2>
             <div className="content-scroll">
-              {continueWatching.map((item) => (
+              {continueWatchingMovies.map((item) => (
+                <div
+                  key={item.id}
+                  className="continue-card"
+                  onClick={() => navigate(`/play/movie/${item.series_id || item.id}`)}
+                >
+                  <div className="continue-thumbnail">
+                    {item.backdrop || item.poster ? (
+                      <img
+                        src={`${API_URL}/api/image/${item.backdrop ? 'backdrop' : 'poster'}/${item.series_id || item.id}`}
+                        alt={item.series_name || item.title}
+                      />
+                    ) : (
+                      <div className="thumbnail-placeholder">
+                        <MovieIcon />
+                      </div>
+                    )}
+                    <div className="continue-overlay">
+                      <button className="play-btn">
+                        <PlayIcon />
+                      </button>
+                    </div>
+                    <div className="progress-bar">
+                      <div
+                        className="progress-fill"
+                        style={{ width: `${item.progress_percentage}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className="continue-info">
+                    <h3 className="continue-title">{item.series_name || item.title}</h3>
+                    <span className="continue-time">
+                      {formatTime(item.total_seconds - item.progress_seconds)} restants
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Continue Watching - Sèries */}
+        {continueWatchingSeries.length > 0 && (
+          <section className="continue-watching-section">
+            <h2 className="row-title">
+              <span className="title-icon"><SeriesIcon /></span>
+              Continuar veient sèries
+            </h2>
+            <div className="content-scroll">
+              {continueWatchingSeries.map((item) => (
                 <div
                   key={item.id}
                   className="continue-card"
@@ -284,6 +364,155 @@ function Home() {
                     <p className="continue-episode">
                       T{item.season_number} E{item.episode_number}
                     </p>
+                    <span className="continue-time">
+                      {formatTime(item.total_seconds - item.progress_seconds)} restants
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Continue Watching - Programes */}
+        {continueWatchingPrograms.length > 0 && (
+          <section className="continue-watching-section">
+            <h2 className="row-title">
+              <span className="title-icon"><ProgramsIcon /></span>
+              Continuar veient programes
+            </h2>
+            <div className="content-scroll">
+              {continueWatchingPrograms.map((item) => (
+                <div
+                  key={item.id}
+                  className="continue-card"
+                  onClick={() => navigate(`/play/program/${item.id}`)}
+                >
+                  <div className="continue-thumbnail">
+                    {item.backdrop || item.poster ? (
+                      <img
+                        src={`${API_URL}/api/image/${item.backdrop ? 'backdrop' : 'poster'}/${item.series_id || item.id}`}
+                        alt={item.series_name || item.title}
+                      />
+                    ) : (
+                      <div className="thumbnail-placeholder">
+                        <ProgramsIcon />
+                      </div>
+                    )}
+                    <div className="continue-overlay">
+                      <button className="play-btn">
+                        <PlayIcon />
+                      </button>
+                    </div>
+                    <div className="progress-bar">
+                      <div
+                        className="progress-fill"
+                        style={{ width: `${item.progress_percentage}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className="continue-info">
+                    <h3 className="continue-title">{item.series_name || item.title}</h3>
+                    <span className="continue-time">
+                      {formatTime(item.total_seconds - item.progress_seconds)} restants
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Continua llegint - Llibres */}
+        {continueReadingBooks.length > 0 && (
+          <section className="continue-watching-section">
+            <h2 className="row-title">
+              <span className="title-icon"><BookIcon /></span>
+              Continua llegint
+            </h2>
+            <div className="content-scroll">
+              {continueReadingBooks.map((item) => (
+                <div
+                  key={item.id}
+                  className="continue-card book-card"
+                  onClick={() => navigate(`/books/${item.id}/read`)}
+                >
+                  <div className="continue-thumbnail book-thumbnail">
+                    {item.cover ? (
+                      <img
+                        src={`${API_URL}/api/books/${item.id}/cover`}
+                        alt={item.title}
+                      />
+                    ) : (
+                      <div className="thumbnail-placeholder">
+                        <BookIcon />
+                      </div>
+                    )}
+                    <div className="continue-overlay">
+                      <button className="play-btn">
+                        <BookIcon />
+                      </button>
+                    </div>
+                    <div className="progress-bar">
+                      <div
+                        className="progress-fill"
+                        style={{ width: `${item.progress_percentage || 0}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className="continue-info">
+                    <h3 className="continue-title">{item.title}</h3>
+                    <span className="continue-time">
+                      {item.current_page && item.total_pages
+                        ? `Pàgina ${item.current_page} de ${item.total_pages}`
+                        : `${item.progress_percentage || 0}%`}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Continua escoltant - Audiollibres */}
+        {continueListeningAudiobooks.length > 0 && (
+          <section className="continue-watching-section">
+            <h2 className="row-title">
+              <span className="title-icon"><AudiobookIcon /></span>
+              Continua escoltant
+            </h2>
+            <div className="content-scroll">
+              {continueListeningAudiobooks.map((item) => (
+                <div
+                  key={item.id}
+                  className="continue-card"
+                  onClick={() => navigate(`/audiobooks/${item.id}/listen`)}
+                >
+                  <div className="continue-thumbnail">
+                    {item.cover ? (
+                      <img
+                        src={`${API_URL}/api/audiobooks/${item.id}/cover`}
+                        alt={item.title}
+                      />
+                    ) : (
+                      <div className="thumbnail-placeholder">
+                        <AudiobookIcon />
+                      </div>
+                    )}
+                    <div className="continue-overlay">
+                      <button className="play-btn">
+                        <PlayIcon />
+                      </button>
+                    </div>
+                    <div className="progress-bar">
+                      <div
+                        className="progress-fill"
+                        style={{ width: `${item.progress_percentage || 0}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className="continue-info">
+                    <h3 className="continue-title">{item.title}</h3>
                     <span className="continue-time">
                       {formatTime(item.total_seconds - item.progress_seconds)} restants
                     </span>
