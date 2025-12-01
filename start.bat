@@ -48,4 +48,3 @@ echo.
 echo   Prem qualsevol tecla per tancar aquesta finestra.
 echo   (Els serveis continuaran executant-se)
 echo.
-pause >nul
