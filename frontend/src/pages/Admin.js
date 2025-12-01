@@ -188,6 +188,15 @@ const MailIcon = () => (
   </svg>
 );
 
+// Database icon
+const DatabaseIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+  </svg>
+);
+
 function Admin() {
   const [stats, setStats] = useState(null);
   const [scanning, setScanning] = useState(false);
@@ -198,6 +207,10 @@ function Admin() {
   const [loading, setLoading] = useState(true);
   const [tmdbKey, setTmdbKey] = useState('');
   const [tmdbConfigured, setTmdbConfigured] = useState(false);
+
+  // Bulk import state
+  const [bulkImportStatus, setBulkImportStatus] = useState(null);
+  const [bulkImportPages, setBulkImportPages] = useState(50);
 
   // User management state
   const [users, setUsers] = useState([]);
@@ -325,6 +338,67 @@ function Admin() {
       addLog('error', 'Error guardant clau TMDB');
     }
   };
+
+  // Bulk import functions
+  const startBulkImport = async (mediaType) => {
+    try {
+      await axios.post('/api/admin/bulk-import/start', {
+        media_type: mediaType,
+        max_pages: bulkImportPages
+      });
+      addLog('info', `Importació massiva de ${mediaType === 'movie' ? 'pel·lícules' : 'sèries'} iniciada...`);
+      // Start polling
+      pollBulkImportStatus();
+    } catch (error) {
+      addLog('error', error.response?.data?.detail || 'Error iniciant importació');
+    }
+  };
+
+  const stopBulkImport = async () => {
+    try {
+      await axios.post('/api/admin/bulk-import/stop');
+      addLog('info', 'Aturant importació...');
+    } catch (error) {
+      addLog('error', 'Error aturant importació');
+    }
+  };
+
+  const pollBulkImportStatus = async () => {
+    const poll = async () => {
+      try {
+        const response = await axios.get('/api/admin/bulk-import/status');
+        setBulkImportStatus(response.data);
+        if (response.data.running) {
+          setTimeout(poll, 1000);
+        } else {
+          // Import finished
+          if (response.data.imported_count > 0) {
+            addLog('success', `Importació completada: ${response.data.imported_count} importats, ${response.data.skipped_count} omesos`);
+            loadStats(); // Refresh stats
+          }
+        }
+      } catch (error) {
+        console.error('Error polling status:', error);
+      }
+    };
+    poll();
+  };
+
+  // Check bulk import status on load
+  useEffect(() => {
+    const checkBulkStatus = async () => {
+      try {
+        const response = await axios.get('/api/admin/bulk-import/status');
+        setBulkImportStatus(response.data);
+        if (response.data.running) {
+          pollBulkImportStatus();
+        }
+      } catch (e) {
+        // Ignore
+      }
+    };
+    checkBulkStatus();
+  }, []);
 
   const handleFetchAllMetadata = async () => {
     setFetchingMetadata(true);
@@ -821,6 +895,119 @@ function Admin() {
           )}
         </div>
       </div>
+
+      {/* Bulk Import Section */}
+      {tmdbConfigured && (
+        <div className="admin-section">
+          <div className="section-header">
+            <h2><DatabaseIcon /> Importació massiva TMDB</h2>
+          </div>
+          <div className="section-content">
+            <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '1rem' }}>
+              Importa automàticament milers de pel·lícules i sèries des de TMDB. Inclou metadades completes, pòsters i backdrops.
+              Cada pàgina conté 20 títols. 50 pàgines = ~1000 títols per categoria.
+            </p>
+
+            <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <label style={{ color: 'rgba(255,255,255,0.8)' }}>Pàgines per categoria:</label>
+              <input
+                type="number"
+                min="1"
+                max="500"
+                value={bulkImportPages}
+                onChange={(e) => setBulkImportPages(parseInt(e.target.value) || 50)}
+                disabled={bulkImportStatus?.running}
+                style={{
+                  width: '80px',
+                  padding: '0.5rem',
+                  background: 'rgba(255,255,255,0.1)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  borderRadius: '6px',
+                  color: 'white',
+                  fontSize: '1rem'
+                }}
+              />
+              <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem' }}>
+                (~{bulkImportPages * 20 * 4} títols per tipus)
+              </span>
+            </div>
+
+            <div className="scanner-actions">
+              <button
+                className="action-btn"
+                onClick={() => startBulkImport('movie')}
+                disabled={bulkImportStatus?.running}
+              >
+                <MovieIcon /> Importar pel·lícules
+              </button>
+              <button
+                className="action-btn"
+                onClick={() => startBulkImport('series')}
+                disabled={bulkImportStatus?.running}
+              >
+                <TvIcon /> Importar sèries
+              </button>
+              {bulkImportStatus?.running && (
+                <button
+                  className="action-btn danger"
+                  onClick={stopBulkImport}
+                >
+                  Aturar
+                </button>
+              )}
+            </div>
+
+            {/* Progress indicator */}
+            {bulkImportStatus?.running && (
+              <div style={{ marginTop: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '14px', color: 'rgba(255,255,255,0.8)' }}>
+                  <span>
+                    Important {bulkImportStatus.media_type === 'movie' ? 'pel·lícules' : 'sèries'}...
+                    {bulkImportStatus.current_category && ` (${bulkImportStatus.current_category})`}
+                  </span>
+                  <span>Pàgina {bulkImportStatus.current_page}/{bulkImportStatus.total_pages}</span>
+                </div>
+                <div style={{ height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      width: `${(bulkImportStatus.current_page / bulkImportStatus.total_pages) * 100}%`,
+                      height: '100%',
+                      background: 'linear-gradient(90deg, #8b5cf6, #a78bfa)',
+                      borderRadius: '4px',
+                      transition: 'width 0.3s ease'
+                    }}
+                  />
+                </div>
+                <div style={{ marginTop: '0.75rem', fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>
+                  {bulkImportStatus.current_title && (
+                    <div style={{ marginBottom: '0.5rem', color: 'rgba(255,255,255,0.8)' }}>
+                      Importat: {bulkImportStatus.current_title}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: '1.5rem' }}>
+                    <span style={{ color: '#22c55e' }}>Importats: {bulkImportStatus.imported_count}</span>
+                    <span>Omesos: {bulkImportStatus.skipped_count}</span>
+                    {bulkImportStatus.error_count > 0 && (
+                      <span style={{ color: '#ef4444' }}>Errors: {bulkImportStatus.error_count}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Last import stats */}
+            {!bulkImportStatus?.running && bulkImportStatus?.imported_count > 0 && (
+              <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(34, 197, 94, 0.1)', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
+                <div style={{ color: '#22c55e', fontWeight: '500', marginBottom: '0.5rem' }}>Última importació completada</div>
+                <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)' }}>
+                  {bulkImportStatus.imported_count} títols importats, {bulkImportStatus.skipped_count} omesos
+                  {bulkImportStatus.error_count > 0 && `, ${bulkImportStatus.error_count} errors`}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Library Paths */}
       <div className="admin-section">
