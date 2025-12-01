@@ -178,15 +178,12 @@ function Details() {
     const loadWatchProviders = async () => {
       if (!item?.tmdb_id) return;
 
-      setLoadingProviders(true);
       try {
         const mediaType = type === 'movies' ? 'movie' : 'series';
         const response = await axios.get(`/api/watch-providers/${mediaType}/${item.tmdb_id}`);
         setWatchProviders(response.data);
       } catch (err) {
         console.error('Error carregant proveïdors:', err);
-      } finally {
-        setLoadingProviders(false);
       }
     };
 
