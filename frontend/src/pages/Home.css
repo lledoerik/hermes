@@ -690,8 +690,8 @@
 .content-row,
 .continue-watching-section {
   padding: 0;
-  padding-left: var(--content-padding, 4%);
-  padding-right: var(--content-padding, 4%);
+  margin-left: 4%;
+  margin-right: 4%;
   margin-bottom: var(--space-lg);
 }
 
@@ -703,7 +703,7 @@
   padding: 0;
   display: flex;
   align-items: center;
-  gap: var(--space-xs);
+  gap: 8px;
 }
 
 /* Home Header - Salutació + Cerca en una línia */
@@ -712,8 +712,8 @@
   align-items: flex-start;
   justify-content: space-between;
   padding: var(--space-md) 0;
-  padding-left: var(--content-padding, 4%);
-  padding-right: var(--content-padding, 4%);
+  margin-left: 4%;
+  margin-right: 4%;
   margin-bottom: var(--space-sm);
 }
 
@@ -932,7 +932,9 @@
 
 /* Quick Access Grid */
 .quick-access {
-  padding: var(--space-xl) 4%;
+  padding: var(--space-xl) 0;
+  margin-left: 4%;
+  margin-right: 4%;
   margin-top: var(--space-md);
 }
 
