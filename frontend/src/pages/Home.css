@@ -710,8 +710,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding-top: var(--space-md);
-  padding-bottom: var(--space-md);
+  padding: var(--space-md) 4% !important;
   margin-bottom: var(--space-sm);
 }
 
