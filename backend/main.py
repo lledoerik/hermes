@@ -4595,7 +4595,7 @@ async def import_from_tmdb(data: ImportTMDBRequest):
     # Descarregar pòster i backdrop
     poster_path = None
     backdrop_path = None
-    cache_dir = Path(settings.STORAGE_PATH) / "cache" / "imported"
+    cache_dir = settings.CACHE_DIR / "imported"
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     from backend.metadata.tmdb import TMDBClient
@@ -4681,7 +4681,7 @@ async def import_book_from_openlibrary(data: ImportBookRequest):
     metadata = None
     cover_downloaded = False
 
-    cache_dir = Path(settings.STORAGE_PATH) / "cache" / "imported" / "books"
+    cache_dir = settings.CACHE_DIR / "imported" / "books"
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     # Obtenir metadades per ISBN, OLID, o cerca

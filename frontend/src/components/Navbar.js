@@ -102,9 +102,6 @@ function Navbar() {
             <Link to="/tv" className={`nav-link ${isActive('/tv') ? 'active' : ''}`}>
               Televisió
             </Link>
-            <Link to="/import" className={`nav-link import-link ${isActive('/import') ? 'active' : ''}`}>
-              Importar
-            </Link>
           </div>
         </div>
 
