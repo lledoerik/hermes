@@ -182,19 +182,27 @@ class AudiobooksScanner:
                     # Potser és un audiollibres d'un sol fitxer
                     if self._is_audio_file(audiobook_path):
                         # Crear un audiollibres virtual per l'autor
-                        if self._add_or_update_audiobook(cursor, author_id, author_path, author_name, single_file=audiobook_path):
-                            result["audiobooks_found"] += 1
-                        else:
-                            result["audiobooks_updated"] += 1
+                        try:
+                            if self._add_or_update_audiobook(cursor, author_id, author_path, author_name, single_file=audiobook_path):
+                                result["audiobooks_found"] += 1
+                            else:
+                                result["audiobooks_updated"] += 1
+                        except Exception as e:
+                            logger.error(f"    Error afegint audiollibres {audiobook_name}: {e}")
                     continue
 
                 # És una carpeta - buscar fitxers d'àudio
+                logger.info(f"    Carpeta: {audiobook_name}")
                 audio_files = self._find_audio_files(audiobook_path)
+                logger.info(f"    Fitxers àudio trobats: {len(audio_files)}")
                 if audio_files:
-                    if self._add_or_update_audiobook(cursor, author_id, audiobook_path, audiobook_name):
-                        result["audiobooks_found"] += 1
-                    else:
-                        result["audiobooks_updated"] += 1
+                    try:
+                        if self._add_or_update_audiobook(cursor, author_id, audiobook_path, audiobook_name):
+                            result["audiobooks_found"] += 1
+                        else:
+                            result["audiobooks_updated"] += 1
+                    except Exception as e:
+                        logger.error(f"    Error afegint audiollibres {audiobook_name}: {e}")
 
             logger.info(f"  Autor: {author_name}")
 
