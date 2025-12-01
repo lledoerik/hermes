@@ -353,6 +353,12 @@ function Player() {
         response = await axios.get(`/api/library/episodes/${id}`);
       } else {
         response = await axios.get(`/api/library/movies/${id}`);
+        // Check if movie has a file before trying to play
+        if (response.data.has_file === false) {
+          setError('Aquesta pel·lícula no té cap fitxer de vídeo associat. És només metadades importades de TMDB.');
+          setLoading(false);
+          return;
+        }
       }
       setItem(response.data);
 

@@ -38,6 +38,12 @@ const PlayIcon = () => (
   </svg>
 );
 
+const InfoIcon = () => (
+  <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+  </svg>
+);
+
 const styles = {
   card: {
     position: 'relative',
@@ -168,7 +174,12 @@ function MediaCard({ item, type = 'series', width = 180 }) {
   const handlePlay = (e) => {
     e.stopPropagation();
     if (type === 'movies') {
-      navigate(`/play/movie/${item.id}`);
+      // Only navigate to play if movie has a file
+      if (item.has_file === false) {
+        navigate(`/movies/${item.id}`);
+      } else {
+        navigate(`/play/movie/${item.id}`);
+      }
     } else {
       navigate(`/${type}/${item.id}`);
     }
@@ -176,11 +187,16 @@ function MediaCard({ item, type = 'series', width = 180 }) {
 
   const getMeta = () => {
     if (type === 'movies') {
+      if (item.has_file === false) {
+        return 'Només metadades';
+      }
       const duration = item.duration ? Math.round(item.duration / 60) : 0;
       return `${duration} min`;
     }
     return `${item.season_count || 0} temp. · ${item.episode_count || 0} ep.`;
   };
+
+  const hasFile = type !== 'movies' || item.has_file !== false;
 
   const progress = item.watch_progress || 0;
 
@@ -225,8 +241,9 @@ function MediaCard({ item, type = 'series', width = 180 }) {
             ...(isHovered ? styles.playButtonVisible : {})
           }}
           onClick={handlePlay}
+          title={hasFile ? 'Reproduir' : 'Veure detalls'}
         >
-          <PlayIcon />
+          {hasFile ? <PlayIcon /> : <InfoIcon />}
         </button>
 
         {item.year && (
