@@ -5093,6 +5093,283 @@ async def discover_series(page: int = 1, category: str = "popular"):
         await client.close()
 
 
+# ============================================
+# BULK IMPORT - Importació massiva de TMDB
+# ============================================
+
+# Global state for bulk import tracking
+bulk_import_status = {
+    "running": False,
+    "media_type": None,
+    "current_page": 0,
+    "total_pages": 0,
+    "imported_count": 0,
+    "skipped_count": 0,
+    "error_count": 0,
+    "current_title": None,
+    "started_at": None,
+    "categories_done": [],
+    "current_category": None
+}
+
+
+class BulkImportRequest(BaseModel):
+    media_type: str  # 'movie' or 'series'
+    max_pages: int = 50  # Màxim de pàgines per categoria (20 resultats/pàgina)
+    categories: List[str] = None  # Si és None, importa totes les categories
+
+
+@app.post("/api/admin/bulk-import/start")
+async def start_bulk_import(request: BulkImportRequest, background_tasks: BackgroundTasks):
+    """
+    Inicia una importació massiva de pel·lícules o sèries des de TMDB.
+    Només disponible per admins.
+    """
+    global bulk_import_status
+
+    if bulk_import_status["running"]:
+        raise HTTPException(status_code=400, detail="Ja hi ha una importació en curs")
+
+    api_key = get_tmdb_api_key()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
+
+    # Default categories
+    if request.media_type == 'movie':
+        categories = request.categories or ['popular', 'top_rated', 'now_playing', 'upcoming']
+    else:
+        categories = request.categories or ['popular', 'top_rated', 'on_the_air', 'airing_today']
+
+    # Reset status
+    bulk_import_status = {
+        "running": True,
+        "media_type": request.media_type,
+        "current_page": 0,
+        "total_pages": request.max_pages * len(categories),
+        "imported_count": 0,
+        "skipped_count": 0,
+        "error_count": 0,
+        "current_title": None,
+        "started_at": datetime.now().isoformat(),
+        "categories_done": [],
+        "current_category": None
+    }
+
+    # Start background task
+    background_tasks.add_task(
+        run_bulk_import,
+        api_key,
+        request.media_type,
+        categories,
+        request.max_pages
+    )
+
+    return {
+        "status": "started",
+        "message": f"Importació massiva de {request.media_type} iniciada",
+        "categories": categories,
+        "max_pages_per_category": request.max_pages
+    }
+
+
+@app.get("/api/admin/bulk-import/status")
+async def get_bulk_import_status():
+    """Retorna l'estat actual de la importació massiva."""
+    return bulk_import_status
+
+
+@app.post("/api/admin/bulk-import/stop")
+async def stop_bulk_import():
+    """Atura la importació massiva en curs."""
+    global bulk_import_status
+    if bulk_import_status["running"]:
+        bulk_import_status["running"] = False
+        return {"status": "stopping", "message": "Aturant importació..."}
+    return {"status": "not_running", "message": "No hi ha cap importació en curs"}
+
+
+async def run_bulk_import(api_key: str, media_type: str, categories: List[str], max_pages: int):
+    """Background task per importar massivament des de TMDB."""
+    global bulk_import_status
+
+    from backend.metadata.tmdb import TMDBClient, fetch_movie_by_tmdb_id, fetch_tv_by_tmdb_id
+    import asyncio
+
+    client = TMDBClient(api_key)
+
+    # Endpoint maps
+    if media_type == 'movie':
+        endpoint_map = {
+            "popular": "/movie/popular",
+            "top_rated": "/movie/top_rated",
+            "now_playing": "/movie/now_playing",
+            "upcoming": "/movie/upcoming",
+            "trending": "/trending/movie/week"
+        }
+        db_media_type = 'movie'
+    else:
+        endpoint_map = {
+            "popular": "/tv/popular",
+            "top_rated": "/tv/top_rated",
+            "on_the_air": "/tv/on_the_air",
+            "airing_today": "/tv/airing_today",
+            "trending": "/trending/tv/week"
+        }
+        db_media_type = 'series'
+
+    try:
+        page_counter = 0
+
+        for category in categories:
+            if not bulk_import_status["running"]:
+                break
+
+            bulk_import_status["current_category"] = category
+            endpoint = endpoint_map.get(category)
+            if not endpoint:
+                continue
+
+            for page in range(1, max_pages + 1):
+                if not bulk_import_status["running"]:
+                    break
+
+                page_counter += 1
+                bulk_import_status["current_page"] = page_counter
+
+                try:
+                    # Fetch page from TMDB
+                    response = await client._request(endpoint, {"language": "ca-ES", "page": page})
+
+                    if not response or not response.get("results"):
+                        break  # No more results
+
+                    # Get existing IDs
+                    with get_db() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute(
+                            "SELECT tmdb_id FROM series WHERE media_type = ? AND tmdb_id IS NOT NULL",
+                            (db_media_type,)
+                        )
+                        existing_ids = {row[0] for row in cursor.fetchall()}
+
+                    # Import each item
+                    for item in response["results"]:
+                        if not bulk_import_status["running"]:
+                            break
+
+                        tmdb_id = item.get("id")
+                        title = item.get("title") if media_type == 'movie' else item.get("name")
+                        bulk_import_status["current_title"] = title
+
+                        # Skip if already exists
+                        if tmdb_id in existing_ids:
+                            bulk_import_status["skipped_count"] += 1
+                            continue
+
+                        try:
+                            # Import with full metadata
+                            if media_type == 'movie':
+                                metadata = await fetch_movie_by_tmdb_id(api_key, tmdb_id)
+                            else:
+                                metadata = await fetch_tv_by_tmdb_id(api_key, tmdb_id)
+
+                            if not metadata.get("found"):
+                                bulk_import_status["error_count"] += 1
+                                continue
+
+                            # Download poster and backdrop
+                            poster_path = None
+                            backdrop_path = None
+                            cache_dir = settings.CACHE_DIR / "imported"
+                            cache_dir.mkdir(parents=True, exist_ok=True)
+
+                            poster_file = cache_dir / f"{media_type}_{tmdb_id}_poster.jpg"
+                            backdrop_file = cache_dir / f"{media_type}_{tmdb_id}_backdrop.jpg"
+
+                            # Get details for image paths
+                            if media_type == 'movie':
+                                details = await client.get_movie_details(tmdb_id)
+                            else:
+                                details = await client.get_tv_details(tmdb_id)
+
+                            if details:
+                                if details.get("poster_path"):
+                                    if await client.download_image(details["poster_path"], poster_file, "w500"):
+                                        poster_path = str(poster_file)
+                                if details.get("backdrop_path"):
+                                    if await client.download_image(details["backdrop_path"], backdrop_file, "w1280"):
+                                        backdrop_path = str(backdrop_file)
+
+                            # Insert into database
+                            virtual_path = f"imported/{media_type}/{tmdb_id}"
+
+                            with get_db() as conn:
+                                cursor = conn.cursor()
+                                try:
+                                    cursor.execute("""
+                                        INSERT INTO series (
+                                            name, path, media_type, tmdb_id, title, year, overview, rating,
+                                            genres, runtime, poster, backdrop, director, creators, cast_members,
+                                            is_imported, source_type, external_url, added_date,
+                                            content_type, origin_country, original_language
+                                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'tmdb', ?, datetime('now'), ?, ?, ?)
+                                    """, (
+                                        metadata.get("title"),
+                                        virtual_path,
+                                        db_media_type,
+                                        tmdb_id,
+                                        metadata.get("title"),
+                                        metadata.get("year"),
+                                        metadata.get("overview"),
+                                        metadata.get("rating"),
+                                        json.dumps(metadata.get("genres", [])),
+                                        metadata.get("runtime"),
+                                        poster_path,
+                                        backdrop_path,
+                                        metadata.get("director"),
+                                        json.dumps(metadata.get("creators", [])) if metadata.get("creators") else None,
+                                        json.dumps(metadata.get("cast", [])) if metadata.get("cast") else None,
+                                        f"https://www.themoviedb.org/{media_type}/{tmdb_id}",
+                                        metadata.get("content_type"),
+                                        json.dumps(metadata.get("origin_country", [])) if metadata.get("origin_country") else None,
+                                        metadata.get("original_language")
+                                    ))
+                                    conn.commit()
+                                    bulk_import_status["imported_count"] += 1
+                                    existing_ids.add(tmdb_id)  # Add to local set
+                                except Exception as e:
+                                    if "UNIQUE constraint" in str(e):
+                                        bulk_import_status["skipped_count"] += 1
+                                    else:
+                                        bulk_import_status["error_count"] += 1
+
+                            # Small delay to avoid rate limiting
+                            await asyncio.sleep(0.1)
+
+                        except Exception as e:
+                            bulk_import_status["error_count"] += 1
+                            print(f"Error importing {title}: {e}")
+
+                    # Check if we've reached the last page
+                    if page >= response.get("total_pages", 1):
+                        break
+
+                except Exception as e:
+                    print(f"Error fetching page {page} of {category}: {e}")
+                    bulk_import_status["error_count"] += 1
+
+                # Rate limiting between pages
+                await asyncio.sleep(0.25)
+
+            bulk_import_status["categories_done"].append(category)
+
+    finally:
+        await client.close()
+        bulk_import_status["running"] = False
+        bulk_import_status["current_title"] = None
+        bulk_import_status["current_category"] = None
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
