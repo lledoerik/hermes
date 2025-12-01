@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -141,8 +141,30 @@ function Books() {
     loadAllBooks();
   }, []);
 
+  const searchExternal = useCallback(async (query) => {
+    if (!query.trim()) return;
+
+    setSearchLoading(true);
+    try {
+      const response = await axios.post('/api/import/search', {
+        query: query.trim(),
+        media_type: 'book'
+      });
+      // Filter out books that might already be in our library (by title match)
+      const existingTitles = books.map(b => b.title?.toLowerCase());
+      const filtered = response.data.results.filter(r =>
+        !existingTitles.includes(r.title?.toLowerCase())
+      );
+      setExternalResults(filtered);
+    } catch (err) {
+      console.error('Error cercant externament:', err);
+      setExternalResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, [books]);
+
   // Debounced external search
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!searchQuery.trim()) {
       setExternalResults([]);
@@ -154,7 +176,7 @@ function Books() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, searchExternal]);
 
   const loadAuthors = async () => {
     try {
@@ -182,29 +204,6 @@ function Books() {
       setSelectedAuthor(response.data);
     } catch (error) {
       console.error('Error carregant llibres de l\'autor:', error);
-    }
-  };
-
-  const searchExternal = async (query) => {
-    if (!query.trim()) return;
-
-    setSearchLoading(true);
-    try {
-      const response = await axios.post('/api/import/search', {
-        query: query.trim(),
-        media_type: 'book'
-      });
-      // Filter out books that might already be in our library (by title match)
-      const existingTitles = books.map(b => b.title?.toLowerCase());
-      const filtered = response.data.results.filter(r =>
-        !existingTitles.includes(r.title?.toLowerCase())
-      );
-      setExternalResults(filtered);
-    } catch (err) {
-      console.error('Error cercant externament:', err);
-      setExternalResults([]);
-    } finally {
-      setSearchLoading(false);
     }
   };
 
