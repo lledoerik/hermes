@@ -512,7 +512,7 @@ function Books() {
                     <span className="format-icon">{getFormatIcon(book.format)}</span>
                   </div>
                 )}
-                <div className="book-format-badge">{book.format.toUpperCase()}</div>
+                <div className="book-format-badge">{book.format?.toUpperCase() || 'BOOK'}</div>
                 {isAdmin && (
                   <button
                     className="book-edit-btn"
@@ -740,7 +740,7 @@ function Books() {
                       <span className="format-icon">{getFormatIcon(book.format)}</span>
                     </div>
                   )}
-                  <div className="book-format-badge">{book.format.toUpperCase()}</div>
+                  <div className="book-format-badge">{book.format?.toUpperCase() || 'BOOK'}</div>
                   {isAdmin && (
                     <button
                       className="book-edit-btn"
