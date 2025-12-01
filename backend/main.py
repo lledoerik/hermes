@@ -137,6 +137,10 @@ def init_all_tables():
             ("rating", "REAL"),
             ("genres", "TEXT"),
             ("runtime", "INTEGER"),
+            # Camps per contingut importat
+            ("is_imported", "INTEGER DEFAULT 0"),
+            ("source_type", "TEXT"),  # 'tmdb', 'openlibrary', etc.
+            ("external_url", "TEXT"),
         ]
         for col_name, col_type in series_columns:
             try:
@@ -172,6 +176,11 @@ def init_all_tables():
             ("file_size", "INTEGER"),
             ("converted_path", "TEXT"),
             ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+            # Camps per contingut importat
+            ("is_imported", "INTEGER DEFAULT 0"),
+            ("source_type", "TEXT"),  # 'openlibrary', etc.
+            ("external_url", "TEXT"),
+            ("olid", "TEXT"),  # Open Library ID
         ]
         for col_name, col_type in books_columns:
             try:
@@ -4440,6 +4449,411 @@ async def get_3cat_latest(content_type: Optional[str] = None, limit: int = 50):
         videos = [v for v in videos if v.get('type') == content_type]
 
     return {"videos": videos, "count": len(videos)}
+
+
+# ============================================================
+# IMPORTACIÓ DE CONTINGUT (TMDB i OpenLibrary)
+# ============================================================
+
+class ImportSearchRequest(BaseModel):
+    query: str
+    media_type: str  # 'movie', 'series', 'book'
+    year: Optional[int] = None
+
+class ImportTMDBRequest(BaseModel):
+    tmdb_id: int
+    media_type: str  # 'movie' o 'series'
+
+class ImportBookRequest(BaseModel):
+    title: str
+    author: Optional[str] = None
+    olid: Optional[str] = None  # Open Library ID
+    isbn: Optional[str] = None
+
+
+@app.post("/api/import/search")
+async def search_for_import(data: ImportSearchRequest):
+    """
+    Cerca contingut per importar des de TMDB (pel·lícules/sèries) o OpenLibrary (llibres).
+    """
+    results = []
+
+    if data.media_type in ['movie', 'series']:
+        # Cerca a TMDB
+        api_key = get_tmdb_key()
+        if not api_key:
+            raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB per importar pel·lícules i sèries")
+
+        from backend.metadata.tmdb import TMDBClient
+        client = TMDBClient(api_key)
+
+        try:
+            if data.media_type == 'movie':
+                # Cerca pel·lícules
+                params = {"query": data.query, "language": "ca-ES"}
+                if data.year:
+                    params["year"] = data.year
+                response = await client._request("/search/movie", params)
+
+                if response and response.get("results"):
+                    for item in response["results"][:15]:
+                        release_date = item.get("release_date", "")
+                        year = int(release_date[:4]) if release_date and len(release_date) >= 4 else None
+                        results.append({
+                            "id": item.get("id"),
+                            "title": item.get("title"),
+                            "original_title": item.get("original_title"),
+                            "year": year,
+                            "overview": item.get("overview", "")[:200] + "..." if item.get("overview") and len(item.get("overview", "")) > 200 else item.get("overview"),
+                            "poster": f"https://image.tmdb.org/t/p/w342{item['poster_path']}" if item.get("poster_path") else None,
+                            "rating": item.get("vote_average"),
+                            "type": "movie",
+                            "source": "tmdb"
+                        })
+            else:
+                # Cerca sèries
+                params = {"query": data.query, "language": "ca-ES"}
+                if data.year:
+                    params["first_air_date_year"] = data.year
+                response = await client._request("/search/tv", params)
+
+                if response and response.get("results"):
+                    for item in response["results"][:15]:
+                        first_air_date = item.get("first_air_date", "")
+                        year = int(first_air_date[:4]) if first_air_date and len(first_air_date) >= 4 else None
+                        results.append({
+                            "id": item.get("id"),
+                            "title": item.get("name"),
+                            "original_title": item.get("original_name"),
+                            "year": year,
+                            "overview": item.get("overview", "")[:200] + "..." if item.get("overview") and len(item.get("overview", "")) > 200 else item.get("overview"),
+                            "poster": f"https://image.tmdb.org/t/p/w342{item['poster_path']}" if item.get("poster_path") else None,
+                            "rating": item.get("vote_average"),
+                            "type": "series",
+                            "source": "tmdb"
+                        })
+        finally:
+            await client.close()
+
+    elif data.media_type == 'book':
+        # Cerca a OpenLibrary
+        from backend.metadata.openlibrary import OpenLibraryClient
+        client = OpenLibraryClient()
+
+        try:
+            books = await client.search_books_multiple(data.query, limit=15)
+            for book in books:
+                cover_url = f"https://covers.openlibrary.org/b/id/{book['cover_id']}-M.jpg" if book.get("cover_id") else None
+                results.append({
+                    "id": book.get("key"),
+                    "title": book.get("title"),
+                    "author": book.get("author"),
+                    "year": book.get("year"),
+                    "poster": cover_url,
+                    "isbn": book.get("isbn"),
+                    "type": "book",
+                    "source": "openlibrary"
+                })
+        finally:
+            await client.close()
+
+    return {"results": results, "count": len(results)}
+
+
+@app.post("/api/import/tmdb")
+async def import_from_tmdb(data: ImportTMDBRequest):
+    """
+    Importa una pel·lícula o sèrie des de TMDB.
+    Crea una entrada a la base de dades sense necessitat de fitxers físics.
+    """
+    api_key = get_tmdb_key()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
+
+    from backend.metadata.tmdb import fetch_movie_by_tmdb_id, fetch_tv_by_tmdb_id
+    from pathlib import Path
+
+    # Verificar si ja existeix
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM series WHERE tmdb_id = ?", (data.tmdb_id,))
+        existing = cursor.fetchone()
+        if existing:
+            raise HTTPException(status_code=400, detail="Aquest contingut ja existeix a la biblioteca")
+
+    # Obtenir metadades de TMDB
+    if data.media_type == 'movie':
+        metadata = await fetch_movie_by_tmdb_id(api_key, data.tmdb_id)
+        media_type_db = 'movie'
+    else:
+        metadata = await fetch_tv_by_tmdb_id(api_key, data.tmdb_id)
+        media_type_db = 'series'
+
+    if not metadata.get("found"):
+        raise HTTPException(status_code=404, detail="No s'ha trobat el contingut a TMDB")
+
+    # Descarregar pòster i backdrop
+    poster_path = None
+    backdrop_path = None
+    cache_dir = Path(settings.STORAGE_PATH) / "cache" / "imported"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    from backend.metadata.tmdb import TMDBClient
+    client = TMDBClient(api_key)
+
+    try:
+        # Descarregar imatges
+        if metadata.get("tmdb_id"):
+            poster_file = cache_dir / f"{data.media_type}_{data.tmdb_id}_poster.jpg"
+            backdrop_file = cache_dir / f"{data.media_type}_{data.tmdb_id}_backdrop.jpg"
+
+            # Obtenir detalls complets per obtenir paths d'imatges
+            if data.media_type == 'movie':
+                details = await client.get_movie_details(data.tmdb_id)
+            else:
+                details = await client.get_tv_details(data.tmdb_id)
+
+            if details:
+                if details.get("poster_path"):
+                    if await client.download_image(details["poster_path"], poster_file, "w500"):
+                        poster_path = str(poster_file)
+
+                if details.get("backdrop_path"):
+                    if await client.download_image(details["backdrop_path"], backdrop_file, "w1280"):
+                        backdrop_path = str(backdrop_file)
+    finally:
+        await client.close()
+
+    # Inserir a la base de dades
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Generar un path virtual per contingut importat
+        virtual_path = f"imported/{data.media_type}/{data.tmdb_id}"
+
+        cursor.execute("""
+            INSERT INTO series (
+                name, path, media_type, tmdb_id, title, year, overview, rating, genres, runtime,
+                poster, backdrop, director, creators, cast_members,
+                is_imported, source_type, external_url, added_date
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'tmdb', ?, datetime('now'))
+        """, (
+            metadata.get("title"),
+            virtual_path,
+            media_type_db,
+            metadata.get("tmdb_id"),
+            metadata.get("title"),
+            metadata.get("year"),
+            metadata.get("overview"),
+            metadata.get("rating"),
+            json.dumps(metadata.get("genres", [])),
+            metadata.get("runtime"),
+            poster_path,
+            backdrop_path,
+            metadata.get("director"),
+            json.dumps(metadata.get("creators", [])) if metadata.get("creators") else None,
+            json.dumps(metadata.get("cast", [])) if metadata.get("cast") else None,
+            f"https://www.themoviedb.org/{data.media_type}/{data.tmdb_id}"
+        ))
+
+        series_id = cursor.lastrowid
+        conn.commit()
+
+        return {
+            "status": "success",
+            "message": f"{'Pel·lícula' if data.media_type == 'movie' else 'Sèrie'} '{metadata.get('title')}' importada correctament",
+            "id": series_id,
+            "title": metadata.get("title"),
+            "year": metadata.get("year"),
+            "poster": poster_path
+        }
+
+
+@app.post("/api/import/book")
+async def import_book_from_openlibrary(data: ImportBookRequest):
+    """
+    Importa un llibre des de OpenLibrary.
+    Crea una entrada a la base de dades sense necessitat de fitxers físics.
+    """
+    from backend.metadata.openlibrary import OpenLibraryClient, fetch_book_by_olid, fetch_book_by_isbn
+    from pathlib import Path
+
+    metadata = None
+    cover_downloaded = False
+
+    cache_dir = Path(settings.STORAGE_PATH) / "cache" / "imported" / "books"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    # Obtenir metadades per ISBN, OLID, o cerca
+    if data.isbn:
+        cover_path = cache_dir / f"isbn_{data.isbn}_cover.jpg"
+        metadata = await fetch_book_by_isbn(data.isbn, cover_path)
+        if metadata.get("found"):
+            cover_downloaded = metadata.get("cover_downloaded", False)
+
+    elif data.olid:
+        cover_path = cache_dir / f"olid_{data.olid}_cover.jpg"
+        metadata = await fetch_book_by_olid(data.olid, cover_path)
+        if metadata.get("found"):
+            cover_downloaded = metadata.get("cover_downloaded", False)
+
+    else:
+        # Cerca per títol/autor
+        client = OpenLibraryClient()
+        try:
+            result = await client.search_book(data.title, data.author)
+            if result:
+                cover_id = result.get("cover_i")
+                cover_path = cache_dir / f"search_{data.title.replace(' ', '_')[:30]}_cover.jpg" if cover_id else None
+
+                if cover_path and cover_id:
+                    cover_downloaded = await client.download_cover(cover_id, cover_path)
+
+                metadata = {
+                    "found": True,
+                    "title": result.get("title"),
+                    "author": result.get("author_name", [None])[0] if result.get("author_name") else data.author,
+                    "year": result.get("first_publish_year"),
+                    "subjects": result.get("subject", [])[:5],
+                    "description": result.get("description"),
+                    "isbn": result.get("isbn", [None])[0] if result.get("isbn") else None,
+                    "olid": result.get("key", "").replace("/works/", ""),
+                    "cover_downloaded": cover_downloaded
+                }
+        finally:
+            await client.close()
+
+    if not metadata or not metadata.get("found"):
+        raise HTTPException(status_code=404, detail="No s'ha trobat el llibre")
+
+    # Verificar si ja existeix
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Comprovar per OLID o títol+autor
+        if metadata.get("olid"):
+            cursor.execute("SELECT id FROM books WHERE olid = ?", (metadata.get("olid"),))
+        else:
+            cursor.execute("""
+                SELECT b.id FROM books b
+                LEFT JOIN authors a ON b.author_id = a.id
+                WHERE b.title = ? AND (a.name = ? OR ? IS NULL)
+            """, (metadata.get("title"), metadata.get("author"), metadata.get("author")))
+
+        existing = cursor.fetchone()
+        if existing:
+            raise HTTPException(status_code=400, detail="Aquest llibre ja existeix a la biblioteca")
+
+        # Crear o obtenir autor
+        author_id = None
+        if metadata.get("author"):
+            cursor.execute("SELECT id FROM authors WHERE name = ?", (metadata.get("author"),))
+            author_row = cursor.fetchone()
+            if author_row:
+                author_id = author_row["id"]
+            else:
+                author_path = f"imported/authors/{metadata.get('author').replace(' ', '_')[:50]}"
+                cursor.execute("""
+                    INSERT INTO authors (name, path, created_at)
+                    VALUES (?, ?, datetime('now'))
+                """, (metadata.get("author"), author_path))
+                author_id = cursor.lastrowid
+
+        # Inserir llibre
+        virtual_path = f"imported/books/{metadata.get('olid') or metadata.get('title', 'unknown').replace(' ', '_')[:50]}"
+        cover_final = str(cover_path) if cover_downloaded else None
+
+        cursor.execute("""
+            INSERT INTO books (
+                title, author_id, isbn, description, cover_path, file_path,
+                language, published_date, is_imported, source_type, external_url, olid, added_date
+            ) VALUES (?, ?, ?, ?, ?, ?, 'ca', ?, 1, 'openlibrary', ?, ?, datetime('now'))
+        """, (
+            metadata.get("title"),
+            author_id,
+            metadata.get("isbn"),
+            metadata.get("description"),
+            cover_final,
+            virtual_path,
+            str(metadata.get("year")) if metadata.get("year") else None,
+            f"https://openlibrary.org/works/{metadata.get('olid')}" if metadata.get("olid") else None,
+            metadata.get("olid")
+        ))
+
+        book_id = cursor.lastrowid
+        conn.commit()
+
+        return {
+            "status": "success",
+            "message": f"Llibre '{metadata.get('title')}' importat correctament",
+            "id": book_id,
+            "title": metadata.get("title"),
+            "author": metadata.get("author"),
+            "year": metadata.get("year"),
+            "cover": cover_final
+        }
+
+
+@app.get("/api/import/stats")
+async def get_import_stats():
+    """Retorna estadístiques del contingut importat"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Pel·lícules importades
+        cursor.execute("SELECT COUNT(*) FROM series WHERE is_imported = 1 AND media_type = 'movie'")
+        imported_movies = cursor.fetchone()[0]
+
+        # Sèries importades
+        cursor.execute("SELECT COUNT(*) FROM series WHERE is_imported = 1 AND media_type = 'series'")
+        imported_series = cursor.fetchone()[0]
+
+        # Llibres importats
+        cursor.execute("SELECT COUNT(*) FROM books WHERE is_imported = 1")
+        imported_books = cursor.fetchone()[0]
+
+        return {
+            "movies": imported_movies,
+            "series": imported_series,
+            "books": imported_books,
+            "total": imported_movies + imported_series + imported_books
+        }
+
+
+@app.delete("/api/import/{media_type}/{item_id}")
+async def delete_imported_item(media_type: str, item_id: int):
+    """Elimina un element importat"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        if media_type in ['movie', 'series']:
+            cursor.execute("SELECT id, name, is_imported FROM series WHERE id = ?", (item_id,))
+            item = cursor.fetchone()
+            if not item:
+                raise HTTPException(status_code=404, detail="Element no trobat")
+            if not item["is_imported"]:
+                raise HTTPException(status_code=400, detail="Aquest element no és importat")
+
+            cursor.execute("DELETE FROM series WHERE id = ?", (item_id,))
+            conn.commit()
+
+            return {"status": "success", "message": f"'{item['name']}' eliminat"}
+
+        elif media_type == 'book':
+            cursor.execute("SELECT id, title, is_imported FROM books WHERE id = ?", (item_id,))
+            item = cursor.fetchone()
+            if not item:
+                raise HTTPException(status_code=404, detail="Llibre no trobat")
+            if not item["is_imported"]:
+                raise HTTPException(status_code=400, detail="Aquest llibre no és importat")
+
+            cursor.execute("DELETE FROM books WHERE id = ?", (item_id,))
+            conn.commit()
+
+            return {"status": "success", "message": f"'{item['title']}' eliminat"}
+
+        else:
+            raise HTTPException(status_code=400, detail="Tipus de contingut no vàlid")
 
 
 if __name__ == "__main__":
