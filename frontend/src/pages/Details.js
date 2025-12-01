@@ -542,14 +542,17 @@ function Details() {
                   )}
                 </button>
               )}
-              {/* Botó per reproduir amb embed automàtic (TMDB ID) */}
-              {!item?.external_url && embedSources && embedSources.sources && embedSources.sources.length > 0 && (
+              {/* Botó per reproduir amb embed automàtic (TMDB ID) - Obre StreamPlayer */}
+              {item?.tmdb_id && (
                 <button
                   className="play-btn embed-play-btn"
-                  onClick={() => { setShowEmbedPlayer(!showEmbedPlayer); setShowExternalPlayer(false); }}
+                  onClick={() => {
+                    const mediaType = type === 'movies' ? 'movie' : 'series';
+                    navigate(`/stream/${mediaType}/${item.tmdb_id}`);
+                  }}
                 >
-                  <PlayIcon /> {showEmbedPlayer ? 'Amagar' : 'Veure online'}
-                  <span className="external-source-badge">Auto</span>
+                  <PlayIcon /> Veure online
+                  <span className="external-source-badge">Streaming</span>
                 </button>
               )}
               <button className="secondary-btn">
@@ -614,31 +617,6 @@ function Details() {
                 <ExternalPlayer
                   url={item.external_url}
                   title={item.title || item.name}
-                  autoplay={true}
-                />
-              </div>
-            )}
-
-            {/* Embed Player (automàtic amb TMDB ID) */}
-            {showEmbedPlayer && selectedEmbedSource && (
-              <div className="external-player-section">
-                <div className="embed-source-selector">
-                  <span>Font:</span>
-                  <div className="embed-source-buttons">
-                    {embedSources?.sources?.map((source, index) => (
-                      <button
-                        key={index}
-                        className={`embed-source-btn ${selectedEmbedSource?.name === source.name ? 'active' : ''}`}
-                        onClick={() => setSelectedEmbedSource(source)}
-                      >
-                        {source.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <ExternalPlayer
-                  url={selectedEmbedSource.url}
-                  title={item?.title || item?.name}
                   autoplay={true}
                 />
               </div>
