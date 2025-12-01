@@ -1151,8 +1151,35 @@ async def get_series_detail(series_id: int):
             "tmdb_id": series.get("tmdb_id"),
             "poster": series.get("poster"),
             "backdrop": series.get("backdrop"),
+            "external_url": series.get("external_url"),
+            "external_source": series.get("external_source"),
             "seasons": seasons
         }
+
+@app.patch("/api/series/{series_id}/external-url")
+async def update_series_external_url(series_id: int, request: Request):
+    """Actualitza la URL externa d'una sèrie/pel·lícula"""
+    data = await request.json()
+    external_url = data.get("external_url")
+    external_source = data.get("external_source")
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Verificar que existeix
+        cursor.execute("SELECT id FROM series WHERE id = ?", (series_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Sèrie no trobada")
+
+        # Actualitzar
+        cursor.execute("""
+            UPDATE series
+            SET external_url = ?, external_source = ?, updated_date = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (external_url, external_source, series_id))
+        conn.commit()
+
+    return {"success": True, "message": "URL externa actualitzada"}
 
 @app.get("/api/series/{series_id}/season/{season_number}")
 async def get_season_episodes(series_id: int, season_number: int):

@@ -136,6 +136,14 @@ class HermesScanner:
             cursor.execute("ALTER TABLE series ADD COLUMN original_language TEXT")
         except sqlite3.OperationalError:
             pass
+        try:
+            cursor.execute("ALTER TABLE series ADD COLUMN external_url TEXT")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE series ADD COLUMN external_source TEXT")
+        except sqlite3.OperationalError:
+            pass
 
         # Taula media_files
         cursor.execute('''
@@ -160,7 +168,17 @@ class HermesScanner:
                 FOREIGN KEY (series_id) REFERENCES series(id)
             )
         ''')
-        
+
+        # Migracions per media_files
+        try:
+            cursor.execute("ALTER TABLE media_files ADD COLUMN external_url TEXT")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE media_files ADD COLUMN external_source TEXT")
+        except sqlite3.OperationalError:
+            pass
+
         # Taula watch_progress
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS watch_progress (
