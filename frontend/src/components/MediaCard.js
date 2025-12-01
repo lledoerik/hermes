@@ -33,7 +33,7 @@ const StarIcon = () => (
 );
 
 const PlayIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+  <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor">
     <polygon points="5 3 19 12 5 21 5 3"></polygon>
   </svg>
 );
@@ -76,7 +76,7 @@ const styles = {
   overlay: {
     position: 'absolute',
     inset: 0,
-    background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 50%)',
+    background: 'rgba(0, 0, 0, 0.5)',
     opacity: 0,
     transition: 'opacity 0.3s ease',
     display: 'flex',
@@ -92,10 +92,7 @@ const styles = {
     top: '50%',
     left: '50%',
     transform: 'translate(-50%, -50%) scale(0.8)',
-    width: '50px',
-    height: '50px',
-    borderRadius: '50%',
-    background: 'rgba(50, 132, 146, 0.9)',
+    background: 'none',
     border: 'none',
     display: 'flex',
     alignItems: 'center',
@@ -103,7 +100,7 @@ const styles = {
     cursor: 'pointer',
     opacity: 0,
     transition: 'all 0.3s ease',
-    fontSize: '20px',
+    color: 'white',
   },
   playButtonVisible: {
     opacity: 1,
