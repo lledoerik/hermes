@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import { useLibrary } from '../context/LibraryContext';
 import './Library.css';
 import './Books.css';
 
@@ -116,6 +117,7 @@ function Books() {
   const [viewMode, setViewMode] = useState('authors'); // 'authors' o 'all'
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
+  const { getBooks, booksCache, invalidateCache } = useLibrary();
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -136,7 +138,12 @@ function Books() {
   const [metadataMessage, setMetadataMessage] = useState(null);
   const [uploadPreview, setUploadPreview] = useState(null);
 
+  // Initial load from cache or fetch
   useEffect(() => {
+    if (booksCache.data) {
+      setBooks(booksCache.data);
+      setLoading(false);
+    }
     loadAuthors();
     loadAllBooks();
   }, []);
@@ -191,8 +198,8 @@ function Books() {
 
   const loadAllBooks = async () => {
     try {
-      const response = await axios.get('/api/books');
-      setBooks(response.data);
+      const data = await getBooks();
+      setBooks(data);
     } catch (error) {
       console.error('Error carregant llibres:', error);
     }
@@ -219,6 +226,7 @@ function Books() {
       });
       setImported(prev => ({ ...prev, [itemKey]: true }));
       setExternalResults(prev => prev.filter(r => (r.id || r.title) !== itemKey));
+      invalidateCache('books');
       loadAuthors();
       loadAllBooks();
     } catch (err) {
@@ -252,6 +260,7 @@ function Books() {
       }
     }
 
+    invalidateCache('books');
     loadAuthors();
     loadAllBooks();
     setImportingAll(false);
@@ -324,6 +333,7 @@ function Books() {
         if (selectedAuthor) {
           loadAuthorBooks(selectedAuthor.id);
         }
+        invalidateCache('books');
         loadAllBooks();
         setTimeout(() => handleCloseMetadataEdit(), 1500);
       }
@@ -348,6 +358,7 @@ function Books() {
         if (selectedAuthor) {
           loadAuthorBooks(selectedAuthor.id);
         }
+        invalidateCache('books');
         loadAllBooks();
         setTimeout(() => handleCloseMetadataEdit(), 1500);
       }
@@ -394,6 +405,7 @@ function Books() {
         if (selectedAuthor) {
           loadAuthorBooks(selectedAuthor.id);
         }
+        invalidateCache('books');
         loadAllBooks();
         setTimeout(() => handleCloseMetadataEdit(), 1500);
       }
@@ -440,6 +452,7 @@ function Books() {
         if (selectedAuthor) {
           loadAuthorBooks(selectedAuthor.id);
         }
+        invalidateCache('books');
         loadAllBooks();
         setUploadPreview(null);
         setTimeout(() => handleCloseMetadataEdit(), 1500);

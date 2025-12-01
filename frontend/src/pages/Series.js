@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import MediaCard from '../components/MediaCard';
 import { useAuth } from '../context/AuthContext';
+import { useLibrary } from '../context/LibraryContext';
 import './Library.css';
 
 const API_URL = window.location.hostname === 'localhost'
@@ -74,6 +75,7 @@ const ChevronRightIcon = () => (
 
 function Series() {
   const { isAdmin } = useAuth();
+  const { getSeries, seriesCache, invalidateCache } = useLibrary();
   const [series, setSeries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('name');
@@ -103,8 +105,18 @@ function Series() {
   const [autoImporting, setAutoImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
 
+  // Initial load from cache
   useEffect(() => {
-    loadSeries();
+    const cacheKey = `1-50-name-all`;
+    if (seriesCache.pages[cacheKey]?.data) {
+      const cached = seriesCache.pages[cacheKey].data;
+      setSeries(cached.items || []);
+      setTotalPages(cached.total_pages || 1);
+      setTotalItems(cached.total || 0);
+      setLoading(false);
+    } else {
+      loadSeries();
+    }
     // Només auto-importar si és admin
     if (isAdmin) {
       loadAndImportDiscover('popular', 1);
@@ -123,18 +135,11 @@ function Series() {
 
   const loadSeries = async () => {
     try {
-      const params = {
-        page: currentPage,
-        limit: itemsPerPage,
-        sort_by: sortBy
-      };
-      if (contentTypeFilter !== 'all') {
-        params.content_type = contentTypeFilter;
-      }
-      const response = await axios.get('/api/library/series', { params });
-      setSeries(response.data.items || []);
-      setTotalPages(response.data.total_pages || 1);
-      setTotalItems(response.data.total || 0);
+      setLoading(true);
+      const data = await getSeries(currentPage, itemsPerPage, sortBy, contentTypeFilter);
+      setSeries(data.items || []);
+      setTotalPages(data.total_pages || 1);
+      setTotalItems(data.total || 0);
     } catch (error) {
       console.error('Error carregant sèries:', error);
     } finally {
@@ -197,6 +202,7 @@ function Series() {
         }
 
         setAutoImporting(false);
+        invalidateCache('series');
         await loadSeries();
       }
     } catch (error) {
@@ -262,6 +268,7 @@ function Series() {
       });
       setImported(prev => ({ ...prev, [item.id]: true }));
       setExternalResults(prev => prev.filter(r => r.id !== item.id));
+      invalidateCache('series');
       loadSeries();
     } catch (err) {
       console.error('Error important:', err);
@@ -291,6 +298,7 @@ function Series() {
       }
     }
 
+    invalidateCache('series');
     loadSeries();
     setImportingAll(false);
   };
