@@ -702,6 +702,24 @@
   gap: var(--space-sm);
 }
 
+/* Greeting Section */
+.greeting-section {
+  padding: 0 4%;
+  margin-bottom: var(--space-lg);
+}
+
+.greeting-title {
+  font-size: var(--font-size-2xl);
+  margin-bottom: 0;
+}
+
+.greeting-subtitle {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-normal);
+  color: var(--text-secondary);
+  margin-left: var(--space-md);
+}
+
 .row-title .title-icon {
   display: flex;
   align-items: center;
