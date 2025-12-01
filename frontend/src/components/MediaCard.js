@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import TitleAudioPlayer from './TitleAudioPlayer';
 
 const API_URL = window.location.hostname === 'localhost'
   ? 'http://localhost:8000'
@@ -116,14 +117,20 @@ const styles = {
     padding: '12px',
     textAlign: 'left',
   },
+  titleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '4px',
+  },
   title: {
     fontSize: '14px',
     fontWeight: '600',
-    marginBottom: '4px',
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     textAlign: 'left',
+    flex: 1,
   },
   meta: {
     fontSize: '12px',
@@ -258,7 +265,16 @@ function MediaCard({ item, type = 'series', width = 180 }) {
       </div>
 
       <div style={styles.info}>
-        <div style={styles.title}>{item.name}</div>
+        <div style={styles.titleRow}>
+          <div style={styles.title}>{item.name}</div>
+          {isHovered && (
+            <TitleAudioPlayer
+              title={item.name}
+              size="small"
+              className="title-audio-player--inline"
+            />
+          )}
+        </div>
         <div style={styles.meta}>{getMeta()}</div>
       </div>
     </div>
