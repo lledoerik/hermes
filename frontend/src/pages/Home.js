@@ -292,6 +292,14 @@ function Home() {
           </form>
         </div>
 
+        {/* Salutació + Continue Watching - en el mateix nivell */}
+        <section className="greeting-section">
+          <h2 className="row-title greeting-title">
+            Hola{user?.display_name ? `, ${user.display_name}` : ''}!
+            <span className="greeting-subtitle">Què et ve de gust veure avui?</span>
+          </h2>
+        </section>
+
         {/* Continue Watching - Pel·lícules */}
         {continueWatchingMovies.length > 0 && (
           <section className="continue-watching-section">
