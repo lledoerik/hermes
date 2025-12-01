@@ -66,6 +66,17 @@
   max-width: 600px;
 }
 
+.details-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-xl);
+}
+
+.details-title-wrapper .details-title {
+  margin-bottom: 0;
+}
+
 .details-title {
   font-size: clamp(32px, 5vw, 56px);
   font-weight: var(--font-weight-bold);
