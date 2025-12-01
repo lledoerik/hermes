@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { LibraryProvider, useLibrary } from './context/LibraryContext';
 import Navbar from './components/Navbar';
+import LoadingScreen from './components/LoadingScreen';
 import Home from './pages/Home';
 import Movies from './pages/Movies';
 import Series from './pages/Series';
@@ -19,9 +21,20 @@ import Login from './pages/Login';
 import Profile from './pages/Profile';
 import './App.css';
 
-function App() {
+// Main app content with loading screen
+function AppContent() {
+  const { initialLoading, loadingProgress, preloadData } = useLibrary();
+
+  // Preload data on mount
+  useEffect(() => {
+    preloadData();
+  }, [preloadData]);
+
+  if (initialLoading) {
+    return <LoadingScreen progress={loadingProgress} />;
+  }
+
   return (
-    <AuthProvider>
     <Router>
       <div className="app">
         {/* Animated Background */}
@@ -72,6 +85,15 @@ function App() {
         </Routes>
       </div>
     </Router>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <LibraryProvider>
+        <AppContent />
+      </LibraryProvider>
     </AuthProvider>
   );
 }
