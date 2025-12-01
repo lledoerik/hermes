@@ -208,9 +208,17 @@ function Admin() {
   const [tmdbKey, setTmdbKey] = useState('');
   const [tmdbConfigured, setTmdbConfigured] = useState(false);
 
-  // Bulk import state
+  // Bulk import state (TMDB)
   const [bulkImportStatus, setBulkImportStatus] = useState(null);
   const [bulkImportPages, setBulkImportPages] = useState(50);
+
+  // Bulk import state (Books)
+  const [bookBulkImportStatus, setBookBulkImportStatus] = useState(null);
+  const [bookBulkImportMax, setBookBulkImportMax] = useState(100);
+
+  // Bulk import state (Audiobooks)
+  const [audiobookBulkImportStatus, setAudiobookBulkImportStatus] = useState(null);
+  const [audiobookBulkImportMax, setAudiobookBulkImportMax] = useState(50);
 
   // User management state
   const [users, setUsers] = useState([]);
@@ -398,6 +406,124 @@ function Admin() {
       }
     };
     checkBulkStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Book bulk import functions
+  const startBookBulkImport = async () => {
+    try {
+      await axios.post('/api/admin/bulk-import/books/start', {
+        max_per_subject: bookBulkImportMax
+      });
+      addLog('info', 'Importació massiva de llibres iniciada...');
+      pollBookBulkImportStatus();
+    } catch (error) {
+      addLog('error', error.response?.data?.detail || 'Error iniciant importació de llibres');
+    }
+  };
+
+  const stopBookBulkImport = async () => {
+    try {
+      await axios.post('/api/admin/bulk-import/books/stop');
+      addLog('info', 'Aturant importació de llibres...');
+    } catch (error) {
+      addLog('error', 'Error aturant importació de llibres');
+    }
+  };
+
+  const pollBookBulkImportStatus = async () => {
+    const poll = async () => {
+      try {
+        const response = await axios.get('/api/admin/bulk-import/books/status');
+        setBookBulkImportStatus(response.data);
+        if (response.data.running) {
+          setTimeout(poll, 1000);
+        } else {
+          if (response.data.imported_count > 0) {
+            addLog('success', `Importació de llibres completada: ${response.data.imported_count} importats, ${response.data.skipped_count} omesos`);
+            loadStats();
+          }
+        }
+      } catch (error) {
+        console.error('Error polling book status:', error);
+      }
+    };
+    poll();
+  };
+
+  // Check book bulk import status on load
+  useEffect(() => {
+    const checkBookBulkStatus = async () => {
+      try {
+        const response = await axios.get('/api/admin/bulk-import/books/status');
+        setBookBulkImportStatus(response.data);
+        if (response.data.running) {
+          pollBookBulkImportStatus();
+        }
+      } catch (e) {
+        // Ignore
+      }
+    };
+    checkBookBulkStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Audiobook bulk import functions
+  const startAudiobookBulkImport = async () => {
+    try {
+      await axios.post('/api/admin/bulk-import/audiobooks/start', {
+        max_per_term: audiobookBulkImportMax
+      });
+      addLog('info', 'Importació massiva d\'audiollibres iniciada...');
+      pollAudiobookBulkImportStatus();
+    } catch (error) {
+      addLog('error', error.response?.data?.detail || 'Error iniciant importació d\'audiollibres');
+    }
+  };
+
+  const stopAudiobookBulkImport = async () => {
+    try {
+      await axios.post('/api/admin/bulk-import/audiobooks/stop');
+      addLog('info', 'Aturant importació d\'audiollibres...');
+    } catch (error) {
+      addLog('error', 'Error aturant importació d\'audiollibres');
+    }
+  };
+
+  const pollAudiobookBulkImportStatus = async () => {
+    const poll = async () => {
+      try {
+        const response = await axios.get('/api/admin/bulk-import/audiobooks/status');
+        setAudiobookBulkImportStatus(response.data);
+        if (response.data.running) {
+          setTimeout(poll, 1000);
+        } else {
+          if (response.data.imported_count > 0) {
+            addLog('success', `Importació d'audiollibres completada: ${response.data.imported_count} importats, ${response.data.skipped_count} omesos`);
+            loadStats();
+          }
+        }
+      } catch (error) {
+        console.error('Error polling audiobook status:', error);
+      }
+    };
+    poll();
+  };
+
+  // Check audiobook bulk import status on load
+  useEffect(() => {
+    const checkAudiobookBulkStatus = async () => {
+      try {
+        const response = await axios.get('/api/admin/bulk-import/audiobooks/status');
+        setAudiobookBulkImportStatus(response.data);
+        if (response.data.running) {
+          pollAudiobookBulkImportStatus();
+        }
+      } catch (e) {
+        // Ignore
+      }
+    };
+    checkAudiobookBulkStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1009,6 +1135,214 @@ function Admin() {
           </div>
         </div>
       )}
+
+      {/* Book Bulk Import Section */}
+      <div className="admin-section">
+        <div className="section-header">
+          <h2><BookIcon /> Importació massiva de Llibres</h2>
+        </div>
+        <div className="section-content">
+          <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '1rem' }}>
+            Importa automàticament milers de llibres des d'Open Library. Inclou metadades, portades i informació d'autors.
+            Els llibres s'importen per categories: ficció, ciència-ficció, fantasia, misteri, romanç, etc.
+          </p>
+
+          <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <label style={{ color: 'rgba(255,255,255,0.8)' }}>Llibres per categoria:</label>
+            <input
+              type="number"
+              min="10"
+              max="500"
+              value={bookBulkImportMax}
+              onChange={(e) => setBookBulkImportMax(parseInt(e.target.value) || 100)}
+              disabled={bookBulkImportStatus?.running}
+              style={{
+                width: '80px',
+                padding: '0.5rem',
+                background: 'rgba(255,255,255,0.1)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: '6px',
+                color: 'white',
+                fontSize: '1rem'
+              }}
+            />
+            <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem' }}>
+              (~{bookBulkImportMax * 15} llibres totals)
+            </span>
+          </div>
+
+          <div className="scanner-actions">
+            <button
+              className="action-btn"
+              onClick={startBookBulkImport}
+              disabled={bookBulkImportStatus?.running}
+            >
+              <BookIcon /> Importar llibres
+            </button>
+            {bookBulkImportStatus?.running && (
+              <button
+                className="action-btn danger"
+                onClick={stopBookBulkImport}
+              >
+                Aturar
+              </button>
+            )}
+          </div>
+
+          {/* Progress indicator */}
+          {bookBulkImportStatus?.running && (
+            <div style={{ marginTop: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '14px', color: 'rgba(255,255,255,0.8)' }}>
+                <span>
+                  Important llibres...
+                  {bookBulkImportStatus.current_subject && ` (${bookBulkImportStatus.current_subject})`}
+                </span>
+                <span>Categoria {bookBulkImportStatus.current_page}/{bookBulkImportStatus.total_pages}</span>
+              </div>
+              <div style={{ height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
+                <div
+                  style={{
+                    width: `${(bookBulkImportStatus.current_page / bookBulkImportStatus.total_pages) * 100}%`,
+                    height: '100%',
+                    background: 'linear-gradient(90deg, #22c55e, #4ade80)',
+                    borderRadius: '4px',
+                    transition: 'width 0.3s ease'
+                  }}
+                />
+              </div>
+              <div style={{ marginTop: '0.75rem', fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>
+                {bookBulkImportStatus.current_title && (
+                  <div style={{ marginBottom: '0.5rem', color: 'rgba(255,255,255,0.8)' }}>
+                    Importat: {bookBulkImportStatus.current_title}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: '1.5rem' }}>
+                  <span style={{ color: '#22c55e' }}>Importats: {bookBulkImportStatus.imported_count}</span>
+                  <span>Omesos: {bookBulkImportStatus.skipped_count}</span>
+                  {bookBulkImportStatus.error_count > 0 && (
+                    <span style={{ color: '#ef4444' }}>Errors: {bookBulkImportStatus.error_count}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Last import stats */}
+          {!bookBulkImportStatus?.running && bookBulkImportStatus?.imported_count > 0 && (
+            <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(34, 197, 94, 0.1)', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
+              <div style={{ color: '#22c55e', fontWeight: '500', marginBottom: '0.5rem' }}>Última importació de llibres</div>
+              <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)' }}>
+                {bookBulkImportStatus.imported_count} llibres importats, {bookBulkImportStatus.skipped_count} omesos
+                {bookBulkImportStatus.error_count > 0 && `, ${bookBulkImportStatus.error_count} errors`}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Audiobook Bulk Import Section */}
+      <div className="admin-section">
+        <div className="section-header">
+          <h2><HeadphonesIcon /> Importació massiva d'Audiollibres</h2>
+        </div>
+        <div className="section-content">
+          <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '1rem' }}>
+            Importa automàticament audiollibres des d'Audnexus (metadades d'Audible). Inclou informació de narradors, duració, i portades.
+            Cerca per autors populars i gèneres.
+          </p>
+
+          <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <label style={{ color: 'rgba(255,255,255,0.8)' }}>Audiollibres per cerca:</label>
+            <input
+              type="number"
+              min="10"
+              max="200"
+              value={audiobookBulkImportMax}
+              onChange={(e) => setAudiobookBulkImportMax(parseInt(e.target.value) || 50)}
+              disabled={audiobookBulkImportStatus?.running}
+              style={{
+                width: '80px',
+                padding: '0.5rem',
+                background: 'rgba(255,255,255,0.1)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: '6px',
+                color: 'white',
+                fontSize: '1rem'
+              }}
+            />
+            <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem' }}>
+              (~{audiobookBulkImportMax * 16} audiollibres totals)
+            </span>
+          </div>
+
+          <div className="scanner-actions">
+            <button
+              className="action-btn"
+              onClick={startAudiobookBulkImport}
+              disabled={audiobookBulkImportStatus?.running}
+            >
+              <HeadphonesIcon /> Importar audiollibres
+            </button>
+            {audiobookBulkImportStatus?.running && (
+              <button
+                className="action-btn danger"
+                onClick={stopAudiobookBulkImport}
+              >
+                Aturar
+              </button>
+            )}
+          </div>
+
+          {/* Progress indicator */}
+          {audiobookBulkImportStatus?.running && (
+            <div style={{ marginTop: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '14px', color: 'rgba(255,255,255,0.8)' }}>
+                <span>
+                  Important audiollibres...
+                  {audiobookBulkImportStatus.current_genre && ` (${audiobookBulkImportStatus.current_genre})`}
+                </span>
+                <span>Cerca {audiobookBulkImportStatus.current_page}/{audiobookBulkImportStatus.total_pages}</span>
+              </div>
+              <div style={{ height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
+                <div
+                  style={{
+                    width: `${(audiobookBulkImportStatus.current_page / audiobookBulkImportStatus.total_pages) * 100}%`,
+                    height: '100%',
+                    background: 'linear-gradient(90deg, #f59e0b, #fbbf24)',
+                    borderRadius: '4px',
+                    transition: 'width 0.3s ease'
+                  }}
+                />
+              </div>
+              <div style={{ marginTop: '0.75rem', fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>
+                {audiobookBulkImportStatus.current_title && (
+                  <div style={{ marginBottom: '0.5rem', color: 'rgba(255,255,255,0.8)' }}>
+                    Importat: {audiobookBulkImportStatus.current_title}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: '1.5rem' }}>
+                  <span style={{ color: '#f59e0b' }}>Importats: {audiobookBulkImportStatus.imported_count}</span>
+                  <span>Omesos: {audiobookBulkImportStatus.skipped_count}</span>
+                  {audiobookBulkImportStatus.error_count > 0 && (
+                    <span style={{ color: '#ef4444' }}>Errors: {audiobookBulkImportStatus.error_count}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Last import stats */}
+          {!audiobookBulkImportStatus?.running && audiobookBulkImportStatus?.imported_count > 0 && (
+            <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(245, 158, 11, 0.1)', borderRadius: '8px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+              <div style={{ color: '#f59e0b', fontWeight: '500', marginBottom: '0.5rem' }}>Última importació d'audiollibres</div>
+              <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)' }}>
+                {audiobookBulkImportStatus.imported_count} audiollibres importats, {audiobookBulkImportStatus.skipped_count} omesos
+                {audiobookBulkImportStatus.error_count > 0 && `, ${audiobookBulkImportStatus.error_count} errors`}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Library Paths */}
       <div className="admin-section">
