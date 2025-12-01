@@ -124,10 +124,10 @@ function Home() {
           const continueRes = await axios.get('/api/user/continue-watching');
           const data = continueRes.data || [];
 
-          // Separar per tipus de media
-          const movies = data.filter(item => item.media_type === 'movie');
-          const series = data.filter(item => item.media_type === 'series' || item.media_type === 'episode');
-          const programs = data.filter(item => item.media_type === 'program');
+          // Separar per tipus de media (l'API retorna 'type', no 'media_type')
+          const movies = data.filter(item => item.type === 'movie');
+          const series = data.filter(item => item.type === 'series' || item.type === 'episode');
+          const programs = data.filter(item => item.type === 'program');
 
           setContinueWatchingMovies(movies);
           setContinueWatchingSeries(series);
@@ -266,33 +266,31 @@ function Home() {
 
   // Vista personalitzada per usuaris autenticats
   if (isAuthenticated) {
+    // Check if there's any continue watching content
+    const hasContinueWatching = continueWatchingMovies.length > 0 || continueWatchingSeries.length > 0;
+
     return (
       <div className="home-container authenticated">
-        {/* Barra de cerca */}
-        <div className="search-container compact">
-          <form className="search-bar" onSubmit={handleSearch}>
+        {/* Header amb salutació i cerca */}
+        <div className="home-header">
+          <h1 className="home-greeting">
+            Hola{user?.display_name ? `, ${user.display_name}` : ''}!
+          </h1>
+          <form className="search-bar compact" onSubmit={handleSearch}>
             <input
               type="text"
-              placeholder="Cercar pel·lícules, sèries, llibres..."
+              placeholder="Cercar..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
             <button type="submit">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="11" cy="11" r="8"></circle>
                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
               </svg>
             </button>
           </form>
         </div>
-
-        {/* Salutació + Continue Watching - en el mateix nivell */}
-        <section className="greeting-section">
-          <h2 className="row-title greeting-title">
-            Hola{user?.display_name ? `, ${user.display_name}` : ''}!
-            <span className="greeting-subtitle">Què et ve de gust veure avui?</span>
-          </h2>
-        </section>
 
         {/* Continue Watching - Pel·lícules */}
         {continueWatchingMovies.length > 0 && (
