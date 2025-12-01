@@ -1766,6 +1766,94 @@ async def save_series_segment(series_id: int, segment: SeriesSegmentRequest):
         return {"status": "success", "message": f"Segment {segment.segment_type} guardat per la sèrie"}
 
 
+@app.post("/api/segments/series/{series_id}/season/{season_number}/apply")
+async def apply_segment_to_season(series_id: int, season_number: int, segment: SeriesSegmentRequest):
+    """Aplica un segment a tots els episodis d'una temporada específica"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Verificar que existeix la sèrie
+        cursor.execute("SELECT id FROM series WHERE id = ?", (series_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Sèrie no trobada")
+
+        # Obtenir tots els episodis de la temporada
+        cursor.execute("""
+            SELECT id FROM episodes
+            WHERE series_id = ? AND season_number = ?
+        """, (series_id, season_number))
+        episodes = cursor.fetchall()
+
+        if not episodes:
+            raise HTTPException(status_code=404, detail=f"No s'han trobat episodis per la temporada {season_number}")
+
+        updated_count = 0
+        for (episode_id,) in episodes:
+            # Eliminar segment existent del mateix tipus per aquest episodi
+            cursor.execute("""
+                DELETE FROM media_segments
+                WHERE media_id = ? AND segment_type = ?
+            """, (episode_id, segment.segment_type))
+
+            # Inserir nou segment per l'episodi
+            cursor.execute("""
+                INSERT INTO media_segments (media_id, series_id, segment_type, start_time, end_time, source, confidence)
+                VALUES (?, ?, ?, ?, ?, 'manual', 1.0)
+            """, (episode_id, series_id, segment.segment_type, segment.start_time, segment.end_time))
+            updated_count += 1
+
+        conn.commit()
+        return {
+            "status": "success",
+            "message": f"Segment {segment.segment_type} aplicat a {updated_count} episodis de la temporada {season_number}",
+            "episodes_updated": updated_count
+        }
+
+
+@app.post("/api/segments/series/{series_id}/apply-all")
+async def apply_segment_to_all_seasons(series_id: int, segment: SeriesSegmentRequest):
+    """Aplica un segment a tots els episodis de totes les temporades"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Verificar que existeix la sèrie
+        cursor.execute("SELECT id FROM series WHERE id = ?", (series_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Sèrie no trobada")
+
+        # Obtenir tots els episodis de la sèrie
+        cursor.execute("""
+            SELECT id FROM episodes
+            WHERE series_id = ?
+        """, (series_id,))
+        episodes = cursor.fetchall()
+
+        if not episodes:
+            raise HTTPException(status_code=404, detail="No s'han trobat episodis per aquesta sèrie")
+
+        updated_count = 0
+        for (episode_id,) in episodes:
+            # Eliminar segment existent del mateix tipus per aquest episodi
+            cursor.execute("""
+                DELETE FROM media_segments
+                WHERE media_id = ? AND segment_type = ?
+            """, (episode_id, segment.segment_type))
+
+            # Inserir nou segment per l'episodi
+            cursor.execute("""
+                INSERT INTO media_segments (media_id, series_id, segment_type, start_time, end_time, source, confidence)
+                VALUES (?, ?, ?, ?, ?, 'manual', 1.0)
+            """, (episode_id, series_id, segment.segment_type, segment.start_time, segment.end_time))
+            updated_count += 1
+
+        conn.commit()
+        return {
+            "status": "success",
+            "message": f"Segment {segment.segment_type} aplicat a {updated_count} episodis de totes les temporades",
+            "episodes_updated": updated_count
+        }
+
+
 @app.delete("/api/segments/{segment_id}")
 async def delete_segment(segment_id: int):
     """Elimina un segment"""
