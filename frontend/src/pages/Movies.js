@@ -65,11 +65,30 @@ const contentTypeLabels = {
   animated: 'Animació'
 };
 
+// Pagination icons
+const ChevronLeftIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polyline points="15 18 9 12 15 6"></polyline>
+  </svg>
+);
+
+const ChevronRightIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polyline points="9 18 15 12 9 6"></polyline>
+  </svg>
+);
+
 function Movies() {
   const { isAdmin } = useAuth();
   const [movies, setMovies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('name');
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const itemsPerPage = 50;
 
   // Content type filter state
   const [contentTypeFilter, setContentTypeFilter] = useState('all');
@@ -98,21 +117,59 @@ function Movies() {
     }
   }, [isAdmin]);
 
-  // Reload movies when content type filter changes
+  // Reload movies when content type filter or pagination changes
   useEffect(() => {
     loadMovies();
+  }, [contentTypeFilter, currentPage, sortBy]);
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
   }, [contentTypeFilter]);
 
   const loadMovies = async () => {
     try {
-      const params = contentTypeFilter !== 'all' ? { content_type: contentTypeFilter } : {};
+      const params = {
+        page: currentPage,
+        limit: itemsPerPage,
+        sort_by: sortBy
+      };
+      if (contentTypeFilter !== 'all') {
+        params.content_type = contentTypeFilter;
+      }
       const response = await axios.get('/api/library/movies', { params });
-      setMovies(response.data);
+      setMovies(response.data.items || []);
+      setTotalPages(response.data.total_pages || 1);
+      setTotalItems(response.data.total || 0);
     } catch (error) {
       console.error('Error carregant pel·lícules:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  // Generate page numbers to show
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+    let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let end = Math.min(totalPages, start + maxVisible - 1);
+
+    if (end - start + 1 < maxVisible) {
+      start = Math.max(1, end - maxVisible + 1);
+    }
+
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+    return pages;
   };
 
   const loadAndImportDiscover = async (category, page, append = false) => {
@@ -250,7 +307,7 @@ function Movies() {
     setExternalResults([]);
   };
 
-  // Filter local movies by search
+  // Filter local movies by search (client-side for search only)
   const filteredMovies = searchQuery.trim()
     ? movies.filter(m =>
         m.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -258,21 +315,8 @@ function Movies() {
       )
     : movies;
 
-  // Sort movies
-  const sortedMovies = [...filteredMovies].sort((a, b) => {
-    switch (sortBy) {
-      case 'name':
-        return (a.name || '').localeCompare(b.name || '');
-      case 'year':
-        return (b.year || 0) - (a.year || 0);
-      case 'duration':
-        return (b.duration || 0) - (a.duration || 0);
-      case 'recent':
-        return new Date(b.added_date || 0) - new Date(a.added_date || 0);
-      default:
-        return 0;
-    }
-  });
+  // No need to sort client-side anymore - backend handles it
+  const sortedMovies = filteredMovies;
 
   if (loading) {
     return (
@@ -301,7 +345,7 @@ function Movies() {
         <div className="library-title">
           <span className="icon"><MovieIcon /></span>
           <h1>Pel·lícules</h1>
-          <span className="library-count">({movies.length})</span>
+          <span className="library-count">({totalItems})</span>
         </div>
 
         <div className="library-filters">
@@ -473,16 +517,72 @@ function Movies() {
         /* Library view - all movies are now local */
         <>
           {hasLocalResults ? (
-            <div className="library-grid">
-              {sortedMovies.map((movie) => (
-                <MediaCard
-                  key={`local-${movie.id}`}
-                  item={movie}
-                  type="movies"
-                  width="100%"
-                />
-              ))}
-            </div>
+            <>
+              <div className="library-grid">
+                {sortedMovies.map((movie) => (
+                  <MediaCard
+                    key={`local-${movie.id}`}
+                    item={movie}
+                    type="movies"
+                    width="100%"
+                  />
+                ))}
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="pagination-container">
+                  <div className="pagination-info">
+                    Pàgina {currentPage} de {totalPages} ({totalItems} pel·lícules)
+                  </div>
+                  <div className="pagination-controls">
+                    <button
+                      className="pagination-btn"
+                      onClick={() => handlePageChange(1)}
+                      disabled={currentPage === 1}
+                      title="Primera pàgina"
+                    >
+                      <ChevronLeftIcon /><ChevronLeftIcon />
+                    </button>
+                    <button
+                      className="pagination-btn"
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      title="Pàgina anterior"
+                    >
+                      <ChevronLeftIcon />
+                    </button>
+
+                    {getPageNumbers().map((pageNum) => (
+                      <button
+                        key={pageNum}
+                        className={`pagination-btn page-number ${pageNum === currentPage ? 'active' : ''}`}
+                        onClick={() => handlePageChange(pageNum)}
+                      >
+                        {pageNum}
+                      </button>
+                    ))}
+
+                    <button
+                      className="pagination-btn"
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      title="Pàgina següent"
+                    >
+                      <ChevronRightIcon />
+                    </button>
+                    <button
+                      className="pagination-btn"
+                      onClick={() => handlePageChange(totalPages)}
+                      disabled={currentPage === totalPages}
+                      title="Última pàgina"
+                    >
+                      <ChevronRightIcon /><ChevronRightIcon />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           ) : isAdmin && (discoverLoading || autoImporting) ? (
             <div className="loading-inline">
               <div className="spinner"></div>

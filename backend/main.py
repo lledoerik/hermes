@@ -927,11 +927,21 @@ async def get_stats():
         }
 
 @app.get("/api/library/series")
-async def get_series(content_type: str = None):
-    """Retorna totes les sèries. Filtre opcional: series, anime, toons"""
+async def get_series(content_type: str = None, page: int = 1, limit: int = 50, sort_by: str = "name"):
+    """Retorna les sèries amb paginació. Filtre opcional: series, anime, toons"""
     with get_db() as conn:
         cursor = conn.cursor()
 
+        # Count total
+        count_query = "SELECT COUNT(*) FROM series WHERE media_type = 'series'"
+        count_params = []
+        if content_type:
+            count_query += " AND content_type = ?"
+            count_params.append(content_type)
+        cursor.execute(count_query, count_params)
+        total = cursor.fetchone()[0]
+
+        # Main query
         query = """
             SELECT s.*, COUNT(DISTINCT m.season_number) as season_count,
                        COUNT(m.id) as episode_count, s.content_type
@@ -945,7 +955,23 @@ async def get_series(content_type: str = None):
             query += " AND s.content_type = ?"
             params.append(content_type)
 
-        query += " GROUP BY s.id ORDER BY s.name"
+        query += " GROUP BY s.id"
+
+        # Sorting
+        if sort_by == "year":
+            query += " ORDER BY s.year DESC, s.name"
+        elif sort_by == "recent":
+            query += " ORDER BY s.added_date DESC, s.name"
+        elif sort_by == "episodes":
+            query += " ORDER BY episode_count DESC, s.name"
+        else:
+            query += " ORDER BY s.name"
+
+        # Pagination
+        offset = (page - 1) * limit
+        query += " LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+
         cursor.execute(query, params)
 
         series = []
@@ -961,14 +987,30 @@ async def get_series(content_type: str = None):
                 "content_type": row["content_type"] or "series"
             })
 
-        return series
+        return {
+            "items": series,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total + limit - 1) // limit
+        }
 
 @app.get("/api/library/movies")
-async def get_movies(content_type: str = None):
-    """Retorna totes les pel·lícules. Filtre opcional: movie, anime_movie, animated"""
+async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, sort_by: str = "name"):
+    """Retorna les pel·lícules amb paginació. Filtre opcional: movie, anime_movie, animated"""
     with get_db() as conn:
         cursor = conn.cursor()
 
+        # Count total
+        count_query = "SELECT COUNT(*) FROM series WHERE media_type = 'movie'"
+        count_params = []
+        if content_type:
+            count_query += " AND content_type = ?"
+            count_params.append(content_type)
+        cursor.execute(count_query, count_params)
+        total = cursor.fetchone()[0]
+
+        # Main query
         query = """
             SELECT s.*, m.duration, m.file_size, m.id as media_id,
                    s.is_imported, s.year, s.rating, s.content_type
@@ -982,7 +1024,21 @@ async def get_movies(content_type: str = None):
             query += " AND s.content_type = ?"
             params.append(content_type)
 
-        query += " ORDER BY s.name"
+        # Sorting
+        if sort_by == "year":
+            query += " ORDER BY s.year DESC, s.name"
+        elif sort_by == "recent":
+            query += " ORDER BY s.added_date DESC, s.name"
+        elif sort_by == "duration":
+            query += " ORDER BY m.duration DESC, s.name"
+        else:
+            query += " ORDER BY s.name"
+
+        # Pagination
+        offset = (page - 1) * limit
+        query += " LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+
         cursor.execute(query, params)
 
         movies = []
@@ -1001,7 +1057,13 @@ async def get_movies(content_type: str = None):
                 "content_type": row["content_type"] or "movie"
             })
 
-        return movies
+        return {
+            "items": movies,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total + limit - 1) // limit
+        }
 
 @app.get("/api/series/{series_id}")
 async def get_series_detail(series_id: int):
