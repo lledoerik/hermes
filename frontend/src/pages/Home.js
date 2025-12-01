@@ -271,7 +271,8 @@ function Home() {
         {/* Header amb salutació i cerca */}
         <div className="home-header">
           <h1 className="home-greeting">
-            Hola{user?.display_name ? `, ${user.display_name}` : ''}!
+            <span>Hola{user?.display_name ? `, ${user.display_name}` : ''}!</span>
+            <span className="greeting-subtitle">Què et ve de gust veure avui?</span>
           </h1>
           <form className="search-bar compact" onSubmit={handleSearch}>
             <input
