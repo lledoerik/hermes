@@ -714,7 +714,7 @@ async def get_continue_watching(request: Request):
     with get_db() as conn:
         cursor = conn.cursor()
 
-        # Obtenir episodis en progrés (no acabats)
+        # Obtenir contingut en progrés (no acabat) - sèries i pel·lícules
         cursor.execute("""
             SELECT
                 wp.media_id,
@@ -727,6 +727,7 @@ async def get_continue_watching(request: Request):
                 mf.duration,
                 s.id as series_id,
                 s.name as series_name,
+                s.media_type,
                 s.poster,
                 s.backdrop
             FROM watch_progress wp
@@ -745,9 +746,16 @@ async def get_continue_watching(request: Request):
             if row["total_seconds"] and row["total_seconds"] > 0:
                 progress_pct = (row["progress_seconds"] / row["total_seconds"]) * 100
 
+            # Determinar el tipus basant-se en media_type de la taula series
+            media_type = row["media_type"] if row["media_type"] else "series"
+            if media_type == "movies":
+                item_type = "movie"
+            else:
+                item_type = "episode"
+
             watching.append({
                 "id": row["media_id"],
-                "type": "episode" if row["series_id"] else "movie",
+                "type": item_type,
                 "series_id": row["series_id"],
                 "series_name": row["series_name"],
                 "title": row["episode_title"],
