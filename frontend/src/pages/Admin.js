@@ -154,6 +154,40 @@ const XIcon = () => (
   </svg>
 );
 
+// Users icon
+const UsersIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+  </svg>
+);
+
+// Copy icon
+const CopyIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+  </svg>
+);
+
+// Trash icon
+const TrashIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+  </svg>
+);
+
+// Mail/Invite icon
+const MailIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+    <polyline points="22,6 12,13 2,6" />
+  </svg>
+);
+
 function Admin() {
   const [stats, setStats] = useState(null);
   const [scanning, setScanning] = useState(false);
@@ -164,6 +198,14 @@ function Admin() {
   const [loading, setLoading] = useState(true);
   const [tmdbKey, setTmdbKey] = useState('');
   const [tmdbConfigured, setTmdbConfigured] = useState(false);
+
+  // User management state
+  const [users, setUsers] = useState([]);
+  const [invitations, setInvitations] = useState([]);
+  const [newInviteUses, setNewInviteUses] = useState(1);
+  const [newInviteDays, setNewInviteDays] = useState(7);
+  const [copiedCode, setCopiedCode] = useState(null);
+  const [message, setMessage] = useState(null);
 
   const loadStats = useCallback(async () => {
     try {
@@ -180,7 +222,88 @@ function Admin() {
   useEffect(() => {
     loadStats();
     checkTmdbKey();
+    loadUserData();
   }, [loadStats]);
+
+  const showMessage = (text, type = 'success') => {
+    setMessage({ text, type });
+    setTimeout(() => setMessage(null), 3000);
+  };
+
+  const loadUserData = async () => {
+    try {
+      const [usersRes, invitesRes] = await Promise.all([
+        axios.get('/api/admin/users'),
+        axios.get('/api/invitations')
+      ]);
+      setUsers(usersRes.data.users || []);
+      setInvitations(invitesRes.data.invitations || []);
+    } catch (e) {
+      console.error('Error loading user data:', e);
+    }
+  };
+
+  const createInvitation = async () => {
+    try {
+      await axios.post('/api/invitations', {
+        max_uses: newInviteUses,
+        expires_days: newInviteDays
+      });
+      showMessage('Invitació creada');
+      addLog('success', 'Nova invitació creada');
+      loadUserData();
+    } catch (e) {
+      showMessage(e.response?.data?.detail || 'Error creant invitació', 'error');
+    }
+  };
+
+  const deleteInvitation = async (id) => {
+    try {
+      await axios.delete(`/api/invitations/${id}`);
+      showMessage('Invitació eliminada');
+      loadUserData();
+    } catch (e) {
+      showMessage('Error eliminant invitació', 'error');
+    }
+  };
+
+  const copyInviteCode = (code) => {
+    const inviteUrl = `${window.location.origin}/login?invite=${code}`;
+    navigator.clipboard.writeText(inviteUrl);
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(null), 2000);
+  };
+
+  const toggleUserActive = async (userId, active) => {
+    try {
+      await axios.put(`/api/admin/users/${userId}/toggle-active?active=${active}`);
+      showMessage(`Usuari ${active ? 'activat' : 'desactivat'}`);
+      loadUserData();
+    } catch (e) {
+      showMessage(e.response?.data?.detail || 'Error', 'error');
+    }
+  };
+
+  const toggleUserPremium = async (userId, isPremium) => {
+    try {
+      await axios.put(`/api/admin/users/${userId}/toggle-premium?is_premium=${isPremium}`);
+      showMessage(`Usuari ${isPremium ? 'ara és' : 'ja no és'} premium`);
+      loadUserData();
+    } catch (e) {
+      showMessage(e.response?.data?.detail || 'Error', 'error');
+    }
+  };
+
+  const deleteUser = async (userId) => {
+    if (!window.confirm('Segur que vols eliminar aquest usuari?')) return;
+    try {
+      await axios.delete(`/api/admin/users/${userId}`);
+      showMessage('Usuari eliminat');
+      loadUserData();
+    } catch (e) {
+      showMessage(e.response?.data?.detail || 'Error', 'error');
+    }
+  };
 
   const checkTmdbKey = async () => {
     try {
@@ -761,6 +884,127 @@ function Admin() {
         </div>
       </div>
 
+      {/* Users Section */}
+      <div className="admin-section">
+        <div className="section-header">
+          <h2><UsersIcon /> Usuaris ({users.length})</h2>
+        </div>
+        <div className="section-content">
+          <div className="users-list">
+            {users.map(u => (
+              <div key={u.id} className={`user-item ${!u.is_active ? 'inactive' : ''}`}>
+                <div className="user-info">
+                  <div className="user-avatar">
+                    {u.display_name?.charAt(0).toUpperCase() || u.username?.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <h4>{u.display_name || u.username}</h4>
+                    <p>
+                      @{u.username}
+                      {u.is_admin && <span className="admin-badge">Admin</span>}
+                      {u.is_premium && <span className="premium-badge">Premium</span>}
+                    </p>
+                  </div>
+                </div>
+                {!u.is_admin && (
+                  <div className="user-actions">
+                    <button
+                      className={`user-action-btn ${u.is_active ? 'warning' : 'success'}`}
+                      onClick={() => toggleUserActive(u.id, !u.is_active)}
+                    >
+                      {u.is_active ? 'Desactivar' : 'Activar'}
+                    </button>
+                    <button
+                      className={`user-action-btn ${u.is_premium ? 'warning' : 'premium'}`}
+                      onClick={() => toggleUserPremium(u.id, !u.is_premium)}
+                    >
+                      {u.is_premium ? 'Treure premium' : 'Fer premium'}
+                    </button>
+                    <button
+                      className="user-action-btn danger"
+                      onClick={() => deleteUser(u.id)}
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Invitations Section */}
+      <div className="admin-section">
+        <div className="section-header">
+          <h2><MailIcon /> Invitacions</h2>
+        </div>
+        <div className="section-content">
+          <div className="invite-create">
+            <div className="invite-inputs">
+              <div className="invite-field">
+                <label>Usos màxims</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={newInviteUses}
+                  onChange={(e) => setNewInviteUses(parseInt(e.target.value))}
+                />
+              </div>
+              <div className="invite-field">
+                <label>Dies de validesa</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="365"
+                  value={newInviteDays}
+                  onChange={(e) => setNewInviteDays(parseInt(e.target.value))}
+                />
+              </div>
+              <button className="action-btn" onClick={createInvitation}>
+                Crear invitació
+              </button>
+            </div>
+          </div>
+
+          {invitations.length > 0 && (
+            <div className="invite-list">
+              {invitations.map(inv => (
+                <div key={inv.id} className="invite-item">
+                  <div className="invite-code">
+                    <code>{inv.code}</code>
+                    <button
+                      className="copy-btn"
+                      onClick={() => copyInviteCode(inv.code)}
+                      title="Copiar enllaç d'invitació"
+                    >
+                      {copiedCode === inv.code ? <CheckIcon /> : <CopyIcon />}
+                    </button>
+                  </div>
+                  <div className="invite-meta">
+                    <span>{inv.uses}/{inv.max_uses} usos</span>
+                    <span>Caduca: {new Date(inv.expires_at).toLocaleDateString('ca')}</span>
+                  </div>
+                  <button
+                    className="delete-btn"
+                    onClick={() => deleteInvitation(inv.id)}
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {invitations.length === 0 && (
+            <div style={{ color: 'rgba(255,255,255,0.4)', textAlign: 'center', padding: '20px' }}>
+              No hi ha invitacions actives
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Preferences Section */}
       <div className="admin-section">
         <div className="section-header">
@@ -777,13 +1021,7 @@ function Admin() {
                 </div>
               </div>
               <select
-                style={{
-                  padding: '8px 15px',
-                  background: 'rgba(255,255,255,0.1)',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  borderRadius: '8px',
-                  color: 'white'
-                }}
+                className="admin-select"
                 defaultValue={localStorage.getItem('hermes_audio_lang') || 'cat'}
                 onChange={(e) => localStorage.setItem('hermes_audio_lang', e.target.value)}
               >
@@ -803,13 +1041,7 @@ function Admin() {
                 </div>
               </div>
               <select
-                style={{
-                  padding: '8px 15px',
-                  background: 'rgba(255,255,255,0.1)',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  borderRadius: '8px',
-                  color: 'white'
-                }}
+                className="admin-select"
                 defaultValue={localStorage.getItem('hermes_subtitle_lang') || 'off'}
                 onChange={(e) => localStorage.setItem('hermes_subtitle_lang', e.target.value)}
               >
@@ -841,6 +1073,13 @@ function Admin() {
           </div>
         </div>
       </div>
+
+      {/* Toast Message */}
+      {message && (
+        <div className={`admin-toast ${message.type}`}>
+          {message.text}
+        </div>
+      )}
     </div>
   );
 }
