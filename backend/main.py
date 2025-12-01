@@ -1899,6 +1899,178 @@ async def get_embed_sources(media_type: str, tmdb_id: int, season: int = None, e
     }
 
 
+@app.get("/api/extract-stream/{media_type}/{tmdb_id}")
+async def extract_stream_url(media_type: str, tmdb_id: int, season: int = None, episode: int = None, source: str = "vidsrc"):
+    """
+    Intenta extreure la URL directa del stream (HLS/MP4) d'un servei d'embed.
+    Això permet reproduir el vídeo amb el reproductor natiu.
+    """
+    import aiohttp
+    import re
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://vidsrc.to/",
+    }
+
+    async def extract_vidsrc():
+        """Extreu stream de VidSrc.to"""
+        try:
+            if media_type == 'movie':
+                embed_url = f"https://vidsrc.to/embed/movie/{tmdb_id}"
+            else:
+                s = season or 1
+                e = episode or 1
+                embed_url = f"https://vidsrc.to/embed/tv/{tmdb_id}/{s}/{e}"
+
+            async with aiohttp.ClientSession() as session:
+                # Primera petició per obtenir la pàgina d'embed
+                async with session.get(embed_url, headers=headers) as resp:
+                    if resp.status != 200:
+                        return None
+                    html = await resp.text()
+
+                # Buscar l'ID del vídeo
+                match = re.search(r'data-id="([^"]+)"', html)
+                if not match:
+                    # Intentar altre patró
+                    match = re.search(r'/ajax/embed/episode/([^/]+)/sources', html)
+                if not match:
+                    return None
+
+                video_id = match.group(1)
+
+                # Obtenir les fonts del vídeo
+                sources_url = f"https://vidsrc.to/ajax/embed/episode/{video_id}/sources"
+                async with session.get(sources_url, headers=headers) as resp:
+                    if resp.status != 200:
+                        return None
+                    sources_data = await resp.json()
+
+                if not sources_data.get("result"):
+                    return None
+
+                # Obtenir la primera font
+                for source_item in sources_data["result"]:
+                    source_id = source_item.get("id")
+                    if source_id:
+                        source_url = f"https://vidsrc.to/ajax/embed/source/{source_id}"
+                        async with session.get(source_url, headers=headers) as resp:
+                            if resp.status == 200:
+                                source_data = await resp.json()
+                                if source_data.get("result", {}).get("url"):
+                                    return {
+                                        "url": source_data["result"]["url"],
+                                        "type": "hls",
+                                        "source": "VidSrc"
+                                    }
+
+                return None
+        except Exception as e:
+            logging.error(f"Error extracting VidSrc: {e}")
+            return None
+
+    async def extract_vidsrc_me():
+        """Extreu stream de VidSrc.me"""
+        try:
+            if media_type == 'movie':
+                api_url = f"https://vidsrc.me/embed/movie?tmdb={tmdb_id}"
+            else:
+                s = season or 1
+                e = episode or 1
+                api_url = f"https://vidsrc.me/embed/tv?tmdb={tmdb_id}&season={s}&episode={e}"
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(api_url, headers=headers, allow_redirects=True) as resp:
+                    if resp.status != 200:
+                        return None
+                    html = await resp.text()
+
+                # Buscar URLs HLS a la pàgina
+                hls_patterns = [
+                    r'(https?://[^\s"\']+\.m3u8[^\s"\']*)',
+                    r'file:\s*["\']([^"\']+\.m3u8[^"\']*)["\']',
+                    r'source:\s*["\']([^"\']+\.m3u8[^"\']*)["\']',
+                ]
+
+                for pattern in hls_patterns:
+                    match = re.search(pattern, html)
+                    if match:
+                        return {
+                            "url": match.group(1),
+                            "type": "hls",
+                            "source": "VidSrc.me"
+                        }
+
+                return None
+        except Exception as e:
+            logging.error(f"Error extracting VidSrc.me: {e}")
+            return None
+
+    async def extract_superembed():
+        """Extreu stream de SuperEmbed/MultiEmbed"""
+        try:
+            if media_type == 'movie':
+                api_url = f"https://multiembed.mov/?video_id={tmdb_id}&tmdb=1"
+            else:
+                s = season or 1
+                e = episode or 1
+                api_url = f"https://multiembed.mov/?video_id={tmdb_id}&tmdb=1&s={s}&e={e}"
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(api_url, headers=headers, allow_redirects=True) as resp:
+                    if resp.status != 200:
+                        return None
+                    html = await resp.text()
+
+                # Buscar URLs HLS
+                hls_patterns = [
+                    r'(https?://[^\s"\']+\.m3u8[^\s"\']*)',
+                    r'file:\s*["\']([^"\']+)["\']',
+                ]
+
+                for pattern in hls_patterns:
+                    match = re.search(pattern, html)
+                    if match:
+                        url = match.group(1)
+                        if '.m3u8' in url or 'stream' in url:
+                            return {
+                                "url": url,
+                                "type": "hls",
+                                "source": "SuperEmbed"
+                            }
+
+                return None
+        except Exception as e:
+            logging.error(f"Error extracting SuperEmbed: {e}")
+            return None
+
+    # Intentar extreure de cada font
+    extractors = {
+        "vidsrc": extract_vidsrc,
+        "vidsrc.me": extract_vidsrc_me,
+        "superembed": extract_superembed,
+    }
+
+    # Si s'especifica una font, provar només aquesta
+    if source in extractors:
+        result = await extractors[source]()
+        if result:
+            return result
+
+    # Si no, provar totes les fonts en ordre
+    for name, extractor in extractors.items():
+        result = await extractor()
+        if result:
+            return result
+
+    # Si cap funciona, retornar error
+    raise HTTPException(
+        status_code=404,
+        detail="No s'ha pogut extreure la URL del stream. Prova amb un altre servidor."
+    )
+
+
 @app.get("/api/library/episodes/{episode_id}")
 async def get_episode_detail(episode_id: int):
     """Detalls d'un episodi individual"""
