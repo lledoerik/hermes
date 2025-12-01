@@ -956,13 +956,14 @@ async def get_movies():
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT s.*, m.duration, m.file_size
+            SELECT s.*, m.duration, m.file_size, m.id as media_id,
+                   s.is_imported, s.year, s.rating
             FROM series s
             LEFT JOIN media_files m ON s.id = m.series_id
             WHERE s.media_type = 'movie'
             ORDER BY s.name
         """)
-        
+
         movies = []
         for row in cursor.fetchall():
             movies.append({
@@ -971,9 +972,13 @@ async def get_movies():
                 "poster": row["poster"],
                 "backdrop": row["backdrop"],
                 "duration": row["duration"],
-                "file_size": row["file_size"]
+                "file_size": row["file_size"],
+                "has_file": row["media_id"] is not None,
+                "is_imported": row["is_imported"] == 1,
+                "year": row["year"],
+                "rating": row["rating"]
             })
-        
+
         return movies
 
 @app.get("/api/series/{series_id}")
@@ -1589,7 +1594,9 @@ async def get_library_movie_detail(movie_id: int):
             "video_codec": movie.get("video_codec"),
             "audio_tracks": movie.get("audio_tracks"),
             "subtitles": movie.get("subtitle_tracks"),
-            "file_path": movie.get("file_path")
+            "file_path": movie.get("file_path"),
+            "has_file": movie.get("media_id") is not None,
+            "is_imported": movie.get("is_imported") == 1
         }
 
 
@@ -1648,7 +1655,18 @@ async def stream_movie(movie_id: int, request: Request):
     """Streaming directe d'una pel·lícula amb suport Range"""
     with get_db() as conn:
         cursor = conn.cursor()
-        # Primer intentar amb series.id (movie_id és l'ID de la pel·lícula a series)
+
+        # Primer verificar si la pel·lícula existeix
+        cursor.execute("""
+            SELECT s.id, s.name, s.is_imported FROM series s
+            WHERE s.id = ? AND s.media_type = 'movie'
+        """, (movie_id,))
+        movie = cursor.fetchone()
+
+        if not movie:
+            raise HTTPException(status_code=404, detail="Pel·lícula no trobada")
+
+        # Buscar el fitxer associat
         cursor.execute("""
             SELECT m.file_path FROM media_files m
             JOIN series s ON m.series_id = s.id
@@ -1666,7 +1684,11 @@ async def stream_movie(movie_id: int, request: Request):
             result = cursor.fetchone()
 
         if not result:
-            raise HTTPException(status_code=404, detail="Pel·lícula no trobada")
+            # La pel·lícula existeix però no té fitxer (importada de TMDB)
+            raise HTTPException(
+                status_code=404,
+                detail="NO_FILE:Aquesta pel·lícula no té cap fitxer de vídeo associat. És només metadades importades de TMDB."
+            )
 
         file_path = Path(result["file_path"])
         if not file_path.exists():
