@@ -1,4 +1,5 @@
-.loading-screen {
+/* Startup Loading Screen - unique class names to avoid conflicts */
+.startup-loading-screen {
   position: fixed;
   top: 0;
   left: 0;
@@ -9,10 +10,10 @@
   align-items: center;
   justify-content: center;
   z-index: 10000;
-  animation: fadeIn 0.3s ease-out;
+  animation: startupFadeIn 0.3s ease-out;
 }
 
-@keyframes fadeIn {
+@keyframes startupFadeIn {
   from {
     opacity: 0;
   }
@@ -21,22 +22,22 @@
   }
 }
 
-.loading-content {
+.startup-loading-content {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2rem;
 }
 
-.loading-logo {
+.startup-loading-logo {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 1rem;
-  animation: pulse 2s ease-in-out infinite;
+  animation: startupPulse 2s ease-in-out infinite;
 }
 
-@keyframes pulse {
+@keyframes startupPulse {
   0%, 100% {
     transform: scale(1);
     opacity: 1;
@@ -47,12 +48,14 @@
   }
 }
 
-.loading-logo svg {
-  color: #a78bfa;
-  filter: drop-shadow(0 0 20px rgba(167, 139, 250, 0.5));
+.startup-hermes-logo {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 30px rgba(167, 139, 250, 0.6));
 }
 
-.loading-title {
+.startup-loading-title {
   font-size: 2.5rem;
   font-weight: 700;
   background: linear-gradient(135deg, #a78bfa, #818cf8, #c084fc);
@@ -64,14 +67,14 @@
   margin: 0;
 }
 
-.loading-progress-container {
+.startup-progress-container {
   width: 300px;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
 
-.loading-progress-bar {
+.startup-progress-bar {
   width: 100%;
   height: 6px;
   background: rgba(255, 255, 255, 0.1);
@@ -79,7 +82,7 @@
   overflow: hidden;
 }
 
-.loading-progress-fill {
+.startup-progress-fill {
   height: 100%;
   background: linear-gradient(90deg, #a78bfa, #818cf8, #c084fc);
   border-radius: 3px;
@@ -87,7 +90,7 @@
   box-shadow: 0 0 10px rgba(167, 139, 250, 0.5);
 }
 
-.loading-progress-text {
+.startup-progress-text {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -95,41 +98,41 @@
   color: rgba(255, 255, 255, 0.7);
 }
 
-.loading-message {
+.startup-progress-message {
   font-weight: 500;
 }
 
-.loading-percentage {
+.startup-progress-percentage {
   color: #a78bfa;
   font-weight: 600;
 }
 
-.loading-dots {
+.startup-loading-dots {
   display: flex;
   gap: 0.5rem;
 }
 
-.loading-dots .dot {
+.startup-dot {
   width: 8px;
   height: 8px;
   background: #a78bfa;
   border-radius: 50%;
-  animation: bounce 1.4s ease-in-out infinite;
+  animation: startupBounce 1.4s ease-in-out infinite;
 }
 
-.loading-dots .dot:nth-child(1) {
+.startup-dot:nth-child(1) {
   animation-delay: 0s;
 }
 
-.loading-dots .dot:nth-child(2) {
+.startup-dot:nth-child(2) {
   animation-delay: 0.2s;
 }
 
-.loading-dots .dot:nth-child(3) {
+.startup-dot:nth-child(3) {
   animation-delay: 0.4s;
 }
 
-@keyframes bounce {
+@keyframes startupBounce {
   0%, 80%, 100% {
     transform: translateY(0);
     opacity: 0.5;
@@ -141,11 +144,11 @@
 }
 
 /* Fade out animation when loading complete */
-.loading-screen.fade-out {
-  animation: fadeOut 0.5s ease-out forwards;
+.startup-loading-screen.fade-out {
+  animation: startupFadeOut 0.5s ease-out forwards;
 }
 
-@keyframes fadeOut {
+@keyframes startupFadeOut {
   from {
     opacity: 1;
   }
