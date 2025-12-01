@@ -847,10 +847,15 @@
   margin-bottom: var(--space-2xl);
 }
 
+.quick-access .row-title {
+  margin-bottom: var(--space-xl);
+}
+
 .quick-access-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: var(--space-md);
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
 }
 
 .quick-card {
@@ -860,8 +865,10 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-sm);
-  padding: var(--space-xl);
-  border-radius: var(--radius-lg);
+  width: 140px;
+  height: 140px;
+  padding: var(--space-lg);
+  border-radius: 50%;
   text-decoration: none;
   color: var(--text-primary);
   background: rgba(30, 41, 59, 0.4);
@@ -951,16 +958,22 @@
   }
 
   .quick-access-grid {
-    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-md);
   }
 
   .quick-card {
-    padding: var(--space-md);
+    width: 100px;
+    height: 100px;
+    padding: var(--space-sm);
   }
 
   .quick-card svg {
     width: 24px;
     height: 24px;
+  }
+
+  .quick-card span {
+    font-size: var(--font-size-xs);
   }
 
   .quick-bubble {
