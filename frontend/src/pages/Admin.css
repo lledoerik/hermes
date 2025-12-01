@@ -284,6 +284,29 @@
   color: #fca5a5;
 }
 
+/* Select dropdowns */
+.admin-select {
+  padding: 8px 15px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  min-width: 140px;
+}
+
+.admin-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.admin-select option {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  padding: 8px;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .admin-container {

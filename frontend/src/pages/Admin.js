@@ -777,13 +777,7 @@ function Admin() {
                 </div>
               </div>
               <select
-                style={{
-                  padding: '8px 15px',
-                  background: 'rgba(255,255,255,0.1)',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  borderRadius: '8px',
-                  color: 'white'
-                }}
+                className="admin-select"
                 defaultValue={localStorage.getItem('hermes_audio_lang') || 'cat'}
                 onChange={(e) => localStorage.setItem('hermes_audio_lang', e.target.value)}
               >
@@ -803,13 +797,7 @@ function Admin() {
                 </div>
               </div>
               <select
-                style={{
-                  padding: '8px 15px',
-                  background: 'rgba(255,255,255,0.1)',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  borderRadius: '8px',
-                  color: 'white'
-                }}
+                className="admin-select"
                 defaultValue={localStorage.getItem('hermes_subtitle_lang') || 'off'}
                 onChange={(e) => localStorage.setItem('hermes_subtitle_lang', e.target.value)}
               >
