@@ -202,6 +202,20 @@ class TMDBClient:
             data = await self._request(f"/tv/{tv_id}/credits")
         return data
 
+    async def get_movie_watch_providers(self, movie_id: int, country: str = "ES") -> Optional[Dict[str, Any]]:
+        """Get watch providers (streaming services) for a movie."""
+        data = await self._request(f"/movie/{movie_id}/watch/providers")
+        if data and data.get("results"):
+            return data["results"].get(country)
+        return None
+
+    async def get_tv_watch_providers(self, tv_id: int, country: str = "ES") -> Optional[Dict[str, Any]]:
+        """Get watch providers (streaming services) for a TV series."""
+        data = await self._request(f"/tv/{tv_id}/watch/providers")
+        if data and data.get("results"):
+            return data["results"].get(country)
+        return None
+
     def get_poster_url(self, poster_path: str, size: str = "w500") -> Optional[str]:
         """
         Get poster image URL.
