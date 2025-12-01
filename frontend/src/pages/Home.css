@@ -688,9 +688,8 @@
 
 /* Content Rows (Netflix style) */
 .content-row,
-.continue-watching-section,
-.home-header {
-  padding: 0 4%;
+.continue-watching-section {
+  padding: 0 var(--content-padding, 4%);
   margin-bottom: var(--space-lg);
 }
 
@@ -710,7 +709,10 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: var(--space-md) 4% !important;
+  padding-top: var(--space-md);
+  padding-bottom: var(--space-md);
+  padding-left: var(--content-padding, 4%);
+  padding-right: var(--content-padding, 4%);
   margin-bottom: var(--space-sm);
 }
 
