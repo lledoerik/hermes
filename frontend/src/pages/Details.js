@@ -106,6 +106,11 @@ function Details() {
   const [externalUrlLoading, setExternalUrlLoading] = useState(false);
   const [showExternalPlayer, setShowExternalPlayer] = useState(false);
 
+  // Embed sources state (auto-generated from TMDB ID)
+  const [embedSources, setEmbedSources] = useState(null);
+  const [selectedEmbedSource, setSelectedEmbedSource] = useState(null);
+  const [showEmbedPlayer, setShowEmbedPlayer] = useState(false);
+
   // Scroll de temporades
   const seasonsScrollRef = useRef(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -203,6 +208,27 @@ function Details() {
     };
 
     loadWatchProviders();
+  }, [item?.tmdb_id, type]);
+
+  // Carregar fonts d'embed automàtiques si tenim tmdb_id
+  useEffect(() => {
+    const loadEmbedSources = async () => {
+      if (!item?.tmdb_id) return;
+
+      try {
+        const mediaType = type === 'movies' ? 'movie' : 'series';
+        const response = await axios.get(`/api/embed-sources/${mediaType}/${item.tmdb_id}`);
+        setEmbedSources(response.data);
+        // Seleccionar la primera font per defecte
+        if (response.data.sources && response.data.sources.length > 0) {
+          setSelectedEmbedSource(response.data.sources[0]);
+        }
+      } catch (err) {
+        console.error('Error carregant fonts d\'embed:', err);
+      }
+    };
+
+    loadEmbedSources();
   }, [item?.tmdb_id, type]);
 
   useEffect(() => {
@@ -458,11 +484,11 @@ function Details() {
                       {watchProviders.flatrate.map((provider) => (
                         <a
                           key={provider.id}
-                          href={watchProviders.link}
+                          href={provider.deep_link || watchProviders.link}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="provider-logo"
-                          title={provider.name}
+                          title={`Veure a ${provider.name}`}
                         >
                           {provider.logo ? (
                             <img src={provider.logo} alt={provider.name} />
@@ -481,11 +507,11 @@ function Details() {
                       {watchProviders.rent.slice(0, 5).map((provider) => (
                         <a
                           key={provider.id}
-                          href={watchProviders.link}
+                          href={provider.deep_link || watchProviders.link}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="provider-logo"
-                          title={provider.name}
+                          title={`Llogar a ${provider.name}`}
                         >
                           {provider.logo ? (
                             <img src={provider.logo} alt={provider.name} />
@@ -504,16 +530,26 @@ function Details() {
               <button className="play-btn" onClick={() => handlePlay()}>
                 <PlayIcon /> Reproduir
               </button>
-              {/* Botó per reproduir contingut extern */}
+              {/* Botó per reproduir contingut extern (URL manual) */}
               {item?.external_url && (
                 <button
                   className="play-btn external-play-btn"
-                  onClick={() => setShowExternalPlayer(!showExternalPlayer)}
+                  onClick={() => { setShowExternalPlayer(!showExternalPlayer); setShowEmbedPlayer(false); }}
                 >
                   <PlayIcon /> {showExternalPlayer ? 'Amagar' : 'Veure online'}
                   {item?.external_source && (
                     <span className="external-source-badge">{item.external_source}</span>
                   )}
+                </button>
+              )}
+              {/* Botó per reproduir amb embed automàtic (TMDB ID) */}
+              {!item?.external_url && embedSources && embedSources.sources && embedSources.sources.length > 0 && (
+                <button
+                  className="play-btn embed-play-btn"
+                  onClick={() => { setShowEmbedPlayer(!showEmbedPlayer); setShowExternalPlayer(false); }}
+                >
+                  <PlayIcon /> {showEmbedPlayer ? 'Amagar' : 'Veure online'}
+                  <span className="external-source-badge">Auto</span>
                 </button>
               )}
               <button className="secondary-btn">
@@ -572,12 +608,37 @@ function Details() {
               </div>
             )}
 
-            {/* External Player */}
+            {/* External Player (URL manual) */}
             {showExternalPlayer && item?.external_url && (
               <div className="external-player-section">
                 <ExternalPlayer
                   url={item.external_url}
                   title={item.title || item.name}
+                  autoplay={true}
+                />
+              </div>
+            )}
+
+            {/* Embed Player (automàtic amb TMDB ID) */}
+            {showEmbedPlayer && selectedEmbedSource && (
+              <div className="external-player-section">
+                <div className="embed-source-selector">
+                  <span>Font:</span>
+                  <div className="embed-source-buttons">
+                    {embedSources?.sources?.map((source, index) => (
+                      <button
+                        key={index}
+                        className={`embed-source-btn ${selectedEmbedSource?.name === source.name ? 'active' : ''}`}
+                        onClick={() => setSelectedEmbedSource(source)}
+                      >
+                        {source.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <ExternalPlayer
+                  url={selectedEmbedSource.url}
+                  title={item?.title || item?.name}
                   autoplay={true}
                 />
               </div>

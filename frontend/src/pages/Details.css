@@ -507,6 +507,56 @@
   overflow: hidden;
 }
 
+/* Embed Play Button */
+.embed-play-btn {
+  background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%) !important;
+  color: white !important;
+}
+
+.embed-play-btn svg {
+  fill: white !important;
+}
+
+/* Embed Source Selector */
+.embed-source-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 8px 8px 0 0;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+}
+
+.embed-source-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.embed-source-btn {
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.embed-source-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.embed-source-btn.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+}
+
 /* ========================================
    EPISODES SECTION
    ======================================== */
