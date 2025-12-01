@@ -87,7 +87,9 @@ const LoadingSpinner = ({ text = 'Carregant...' }) => (
 // Llista de servidors d'extracció disponibles
 const STREAM_SOURCES = [
   { id: 'vidsrc', name: 'VidSrc' },
-  { id: 'vidsrc.me', name: 'VidSrc.me' },
+  { id: '2embed', name: '2Embed' },
+  { id: 'embedsu', name: 'Embed.su' },
+  { id: 'autoembed', name: 'AutoEmbed' },
   { id: 'superembed', name: 'SuperEmbed' },
 ];
 
