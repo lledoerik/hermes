@@ -64,29 +64,62 @@ function Series() {
   const [importingAll, setImportingAll] = useState(false);
 
   // Discover state
-  const [discoverResults, setDiscoverResults] = useState([]);
   const [discoverCategory, setDiscoverCategory] = useState('popular');
   const [discoverPage, setDiscoverPage] = useState(1);
   const [discoverTotalPages, setDiscoverTotalPages] = useState(1);
   const [discoverLoading, setDiscoverLoading] = useState(false);
+  const [autoImporting, setAutoImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
 
   useEffect(() => {
     loadSeries();
-    loadDiscover('popular', 1);
+    loadAndImportDiscover('popular', 1);
   }, []);
 
-  const loadDiscover = async (category, page, append = false) => {
+  const loadSeries = async () => {
+    try {
+      const response = await axios.get('/api/library/series');
+      setSeries(response.data);
+    } catch (error) {
+      console.error('Error carregant sèries:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadAndImportDiscover = async (category, page, append = false) => {
     setDiscoverLoading(true);
     try {
       const response = await axios.get(`/api/discover/series?category=${category}&page=${page}`);
-      if (append) {
-        setDiscoverResults(prev => [...prev, ...response.data.results]);
-      } else {
-        setDiscoverResults(response.data.results);
-      }
+      const results = response.data.results;
+
       setDiscoverTotalPages(response.data.total_pages);
       setDiscoverPage(page);
       setDiscoverCategory(category);
+
+      // Auto-import items not already in library
+      const toImport = results.filter(item => !item.in_library);
+
+      if (toImport.length > 0) {
+        setAutoImporting(true);
+        setImportProgress({ current: 0, total: toImport.length });
+
+        for (let i = 0; i < toImport.length; i++) {
+          const item = toImport[i];
+          try {
+            await axios.post('/api/import/tmdb', {
+              tmdb_id: item.id,
+              media_type: 'series'
+            });
+            setImportProgress({ current: i + 1, total: toImport.length });
+          } catch (err) {
+            console.error(`Error important ${item.title}:`, err);
+          }
+        }
+
+        setAutoImporting(false);
+        await loadSeries();
+      }
     } catch (error) {
       console.error('Error carregant descobrir:', error);
     } finally {
@@ -95,14 +128,14 @@ function Series() {
   };
 
   const handleCategoryChange = (category) => {
-    if (category !== discoverCategory) {
-      loadDiscover(category, 1);
+    if (category !== discoverCategory && !autoImporting) {
+      loadAndImportDiscover(category, 1);
     }
   };
 
   const handleLoadMore = () => {
-    if (discoverPage < discoverTotalPages) {
-      loadDiscover(discoverCategory, discoverPage + 1, true);
+    if (discoverPage < discoverTotalPages && !autoImporting) {
+      loadAndImportDiscover(discoverCategory, discoverPage + 1, true);
     }
   };
 
@@ -140,17 +173,6 @@ function Series() {
     return () => clearTimeout(timer);
   }, [searchQuery, searchExternal]);
 
-  const loadSeries = async () => {
-    try {
-      const response = await axios.get('/api/library/series');
-      setSeries(response.data);
-    } catch (error) {
-      console.error('Error carregant sèries:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleImport = async (item, e) => {
     e?.stopPropagation();
     setImporting(prev => ({ ...prev, [item.id]: true }));
@@ -161,9 +183,6 @@ function Series() {
       });
       setImported(prev => ({ ...prev, [item.id]: true }));
       setExternalResults(prev => prev.filter(r => r.id !== item.id));
-      setDiscoverResults(prev => prev.map(r =>
-        r.id === item.id ? { ...r, in_library: true } : r
-      ));
       loadSeries();
     } catch (err) {
       console.error('Error important:', err);
@@ -176,9 +195,8 @@ function Series() {
     if (items.length === 0) return;
 
     setImportingAll(true);
-    const toImport = [...items].filter(item => !item.in_library);
 
-    for (const item of toImport) {
+    for (const item of items) {
       setImporting(prev => ({ ...prev, [item.id]: true }));
       try {
         await axios.post('/api/import/tmdb', {
@@ -187,9 +205,6 @@ function Series() {
         });
         setImported(prev => ({ ...prev, [item.id]: true }));
         setExternalResults(prev => prev.filter(r => r.id !== item.id));
-        setDiscoverResults(prev => prev.map(r =>
-          r.id === item.id ? { ...r, in_library: true } : r
-        ));
       } catch (err) {
         console.error(`Error important ${item.title}:`, err);
       } finally {
@@ -242,9 +257,6 @@ function Series() {
   const isSearching = searchQuery.trim().length > 0;
   const hasLocalResults = sortedSeries.length > 0;
   const hasExternalResults = externalResults.length > 0;
-  const hasDiscoverResults = discoverResults.length > 0;
-
-  const discoverNotInLibrary = discoverResults.filter(r => !r.in_library);
 
   const categoryLabels = {
     popular: 'Populars',
@@ -260,7 +272,7 @@ function Series() {
         <div className="library-title">
           <span className="icon"><TvIcon /></span>
           <h1>Sèries</h1>
-          <span className="library-count">({series.length} a la biblioteca)</span>
+          <span className="library-count">({series.length})</span>
         </div>
 
         <div className="library-filters">
@@ -300,10 +312,26 @@ function Series() {
               key={key}
               className={`category-tab ${discoverCategory === key ? 'active' : ''}`}
               onClick={() => handleCategoryChange(key)}
+              disabled={autoImporting}
             >
               {label}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Auto-import progress */}
+      {autoImporting && (
+        <div className="import-progress-bar">
+          <div className="import-progress-text">
+            Important sèries... {importProgress.current}/{importProgress.total}
+          </div>
+          <div className="import-progress-track">
+            <div
+              className="import-progress-fill"
+              style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+            />
+          </div>
         </div>
       )}
 
@@ -398,118 +426,44 @@ function Series() {
         </>
       ) : (
         <>
-          {discoverNotInLibrary.length > 0 && (
-            <div className="add-all-bar">
-              <span>{discoverNotInLibrary.length} sèries disponibles per afegir</span>
-              <button
-                className="add-all-btn"
-                onClick={() => handleImportAll(discoverResults)}
-                disabled={importingAll}
-              >
-                {importingAll ? (
-                  <>
-                    <div className="btn-spinner"></div>
-                    Important...
-                  </>
-                ) : (
-                  <>
-                    <PlusIcon />
-                    Afegir totes
-                  </>
-                )}
-              </button>
+          {hasLocalResults ? (
+            <div className="library-grid">
+              {sortedSeries.map((show) => (
+                <MediaCard
+                  key={`local-${show.id}`}
+                  item={show}
+                  type="series"
+                  width="100%"
+                />
+              ))}
+            </div>
+          ) : discoverLoading || autoImporting ? (
+            <div className="loading-inline">
+              <div className="spinner"></div>
+              <span>
+                {autoImporting
+                  ? `Important sèries ${categoryLabels[discoverCategory].toLowerCase()}...`
+                  : 'Carregant sèries...'}
+              </span>
+            </div>
+          ) : (
+            <div className="empty-state">
+              <div className="empty-icon"><TvIcon /></div>
+              <h2>No hi ha sèries</h2>
+              <p>Selecciona una categoria per importar sèries</p>
             </div>
           )}
 
-          {hasLocalResults && (
-            <>
-              <h3 className="section-title">La meva biblioteca</h3>
-              <div className="library-grid">
-                {sortedSeries.map((show) => (
-                  <MediaCard
-                    key={`local-${show.id}`}
-                    item={show}
-                    type="series"
-                    width="100%"
-                  />
-                ))}
-              </div>
-            </>
-          )}
-
-          {hasDiscoverResults && (
-            <>
-              <h3 className="section-title">
-                {categoryLabels[discoverCategory]} a TMDB
-              </h3>
-              <div className="library-grid">
-                {discoverResults.map((item) => (
-                  <div
-                    key={`discover-${item.id}`}
-                    className={`media-card external-card ${item.in_library ? 'in-library' : ''}`}
-                    onClick={() => window.open(`https://www.themoviedb.org/tv/${item.id}`, '_blank')}
-                  >
-                    <div className="media-poster">
-                      {item.poster ? (
-                        <img src={item.poster} alt={item.title} />
-                      ) : (
-                        <div className="no-poster-placeholder">
-                          <TvIcon />
-                        </div>
-                      )}
-                      <div className="external-badge">
-                        {item.in_library ? '✓ Biblioteca' : 'TMDB'}
-                      </div>
-                      {!item.in_library && (
-                        <button
-                          className={`add-btn ${imported[item.id] ? 'added' : ''}`}
-                          onClick={(e) => handleImport(item, e)}
-                          disabled={importing[item.id] || imported[item.id]}
-                          title="Afegir a la biblioteca"
-                        >
-                          {importing[item.id] ? (
-                            <div className="btn-spinner"></div>
-                          ) : imported[item.id] ? (
-                            <CheckIcon />
-                          ) : (
-                            <PlusIcon />
-                          )}
-                        </button>
-                      )}
-                    </div>
-                    <div className="media-info">
-                      <h3 className="media-title">{item.title}</h3>
-                      <div className="media-meta">
-                        {item.year && <span>{item.year}</span>}
-                        {item.rating > 0 && (
-                          <span className="rating">
-                            <StarIcon /> {item.rating.toFixed(1)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {discoverPage < discoverTotalPages && (
-                <div className="load-more-container">
-                  <button
-                    className="load-more-btn"
-                    onClick={handleLoadMore}
-                    disabled={discoverLoading}
-                  >
-                    {discoverLoading ? 'Carregant...' : 'Carregar més'}
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-
-          {discoverLoading && !hasDiscoverResults && (
-            <div className="loading-inline">
-              <div className="spinner"></div>
-              <span>Carregant sèries...</span>
+          {/* Load more button */}
+          {hasLocalResults && discoverPage < discoverTotalPages && !autoImporting && (
+            <div className="load-more-container">
+              <button
+                className="load-more-btn"
+                onClick={handleLoadMore}
+                disabled={discoverLoading}
+              >
+                {discoverLoading ? 'Carregant...' : `Carregar més ${categoryLabels[discoverCategory].toLowerCase()}`}
+              </button>
             </div>
           )}
         </>
