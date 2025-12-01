@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import MediaCard from '../components/MediaCard';
 import './Library.css';
@@ -61,7 +60,6 @@ function Movies() {
   const [movies, setMovies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('name');
-  const navigate = useNavigate();
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -76,6 +74,7 @@ function Movies() {
   }, []);
 
   // Debounced external search
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!searchQuery.trim()) {
       setExternalResults([]);
