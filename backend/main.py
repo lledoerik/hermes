@@ -1907,104 +1907,182 @@ async def extract_stream_url(media_type: str, tmdb_id: int, season: int = None, 
     """
     import httpx
     import re
+    import base64
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Referer": "https://vidsrc.to/",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
     }
 
-    async def extract_vidsrc():
-        """Extreu stream de VidSrc.to"""
+    async def extract_vidsrc_xyz():
+        """Extreu stream de vidsrc.xyz - té API pública"""
         try:
             if media_type == 'movie':
-                embed_url = f"https://vidsrc.to/embed/movie/{tmdb_id}"
+                api_url = f"https://vidsrc.xyz/embed/movie/{tmdb_id}"
             else:
                 s = season or 1
                 e = episode or 1
-                embed_url = f"https://vidsrc.to/embed/tv/{tmdb_id}/{s}/{e}"
+                api_url = f"https://vidsrc.xyz/embed/tv/{tmdb_id}/{s}/{e}"
 
-            async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as client:
-                # Primera petició per obtenir la pàgina d'embed
-                resp = await client.get(embed_url, headers=headers)
-                if resp.status_code != 200:
-                    return None
-                html = resp.text
-
-                # Buscar l'ID del vídeo
-                match = re.search(r'data-id="([^"]+)"', html)
-                if not match:
-                    # Intentar altre patró
-                    match = re.search(r'/ajax/embed/episode/([^/]+)/sources', html)
-                if not match:
-                    return None
-
-                video_id = match.group(1)
-
-                # Obtenir les fonts del vídeo
-                sources_url = f"https://vidsrc.to/ajax/embed/episode/{video_id}/sources"
-                resp = await client.get(sources_url, headers=headers)
-                if resp.status_code != 200:
-                    return None
-                sources_data = resp.json()
-
-                if not sources_data.get("result"):
-                    return None
-
-                # Obtenir la primera font
-                for source_item in sources_data["result"]:
-                    source_id = source_item.get("id")
-                    if source_id:
-                        source_url = f"https://vidsrc.to/ajax/embed/source/{source_id}"
-                        resp = await client.get(source_url, headers=headers)
-                        if resp.status_code == 200:
-                            source_data = resp.json()
-                            if source_data.get("result", {}).get("url"):
-                                return {
-                                    "url": source_data["result"]["url"],
-                                    "type": "hls",
-                                    "source": "VidSrc"
-                                }
-
-                return None
-        except Exception as e:
-            logging.error(f"Error extracting VidSrc: {e}")
-            return None
-
-    async def extract_vidsrc_me():
-        """Extreu stream de VidSrc.me"""
-        try:
-            if media_type == 'movie':
-                api_url = f"https://vidsrc.me/embed/movie?tmdb={tmdb_id}"
-            else:
-                s = season or 1
-                e = episode or 1
-                api_url = f"https://vidsrc.me/embed/tv?tmdb={tmdb_id}&season={s}&episode={e}"
-
-            async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as client:
+            async with httpx.AsyncClient(follow_redirects=True, timeout=20.0, verify=False) as client:
                 resp = await client.get(api_url, headers=headers)
                 if resp.status_code != 200:
                     return None
                 html = resp.text
 
-                # Buscar URLs HLS a la pàgina
-                hls_patterns = [
-                    r'(https?://[^\s"\']+\.m3u8[^\s"\']*)',
-                    r'file:\s*["\']([^"\']+\.m3u8[^"\']*)["\']',
+                # Buscar URLs HLS/M3U8 directament
+                patterns = [
                     r'source:\s*["\']([^"\']+\.m3u8[^"\']*)["\']',
+                    r'file:\s*["\']([^"\']+\.m3u8[^"\']*)["\']',
+                    r'src:\s*["\']([^"\']+\.m3u8[^"\']*)["\']',
+                    r'(https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*)',
+                    r'playbackURL["\']?\s*[:=]\s*["\']([^"\']+)["\']',
                 ]
 
-                for pattern in hls_patterns:
-                    match = re.search(pattern, html)
+                for pattern in patterns:
+                    match = re.search(pattern, html, re.IGNORECASE)
                     if match:
+                        url = match.group(1)
+                        if url.startswith('//'):
+                            url = 'https:' + url
                         return {
-                            "url": match.group(1),
+                            "url": url,
                             "type": "hls",
-                            "source": "VidSrc.me"
+                            "source": "VidSrc.xyz"
                         }
 
                 return None
         except Exception as e:
-            logging.error(f"Error extracting VidSrc.me: {e}")
+            logging.error(f"Error extracting vidsrc.xyz: {e}")
+            return None
+
+    async def extract_2embed():
+        """Extreu stream de 2embed.cc"""
+        try:
+            if media_type == 'movie':
+                api_url = f"https://www.2embed.cc/embed/{tmdb_id}"
+            else:
+                s = season or 1
+                e = episode or 1
+                api_url = f"https://www.2embed.cc/embedtv/{tmdb_id}&s={s}&e={e}"
+
+            async with httpx.AsyncClient(follow_redirects=True, timeout=20.0, verify=False) as client:
+                resp = await client.get(api_url, headers=headers)
+                if resp.status_code != 200:
+                    return None
+                html = resp.text
+
+                # Buscar iframes amb fonts de vídeo
+                iframe_match = re.search(r'<iframe[^>]+src=["\']([^"\']+)["\']', html, re.IGNORECASE)
+                if iframe_match:
+                    iframe_url = iframe_match.group(1)
+                    if iframe_url.startswith('//'):
+                        iframe_url = 'https:' + iframe_url
+
+                    # Seguir l'iframe per trobar el stream
+                    resp2 = await client.get(iframe_url, headers={**headers, "Referer": api_url})
+                    if resp2.status_code == 200:
+                        html2 = resp2.text
+
+                        patterns = [
+                            r'(https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*)',
+                            r'file:\s*["\']([^"\']+)["\']',
+                            r'source:\s*["\']([^"\']+)["\']',
+                        ]
+
+                        for pattern in patterns:
+                            match = re.search(pattern, html2, re.IGNORECASE)
+                            if match:
+                                url = match.group(1)
+                                if '.m3u8' in url or 'stream' in url.lower():
+                                    return {
+                                        "url": url,
+                                        "type": "hls",
+                                        "source": "2Embed"
+                                    }
+
+                return None
+        except Exception as e:
+            logging.error(f"Error extracting 2embed: {e}")
+            return None
+
+    async def extract_embedsu():
+        """Extreu stream de embed.su"""
+        try:
+            if media_type == 'movie':
+                api_url = f"https://embed.su/embed/movie/{tmdb_id}"
+            else:
+                s = season or 1
+                e = episode or 1
+                api_url = f"https://embed.su/embed/tv/{tmdb_id}/{s}/{e}"
+
+            async with httpx.AsyncClient(follow_redirects=True, timeout=20.0, verify=False) as client:
+                resp = await client.get(api_url, headers=headers)
+                if resp.status_code != 200:
+                    return None
+                html = resp.text
+
+                # Buscar configuració del player
+                patterns = [
+                    r'(https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*)',
+                    r'file:\s*["\']([^"\']+)["\']',
+                    r'source:\s*["\']([^"\']+)["\']',
+                    r'src:\s*["\']([^"\']+\.m3u8[^"\']*)["\']',
+                ]
+
+                for pattern in patterns:
+                    match = re.search(pattern, html, re.IGNORECASE)
+                    if match:
+                        url = match.group(1)
+                        if '.m3u8' in url:
+                            return {
+                                "url": url,
+                                "type": "hls",
+                                "source": "Embed.su"
+                            }
+
+                return None
+        except Exception as e:
+            logging.error(f"Error extracting embed.su: {e}")
+            return None
+
+    async def extract_autoembed():
+        """Extreu stream de autoembed.cc"""
+        try:
+            if media_type == 'movie':
+                api_url = f"https://autoembed.cc/embed/movie/{tmdb_id}"
+            else:
+                s = season or 1
+                e = episode or 1
+                api_url = f"https://autoembed.cc/embed/tv/{tmdb_id}/{s}/{e}"
+
+            async with httpx.AsyncClient(follow_redirects=True, timeout=20.0, verify=False) as client:
+                resp = await client.get(api_url, headers=headers)
+                if resp.status_code != 200:
+                    return None
+                html = resp.text
+
+                patterns = [
+                    r'(https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*)',
+                    r'file:\s*["\']([^"\']+)["\']',
+                    r'sources:\s*\[\s*\{\s*file:\s*["\']([^"\']+)["\']',
+                ]
+
+                for pattern in patterns:
+                    match = re.search(pattern, html, re.IGNORECASE)
+                    if match:
+                        url = match.group(1)
+                        if '.m3u8' in url or 'stream' in url.lower():
+                            return {
+                                "url": url,
+                                "type": "hls",
+                                "source": "AutoEmbed"
+                            }
+
+                return None
+        except Exception as e:
+            logging.error(f"Error extracting autoembed: {e}")
             return None
 
     async def extract_superembed():
@@ -2017,23 +2095,23 @@ async def extract_stream_url(media_type: str, tmdb_id: int, season: int = None, 
                 e = episode or 1
                 api_url = f"https://multiembed.mov/?video_id={tmdb_id}&tmdb=1&s={s}&e={e}"
 
-            async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as client:
+            async with httpx.AsyncClient(follow_redirects=True, timeout=20.0, verify=False) as client:
                 resp = await client.get(api_url, headers=headers)
                 if resp.status_code != 200:
                     return None
                 html = resp.text
 
-                # Buscar URLs HLS
-                hls_patterns = [
-                    r'(https?://[^\s"\']+\.m3u8[^\s"\']*)',
+                patterns = [
+                    r'(https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*)',
                     r'file:\s*["\']([^"\']+)["\']',
+                    r'source:\s*["\']([^"\']+)["\']',
                 ]
 
-                for pattern in hls_patterns:
-                    match = re.search(pattern, html)
+                for pattern in patterns:
+                    match = re.search(pattern, html, re.IGNORECASE)
                     if match:
                         url = match.group(1)
-                        if '.m3u8' in url or 'stream' in url:
+                        if '.m3u8' in url or 'stream' in url.lower():
                             return {
                                 "url": url,
                                 "type": "hls",
@@ -2047,8 +2125,10 @@ async def extract_stream_url(media_type: str, tmdb_id: int, season: int = None, 
 
     # Intentar extreure de cada font
     extractors = {
-        "vidsrc": extract_vidsrc,
-        "vidsrc.me": extract_vidsrc_me,
+        "vidsrc": extract_vidsrc_xyz,
+        "2embed": extract_2embed,
+        "embedsu": extract_embedsu,
+        "autoembed": extract_autoembed,
         "superembed": extract_superembed,
     }
 
@@ -2060,8 +2140,10 @@ async def extract_stream_url(media_type: str, tmdb_id: int, season: int = None, 
 
     # Si no, provar totes les fonts en ordre
     for name, extractor in extractors.items():
+        logging.info(f"Provant extractor: {name}")
         result = await extractor()
         if result:
+            logging.info(f"Extracció exitosa amb {name}: {result['url'][:50]}...")
             return result
 
     # Si cap funciona, retornar error
