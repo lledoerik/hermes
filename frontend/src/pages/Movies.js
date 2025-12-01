@@ -69,6 +69,7 @@ function Movies() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [importing, setImporting] = useState({});
   const [imported, setImported] = useState({});
+  const [importingAll, setImportingAll] = useState(false);
 
   useEffect(() => {
     loadMovies();
@@ -121,7 +122,7 @@ function Movies() {
   };
 
   const handleImport = async (item, e) => {
-    e.stopPropagation();
+    e?.stopPropagation();
     setImporting(prev => ({ ...prev, [item.id]: true }));
     try {
       await axios.post('/api/import/tmdb', {
@@ -133,10 +134,36 @@ function Movies() {
       setExternalResults(prev => prev.filter(r => r.id !== item.id));
       loadMovies();
     } catch (err) {
-      alert(err.response?.data?.detail || 'Error important');
+      console.error('Error important:', err);
     } finally {
       setImporting(prev => ({ ...prev, [item.id]: false }));
     }
+  };
+
+  const handleImportAll = async () => {
+    if (externalResults.length === 0) return;
+
+    setImportingAll(true);
+    const toImport = [...externalResults];
+
+    for (const item of toImport) {
+      setImporting(prev => ({ ...prev, [item.id]: true }));
+      try {
+        await axios.post('/api/import/tmdb', {
+          tmdb_id: item.id,
+          media_type: 'movie'
+        });
+        setImported(prev => ({ ...prev, [item.id]: true }));
+        setExternalResults(prev => prev.filter(r => r.id !== item.id));
+      } catch (err) {
+        console.error(`Error important ${item.title}:`, err);
+      } finally {
+        setImporting(prev => ({ ...prev, [item.id]: false }));
+      }
+    }
+
+    loadMovies();
+    setImportingAll(false);
   };
 
   const clearSearch = () => {
@@ -234,19 +261,44 @@ function Movies() {
           </div>
         </div>
       ) : (
-        <div className="library-grid">
-          {/* Local movies */}
-          {sortedMovies.map((movie) => (
-            <MediaCard
-              key={`local-${movie.id}`}
-              item={movie}
-              type="movies"
-              width="100%"
-            />
-          ))}
+        <>
+          {/* Add All button when there are external results */}
+          {externalResults.length > 0 && (
+            <div className="add-all-bar">
+              <span>{externalResults.length} resultats de TMDB</span>
+              <button
+                className="add-all-btn"
+                onClick={handleImportAll}
+                disabled={importingAll}
+              >
+                {importingAll ? (
+                  <>
+                    <div className="btn-spinner"></div>
+                    Important...
+                  </>
+                ) : (
+                  <>
+                    <PlusIcon />
+                    Afegir tots
+                  </>
+                )}
+              </button>
+            </div>
+          )}
 
-          {/* External results (TMDB) */}
-          {externalResults.map((item) => (
+          <div className="library-grid">
+            {/* Local movies */}
+            {sortedMovies.map((movie) => (
+              <MediaCard
+                key={`local-${movie.id}`}
+                item={movie}
+                type="movies"
+                width="100%"
+              />
+            ))}
+
+            {/* External results (TMDB) */}
+            {externalResults.map((item) => (
             <div
               key={`tmdb-${item.id}`}
               className="media-card external-card"
@@ -289,7 +341,8 @@ function Movies() {
               </div>
             </div>
           ))}
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

@@ -123,6 +123,7 @@ function Books() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [importing, setImporting] = useState({});
   const [imported, setImported] = useState({});
+  const [importingAll, setImportingAll] = useState(false);
 
   // Metadata editing state
   const [editingBook, setEditingBook] = useState(null);
@@ -207,7 +208,7 @@ function Books() {
   };
 
   const handleImport = async (item, e) => {
-    e.stopPropagation();
+    e?.stopPropagation();
     const itemKey = item.id || item.title;
     setImporting(prev => ({ ...prev, [itemKey]: true }));
     try {
@@ -221,10 +222,39 @@ function Books() {
       loadAuthors();
       loadAllBooks();
     } catch (err) {
-      alert(err.response?.data?.detail || 'Error important');
+      console.error('Error important:', err);
     } finally {
       setImporting(prev => ({ ...prev, [itemKey]: false }));
     }
+  };
+
+  const handleImportAll = async () => {
+    if (externalResults.length === 0) return;
+
+    setImportingAll(true);
+    const toImport = [...externalResults];
+
+    for (const item of toImport) {
+      const itemKey = item.id || item.title;
+      setImporting(prev => ({ ...prev, [itemKey]: true }));
+      try {
+        await axios.post('/api/import/book', {
+          title: item.title,
+          author: item.author,
+          olid: item.id?.replace('/works/', '')
+        });
+        setImported(prev => ({ ...prev, [itemKey]: true }));
+        setExternalResults(prev => prev.filter(r => (r.id || r.title) !== itemKey));
+      } catch (err) {
+        console.error(`Error important ${item.title}:`, err);
+      } finally {
+        setImporting(prev => ({ ...prev, [itemKey]: false }));
+      }
+    }
+
+    loadAuthors();
+    loadAllBooks();
+    setImportingAll(false);
   };
 
   const clearSearch = () => {
@@ -601,9 +631,26 @@ function Books() {
           {/* External results from OpenLibrary */}
           {externalResults.length > 0 && (
             <>
-              {filteredAuthors.length > 0 && (
-                <h3 className="section-title">Resultats d'OpenLibrary</h3>
-              )}
+              <div className="add-all-bar">
+                <span>{externalResults.length} resultats d'OpenLibrary</span>
+                <button
+                  className="add-all-btn"
+                  onClick={handleImportAll}
+                  disabled={importingAll}
+                >
+                  {importingAll ? (
+                    <>
+                      <div className="btn-spinner"></div>
+                      Important...
+                    </>
+                  ) : (
+                    <>
+                      <PlusIcon />
+                      Afegir tots
+                    </>
+                  )}
+                </button>
+              </div>
               <div className="library-grid">
                 {externalResults.map((item) => {
                   const itemKey = item.id || item.title;
@@ -653,83 +700,109 @@ function Books() {
         </>
       ) : (
         // Vista de tots els llibres + external results
-        <div className="library-grid">
-          {filteredBooks.map((book) => (
-            <div
-              key={book.id}
-              className="book-card"
-              onClick={() => handleBookClick(book)}
-            >
-              <div className="book-cover">
-                {getBookCover(book) ? (
-                  <img src={getBookCover(book)} alt={book.title} />
-                ) : (
-                  <div className="book-cover-placeholder">
-                    <span className="format-icon">{getFormatIcon(book.format)}</span>
-                  </div>
-                )}
-                <div className="book-format-badge">{book.format.toUpperCase()}</div>
-                {isAdmin && (
-                  <button
-                    className="book-edit-btn"
-                    onClick={(e) => handleOpenMetadataEdit(e, book)}
-                    title="Editar metadades"
-                  >
-                    <EditIcon size={14} />
-                  </button>
-                )}
-              </div>
-              <div className="book-info">
-                <h3 className="book-title">{book.title}</h3>
-                <p className="book-author">{book.author_name}</p>
-              </div>
-            </div>
-          ))}
-
-          {/* External results from OpenLibrary */}
-          {externalResults.map((item) => {
-            const itemKey = item.id || item.title;
-            return (
-              <div
-                key={`ol-${itemKey}`}
-                className="media-card external-card"
-                onClick={() => item.id && window.open(`https://openlibrary.org${item.id}`, '_blank')}
+        <>
+          {/* Add All button when there are external results */}
+          {externalResults.length > 0 && (
+            <div className="add-all-bar">
+              <span>{externalResults.length} resultats d'OpenLibrary</span>
+              <button
+                className="add-all-btn"
+                onClick={handleImportAll}
+                disabled={importingAll}
               >
-                <div className="media-poster">
-                  {item.poster ? (
-                    <img src={item.poster} alt={item.title} />
+                {importingAll ? (
+                  <>
+                    <div className="btn-spinner"></div>
+                    Important...
+                  </>
+                ) : (
+                  <>
+                    <PlusIcon />
+                    Afegir tots
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          <div className="library-grid">
+            {filteredBooks.map((book) => (
+              <div
+                key={book.id}
+                className="book-card"
+                onClick={() => handleBookClick(book)}
+              >
+                <div className="book-cover">
+                  {getBookCover(book) ? (
+                    <img src={getBookCover(book)} alt={book.title} />
                   ) : (
-                    <div className="no-poster-placeholder">
-                      <BookIcon />
+                    <div className="book-cover-placeholder">
+                      <span className="format-icon">{getFormatIcon(book.format)}</span>
                     </div>
                   )}
-                  <div className="external-badge">OpenLibrary</div>
-                  <button
-                    className={`add-btn ${imported[itemKey] ? 'added' : ''}`}
-                    onClick={(e) => handleImport(item, e)}
-                    disabled={importing[itemKey] || imported[itemKey]}
-                    title="Afegir a la biblioteca"
-                  >
-                    {importing[itemKey] ? (
-                      <div className="btn-spinner"></div>
-                    ) : imported[itemKey] ? (
-                      <CheckIcon />
-                    ) : (
-                      <PlusIcon />
-                    )}
-                  </button>
+                  <div className="book-format-badge">{book.format.toUpperCase()}</div>
+                  {isAdmin && (
+                    <button
+                      className="book-edit-btn"
+                      onClick={(e) => handleOpenMetadataEdit(e, book)}
+                      title="Editar metadades"
+                    >
+                      <EditIcon size={14} />
+                    </button>
+                  )}
                 </div>
-                <div className="media-info">
-                  <h3 className="media-title">{item.title}</h3>
-                  <div className="media-meta">
-                    {item.author && <span>{item.author}</span>}
-                    {item.year && <span>({item.year})</span>}
-                  </div>
+                <div className="book-info">
+                  <h3 className="book-title">{book.title}</h3>
+                  <p className="book-author">{book.author_name}</p>
                 </div>
               </div>
-            );
-          })}
-        </div>
+            ))}
+
+            {/* External results from OpenLibrary */}
+            {externalResults.map((item) => {
+              const itemKey = item.id || item.title;
+              return (
+                <div
+                  key={`ol-${itemKey}`}
+                  className="media-card external-card"
+                  onClick={() => item.id && window.open(`https://openlibrary.org${item.id}`, '_blank')}
+                >
+                  <div className="media-poster">
+                    {item.poster ? (
+                      <img src={item.poster} alt={item.title} />
+                    ) : (
+                      <div className="no-poster-placeholder">
+                        <BookIcon />
+                      </div>
+                    )}
+                    <div className="external-badge">OpenLibrary</div>
+                    <button
+                      className={`add-btn ${imported[itemKey] ? 'added' : ''}`}
+                      onClick={(e) => handleImport(item, e)}
+                      disabled={importing[itemKey] || imported[itemKey]}
+                      title="Afegir a la biblioteca"
+                    >
+                      {importing[itemKey] ? (
+                        <div className="btn-spinner"></div>
+                      ) : imported[itemKey] ? (
+                        <CheckIcon />
+                      ) : (
+                        <PlusIcon />
+                      )}
+                    </button>
+                  </div>
+                  <div className="media-info">
+                    <h3 className="media-title">{item.title}</h3>
+                    <div className="media-meta">
+                      {item.author && <span>{item.author}</span>}
+                      {item.year && <span>({item.year})</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* Modal for editing book metadata - només visible per admins */}
