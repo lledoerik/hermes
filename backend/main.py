@@ -1275,14 +1275,14 @@ async def get_poster(item_id: int):
         cursor = conn.cursor()
         cursor.execute("SELECT poster FROM series WHERE id = ?", (item_id,))
         result = cursor.fetchone()
-        
+
         if result and result["poster"]:
             poster_path = Path(result["poster"])
             if poster_path.exists():
                 return FileResponse(poster_path)
-    
-    # Retornar placeholder si no hi ha poster
-    return {"error": "No poster available"}
+
+    # Retornar 404 si no hi ha poster disponible
+    raise HTTPException(status_code=404, detail="Poster not available")
 
 @app.get("/api/image/backdrop/{item_id}")
 async def get_backdrop(item_id: int):
@@ -1297,7 +1297,8 @@ async def get_backdrop(item_id: int):
             if backdrop_path.exists():
                 return FileResponse(backdrop_path)
 
-    return {"error": "No backdrop available"}
+    # Retornar 404 si no hi ha backdrop disponible
+    raise HTTPException(status_code=404, detail="Backdrop not available")
 
 
 # === ENDPOINTS COMPATIBILITAT FRONTEND ===
