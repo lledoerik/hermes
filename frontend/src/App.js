@@ -9,6 +9,7 @@ import Movies from './pages/Movies';
 import Series from './pages/Series';
 import Details from './pages/Details';
 import Player from './pages/Player';
+import StreamPlayer from './pages/StreamPlayer';
 import Search from './pages/Search';
 import Admin from './pages/Admin';
 import Books from './pages/Books';
@@ -47,6 +48,9 @@ function AppContent() {
         <Routes>
           {/* Player route without Navbar */}
           <Route path="/play/:type/:id" element={<Player />} />
+
+          {/* Stream Player for external sources */}
+          <Route path="/stream/:type/:tmdbId" element={<StreamPlayer />} />
 
           {/* Book Reader without Navbar */}
           <Route path="/read/:id" element={<BookReader />} />
