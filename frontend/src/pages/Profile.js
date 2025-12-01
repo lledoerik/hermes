@@ -248,10 +248,11 @@ function Profile() {
 
   const handleCropMouseMove = (e) => {
     if (!isDragging) return;
+    e.preventDefault();
     const newX = e.clientX - dragStart.x;
     const newY = e.clientY - dragStart.y;
-    // Limitar el moviment
-    const limit = 100 * cropZoom;
+    // Limitar el moviment segons el zoom
+    const limit = 150;
     setCropPosition({
       x: Math.max(-limit, Math.min(limit, newX)),
       y: Math.max(-limit, Math.min(limit, newY))
@@ -742,7 +743,12 @@ function Profile() {
 
       {/* Avatar Modal */}
       {showAvatarModal && (
-        <div className="avatar-modal-overlay" onClick={() => { setShowAvatarModal(false); setShowCropEditor(false); }}>
+        <div
+          className="avatar-modal-overlay"
+          onClick={() => { if (!isDragging) { setShowAvatarModal(false); setShowCropEditor(false); setTempAvatarUrl(''); } }}
+          onMouseMove={isDragging ? handleCropMouseMove : undefined}
+          onMouseUp={isDragging ? handleCropMouseUp : undefined}
+        >
           <div className="avatar-modal" onClick={e => e.stopPropagation()}>
             {showCropEditor ? (
               <>
@@ -752,7 +758,6 @@ function Profile() {
                   onMouseDown={handleCropMouseDown}
                   onMouseMove={handleCropMouseMove}
                   onMouseUp={handleCropMouseUp}
-                  onMouseLeave={handleCropMouseUp}
                 >
                   <div className="crop-container">
                     <img
@@ -773,9 +778,9 @@ function Profile() {
                   <label>Zoom</label>
                   <input
                     type="range"
-                    min="1"
+                    min="0.3"
                     max="3"
-                    step="0.1"
+                    step="0.05"
                     value={cropZoom}
                     onChange={(e) => setCropZoom(parseFloat(e.target.value))}
                   />
@@ -787,6 +792,29 @@ function Profile() {
                   </button>
                   <button className="save-btn" onClick={applyCrop}>
                     Aplicar
+                  </button>
+                </div>
+              </>
+            ) : tempAvatarUrl && tempAvatarUrl.startsWith('data:') ? (
+              <>
+                <h3>Previsualització</h3>
+                <div className="avatar-preview large">
+                  <img
+                    src={tempAvatarUrl}
+                    alt="Preview"
+                  />
+                </div>
+                <div className="avatar-modal-actions">
+                  <button className="cancel-btn" onClick={() => setTempAvatarUrl('')}>
+                    Canviar imatge
+                  </button>
+                  {avatarUrl && (
+                    <button className="remove-btn" onClick={handleAvatarRemove} disabled={loading}>
+                      Eliminar
+                    </button>
+                  )}
+                  <button className="save-btn" onClick={handleAvatarSave} disabled={loading}>
+                    {loading ? 'Guardant...' : 'Guardar'}
                   </button>
                 </div>
               </>
@@ -816,34 +844,22 @@ function Profile() {
                       onChange={(e) => setTempAvatarUrl(e.target.value)}
                       placeholder="https://exemple.com/foto.jpg"
                     />
-                    {tempAvatarUrl && !tempAvatarUrl.startsWith('data:') && (
+                    {tempAvatarUrl && (
                       <button className="edit-url-btn" onClick={handleUrlSubmit} title="Editar imatge">
                         Editar
                       </button>
                     )}
                   </div>
                 </div>
-                {tempAvatarUrl && (
-                  <div className="avatar-preview">
-                    <img
-                      src={tempAvatarUrl}
-                      alt="Preview"
-                      onError={(e) => e.target.style.display = 'none'}
-                    />
-                  </div>
-                )}
                 <div className="avatar-modal-actions">
                   <button className="cancel-btn" onClick={() => setShowAvatarModal(false)}>
                     Cancel·lar
                   </button>
                   {avatarUrl && (
                     <button className="remove-btn" onClick={handleAvatarRemove} disabled={loading}>
-                      Eliminar
+                      Eliminar actual
                     </button>
                   )}
-                  <button className="save-btn" onClick={handleAvatarSave} disabled={loading || !tempAvatarUrl}>
-                    {loading ? 'Guardant...' : 'Guardar'}
-                  </button>
                 </div>
               </>
             )}
