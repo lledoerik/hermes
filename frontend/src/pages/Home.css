@@ -652,7 +652,7 @@
    ============================================ */
 
 .home-container.authenticated {
-  --content-padding: 4%;
+  --content-padding: clamp(16px, 4vw, 60px);
   padding-top: 20px;
   padding-bottom: 40px;
 }
@@ -689,7 +689,7 @@
 /* Content Rows (Netflix style) */
 .content-row,
 .continue-watching-section {
-  padding: 0 60px;
+  padding: 0 var(--content-padding);
   margin-bottom: var(--space-lg);
 }
 
@@ -709,7 +709,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-lg) 60px;
+  padding: var(--space-lg) var(--content-padding);
   margin-bottom: var(--space-md);
 }
 
@@ -926,7 +926,7 @@
 
 /* Quick Access Grid */
 .quick-access {
-  padding: var(--space-xl) 60px;
+  padding: var(--space-xl) var(--content-padding);
   margin-top: var(--space-md);
 }
 
