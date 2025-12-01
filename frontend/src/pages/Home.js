@@ -545,7 +545,6 @@ function Home() {
 
         {/* Accés ràpid a categories */}
         <section className="quick-access">
-          <h2 className="row-title">Explorar</h2>
           <div className="quick-access-grid">
             <Link to="/movies" className="quick-card">
               <div className="quick-bubble gradient-movies"></div>
