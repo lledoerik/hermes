@@ -764,7 +764,7 @@ function Profile() {
                       src={tempAvatarUrl}
                       alt="Crop"
                       style={{
-                        transform: `translate(${cropPosition.x}px, ${cropPosition.y}px) scale(${cropZoom})`,
+                        transform: `translate(calc(-50% + ${cropPosition.x}px), calc(-50% + ${cropPosition.y}px)) scale(${cropZoom})`,
                         cursor: isDragging ? 'grabbing' : 'grab'
                       }}
                       draggable={false}
