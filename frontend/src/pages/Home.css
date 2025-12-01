@@ -689,7 +689,7 @@
 /* Content Rows (Netflix style) */
 .content-row,
 .continue-watching-section {
-  padding: 0 var(--content-padding, 4%);
+  padding: 0 60px;
   margin-bottom: var(--space-lg);
 }
 
@@ -707,13 +707,10 @@
 /* Home Header - Salutació + Cerca en una línia */
 .home-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  padding-top: var(--space-md);
-  padding-bottom: var(--space-md);
-  padding-left: var(--content-padding, 4%);
-  padding-right: var(--content-padding, 4%);
-  margin-bottom: var(--space-sm);
+  padding: var(--space-lg) 60px;
+  margin-bottom: var(--space-md);
 }
 
 .home-greeting {
@@ -721,16 +718,14 @@
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 
 .home-greeting .greeting-subtitle {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-normal);
   color: var(--text-secondary);
+  display: block;
+  margin-top: 4px;
 }
 
 .home-header .search-bar.compact {
@@ -931,7 +926,7 @@
 
 /* Quick Access Grid */
 .quick-access {
-  padding: var(--space-xl) 4%;
+  padding: var(--space-xl) 60px;
   margin-top: var(--space-md);
 }
 
