@@ -73,6 +73,7 @@
   line-height: 1.1;
   text-shadow: 0 4px 30px rgba(0, 0, 0, 0.8);
   letter-spacing: -0.02em;
+  text-align: left;
 }
 
 .details-meta {
@@ -145,12 +146,14 @@
   text-transform: uppercase;
   letter-spacing: 0.1em;
   margin-bottom: 8px;
+  text-align: left;
 }
 
 .credit-section-value {
   color: rgba(255, 255, 255, 0.95);
   font-size: 15px;
   font-weight: var(--font-weight-medium);
+  text-align: left;
 }
 
 /* Cast grid layout */
@@ -158,6 +161,8 @@
   display: flex;
   flex-wrap: wrap;
   gap: 12px 20px;
+  justify-content: flex-start;
+  text-align: left;
 }
 
 .cast-item {
