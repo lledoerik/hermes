@@ -99,15 +99,6 @@
   display: none;
 }
 
-.nav-link.import-link {
-  color: var(--color-primary);
-}
-
-.nav-link.import-link:hover,
-.nav-link.import-link.active {
-  color: var(--text-primary);
-}
-
 .navbar-right {
   display: flex;
   align-items: center;
