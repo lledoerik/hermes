@@ -95,6 +95,10 @@ function Details() {
   const [tmdbMessage, setTmdbMessage] = useState(null);
   const [imageCacheBust, setImageCacheBust] = useState('');
 
+  // Watch providers state
+  const [watchProviders, setWatchProviders] = useState(null);
+  const [loadingProviders, setLoadingProviders] = useState(false);
+
   // Scroll de temporades
   const seasonsScrollRef = useRef(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -169,6 +173,26 @@ function Details() {
       setTmdbId(item.tmdb_id.toString());
     }
   }, [item]);
+
+  // Carregar watch providers si tenim tmdb_id
+  useEffect(() => {
+    const loadWatchProviders = async () => {
+      if (!item?.tmdb_id) return;
+
+      setLoadingProviders(true);
+      try {
+        const mediaType = type === 'movies' ? 'movie' : 'series';
+        const response = await axios.get(`/api/watch-providers/${mediaType}/${item.tmdb_id}`);
+        setWatchProviders(response.data);
+      } catch (err) {
+        console.error('Error carregant proveïdors:', err);
+      } finally {
+        setLoadingProviders(false);
+      }
+    };
+
+    loadWatchProviders();
+  }, [item?.tmdb_id, type]);
 
   useEffect(() => {
     if (type === 'series' && seasons.length > 0) {
@@ -367,6 +391,58 @@ function Details() {
                 </div>
               )}
             </div>
+
+            {/* Watch Providers - On veure en streaming */}
+            {watchProviders && watchProviders.available && (
+              <div className="watch-providers-section">
+                {watchProviders.flatrate && watchProviders.flatrate.length > 0 && (
+                  <div className="providers-row">
+                    <span className="providers-label">Disponible a:</span>
+                    <div className="providers-logos">
+                      {watchProviders.flatrate.map((provider) => (
+                        <a
+                          key={provider.id}
+                          href={watchProviders.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="provider-logo"
+                          title={provider.name}
+                        >
+                          {provider.logo ? (
+                            <img src={provider.logo} alt={provider.name} />
+                          ) : (
+                            <span className="provider-name">{provider.name}</span>
+                          )}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {watchProviders.rent && watchProviders.rent.length > 0 && (
+                  <div className="providers-row">
+                    <span className="providers-label">Llogar a:</span>
+                    <div className="providers-logos">
+                      {watchProviders.rent.slice(0, 5).map((provider) => (
+                        <a
+                          key={provider.id}
+                          href={watchProviders.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="provider-logo"
+                          title={provider.name}
+                        >
+                          {provider.logo ? (
+                            <img src={provider.logo} alt={provider.name} />
+                          ) : (
+                            <span className="provider-name">{provider.name}</span>
+                          )}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="details-actions">
               <button className="play-btn" onClick={() => handlePlay()}>
