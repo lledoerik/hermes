@@ -155,6 +155,7 @@ const styles = {
 
 function MediaCard({ item, type = 'series', width = 180 }) {
   const [isHovered, setIsHovered] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const navigate = useNavigate();
 
   const handleClick = () => {
@@ -192,12 +193,13 @@ function MediaCard({ item, type = 'series', width = 180 }) {
       onClick={handleClick}
     >
       <div style={styles.poster}>
-        {item.poster ? (
+        {item.poster && !imageError ? (
           <img
             src={`${API_URL}/api/image/poster/${item.id}`}
             alt={item.name}
             style={styles.image}
             loading="lazy"
+            onError={() => setImageError(true)}
           />
         ) : (
           <div style={styles.placeholder}>
