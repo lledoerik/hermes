@@ -364,30 +364,29 @@ function Details() {
             <div className="details-credits">
               {/* Director (per pel·lícules) o Creadors (per sèries) */}
               {type === 'movies' && item.director && (
-                <div className="credit-row">
-                  <span className="credit-label">Director:</span>
-                  <span className="credit-value">{item.director}</span>
+                <div className="credit-section">
+                  <div className="credit-section-title">Director</div>
+                  <div className="credit-section-value">{item.director}</div>
                 </div>
               )}
               {type === 'series' && item.creators && item.creators.length > 0 && (
-                <div className="credit-row">
-                  <span className="credit-label">Creadors:</span>
-                  <span className="credit-value">{item.creators.join(', ')}</span>
+                <div className="credit-section">
+                  <div className="credit-section-title">Creadors</div>
+                  <div className="credit-section-value">{item.creators.join(', ')}</div>
                 </div>
               )}
               {/* Repartiment principal */}
               {item.cast && item.cast.length > 0 && (
-                <div className="credit-row cast-row">
-                  <span className="credit-label">Repartiment:</span>
-                  <span className="credit-value">
-                    {item.cast.slice(0, 5).map((c, i) => (
-                      <span key={i} className="cast-member">
-                        {c.name}
-                        {c.character && <span className="cast-character"> ({c.character})</span>}
-                        {i < Math.min(4, item.cast.length - 1) && ', '}
-                      </span>
+                <div className="credit-section">
+                  <div className="credit-section-title">Repartiment</div>
+                  <div className="cast-grid">
+                    {item.cast.slice(0, 6).map((c, i) => (
+                      <div key={i} className="cast-item">
+                        <span className="cast-name">{c.name}</span>
+                        {c.character && <span className="cast-character">{c.character}</span>}
+                      </div>
                     ))}
-                  </span>
+                  </div>
                 </div>
               )}
             </div>
