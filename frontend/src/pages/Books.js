@@ -81,6 +81,13 @@ const SearchIcon = () => (
   </svg>
 );
 
+const ClearIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <line x1="18" y1="6" x2="6" y2="18"></line>
+    <line x1="6" y1="6" x2="18" y2="18"></line>
+  </svg>
+);
+
 const LibraryIcon = () => (
   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
@@ -89,14 +96,14 @@ const LibraryIcon = () => (
 );
 
 const PlusIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
     <line x1="12" y1="5" x2="12" y2="19"></line>
     <line x1="5" y1="12" x2="19" y2="12"></line>
   </svg>
 );
 
 const CheckIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
     <polyline points="20 6 9 17 4 12"></polyline>
   </svg>
 );
@@ -110,29 +117,42 @@ function Books() {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
 
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [externalResults, setExternalResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [importing, setImporting] = useState({});
+  const [imported, setImported] = useState({});
+
   // Metadata editing state
   const [editingBook, setEditingBook] = useState(null);
   const [metadataTab, setMetadataTab] = useState('isbn'); // 'isbn', 'olid', 'search', 'upload'
   const [isbn, setIsbn] = useState('');
   const [olid, setOlid] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
+  const [metadataSearchQuery, setMetadataSearchQuery] = useState('');
+  const [metadataSearchResults, setMetadataSearchResults] = useState([]);
   const [metadataLoading, setMetadataLoading] = useState(false);
   const [metadataMessage, setMetadataMessage] = useState(null);
   const [uploadPreview, setUploadPreview] = useState(null);
 
-  // Import state
-  const [showImport, setShowImport] = useState(false);
-  const [importQuery, setImportQuery] = useState('');
-  const [importResults, setImportResults] = useState([]);
-  const [importLoading, setImportLoading] = useState(false);
-  const [importing, setImporting] = useState({});
-  const [imported, setImported] = useState({});
-  const [importError, setImportError] = useState(null);
-
   useEffect(() => {
     loadAuthors();
+    loadAllBooks();
   }, []);
+
+  // Debounced external search
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setExternalResults([]);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      searchExternal(searchQuery);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const loadAuthors = async () => {
     try {
@@ -163,6 +183,55 @@ function Books() {
     }
   };
 
+  const searchExternal = async (query) => {
+    if (!query.trim()) return;
+
+    setSearchLoading(true);
+    try {
+      const response = await axios.post('/api/import/search', {
+        query: query.trim(),
+        media_type: 'book'
+      });
+      // Filter out books that might already be in our library (by title match)
+      const existingTitles = books.map(b => b.title?.toLowerCase());
+      const filtered = response.data.results.filter(r =>
+        !existingTitles.includes(r.title?.toLowerCase())
+      );
+      setExternalResults(filtered);
+    } catch (err) {
+      console.error('Error cercant externament:', err);
+      setExternalResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handleImport = async (item, e) => {
+    e.stopPropagation();
+    const itemKey = item.id || item.title;
+    setImporting(prev => ({ ...prev, [itemKey]: true }));
+    try {
+      await axios.post('/api/import/book', {
+        title: item.title,
+        author: item.author,
+        olid: item.id?.replace('/works/', '')
+      });
+      setImported(prev => ({ ...prev, [itemKey]: true }));
+      setExternalResults(prev => prev.filter(r => (r.id || r.title) !== itemKey));
+      loadAuthors();
+      loadAllBooks();
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Error important');
+    } finally {
+      setImporting(prev => ({ ...prev, [itemKey]: false }));
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setExternalResults([]);
+  };
+
   const handleAuthorClick = (author) => {
     loadAuthorBooks(author.id);
   };
@@ -178,10 +247,21 @@ function Books() {
   const handleViewModeChange = (mode) => {
     setViewMode(mode);
     setSelectedAuthor(null);
-    if (mode === 'all' && books.length === 0) {
-      loadAllBooks();
-    }
   };
+
+  // Filter content by search
+  const filteredAuthors = searchQuery.trim()
+    ? authors.filter(a =>
+        a.name?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : authors;
+
+  const filteredBooks = searchQuery.trim()
+    ? books.filter(b =>
+        b.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        b.author_name?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : books;
 
   // Metadata editing handlers
   const handleOpenMetadataEdit = (e, book) => {
@@ -190,8 +270,8 @@ function Books() {
     setMetadataTab('isbn');
     setIsbn('');
     setOlid('');
-    setSearchQuery('');
-    setSearchResults([]);
+    setMetadataSearchQuery('');
+    setMetadataSearchResults([]);
     setMetadataMessage(null);
   };
 
@@ -211,12 +291,10 @@ function Books() {
       const response = await axios.post(`/api/metadata/books/${editingBook.id}/update-by-isbn`, { isbn });
       if (response.data.status === 'success') {
         setMetadataMessage({ type: 'success', text: `Portada actualitzada per "${response.data.title || editingBook.title}"` });
-        // Reload data
         if (selectedAuthor) {
           loadAuthorBooks(selectedAuthor.id);
-        } else if (viewMode === 'all') {
-          loadAllBooks();
         }
+        loadAllBooks();
         setTimeout(() => handleCloseMetadataEdit(), 1500);
       }
     } catch (error) {
@@ -239,9 +317,8 @@ function Books() {
         setMetadataMessage({ type: 'success', text: `Portada actualitzada per "${response.data.title || editingBook.title}"` });
         if (selectedAuthor) {
           loadAuthorBooks(selectedAuthor.id);
-        } else if (viewMode === 'all') {
-          loadAllBooks();
         }
+        loadAllBooks();
         setTimeout(() => handleCloseMetadataEdit(), 1500);
       }
     } catch (error) {
@@ -251,18 +328,18 @@ function Books() {
     }
   };
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
+  const handleMetadataSearch = async () => {
+    if (!metadataSearchQuery.trim()) {
       setMetadataMessage({ type: 'error', text: 'Introdueix un títol per cercar' });
       return;
     }
     setMetadataLoading(true);
     setMetadataMessage(null);
-    setSearchResults([]);
+    setMetadataSearchResults([]);
     try {
-      const response = await axios.post('/api/metadata/books/search', { title: searchQuery });
+      const response = await axios.post('/api/metadata/books/search', { title: metadataSearchQuery });
       if (response.data.results && response.data.results.length > 0) {
-        setSearchResults(response.data.results);
+        setMetadataSearchResults(response.data.results);
       } else {
         setMetadataMessage({ type: 'error', text: 'No s\'han trobat resultats' });
       }
@@ -286,9 +363,8 @@ function Books() {
         setMetadataMessage({ type: 'success', text: 'Portada actualitzada!' });
         if (selectedAuthor) {
           loadAuthorBooks(selectedAuthor.id);
-        } else if (viewMode === 'all') {
-          loadAllBooks();
         }
+        loadAllBooks();
         setTimeout(() => handleCloseMetadataEdit(), 1500);
       }
     } catch (error) {
@@ -333,9 +409,8 @@ function Books() {
         setMetadataMessage({ type: 'success', text: 'Portada pujada correctament!' });
         if (selectedAuthor) {
           loadAuthorBooks(selectedAuthor.id);
-        } else if (viewMode === 'all') {
-          loadAllBooks();
         }
+        loadAllBooks();
         setUploadPreview(null);
         setTimeout(() => handleCloseMetadataEdit(), 1500);
       }
@@ -344,59 +419,6 @@ function Books() {
     } finally {
       setMetadataLoading(false);
     }
-  };
-
-  // Import handlers
-  const handleImportSearch = async (e) => {
-    e?.preventDefault();
-    if (!importQuery.trim()) return;
-
-    setImportLoading(true);
-    setImportError(null);
-    setImportResults([]);
-
-    try {
-      const response = await axios.post('/api/import/search', {
-        query: importQuery.trim(),
-        media_type: 'book'
-      });
-      setImportResults(response.data.results);
-      if (response.data.results.length === 0) {
-        setImportError('No s\'han trobat resultats');
-      }
-    } catch (err) {
-      setImportError(err.response?.data?.detail || 'Error en la cerca');
-    } finally {
-      setImportLoading(false);
-    }
-  };
-
-  const handleImportBook = async (item) => {
-    const itemKey = item.id || item.title;
-    setImporting(prev => ({ ...prev, [itemKey]: true }));
-    try {
-      await axios.post('/api/import/book', {
-        title: item.title,
-        author: item.author,
-        olid: item.id?.replace('/works/', '')
-      });
-      setImported(prev => ({ ...prev, [itemKey]: true }));
-      loadAuthors();
-      if (viewMode === 'all') {
-        loadAllBooks();
-      }
-    } catch (err) {
-      alert(err.response?.data?.detail || 'Error important');
-    } finally {
-      setImporting(prev => ({ ...prev, [itemKey]: false }));
-    }
-  };
-
-  const handleCloseImport = () => {
-    setShowImport(false);
-    setImportQuery('');
-    setImportResults([]);
-    setImportError(null);
   };
 
   const getBookCover = (book) => {
@@ -489,6 +511,9 @@ function Books() {
     );
   }
 
+  const hasLocalResults = viewMode === 'authors' ? filteredAuthors.length > 0 : filteredBooks.length > 0;
+  const hasResults = hasLocalResults || externalResults.length > 0;
+
   // Vista principal
   return (
     <div className="library-container">
@@ -502,9 +527,21 @@ function Books() {
         </div>
 
         <div className="library-filters">
-          <button className="import-btn-header" onClick={() => setShowImport(true)}>
-            <PlusIcon /> Importar
-          </button>
+          <div className="search-box">
+            <SearchIcon />
+            <input
+              type="text"
+              placeholder="Cerca llibres..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button className="clear-search" onClick={clearSearch}>
+                <ClearIcon />
+              </button>
+            )}
+            {searchLoading && <div className="search-spinner"></div>}
+          </div>
           <div className="view-toggle">
             <button
               className={viewMode === 'authors' ? 'active' : ''}
@@ -522,44 +559,102 @@ function Books() {
         </div>
       </div>
 
-      {viewMode === 'authors' ? (
-        // Vista per autors
-        authors.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-icon"><LibraryIcon /></div>
-            <h2>No hi ha llibres</h2>
-            <p>Importa llibres des d'OpenLibrary o escaneja la biblioteca</p>
-            <button className="scan-btn" onClick={() => setShowImport(true)}>
-              <PlusIcon /> Importar llibres
-            </button>
-          </div>
-        ) : (
-          <div className="authors-grid">
-            {authors.map((author) => (
-              <div
-                key={author.id}
-                className="author-card"
-                onClick={() => handleAuthorClick(author)}
-              >
-                <div className="author-avatar">
-                  {author.photo ? (
-                    <img src={author.photo} alt={author.name} />
-                  ) : (
-                    <AuthorIcon />
-                  )}
+      {!hasResults && !searchQuery ? (
+        <div className="empty-state">
+          <div className="empty-icon"><LibraryIcon /></div>
+          <h2>No hi ha llibres</h2>
+          <p>Cerca llibres per afegir-los a la biblioteca</p>
+        </div>
+      ) : !hasResults && searchQuery ? (
+        <div className="empty-state">
+          <div className="empty-icon"><SearchIcon /></div>
+          <h2>Sense resultats</h2>
+          <p>No s'han trobat llibres per "{searchQuery}"</p>
+        </div>
+      ) : viewMode === 'authors' ? (
+        // Vista per autors + external results
+        <>
+          {filteredAuthors.length > 0 && (
+            <div className="authors-grid">
+              {filteredAuthors.map((author) => (
+                <div
+                  key={author.id}
+                  className="author-card"
+                  onClick={() => handleAuthorClick(author)}
+                >
+                  <div className="author-avatar">
+                    {author.photo ? (
+                      <img src={author.photo} alt={author.name} />
+                    ) : (
+                      <AuthorIcon />
+                    )}
+                  </div>
+                  <div className="author-info">
+                    <h3>{author.name}</h3>
+                    <span className="book-count">{author.book_count} llibres</span>
+                  </div>
                 </div>
-                <div className="author-info">
-                  <h3>{author.name}</h3>
-                  <span className="book-count">{author.book_count} llibres</span>
-                </div>
+              ))}
+            </div>
+          )}
+
+          {/* External results from OpenLibrary */}
+          {externalResults.length > 0 && (
+            <>
+              {filteredAuthors.length > 0 && (
+                <h3 className="section-title">Resultats d'OpenLibrary</h3>
+              )}
+              <div className="library-grid">
+                {externalResults.map((item) => {
+                  const itemKey = item.id || item.title;
+                  return (
+                    <div
+                      key={`ol-${itemKey}`}
+                      className="media-card external-card"
+                      onClick={() => item.id && window.open(`https://openlibrary.org${item.id}`, '_blank')}
+                    >
+                      <div className="media-poster">
+                        {item.poster ? (
+                          <img src={item.poster} alt={item.title} />
+                        ) : (
+                          <div className="no-poster-placeholder">
+                            <BookIcon />
+                          </div>
+                        )}
+                        <div className="external-badge">OpenLibrary</div>
+                        <button
+                          className={`add-btn ${imported[itemKey] ? 'added' : ''}`}
+                          onClick={(e) => handleImport(item, e)}
+                          disabled={importing[itemKey] || imported[itemKey]}
+                          title="Afegir a la biblioteca"
+                        >
+                          {importing[itemKey] ? (
+                            <div className="btn-spinner"></div>
+                          ) : imported[itemKey] ? (
+                            <CheckIcon />
+                          ) : (
+                            <PlusIcon />
+                          )}
+                        </button>
+                      </div>
+                      <div className="media-info">
+                        <h3 className="media-title">{item.title}</h3>
+                        <div className="media-meta">
+                          {item.author && <span>{item.author}</span>}
+                          {item.year && <span>({item.year})</span>}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-          </div>
-        )
+            </>
+          )}
+        </>
       ) : (
-        // Vista de tots els llibres
-        <div className="books-grid">
-          {books.map((book) => (
+        // Vista de tots els llibres + external results
+        <div className="library-grid">
+          {filteredBooks.map((book) => (
             <div
               key={book.id}
               className="book-card"
@@ -590,81 +685,50 @@ function Books() {
               </div>
             </div>
           ))}
-        </div>
-      )}
 
-      {/* Import Modal */}
-      {showImport && (
-        <div className="import-modal-overlay" onClick={handleCloseImport}>
-          <div className="import-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="import-modal-header">
-              <h2><PlusIcon /> Importar llibres</h2>
-              <button className="close-btn" onClick={handleCloseImport}>
-                <CloseIcon />
-              </button>
-            </div>
-
-            <form className="import-search-form" onSubmit={handleImportSearch}>
-              <input
-                type="text"
-                placeholder="Cerca llibres a OpenLibrary..."
-                value={importQuery}
-                onChange={(e) => setImportQuery(e.target.value)}
-                autoFocus
-              />
-              <button type="submit" disabled={importLoading}>
-                {importLoading ? <div className="spinner-small"></div> : <SearchIcon />}
-              </button>
-            </form>
-
-            {importError && (
-              <div className="import-error">{importError}</div>
-            )}
-
-            <div className="import-results">
-              {importResults.map((item) => {
-                const itemKey = item.id || item.title;
-                return (
-                  <div key={itemKey} className="import-result-card">
-                    <div className="import-result-poster">
-                      {item.poster ? (
-                        <img src={item.poster} alt={item.title} />
-                      ) : (
-                        <div className="no-poster"><BookIcon /></div>
-                      )}
+          {/* External results from OpenLibrary */}
+          {externalResults.map((item) => {
+            const itemKey = item.id || item.title;
+            return (
+              <div
+                key={`ol-${itemKey}`}
+                className="media-card external-card"
+                onClick={() => item.id && window.open(`https://openlibrary.org${item.id}`, '_blank')}
+              >
+                <div className="media-poster">
+                  {item.poster ? (
+                    <img src={item.poster} alt={item.title} />
+                  ) : (
+                    <div className="no-poster-placeholder">
+                      <BookIcon />
                     </div>
-                    <div className="import-result-info">
-                      <h3>{item.title}</h3>
-                      <div className="import-result-meta">
-                        {item.author && <span>{item.author}</span>}
-                        {item.year && <span>({item.year})</span>}
-                      </div>
-                    </div>
-                    <button
-                      className={`import-result-btn ${imported[itemKey] ? 'imported' : ''}`}
-                      onClick={() => handleImportBook(item)}
-                      disabled={importing[itemKey] || imported[itemKey]}
-                    >
-                      {importing[itemKey] ? (
-                        <div className="spinner-small"></div>
-                      ) : imported[itemKey] ? (
-                        <CheckIcon />
-                      ) : (
-                        <PlusIcon />
-                      )}
-                    </button>
+                  )}
+                  <div className="external-badge">OpenLibrary</div>
+                  <button
+                    className={`add-btn ${imported[itemKey] ? 'added' : ''}`}
+                    onClick={(e) => handleImport(item, e)}
+                    disabled={importing[itemKey] || imported[itemKey]}
+                    title="Afegir a la biblioteca"
+                  >
+                    {importing[itemKey] ? (
+                      <div className="btn-spinner"></div>
+                    ) : imported[itemKey] ? (
+                      <CheckIcon />
+                    ) : (
+                      <PlusIcon />
+                    )}
+                  </button>
+                </div>
+                <div className="media-info">
+                  <h3 className="media-title">{item.title}</h3>
+                  <div className="media-meta">
+                    {item.author && <span>{item.author}</span>}
+                    {item.year && <span>({item.year})</span>}
                   </div>
-                );
-              })}
-            </div>
-
-            {importResults.length === 0 && !importLoading && !importError && (
-              <div className="import-empty">
-                <p>Cerca un llibre per títol per importar-lo des d'OpenLibrary</p>
-                <small>No cal clau API - OpenLibrary és gratuït</small>
+                </div>
               </div>
-            )}
-          </div>
+            );
+          })}
         </div>
       )}
 
@@ -754,20 +818,20 @@ function Books() {
                   <div className="input-row">
                     <input
                       type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      value={metadataSearchQuery}
+                      onChange={(e) => setMetadataSearchQuery(e.target.value)}
                       placeholder="Títol del llibre..."
                       disabled={metadataLoading}
-                      onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                      onKeyPress={(e) => e.key === 'Enter' && handleMetadataSearch()}
                     />
-                    <button onClick={handleSearch} disabled={metadataLoading}>
+                    <button onClick={handleMetadataSearch} disabled={metadataLoading}>
                       <SearchIcon /> Cercar
                     </button>
                   </div>
 
-                  {searchResults.length > 0 && (
+                  {metadataSearchResults.length > 0 && (
                     <div className="search-results">
-                      {searchResults.map((result, index) => (
+                      {metadataSearchResults.map((result, index) => (
                         <div
                           key={result.key || result.cover_id || `result-${index}`}
                           className={`search-result ${!result.cover_id ? 'no-cover' : ''}`}
