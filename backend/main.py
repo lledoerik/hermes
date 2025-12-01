@@ -922,20 +922,27 @@ async def get_stats():
         }
 
 @app.get("/api/library/series")
-async def get_series():
-    """Retorna totes les sèries"""
+async def get_series(content_type: str = None):
+    """Retorna totes les sèries. Filtre opcional: series, anime, toons"""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("""
+
+        query = """
             SELECT s.*, COUNT(DISTINCT m.season_number) as season_count,
-                       COUNT(m.id) as episode_count
+                       COUNT(m.id) as episode_count, s.content_type
             FROM series s
             LEFT JOIN media_files m ON s.id = m.series_id
             WHERE s.media_type = 'series'
-            GROUP BY s.id
-            ORDER BY s.name
-        """)
-        
+        """
+        params = []
+
+        if content_type:
+            query += " AND s.content_type = ?"
+            params.append(content_type)
+
+        query += " GROUP BY s.id ORDER BY s.name"
+        cursor.execute(query, params)
+
         series = []
         for row in cursor.fetchall():
             series.append({
@@ -945,24 +952,33 @@ async def get_series():
                 "poster": row["poster"],
                 "backdrop": row["backdrop"],
                 "season_count": row["season_count"],
-                "episode_count": row["episode_count"]
+                "episode_count": row["episode_count"],
+                "content_type": row["content_type"] or "series"
             })
-        
+
         return series
 
 @app.get("/api/library/movies")
-async def get_movies():
-    """Retorna totes les pel·lícules"""
+async def get_movies(content_type: str = None):
+    """Retorna totes les pel·lícules. Filtre opcional: movie, anime_movie, animated"""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("""
+
+        query = """
             SELECT s.*, m.duration, m.file_size, m.id as media_id,
-                   s.is_imported, s.year, s.rating
+                   s.is_imported, s.year, s.rating, s.content_type
             FROM series s
             LEFT JOIN media_files m ON s.id = m.series_id
             WHERE s.media_type = 'movie'
-            ORDER BY s.name
-        """)
+        """
+        params = []
+
+        if content_type:
+            query += " AND s.content_type = ?"
+            params.append(content_type)
+
+        query += " ORDER BY s.name"
+        cursor.execute(query, params)
 
         movies = []
         for row in cursor.fetchall():
@@ -976,7 +992,8 @@ async def get_movies():
                 "has_file": row["media_id"] is not None,
                 "is_imported": row["is_imported"] == 1,
                 "year": row["year"],
-                "rating": row["rating"]
+                "rating": row["rating"],
+                "content_type": row["content_type"] or "movie"
             })
 
         return movies
@@ -4710,8 +4727,9 @@ async def import_from_tmdb(data: ImportTMDBRequest):
                 INSERT INTO series (
                     name, path, media_type, tmdb_id, title, year, overview, rating, genres, runtime,
                     poster, backdrop, director, creators, cast_members,
-                    is_imported, source_type, external_url, added_date
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'tmdb', ?, datetime('now'))
+                    is_imported, source_type, external_url, added_date,
+                    content_type, origin_country, original_language
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'tmdb', ?, datetime('now'), ?, ?, ?)
             """, (
                 metadata.get("title"),
                 virtual_path,
@@ -4728,7 +4746,10 @@ async def import_from_tmdb(data: ImportTMDBRequest):
                 metadata.get("director"),
                 json.dumps(metadata.get("creators", [])) if metadata.get("creators") else None,
                 json.dumps(metadata.get("cast", [])) if metadata.get("cast") else None,
-                f"https://www.themoviedb.org/{data.media_type}/{data.tmdb_id}"
+                f"https://www.themoviedb.org/{data.media_type}/{data.tmdb_id}",
+                metadata.get("content_type"),
+                json.dumps(metadata.get("origin_country", [])) if metadata.get("origin_country") else None,
+                metadata.get("original_language")
             ))
 
             series_id = cursor.lastrowid
