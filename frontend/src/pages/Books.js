@@ -109,6 +109,13 @@ const CheckIcon = () => (
   </svg>
 );
 
+// Content type filter labels (toggle buttons)
+const bookContentTypeLabels = {
+  book: 'Llibres',
+  manga: 'Mangas',
+  comic: 'Còmics'
+};
+
 function Books() {
   const [authors, setAuthors] = useState([]);
   const [books, setBooks] = useState([]);
@@ -118,6 +125,9 @@ function Books() {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
   const { getBooks, booksCache, invalidateCache } = useLibrary();
+
+  // Content type filter state (array for multi-select, default to 'book')
+  const [selectedContentTypes, setSelectedContentTypes] = useState(['book']);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -138,15 +148,37 @@ function Books() {
   const [metadataMessage, setMetadataMessage] = useState(null);
   const [uploadPreview, setUploadPreview] = useState(null);
 
+  // Toggle content type selection
+  const toggleContentType = (type) => {
+    setSelectedContentTypes(prev => {
+      if (prev.includes(type)) {
+        // Don't allow deselecting if it's the only one selected
+        if (prev.length === 1) return prev;
+        return prev.filter(t => t !== type);
+      } else {
+        return [...prev, type];
+      }
+    });
+  };
+
   // Initial load from cache or fetch
   useEffect(() => {
     if (booksCache.data) {
-      setBooks(booksCache.data);
+      // Filter books by selected content types
+      const filteredBooks = booksCache.data.filter(book =>
+        selectedContentTypes.includes(book.content_type || 'book')
+      );
+      setBooks(filteredBooks);
       setLoading(false);
     }
     loadAuthors();
     loadAllBooks();
   }, []);
+
+  // Reload when content type changes
+  useEffect(() => {
+    loadAllBooks();
+  }, [selectedContentTypes]);
 
   const searchExternal = useCallback(async (query) => {
     if (!query.trim()) return;
@@ -198,8 +230,11 @@ function Books() {
 
   const loadAllBooks = async () => {
     try {
-      const data = await getBooks();
-      setBooks(data);
+      // Pass content type filter to API
+      const contentTypeParam = selectedContentTypes.length > 0 ? selectedContentTypes.join(',') : null;
+      const params = contentTypeParam ? { content_type: contentTypeParam } : {};
+      const response = await axios.get('/api/books', { params });
+      setBooks(response.data);
     } catch (error) {
       console.error('Error carregant llibres:', error);
     }
@@ -561,12 +596,27 @@ function Books() {
   return (
     <div className="library-container">
       <div className="library-header">
-        <div className="library-title">
-          <span className="icon"><LibraryIcon /></span>
-          <h1>Biblioteca</h1>
-          <span className="library-count">
-            ({viewMode === 'authors' ? authors.length + ' autors' : books.length + ' llibres'})
-          </span>
+        <div className="library-title-row">
+          <div className="library-title">
+            <span className="icon"><LibraryIcon /></span>
+            <h1>Biblioteca</h1>
+            <span className="library-count">
+              ({viewMode === 'authors' ? authors.length + ' autors' : books.length + ' llibres'})
+            </span>
+          </div>
+
+          {/* Content type toggle filters - next to title */}
+          <div className="content-type-toggles">
+            {Object.entries(bookContentTypeLabels).map(([key, label]) => (
+              <button
+                key={key}
+                className={`content-type-toggle ${selectedContentTypes.includes(key) ? 'active' : ''}`}
+                onClick={() => toggleContentType(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="library-filters">

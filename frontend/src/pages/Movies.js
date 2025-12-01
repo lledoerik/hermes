@@ -58,9 +58,8 @@ const StarIcon = () => (
   </svg>
 );
 
-// Content type filter labels
+// Content type filter labels (toggle buttons)
 const contentTypeLabels = {
-  all: 'Totes',
   movie: 'Pel·lícules',
   anime_movie: 'Anime',
   animated: 'Animació'
@@ -92,8 +91,8 @@ function Movies() {
   const [totalItems, setTotalItems] = useState(0);
   const itemsPerPage = 50;
 
-  // Content type filter state
-  const [contentTypeFilter, setContentTypeFilter] = useState('all');
+  // Content type filter state (array for multi-select, default to 'movie')
+  const [selectedContentTypes, setSelectedContentTypes] = useState(['movie']);
 
   // Search state (només admin)
   const [searchQuery, setSearchQuery] = useState('');
@@ -113,7 +112,8 @@ function Movies() {
 
   // Initial load from cache
   useEffect(() => {
-    const cacheKey = `1-50-name-all`;
+    const contentTypeParam = selectedContentTypes.join(',');
+    const cacheKey = `1-50-name-${contentTypeParam}`;
     if (moviesCache.pages[cacheKey]?.data) {
       const cached = moviesCache.pages[cacheKey].data;
       setMovies(cached.items || []);
@@ -132,17 +132,32 @@ function Movies() {
   // Reload movies when content type filter or pagination changes
   useEffect(() => {
     loadMovies();
-  }, [contentTypeFilter, currentPage, sortBy]);
+  }, [selectedContentTypes, currentPage, sortBy]);
 
   // Reset to page 1 when filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [contentTypeFilter]);
+  }, [selectedContentTypes]);
+
+  // Toggle content type selection
+  const toggleContentType = (type) => {
+    setSelectedContentTypes(prev => {
+      if (prev.includes(type)) {
+        // Don't allow deselecting if it's the only one selected
+        if (prev.length === 1) return prev;
+        return prev.filter(t => t !== type);
+      } else {
+        return [...prev, type];
+      }
+    });
+  };
 
   const loadMovies = async () => {
     try {
       setLoading(true);
-      const data = await getMovies(currentPage, itemsPerPage, sortBy, contentTypeFilter);
+      // Join selected types with comma for the API
+      const contentTypeParam = selectedContentTypes.length > 0 ? selectedContentTypes.join(',') : null;
+      const data = await getMovies(currentPage, itemsPerPage, sortBy, contentTypeParam);
       setMovies(data.items || []);
       setTotalPages(data.total_pages || 1);
       setTotalItems(data.total || 0);
@@ -350,10 +365,25 @@ function Movies() {
   return (
     <div className="library-container">
       <div className="library-header">
-        <div className="library-title">
-          <span className="icon"><MovieIcon /></span>
-          <h1>Pel·lícules</h1>
-          <span className="library-count">({totalItems})</span>
+        <div className="library-title-row">
+          <div className="library-title">
+            <span className="icon"><MovieIcon /></span>
+            <h1>Pel·lícules</h1>
+            <span className="library-count">({totalItems})</span>
+          </div>
+
+          {/* Content type toggle filters - next to title */}
+          <div className="content-type-toggles">
+            {Object.entries(contentTypeLabels).map(([key, label]) => (
+              <button
+                key={key}
+                className={`content-type-toggle ${selectedContentTypes.includes(key) ? 'active' : ''}`}
+                onClick={() => toggleContentType(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="library-filters">
@@ -383,19 +413,6 @@ function Movies() {
             <option value="recent">Afegides recentment</option>
           </select>
         </div>
-      </div>
-
-      {/* Content type filter switches */}
-      <div className="content-type-filters">
-        {Object.entries(contentTypeLabels).map(([key, label]) => (
-          <button
-            key={key}
-            className={`content-type-btn ${contentTypeFilter === key ? 'active' : ''}`}
-            onClick={() => setContentTypeFilter(key)}
-          >
-            {label}
-          </button>
-        ))}
       </div>
 
       {/* Category tabs for discover - només admin */}
