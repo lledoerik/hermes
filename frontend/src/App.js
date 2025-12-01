@@ -17,7 +17,6 @@ import TV from './pages/TV';
 import Programs from './pages/Programs';
 import Login from './pages/Login';
 import Profile from './pages/Profile';
-import Import from './pages/Import';
 import './App.css';
 
 function App() {
@@ -63,7 +62,6 @@ function App() {
                     <Route path="/movies/:id" element={<Details />} />
                     <Route path="/series/:id" element={<Details />} />
                     <Route path="/search" element={<Search />} />
-                    <Route path="/import" element={<Import />} />
                     <Route path="/admin" element={<Admin />} />
                     <Route path="/profile" element={<Profile />} />
                   </Routes>
