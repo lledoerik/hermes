@@ -242,71 +242,81 @@ class AudiobooksScanner:
 
     def _add_or_update_audiobook(self, cursor, author_id: int, folder_path: str, title: str, single_file: str = None) -> bool:
         """Afegeix o actualitza un audiollibres. Retorna True si és nou."""
-        # Comprovar si ja existeix
-        cursor.execute("SELECT id FROM audiobooks WHERE folder_path = ?", (folder_path,))
-        existing = cursor.fetchone()
+        try:
+            # Comprovar si ja existeix
+            cursor.execute("SELECT id FROM audiobooks WHERE folder_path = ?", (folder_path,))
+            existing = cursor.fetchone()
+            logger.info(f"      Existeix: {existing is not None}")
 
-        # Buscar fitxers d'àudio
-        if single_file:
-            audio_files = [single_file]
-        else:
-            audio_files = self._find_audio_files(folder_path)
+            # Buscar fitxers d'àudio
+            if single_file:
+                audio_files = [single_file]
+            else:
+                audio_files = self._find_audio_files(folder_path)
 
-        if not audio_files:
-            return False
+            logger.info(f"      Audio files dins funció: {len(audio_files)}")
 
-        # Buscar portada
-        cover = self._find_cover(folder_path if not single_file else os.path.dirname(folder_path))
+            if not audio_files:
+                logger.warning(f"      No s'han trobat fitxers d'àudio!")
+                return False
 
-        # Calcular durada total
-        total_duration = 0
-        file_infos = []
-        for i, audio_file in enumerate(audio_files):
-            info = self._get_audio_info(audio_file)
-            info['track_number'] = i + 1
-            file_infos.append(info)
-            total_duration += info.get('duration', 0)
+            # Buscar portada
+            cover = self._find_cover(folder_path if not single_file else os.path.dirname(folder_path))
 
-        if existing:
-            audiobook_id = existing["id"]
-            # Actualitzar
-            cursor.execute("""
-                UPDATE audiobooks SET
-                    author_id = ?, title = ?, cover = ?,
-                    total_duration = ?, total_files = ?
-                WHERE id = ?
-            """, (
-                author_id, title, cover,
-                total_duration, len(audio_files), audiobook_id
-            ))
+            # Calcular durada total
+            total_duration = 0
+            file_infos = []
+            for i, audio_file in enumerate(audio_files):
+                info = self._get_audio_info(audio_file)
+                info['track_number'] = i + 1
+                file_infos.append(info)
+                total_duration += info.get('duration', 0)
 
-            # Eliminar fitxers antics i afegir nous
-            cursor.execute("DELETE FROM audiobook_files WHERE audiobook_id = ?", (audiobook_id,))
+            logger.info(f"      Durada total: {total_duration}s, fitxers: {len(file_infos)}")
 
-            for info in file_infos:
-                self._add_audio_file(cursor, audiobook_id, info)
+            if existing:
+                audiobook_id = existing["id"]
+                # Actualitzar
+                cursor.execute("""
+                    UPDATE audiobooks SET
+                        author_id = ?, title = ?, cover = ?,
+                        total_duration = ?, total_files = ?
+                    WHERE id = ?
+                """, (
+                    author_id, title, cover,
+                    total_duration, len(audio_files), audiobook_id
+                ))
 
-            return False
-        else:
-            # Inserir nou
-            cursor.execute("""
-                INSERT INTO audiobooks (
+                # Eliminar fitxers antics i afegir nous
+                cursor.execute("DELETE FROM audiobook_files WHERE audiobook_id = ?", (audiobook_id,))
+
+                for info in file_infos:
+                    self._add_audio_file(cursor, audiobook_id, info)
+
+                return False
+            else:
+                # Inserir nou
+                cursor.execute("""
+                    INSERT INTO audiobooks (
+                        author_id, title, folder_path, cover,
+                        total_duration, total_files
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                """, (
                     author_id, title, folder_path, cover,
-                    total_duration, total_files
-                ) VALUES (?, ?, ?, ?, ?, ?)
-            """, (
-                author_id, title, folder_path, cover,
-                total_duration, len(audio_files)
-            ))
+                    total_duration, len(audio_files)
+                ))
 
-            audiobook_id = cursor.lastrowid
+                audiobook_id = cursor.lastrowid
 
-            # Afegir fitxers
-            for info in file_infos:
-                self._add_audio_file(cursor, audiobook_id, info)
+                # Afegir fitxers
+                for info in file_infos:
+                    self._add_audio_file(cursor, audiobook_id, info)
 
-            logger.info(f"    + {title} ({len(audio_files)} fitxers, {self._format_duration(total_duration)})")
-            return True
+                logger.info(f"    + {title} ({len(audio_files)} fitxers, {self._format_duration(total_duration)})")
+                return True
+        except Exception as e:
+            logger.error(f"      Error en _add_or_update_audiobook: {e}")
+            return False
 
     def _add_audio_file(self, cursor, audiobook_id: int, info: Dict):
         """Afegeix un fitxer d'àudio a la base de dades"""
