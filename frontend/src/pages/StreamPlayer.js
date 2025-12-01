@@ -124,7 +124,7 @@ function StreamPlayer() {
   const [buffered, setBuffered] = useState(0);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
-  const [videoReady, setVideoReady] = useState(false);
+  const [, setVideoReady] = useState(false); // Utilitzat per reset, llegit via videoLoading
   const [videoLoading, setVideoLoading] = useState(true);
 
   const currentSource = STREAM_SOURCES[currentSourceIndex];
