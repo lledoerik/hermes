@@ -5371,6 +5371,504 @@ async def run_bulk_import(api_key: str, media_type: str, categories: List[str], 
         bulk_import_status["current_category"] = None
 
 
+# ============================================
+# BULK IMPORT - Importació massiva de LLIBRES (Open Library)
+# ============================================
+
+# Global state for book bulk import tracking
+book_bulk_import_status = {
+    "running": False,
+    "current_page": 0,
+    "total_pages": 0,
+    "imported_count": 0,
+    "skipped_count": 0,
+    "error_count": 0,
+    "current_title": None,
+    "started_at": None,
+    "subjects_done": [],
+    "current_subject": None
+}
+
+
+class BookBulkImportRequest(BaseModel):
+    subjects: List[str] = None  # e.g., ['fiction', 'science_fiction', 'fantasy', 'mystery']
+    max_per_subject: int = 100  # Max books per subject
+
+
+@app.post("/api/admin/bulk-import/books/start")
+async def start_book_bulk_import(request: BookBulkImportRequest, background_tasks: BackgroundTasks):
+    """
+    Inicia una importació massiva de llibres des d'Open Library.
+    """
+    global book_bulk_import_status
+
+    if book_bulk_import_status["running"]:
+        raise HTTPException(status_code=400, detail="Ja hi ha una importació de llibres en curs")
+
+    # Default subjects
+    subjects = request.subjects or [
+        'fiction', 'science_fiction', 'fantasy', 'mystery', 'romance',
+        'thriller', 'horror', 'historical_fiction', 'young_adult', 'classic_literature',
+        'biography', 'history', 'science', 'philosophy', 'psychology'
+    ]
+
+    # Reset status
+    book_bulk_import_status = {
+        "running": True,
+        "current_page": 0,
+        "total_pages": len(subjects),
+        "imported_count": 0,
+        "skipped_count": 0,
+        "error_count": 0,
+        "current_title": None,
+        "started_at": datetime.now().isoformat(),
+        "subjects_done": [],
+        "current_subject": None
+    }
+
+    # Start background task
+    background_tasks.add_task(
+        run_book_bulk_import,
+        subjects,
+        request.max_per_subject
+    )
+
+    return {
+        "status": "started",
+        "message": "Importació massiva de llibres iniciada",
+        "subjects": subjects,
+        "max_per_subject": request.max_per_subject
+    }
+
+
+@app.get("/api/admin/bulk-import/books/status")
+async def get_book_bulk_import_status():
+    """Retorna l'estat actual de la importació massiva de llibres."""
+    return book_bulk_import_status
+
+
+@app.post("/api/admin/bulk-import/books/stop")
+async def stop_book_bulk_import():
+    """Atura la importació massiva de llibres en curs."""
+    global book_bulk_import_status
+    if book_bulk_import_status["running"]:
+        book_bulk_import_status["running"] = False
+        return {"status": "stopping", "message": "Aturant importació de llibres..."}
+    return {"status": "not_running", "message": "No hi ha cap importació de llibres en curs"}
+
+
+async def run_book_bulk_import(subjects: List[str], max_per_subject: int):
+    """Background task per importar massivament llibres des d'Open Library."""
+    global book_bulk_import_status
+
+    from backend.metadata.openlibrary import OpenLibraryClient
+    import asyncio
+
+    client = OpenLibraryClient()
+
+    try:
+        for subject in subjects:
+            if not book_bulk_import_status["running"]:
+                break
+
+            book_bulk_import_status["current_subject"] = subject
+            book_bulk_import_status["current_page"] += 1
+
+            try:
+                # Fetch books from Open Library by subject
+                import urllib.request
+                import urllib.parse
+
+                offset = 0
+                limit = 50  # Books per request
+                imported_in_subject = 0
+
+                while imported_in_subject < max_per_subject and book_bulk_import_status["running"]:
+                    params = {
+                        "q": f"subject:{subject}",
+                        "limit": limit,
+                        "offset": offset,
+                        "fields": "key,title,author_name,first_publish_year,cover_i,isbn,subject"
+                    }
+                    query_string = urllib.parse.urlencode(params)
+                    url = f"https://openlibrary.org/search.json?{query_string}"
+
+                    req = urllib.request.Request(url)
+                    req.add_header('User-Agent', 'Hermes Media Server/1.0')
+
+                    try:
+                        with urllib.request.urlopen(req, timeout=30) as response:
+                            data = json.loads(response.read().decode('utf-8'))
+                    except Exception as e:
+                        print(f"Error fetching subject {subject}: {e}")
+                        book_bulk_import_status["error_count"] += 1
+                        break
+
+                    docs = data.get("docs", [])
+                    if not docs:
+                        break  # No more results
+
+                    # Get existing OLIDs
+                    with get_db() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT olid FROM books WHERE olid IS NOT NULL")
+                        existing_olids = {row[0] for row in cursor.fetchall()}
+
+                    for doc in docs:
+                        if not book_bulk_import_status["running"]:
+                            break
+
+                        if imported_in_subject >= max_per_subject:
+                            break
+
+                        olid = doc.get("key", "").replace("/works/", "")
+                        title = doc.get("title")
+                        book_bulk_import_status["current_title"] = title
+
+                        if not olid or not title:
+                            continue
+
+                        # Skip if already exists
+                        if olid in existing_olids:
+                            book_bulk_import_status["skipped_count"] += 1
+                            continue
+
+                        try:
+                            # Get author
+                            authors = doc.get("author_name", [])
+                            author_name = authors[0] if authors else "Desconegut"
+                            year = doc.get("first_publish_year")
+                            cover_id = doc.get("cover_i")
+                            subjects_list = doc.get("subject", [])[:5]
+                            isbn = doc.get("isbn", [None])[0] if doc.get("isbn") else None
+
+                            # Download cover
+                            cover_path = None
+                            if cover_id:
+                                cache_dir = settings.CACHE_DIR / "imported" / "books"
+                                cache_dir.mkdir(parents=True, exist_ok=True)
+                                cover_file = cache_dir / f"{olid}_cover.jpg"
+
+                                cover_downloaded = await client.download_cover(cover_id, cover_file)
+                                if cover_downloaded:
+                                    cover_path = str(cover_file)
+
+                            # Get or create author
+                            with get_db() as conn:
+                                cursor = conn.cursor()
+
+                                # Check if author exists
+                                cursor.execute("SELECT id FROM authors WHERE name = ?", (author_name,))
+                                author_row = cursor.fetchone()
+
+                                if author_row:
+                                    author_id = author_row[0]
+                                else:
+                                    # Create author
+                                    virtual_path = f"imported/authors/{author_name.replace('/', '_')}"
+                                    cursor.execute(
+                                        "INSERT INTO authors (name, path, created_at) VALUES (?, ?, datetime('now'))",
+                                        (author_name, virtual_path)
+                                    )
+                                    author_id = cursor.lastrowid
+                                    conn.commit()
+
+                                # Insert book
+                                virtual_path = f"imported/books/{olid}"
+                                try:
+                                    cursor.execute("""
+                                        INSERT INTO books (
+                                            title, author_id, isbn, description, cover_path,
+                                            file_path, published_date, olid, is_imported, source_type,
+                                            external_url, added_date
+                                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 'openlibrary', ?, datetime('now'))
+                                    """, (
+                                        title,
+                                        author_id,
+                                        isbn,
+                                        ", ".join(subjects_list) if subjects_list else None,
+                                        cover_path,
+                                        virtual_path,
+                                        str(year) if year else None,
+                                        olid,
+                                        f"https://openlibrary.org/works/{olid}"
+                                    ))
+                                    conn.commit()
+                                    book_bulk_import_status["imported_count"] += 1
+                                    existing_olids.add(olid)
+                                    imported_in_subject += 1
+                                except Exception as e:
+                                    if "UNIQUE constraint" in str(e):
+                                        book_bulk_import_status["skipped_count"] += 1
+                                    else:
+                                        book_bulk_import_status["error_count"] += 1
+                                        print(f"Error inserting book: {e}")
+
+                            # Small delay
+                            await asyncio.sleep(0.1)
+
+                        except Exception as e:
+                            book_bulk_import_status["error_count"] += 1
+                            print(f"Error importing book {title}: {e}")
+
+                    offset += limit
+
+                    # Rate limiting
+                    await asyncio.sleep(0.5)
+
+            except Exception as e:
+                print(f"Error with subject {subject}: {e}")
+                book_bulk_import_status["error_count"] += 1
+
+            book_bulk_import_status["subjects_done"].append(subject)
+
+    finally:
+        await client.close()
+        book_bulk_import_status["running"] = False
+        book_bulk_import_status["current_title"] = None
+        book_bulk_import_status["current_subject"] = None
+
+
+# ============================================
+# BULK IMPORT - Importació massiva d'AUDIOLLIBRES (Audnexus)
+# ============================================
+
+# Global state for audiobook bulk import tracking
+audiobook_bulk_import_status = {
+    "running": False,
+    "current_page": 0,
+    "total_pages": 0,
+    "imported_count": 0,
+    "skipped_count": 0,
+    "error_count": 0,
+    "current_title": None,
+    "started_at": None,
+    "genres_done": [],
+    "current_genre": None
+}
+
+
+class AudiobookBulkImportRequest(BaseModel):
+    search_terms: List[str] = None  # Search terms to use
+    max_per_term: int = 50  # Max audiobooks per search term
+
+
+@app.post("/api/admin/bulk-import/audiobooks/start")
+async def start_audiobook_bulk_import(request: AudiobookBulkImportRequest, background_tasks: BackgroundTasks):
+    """
+    Inicia una importació massiva d'audiollibres des d'Audnexus.
+    """
+    global audiobook_bulk_import_status
+
+    if audiobook_bulk_import_status["running"]:
+        raise HTTPException(status_code=400, detail="Ja hi ha una importació d'audiollibres en curs")
+
+    # Default search terms (popular authors and genres)
+    search_terms = request.search_terms or [
+        'Stephen King', 'Brandon Sanderson', 'J.K. Rowling', 'George R.R. Martin',
+        'Neil Gaiman', 'Terry Pratchett', 'Agatha Christie', 'Dan Brown',
+        'thriller bestseller', 'fantasy epic', 'science fiction', 'mystery detective',
+        'romance audiobook', 'horror', 'historical fiction', 'biography'
+    ]
+
+    # Reset status
+    audiobook_bulk_import_status = {
+        "running": True,
+        "current_page": 0,
+        "total_pages": len(search_terms),
+        "imported_count": 0,
+        "skipped_count": 0,
+        "error_count": 0,
+        "current_title": None,
+        "started_at": datetime.now().isoformat(),
+        "genres_done": [],
+        "current_genre": None
+    }
+
+    # Start background task
+    background_tasks.add_task(
+        run_audiobook_bulk_import,
+        search_terms,
+        request.max_per_term
+    )
+
+    return {
+        "status": "started",
+        "message": "Importació massiva d'audiollibres iniciada",
+        "search_terms": search_terms,
+        "max_per_term": request.max_per_term
+    }
+
+
+@app.get("/api/admin/bulk-import/audiobooks/status")
+async def get_audiobook_bulk_import_status():
+    """Retorna l'estat actual de la importació massiva d'audiollibres."""
+    return audiobook_bulk_import_status
+
+
+@app.post("/api/admin/bulk-import/audiobooks/stop")
+async def stop_audiobook_bulk_import():
+    """Atura la importació massiva d'audiollibres en curs."""
+    global audiobook_bulk_import_status
+    if audiobook_bulk_import_status["running"]:
+        audiobook_bulk_import_status["running"] = False
+        return {"status": "stopping", "message": "Aturant importació d'audiollibres..."}
+    return {"status": "not_running", "message": "No hi ha cap importació d'audiollibres en curs"}
+
+
+async def run_audiobook_bulk_import(search_terms: List[str], max_per_term: int):
+    """Background task per importar massivament audiollibres des d'Audnexus."""
+    global audiobook_bulk_import_status
+
+    from backend.metadata.audnexus import AudnexusClient
+    import asyncio
+
+    client = AudnexusClient(region="us")
+
+    try:
+        for term in search_terms:
+            if not audiobook_bulk_import_status["running"]:
+                break
+
+            audiobook_bulk_import_status["current_genre"] = term
+            audiobook_bulk_import_status["current_page"] += 1
+
+            try:
+                # Search audiobooks
+                results = await client.search_audiobooks(term, limit=max_per_term)
+
+                if not results:
+                    audiobook_bulk_import_status["genres_done"].append(term)
+                    continue
+
+                # Get existing ASINs
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT title FROM audiobooks")
+                    existing_titles = {row[0].lower() for row in cursor.fetchall() if row[0]}
+
+                for item in results:
+                    if not audiobook_bulk_import_status["running"]:
+                        break
+
+                    asin = item.get("asin")
+                    title = item.get("title")
+                    audiobook_bulk_import_status["current_title"] = title
+
+                    if not asin or not title:
+                        continue
+
+                    # Skip if already exists (by title)
+                    if title.lower() in existing_titles:
+                        audiobook_bulk_import_status["skipped_count"] += 1
+                        continue
+
+                    try:
+                        # Get full details
+                        details = await client.get_audiobook_by_asin(asin)
+                        if not details or not details.get("found"):
+                            audiobook_bulk_import_status["error_count"] += 1
+                            continue
+
+                        # Get author info
+                        authors = details.get("authors", [])
+                        author_name = authors[0].get("name") if authors else "Desconegut"
+                        narrators = details.get("narrators", [])
+                        narrator_name = narrators[0].get("name") if narrators else None
+
+                        # Download cover
+                        cover_path = None
+                        if details.get("image"):
+                            cache_dir = settings.CACHE_DIR / "imported" / "audiobooks"
+                            cache_dir.mkdir(parents=True, exist_ok=True)
+                            cover_file = cache_dir / f"{asin}_cover.jpg"
+
+                            cover_downloaded = await client.download_cover(details["image"], cover_file)
+                            if cover_downloaded:
+                                cover_path = str(cover_file)
+
+                        # Get or create author
+                        with get_db() as conn:
+                            cursor = conn.cursor()
+
+                            # Check if author exists
+                            cursor.execute("SELECT id FROM audiobook_authors WHERE name = ?", (author_name,))
+                            author_row = cursor.fetchone()
+
+                            if author_row:
+                                author_id = author_row[0]
+                            else:
+                                # Create author
+                                virtual_path = f"imported/audiobook_authors/{author_name.replace('/', '_')}"
+                                cursor.execute(
+                                    "INSERT INTO audiobook_authors (name, path, created_at) VALUES (?, ?, datetime('now'))",
+                                    (author_name, virtual_path)
+                                )
+                                author_id = cursor.lastrowid
+                                conn.commit()
+
+                            # Calculate duration
+                            duration_minutes = details.get("duration_minutes", 0)
+                            total_duration = duration_minutes * 60 if duration_minutes else 0
+
+                            # Insert audiobook
+                            virtual_path = f"imported/audiobooks/{asin}"
+                            try:
+                                cursor.execute("""
+                                    INSERT INTO audiobooks (
+                                        title, author_id, narrator, isbn, description,
+                                        cover_path, folder_path, duration, language,
+                                        publisher, published_date, total_duration, cover,
+                                        added_date
+                                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                                """, (
+                                    title,
+                                    author_id,
+                                    narrator_name,
+                                    details.get("isbn"),
+                                    details.get("summary") or details.get("description"),
+                                    cover_path,
+                                    virtual_path,
+                                    total_duration,
+                                    details.get("language"),
+                                    details.get("publisher"),
+                                    details.get("release_date"),
+                                    total_duration,
+                                    cover_path
+                                ))
+                                conn.commit()
+                                audiobook_bulk_import_status["imported_count"] += 1
+                                existing_titles.add(title.lower())
+                            except Exception as e:
+                                if "UNIQUE constraint" in str(e):
+                                    audiobook_bulk_import_status["skipped_count"] += 1
+                                else:
+                                    audiobook_bulk_import_status["error_count"] += 1
+                                    print(f"Error inserting audiobook: {e}")
+
+                        # Small delay
+                        await asyncio.sleep(0.2)
+
+                    except Exception as e:
+                        audiobook_bulk_import_status["error_count"] += 1
+                        print(f"Error importing audiobook {title}: {e}")
+
+                # Rate limiting between searches
+                await asyncio.sleep(1)
+
+            except Exception as e:
+                print(f"Error with search term {term}: {e}")
+                audiobook_bulk_import_status["error_count"] += 1
+
+            audiobook_bulk_import_status["genres_done"].append(term)
+
+    finally:
+        await client.close()
+        audiobook_bulk_import_status["running"] = False
+        audiobook_bulk_import_status["current_title"] = None
+        audiobook_bulk_import_status["current_genre"] = None
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
