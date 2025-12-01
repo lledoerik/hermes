@@ -266,9 +266,6 @@ function Home() {
 
   // Vista personalitzada per usuaris autenticats
   if (isAuthenticated) {
-    // Check if there's any continue watching content
-    const hasContinueWatching = continueWatchingMovies.length > 0 || continueWatchingSeries.length > 0;
-
     return (
       <div className="home-container authenticated">
         {/* Header amb salutació i cerca */}
