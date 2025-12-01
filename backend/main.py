@@ -4595,13 +4595,21 @@ async def import_from_tmdb(data: ImportTMDBRequest):
     from backend.metadata.tmdb import fetch_movie_by_tmdb_id, fetch_tv_by_tmdb_id
     from pathlib import Path
 
-    # Verificar si ja existeix
+    virtual_path = f"imported/{data.media_type}/{data.tmdb_id}"
+
+    # Verificar si ja existeix (per tmdb_id o path)
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id FROM series WHERE tmdb_id = ?", (data.tmdb_id,))
+        cursor.execute("SELECT id, name FROM series WHERE tmdb_id = ? OR path = ?", (data.tmdb_id, virtual_path))
         existing = cursor.fetchone()
         if existing:
-            raise HTTPException(status_code=400, detail="Aquest contingut ja existeix a la biblioteca")
+            # Retornem èxit si ja existeix (pot passar amb imports paral·lels)
+            return {
+                "status": "success",
+                "message": f"'{existing['name']}' ja existeix a la biblioteca",
+                "id": existing['id'],
+                "already_exists": True
+            }
 
     # Obtenir metadades de TMDB
     if data.media_type == 'movie':
@@ -4650,45 +4658,56 @@ async def import_from_tmdb(data: ImportTMDBRequest):
     with get_db() as conn:
         cursor = conn.cursor()
 
-        # Generar un path virtual per contingut importat
-        virtual_path = f"imported/{data.media_type}/{data.tmdb_id}"
+        try:
+            cursor.execute("""
+                INSERT INTO series (
+                    name, path, media_type, tmdb_id, title, year, overview, rating, genres, runtime,
+                    poster, backdrop, director, creators, cast_members,
+                    is_imported, source_type, external_url, added_date
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'tmdb', ?, datetime('now'))
+            """, (
+                metadata.get("title"),
+                virtual_path,
+                media_type_db,
+                metadata.get("tmdb_id"),
+                metadata.get("title"),
+                metadata.get("year"),
+                metadata.get("overview"),
+                metadata.get("rating"),
+                json.dumps(metadata.get("genres", [])),
+                metadata.get("runtime"),
+                poster_path,
+                backdrop_path,
+                metadata.get("director"),
+                json.dumps(metadata.get("creators", [])) if metadata.get("creators") else None,
+                json.dumps(metadata.get("cast", [])) if metadata.get("cast") else None,
+                f"https://www.themoviedb.org/{data.media_type}/{data.tmdb_id}"
+            ))
 
-        cursor.execute("""
-            INSERT INTO series (
-                name, path, media_type, tmdb_id, title, year, overview, rating, genres, runtime,
-                poster, backdrop, director, creators, cast_members,
-                is_imported, source_type, external_url, added_date
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'tmdb', ?, datetime('now'))
-        """, (
-            metadata.get("title"),
-            virtual_path,
-            media_type_db,
-            metadata.get("tmdb_id"),
-            metadata.get("title"),
-            metadata.get("year"),
-            metadata.get("overview"),
-            metadata.get("rating"),
-            json.dumps(metadata.get("genres", [])),
-            metadata.get("runtime"),
-            poster_path,
-            backdrop_path,
-            metadata.get("director"),
-            json.dumps(metadata.get("creators", [])) if metadata.get("creators") else None,
-            json.dumps(metadata.get("cast", [])) if metadata.get("cast") else None,
-            f"https://www.themoviedb.org/{data.media_type}/{data.tmdb_id}"
-        ))
+            series_id = cursor.lastrowid
+            conn.commit()
 
-        series_id = cursor.lastrowid
-        conn.commit()
-
-        return {
-            "status": "success",
-            "message": f"{'Pel·lícula' if data.media_type == 'movie' else 'Sèrie'} '{metadata.get('title')}' importada correctament",
-            "id": series_id,
-            "title": metadata.get("title"),
-            "year": metadata.get("year"),
-            "poster": poster_path
-        }
+            return {
+                "status": "success",
+                "message": f"{'Pel·lícula' if data.media_type == 'movie' else 'Sèrie'} '{metadata.get('title')}' importada correctament",
+                "id": series_id,
+                "title": metadata.get("title"),
+                "year": metadata.get("year"),
+                "poster": poster_path
+            }
+        except Exception as e:
+            # Si falla per UNIQUE constraint, l'element ja existeix (condició de carrera)
+            if "UNIQUE constraint" in str(e):
+                cursor.execute("SELECT id, name FROM series WHERE tmdb_id = ? OR path = ?", (data.tmdb_id, virtual_path))
+                existing = cursor.fetchone()
+                if existing:
+                    return {
+                        "status": "success",
+                        "message": f"'{existing['name']}' ja existeix a la biblioteca",
+                        "id": existing['id'],
+                        "already_exists": True
+                    }
+            raise
 
 
 @app.post("/api/import/book")
