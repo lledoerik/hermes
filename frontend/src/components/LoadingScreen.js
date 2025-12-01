@@ -1,43 +1,34 @@
 import React from 'react';
 import './LoadingScreen.css';
 
-// Hermes logo icon
-const HermesIcon = () => (
-  <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-    <path d="M12 2L2 7l10 5 10-5-10-5z" />
-    <path d="M2 17l10 5 10-5" />
-    <path d="M2 12l10 5 10-5" />
-  </svg>
-);
-
 function LoadingScreen({ progress }) {
   const percentage = progress ? Math.round((progress.current / progress.total) * 100) : 0;
 
   return (
-    <div className="loading-screen">
-      <div className="loading-content">
-        <div className="loading-logo">
-          <HermesIcon />
-          <h1 className="loading-title">Hermes</h1>
+    <div className="startup-loading-screen">
+      <div className="startup-loading-content">
+        <div className="startup-loading-logo">
+          <img src="/img/hermes.png" alt="Hermes" className="startup-hermes-logo" />
+          <h1 className="startup-loading-title">Hermes</h1>
         </div>
 
-        <div className="loading-progress-container">
-          <div className="loading-progress-bar">
+        <div className="startup-progress-container">
+          <div className="startup-progress-bar">
             <div
-              className="loading-progress-fill"
+              className="startup-progress-fill"
               style={{ width: `${percentage}%` }}
             />
           </div>
-          <div className="loading-progress-text">
-            <span className="loading-message">{progress?.message || 'Carregant...'}</span>
-            <span className="loading-percentage">{percentage}%</span>
+          <div className="startup-progress-text">
+            <span className="startup-progress-message">{progress?.message || 'Carregant...'}</span>
+            <span className="startup-progress-percentage">{percentage}%</span>
           </div>
         </div>
 
-        <div className="loading-dots">
-          <span className="dot"></span>
-          <span className="dot"></span>
-          <span className="dot"></span>
+        <div className="startup-loading-dots">
+          <span className="startup-dot"></span>
+          <span className="startup-dot"></span>
+          <span className="startup-dot"></span>
         </div>
       </div>
     </div>
