@@ -186,6 +186,8 @@ def init_all_tables():
             ("source_type", "TEXT"),  # 'openlibrary', etc.
             ("external_url", "TEXT"),
             ("olid", "TEXT"),  # Open Library ID
+            # Tipus de contingut: book, manga, comic
+            ("content_type", "TEXT DEFAULT 'book'"),
         ]
         for col_name, col_type in books_columns:
             try:
@@ -928,16 +930,20 @@ async def get_stats():
 
 @app.get("/api/library/series")
 async def get_series(content_type: str = None, page: int = 1, limit: int = 50, sort_by: str = "name"):
-    """Retorna les sèries amb paginació. Filtre opcional: series, anime, toons"""
+    """Retorna les sèries amb paginació. Filtre opcional: series, anime, toons (comma-separated for multiple)"""
     with get_db() as conn:
         cursor = conn.cursor()
+
+        # Parse content types (can be comma-separated)
+        content_types = [ct.strip() for ct in content_type.split(',')] if content_type else None
 
         # Count total
         count_query = "SELECT COUNT(*) FROM series WHERE media_type = 'series'"
         count_params = []
-        if content_type:
-            count_query += " AND content_type = ?"
-            count_params.append(content_type)
+        if content_types:
+            placeholders = ','.join(['?' for _ in content_types])
+            count_query += f" AND content_type IN ({placeholders})"
+            count_params.extend(content_types)
         cursor.execute(count_query, count_params)
         total = cursor.fetchone()[0]
 
@@ -951,9 +957,10 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
         """
         params = []
 
-        if content_type:
-            query += " AND s.content_type = ?"
-            params.append(content_type)
+        if content_types:
+            placeholders = ','.join(['?' for _ in content_types])
+            query += f" AND s.content_type IN ({placeholders})"
+            params.extend(content_types)
 
         query += " GROUP BY s.id"
 
@@ -997,16 +1004,20 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
 
 @app.get("/api/library/movies")
 async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, sort_by: str = "name"):
-    """Retorna les pel·lícules amb paginació. Filtre opcional: movie, anime_movie, animated"""
+    """Retorna les pel·lícules amb paginació. Filtre opcional: movie, anime_movie, animated (comma-separated for multiple)"""
     with get_db() as conn:
         cursor = conn.cursor()
+
+        # Parse content types (can be comma-separated)
+        content_types = [ct.strip() for ct in content_type.split(',')] if content_type else None
 
         # Count total
         count_query = "SELECT COUNT(*) FROM series WHERE media_type = 'movie'"
         count_params = []
-        if content_type:
-            count_query += " AND content_type = ?"
-            count_params.append(content_type)
+        if content_types:
+            placeholders = ','.join(['?' for _ in content_types])
+            count_query += f" AND content_type IN ({placeholders})"
+            count_params.extend(content_types)
         cursor.execute(count_query, count_params)
         total = cursor.fetchone()[0]
 
@@ -1020,9 +1031,10 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
         """
         params = []
 
-        if content_type:
-            query += " AND s.content_type = ?"
-            params.append(content_type)
+        if content_types:
+            placeholders = ','.join(['?' for _ in content_types])
+            query += f" AND s.content_type IN ({placeholders})"
+            params.extend(content_types)
 
         # Sorting
         if sort_by == "year":
@@ -2381,16 +2393,31 @@ async def get_author_detail(author_id: int):
 
 
 @app.get("/api/books")
-async def get_all_books():
-    """Retorna tots els llibres"""
+async def get_all_books(content_type: str = None):
+    """Retorna tots els llibres. Filtre opcional: book, manga, comic (comma-separated for multiple)"""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("""
+
+        # Parse content types (can be comma-separated)
+        content_types = [ct.strip() for ct in content_type.split(',')] if content_type else None
+
+        query = """
             SELECT b.*, a.name as author_name
             FROM books b
             LEFT JOIN authors a ON b.author_id = a.id
-            ORDER BY b.title
-        """)
+        """
+        params = []
+
+        if content_types:
+            placeholders = ','.join(['?' for _ in content_types])
+            query += f" WHERE (b.content_type IN ({placeholders}) OR (b.content_type IS NULL AND ? IN ({placeholders})))"
+            params.extend(content_types)
+            params.append('book')  # Treat NULL as 'book'
+            params.extend(content_types)
+
+        query += " ORDER BY b.title"
+
+        cursor.execute(query, params)
         books = [dict(row) for row in cursor.fetchall()]
         return books
 
