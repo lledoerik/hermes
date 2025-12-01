@@ -205,27 +205,6 @@ function Details() {
     loadWatchProviders();
   }, [item?.tmdb_id, type]);
 
-  // Carregar fonts d'embed automàtiques si tenim tmdb_id
-  useEffect(() => {
-    const loadEmbedSources = async () => {
-      if (!item?.tmdb_id) return;
-
-      try {
-        const mediaType = type === 'movies' ? 'movie' : 'series';
-        const response = await axios.get(`/api/embed-sources/${mediaType}/${item.tmdb_id}`);
-        setEmbedSources(response.data);
-        // Seleccionar la primera font per defecte
-        if (response.data.sources && response.data.sources.length > 0) {
-          setSelectedEmbedSource(response.data.sources[0]);
-        }
-      } catch (err) {
-        console.error('Error carregant fonts d\'embed:', err);
-      }
-    };
-
-    loadEmbedSources();
-  }, [item?.tmdb_id, type]);
-
   useEffect(() => {
     if (type === 'series' && seasons.length > 0) {
       loadEpisodes(selectedSeason);
@@ -529,7 +508,7 @@ function Details() {
               {item?.external_url && (
                 <button
                   className="play-btn external-play-btn"
-                  onClick={() => { setShowExternalPlayer(!showExternalPlayer); setShowEmbedPlayer(false); }}
+                  onClick={() => setShowExternalPlayer(!showExternalPlayer)}
                 >
                   <PlayIcon /> {showExternalPlayer ? 'Amagar' : 'Veure online'}
                   {item?.external_source && (
