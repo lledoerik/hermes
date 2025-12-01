@@ -165,22 +165,31 @@ class BooksScanner:
                 if os.path.isfile(item_path):
                     ext = os.path.splitext(item)[1].lower()
                     if ext in self.SUPPORTED_FORMATS:
-                        if self._add_or_update_book(cursor, author_id, item_path):
-                            result["books_found"] += 1
-                        else:
-                            result["books_updated"] += 1
+                        try:
+                            if self._add_or_update_book(cursor, author_id, item_path):
+                                result["books_found"] += 1
+                            else:
+                                result["books_updated"] += 1
+                        except Exception as e:
+                            logger.error(f"    Error afegint llibre {item}: {e}")
 
                 # Si és una carpeta (potser conté múltiples formats del mateix llibre)
                 elif os.path.isdir(item_path):
-                    for book_file in os.listdir(item_path):
+                    logger.info(f"    Carpeta: {item}")
+                    book_files = os.listdir(item_path)
+                    logger.info(f"    Contingut: {book_files}")
+                    for book_file in book_files:
                         book_path = os.path.join(item_path, book_file)
                         if os.path.isfile(book_path):
                             ext = os.path.splitext(book_file)[1].lower()
                             if ext in self.SUPPORTED_FORMATS:
-                                if self._add_or_update_book(cursor, author_id, book_path):
-                                    result["books_found"] += 1
-                                else:
-                                    result["books_updated"] += 1
+                                try:
+                                    if self._add_or_update_book(cursor, author_id, book_path):
+                                        result["books_found"] += 1
+                                    else:
+                                        result["books_updated"] += 1
+                                except Exception as e:
+                                    logger.error(f"    Error afegint llibre {book_file}: {e}")
 
             logger.info(f"  Autor: {author_name}")
 
