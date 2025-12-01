@@ -35,18 +35,18 @@ def _load_libraries_from_env(env_var: str, default: list) -> list:
 # Valors per defecte (modifica segons el teu sistema)
 _DEFAULT_MEDIA_LIBRARIES = [
     {
-        "name": "Anime",
-        "path": "/media/anime",
-        "type": "series"
-    },
-    {
-        "name": "Pel·lícules",
-        "path": "/media/movies",
+        "name": "Anime Movies",
+        "path": "D:\\Anime Movies",
         "type": "movies"
     },
     {
-        "name": "Sèries",
-        "path": "/media/series",
+        "name": "Pel·lícules",
+        "path": "D:\\Pel·lícules",
+        "type": "movies"
+    },
+    {
+        "name": "Anime",
+        "path": "D:\\Anime",
         "type": "series"
     }
 ]
