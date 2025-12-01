@@ -1756,18 +1756,127 @@ async def get_watch_providers(media_type: str, tmdb_id: int, country: str = "ES"
             "buy": []        # Compra (iTunes, Google Play, etc.)
         }
 
+        # Deep links per proveïdors principals
+        provider_deep_links = {
+            8: "https://www.netflix.com/search?q=",      # Netflix
+            9: "https://www.amazon.com/s?k=",             # Amazon Prime Video
+            337: "https://www.disneyplus.com/search?q=",  # Disney+
+            384: "https://www.max.com/search?q=",         # HBO Max
+            119: "https://www.primevideo.com/search?phrase=",  # Amazon Prime Video
+            350: "https://tv.apple.com/search?term=",     # Apple TV+
+            531: "https://www.paramountplus.com/search/?q=",  # Paramount+
+            283: "https://www.crunchyroll.com/search?q=", # Crunchyroll
+            1899: "https://www.max.com/search?q=",        # Max
+            619: "https://www.filmin.es/buscar?q=",       # Filmin
+            149: "https://www.movistarplus.es/busqueda?q=",  # Movistar+
+            63: "https://www.skyshowtime.com/search?q=",   # SkyShowtime
+        }
+
         for provider_type in ["flatrate", "rent", "buy"]:
             if providers.get(provider_type):
                 for p in providers[provider_type]:
+                    provider_id = p.get("provider_id")
+                    provider_name = p.get("provider_name", "")
+
+                    # Generar deep link si el tenim
+                    deep_link = None
+                    if provider_id in provider_deep_links:
+                        # Utilitzar el títol per a la cerca
+                        search_title = ""
+                        if media_type == 'movie':
+                            movie_details = await client.get_movie_details(tmdb_id)
+                            search_title = movie_details.get("title", "") if movie_details else ""
+                        else:
+                            tv_details = await client.get_series_details(tmdb_id)
+                            search_title = tv_details.get("name", "") if tv_details else ""
+
+                        if search_title:
+                            import urllib.parse
+                            deep_link = provider_deep_links[provider_id] + urllib.parse.quote(search_title)
+
                     result[provider_type].append({
-                        "id": p.get("provider_id"),
-                        "name": p.get("provider_name"),
-                        "logo": f"https://image.tmdb.org/t/p/w92{p.get('logo_path')}" if p.get("logo_path") else None
+                        "id": provider_id,
+                        "name": provider_name,
+                        "logo": f"https://image.tmdb.org/t/p/w92{p.get('logo_path')}" if p.get("logo_path") else None,
+                        "deep_link": deep_link
                     })
 
         return result
     finally:
         await client.close()
+
+
+@app.get("/api/embed-sources/{media_type}/{tmdb_id}")
+async def get_embed_sources(media_type: str, tmdb_id: int, season: int = None, episode: int = None):
+    """
+    Retorna URLs d'embed per veure contingut basat en TMDB ID.
+    Fonts: VidSrc, SuperEmbed, 2embed, etc.
+    """
+    sources = []
+
+    # VidSrc.to - Una de les fonts més fiables
+    if media_type == 'movie':
+        sources.append({
+            "name": "VidSrc",
+            "url": f"https://vidsrc.to/embed/movie/{tmdb_id}",
+            "type": "iframe"
+        })
+        sources.append({
+            "name": "VidSrc.me",
+            "url": f"https://vidsrc.me/embed/movie?tmdb={tmdb_id}",
+            "type": "iframe"
+        })
+        sources.append({
+            "name": "SuperEmbed",
+            "url": f"https://multiembed.mov/?video_id={tmdb_id}&tmdb=1",
+            "type": "iframe"
+        })
+        sources.append({
+            "name": "2embed",
+            "url": f"https://www.2embed.cc/embed/{tmdb_id}",
+            "type": "iframe"
+        })
+    elif media_type == 'series' and season is not None and episode is not None:
+        sources.append({
+            "name": "VidSrc",
+            "url": f"https://vidsrc.to/embed/tv/{tmdb_id}/{season}/{episode}",
+            "type": "iframe"
+        })
+        sources.append({
+            "name": "VidSrc.me",
+            "url": f"https://vidsrc.me/embed/tv?tmdb={tmdb_id}&season={season}&episode={episode}",
+            "type": "iframe"
+        })
+        sources.append({
+            "name": "SuperEmbed",
+            "url": f"https://multiembed.mov/?video_id={tmdb_id}&tmdb=1&s={season}&e={episode}",
+            "type": "iframe"
+        })
+        sources.append({
+            "name": "2embed",
+            "url": f"https://www.2embed.cc/embedtv/{tmdb_id}&s={season}&e={episode}",
+            "type": "iframe"
+        })
+    elif media_type == 'series':
+        # Sense temporada/episodi, donem la primera temporada/episodi per defecte
+        sources.append({
+            "name": "VidSrc",
+            "url": f"https://vidsrc.to/embed/tv/{tmdb_id}/1/1",
+            "type": "iframe"
+        })
+        sources.append({
+            "name": "VidSrc.me",
+            "url": f"https://vidsrc.me/embed/tv?tmdb={tmdb_id}&season=1&episode=1",
+            "type": "iframe"
+        })
+
+    return {
+        "tmdb_id": tmdb_id,
+        "media_type": media_type,
+        "season": season,
+        "episode": episode,
+        "sources": sources
+    }
 
 
 @app.get("/api/library/episodes/{episode_id}")
