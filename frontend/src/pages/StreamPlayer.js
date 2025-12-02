@@ -622,28 +622,62 @@ function StreamPlayer() {
 
   // Estats de temps eliminats - ara el canvi d'idioma és directe
 
-  // Estat per Torrentio (reproductor natiu)
+  // Estat per Torrentio (reproductor natiu) - MILLORAT
   const [torrentioStream, setTorrentioStream] = useState(null);
   const [torrentioError, setTorrentioError] = useState(null);
   const [torrentioLoading, setTorrentioLoading] = useState(false);
+  const [torrentioAvailability, setTorrentioAvailability] = useState(null); // Idiomes disponibles verificats
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
   const videoRef = useRef(null);
 
   const currentSource = EMBED_SOURCES[currentSourceIndex];
   const mediaType = type === 'movie' ? 'movie' : 'tv';
 
-  // Calcular idiomes disponibles basant-se en la info del media
+  // Calcular idiomes disponibles - PRIORITZAR idiomes verificats de Torrentio
   const availableLanguages = React.useMemo(() => {
+    // Si tenim info de Torrentio, mostrar només idiomes verificats
+    if (torrentioAvailability?.languages?.length > 0) {
+      const verified = [];
+      const verifiedCodes = torrentioAvailability.languages.map(l => l.code);
+
+      // Afegir idiomes verificats de Torrentio amb info de qualitat
+      torrentioAvailability.languages.forEach(torrentLang => {
+        const langInfo = LANGUAGE_INFO[torrentLang.code];
+        if (langInfo) {
+          verified.push({
+            code: torrentLang.code,
+            name: langInfo.name,
+            flag: langInfo.flag,
+            quality: torrentLang.quality,
+            size: torrentLang.size,
+            verified: torrentLang.verified,
+            isOriginal: mediaInfo?.original_language === torrentLang.code
+          });
+        } else {
+          // Idioma no conegut però disponible
+          verified.push({
+            code: torrentLang.code,
+            name: torrentLang.code.toUpperCase(),
+            flag: '🌐',
+            quality: torrentLang.quality,
+            size: torrentLang.size,
+            verified: torrentLang.verified,
+            isOriginal: false
+          });
+        }
+      });
+
+      return verified;
+    }
+
+    // Fallback: si no tenim Torrentio, usar lògica anterior
     if (!mediaInfo) return PREFERRED_LANGUAGES;
 
-    // Obtenir idiomes del contingut (spoken_languages per películes, languages per TV)
-    const mediaLangs = mediaInfo.spoken_languages || mediaInfo.languages || [];
-    const originalLang = mediaInfo.original_language;
-
-    // Crear llista d'idiomes disponibles
     const available = [];
     const addedCodes = new Set();
 
-    // Afegir idioma original primer si existeix
+    // Afegir idioma original primer
+    const originalLang = mediaInfo.original_language;
     if (originalLang && !addedCodes.has(originalLang)) {
       const langInfo = LANGUAGE_INFO[originalLang];
       if (langInfo) {
@@ -657,26 +691,16 @@ function StreamPlayer() {
       }
     }
 
-    // Afegir idiomes preferits que estiguin disponibles al contingut
-    const mediaLangCodes = mediaLangs.map(l => l.iso_639_1);
-
+    // Afegir idiomes preferits
     PREFERRED_LANGUAGES.forEach(lang => {
       if (!addedCodes.has(lang.code)) {
-        // Afegir si està a la llista de spoken_languages o si és un idioma comú de doblatge
-        const isInMedia = mediaLangCodes.includes(lang.code);
-        // Sempre afegir anglès, castellà i els preferits principals (normalment tenen doblatge)
-        const isCommonDub = ['en', 'es', 'fr', 'it', 'de'].includes(lang.code);
-
-        if (isInMedia || isCommonDub) {
-          available.push({ ...lang, isOriginal: false });
-          addedCodes.add(lang.code);
-        }
+        available.push({ ...lang, isOriginal: false });
+        addedCodes.add(lang.code);
       }
     });
 
-    // Si no hi ha cap idioma, retornar els preferits per defecte
     return available.length > 0 ? available : PREFERRED_LANGUAGES;
-  }, [mediaInfo]);
+  }, [mediaInfo, torrentioAvailability]);
 
   const currentLang = availableLanguages.find(l => l.code === preferredLang) || availableLanguages[0];
 
@@ -735,7 +759,40 @@ function StreamPlayer() {
     }
   }, [tmdbId, season, type, loadSeasonEpisodes]);
 
-  // Carregar stream de Torrentio quan es selecciona
+  // PRIMER: Comprovar disponibilitat de Torrentio quan canvia el contingut
+  useEffect(() => {
+    const checkTorrentioAvailability = async () => {
+      if (!tmdbId) return;
+
+      setCheckingAvailability(true);
+      try {
+        const params = new URLSearchParams();
+        if (season) params.set('season', season);
+        if (episode) params.set('episode', episode);
+
+        const response = await axios.get(
+          `${API_URL}/api/torrentio/check/${mediaType}/${tmdbId}?${params.toString()}`
+        );
+
+        if (response.data.available) {
+          setTorrentioAvailability(response.data);
+          console.log('Torrentio disponible:', response.data.languages);
+        } else {
+          setTorrentioAvailability(null);
+          console.log('Torrentio no disponible:', response.data.error);
+        }
+      } catch (error) {
+        console.error('Error comprovant Torrentio:', error);
+        setTorrentioAvailability(null);
+      } finally {
+        setCheckingAvailability(false);
+      }
+    };
+
+    checkTorrentioAvailability();
+  }, [tmdbId, season, episode, mediaType]);
+
+  // Carregar stream de Torrentio quan es selecciona (NOU: usa el nou endpoint verificat)
   useEffect(() => {
     if (!currentSource?.isTorrentio) {
       setTorrentioStream(null);
@@ -748,52 +805,70 @@ function StreamPlayer() {
       setTorrentioError(null);
 
       try {
-        const url = currentSource.getUrl(mediaType, tmdbId, season, episode, preferredLang, null, null);
-        const response = await axios.get(url);
+        // Usar el nou endpoint que verifica els streams
+        const params = new URLSearchParams();
+        if (season) params.set('season', season);
+        if (episode) params.set('episode', episode);
+        params.set('lang', preferredLang);
+        params.set('quality', '1080p');
+
+        const response = await axios.get(
+          `${API_URL}/api/torrentio/stream/${mediaType}/${tmdbId}?${params.toString()}`
+        );
 
         if (response.data && response.data.stream_url) {
           setTorrentioStream(response.data);
           setLoading(false);
+          console.log('Stream Torrentio carregat:', response.data.quality, response.data.language);
         } else {
           throw new Error('No s\'ha trobat cap stream');
         }
       } catch (error) {
         console.error('Error carregant Torrentio:', error);
+        const errorMsg = error.response?.data?.detail || error.message;
 
-        // Si Torrentio falla (404 = no hi ha l'idioma), provar la següent font automàticament
-        const langServers = LANGUAGE_SERVER_MAP[preferredLang] || LANGUAGE_SERVER_MAP['en'];
-        const currentServerId = currentSource.id;
-        const currentServerIdx = langServers.indexOf(currentServerId);
+        // Comprovar si hi ha altres idiomes disponibles
+        if (torrentioAvailability?.languages?.length > 0) {
+          const availableLangs = torrentioAvailability.languages.map(l => l.code);
+          if (!availableLangs.includes(preferredLang)) {
+            // L'idioma no està disponible, suggerir els que sí
+            setTorrentioError(
+              `No hi ha streams en "${preferredLang}". Disponibles: ${availableLangs.join(', ')}`
+            );
+          } else {
+            setTorrentioError(errorMsg);
+          }
+        } else {
+          // No hi ha Torrentio disponible, canviar a altra font
+          const langServers = LANGUAGE_SERVER_MAP[preferredLang] || LANGUAGE_SERVER_MAP['en'];
+          let nextSourceIndex = -1;
 
-        // Buscar la següent font que no sigui Torrentio
-        let nextSourceIndex = -1;
-        for (let i = currentServerIdx + 1; i < langServers.length; i++) {
-          const nextServerId = langServers[i];
-          const idx = EMBED_SOURCES.findIndex(s => s.id === nextServerId);
-          if (idx !== -1 && !EMBED_SOURCES[idx].isTorrentio) {
-            nextSourceIndex = idx;
-            break;
+          for (let i = 1; i < langServers.length; i++) {
+            const nextServerId = langServers[i];
+            const idx = EMBED_SOURCES.findIndex(s => s.id === nextServerId);
+            if (idx !== -1 && !EMBED_SOURCES[idx].isTorrentio) {
+              nextSourceIndex = idx;
+              break;
+            }
+          }
+
+          if (nextSourceIndex !== -1) {
+            // Canviar automàticament a la següent font
+            console.log(`Torrentio no disponible, provant ${EMBED_SOURCES[nextSourceIndex].name}...`);
+            setCurrentSourceIndex(nextSourceIndex);
+            localStorage.setItem('hermes_stream_source', EMBED_SOURCES[nextSourceIndex].id);
+          } else {
+            setTorrentioError(errorMsg);
           }
         }
-
-        if (nextSourceIndex !== -1) {
-          // Canviar automàticament a la següent font
-          console.log(`Torrentio no té ${preferredLang}, provant ${EMBED_SOURCES[nextSourceIndex].name}...`);
-          setCurrentSourceIndex(nextSourceIndex);
-          localStorage.setItem('hermes_stream_source', EMBED_SOURCES[nextSourceIndex].id);
-          // No mostrar error, deixar que carregui la nova font
-        } else {
-          // No hi ha més fonts, mostrar error
-          setTorrentioError(error.response?.data?.detail || error.message || 'Error carregant stream');
-          setLoading(false);
-        }
+        setLoading(false);
       } finally {
         setTorrentioLoading(false);
       }
     };
 
     fetchTorrentioStream();
-  }, [currentSource, mediaType, tmdbId, season, episode, preferredLang]);
+  }, [currentSource, mediaType, tmdbId, season, episode, preferredLang, torrentioAvailability]);
 
   // Mostrar tip d'idioma el primer cop
   useEffect(() => {
@@ -1272,15 +1347,20 @@ function StreamPlayer() {
                   <span>Idioma preferit</span>
                 </div>
                 <div className="stream-lang-list">
+                  {checkingAvailability && (
+                    <div className="stream-lang-loading">Comprovant idiomes...</div>
+                  )}
                   {availableLanguages.map((lang) => (
                     <button
                       key={lang.code}
-                      className={`stream-lang-option ${lang.code === preferredLang ? 'active' : ''} ${lang.isOriginal ? 'original' : ''}`}
+                      className={`stream-lang-option ${lang.code === preferredLang ? 'active' : ''} ${lang.isOriginal ? 'original' : ''} ${lang.verified ? 'verified' : ''}`}
                       onClick={() => handleLanguageChange(lang.code)}
                     >
                       <span className="lang-flag">{lang.flag}</span>
                       <span className="lang-name">{lang.name}</span>
-                      {lang.code === preferredLang && <span className="check">✓</span>}
+                      {lang.quality && <span className="lang-quality">{lang.quality}</span>}
+                      {lang.verified && <span className="lang-verified">✓</span>}
+                      {lang.code === preferredLang && <span className="check">●</span>}
                     </button>
                   ))}
                 </div>

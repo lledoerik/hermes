@@ -2203,177 +2203,77 @@ async def extract_stream_url(media_type: str, tmdb_id: int, season: int = None, 
     )
 
 
-# === TORRENTIO INTEGRATION ===
-# Token de Real-Debrid per streaming de torrents
-REALDEBRID_TOKEN = os.environ.get("REALDEBRID_TOKEN", "MSHHVZNZEM26KBTF6MUWHNPP7B6JUTPUWGA7YOJDOVF3OY6UJ6XA")
+# === TORRENTIO INTEGRATION (Nou servei robust) ===
+from backend.torrentio import (
+    fetch_torrentio_streams,
+    get_verified_stream,
+    verify_stream_url,
+    clear_cache as clear_torrentio_cache,
+    TorrentioStream,
+    TorrentioResult
+)
 
-@app.get("/api/torrentio/streams/{media_type}/{tmdb_id}")
-async def get_torrentio_streams(
+
+@app.get("/api/torrentio/check/{media_type}/{tmdb_id}")
+async def check_torrentio_availability(
     media_type: str,
     tmdb_id: int,
     season: int = None,
-    episode: int = None,
-    lang: str = None
+    episode: int = None
 ):
     """
-    Obtenir streams disponibles de Torrentio per un contingut.
-    Retorna una llista de streams ordenats per qualitat i idioma.
+    Comprova quins idiomes estan disponibles per un contingut a Torrentio.
+    Retorna la llista d'idiomes amb streams verificats.
+    Útil per mostrar a l'usuari només les opcions que funcionaran.
     """
-    import httpx
-    import re
-
-    # Obtenir IMDB ID des de TMDB
+    # Obtenir IMDB ID
     api_key = get_tmdb_api_key()
     if not api_key:
         raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
 
     from backend.metadata.tmdb import TMDBClient
     client = TMDBClient(api_key)
-
     tmdb_type = "movie" if media_type == "movie" else "tv"
     imdb_id = await client.get_imdb_id(tmdb_type, tmdb_id)
 
     if not imdb_id:
-        raise HTTPException(status_code=404, detail="No s'ha trobat l'IMDB ID per aquest contingut")
+        return {"available": False, "languages": [], "error": "No s'ha trobat IMDB ID"}
 
-    # Construir URL de Torrentio
-    # Format: https://torrentio.strem.fun/realdebrid={token}/stream/{type}/{id}.json
-    # Per series: {imdb_id}:{season}:{episode}
-    if media_type == "movie":
-        stremio_id = imdb_id
-        stremio_type = "movie"
-    else:
-        s = season or 1
-        e = episode or 1
-        stremio_id = f"{imdb_id}:{s}:{e}"
-        stremio_type = "series"
+    # Obtenir streams (amb verificació)
+    result = await fetch_torrentio_streams(
+        imdb_id=imdb_id,
+        media_type="movie" if media_type == "movie" else "series",
+        season=season,
+        episode=episode,
+        verify_urls=True
+    )
 
-    # URL base de Torrentio amb Real-Debrid
-    torrentio_url = f"https://torrentio.strem.fun/realdebrid={REALDEBRID_TOKEN}/stream/{stremio_type}/{stremio_id}.json"
+    if not result.streams:
+        return {"available": False, "languages": [], "error": "No hi ha streams disponibles"}
 
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as http_client:
-            resp = await http_client.get(torrentio_url)
-            if resp.status_code != 200:
-                raise HTTPException(status_code=resp.status_code, detail="Error obtenint streams de Torrentio")
+    # Construir resposta amb idiomes disponibles i el millor stream per cada un
+    languages_info = []
+    for lang in result.available_languages:
+        best = result.best_by_language.get(lang)
+        if best:
+            languages_info.append({
+                "code": lang,
+                "quality": best.quality,
+                "size": best.size,
+                "verified": best.verified,
+                "source": best.source
+            })
 
-            data = resp.json()
-            streams = data.get("streams", [])
-
-            if not streams:
-                raise HTTPException(status_code=404, detail="No s'han trobat streams disponibles")
-
-            # Processar i ordenar streams
-            processed_streams = []
-            for stream in streams:
-                title = stream.get("title", "")
-                name = stream.get("name", "")
-
-                # Detectar qualitat
-                quality = "SD"
-                if "2160" in title or "4K" in title.upper() or "UHD" in title.upper():
-                    quality = "4K"
-                elif "1080" in title:
-                    quality = "1080p"
-                elif "720" in title:
-                    quality = "720p"
-                elif "480" in title:
-                    quality = "480p"
-
-                # Detectar idioma - millorat amb més patrons
-                detected_lang = None  # No assumir res per defecte
-                title_lower = title.lower()
-                name_lower = name.lower()
-                combined = title_lower + " " + name_lower
-
-                # Espanyol (Castellà)
-                if any(x in combined for x in ["castellano", "spanish", "español", "espa", " spa ", "spa.", "[spa]", "(spa)", "spanish.dub", "cast"]):
-                    detected_lang = "es"
-                # Espanyol Llatí
-                elif any(x in combined for x in ["latino", "latin", " lat ", "lat.", "[lat]", "(lat)", "la.dub", "latinoamerica"]):
-                    detected_lang = "es-419"
-                # Italià
-                elif any(x in combined for x in ["italian", "italiano", " ita ", "ita.", "[ita]", "(ita)", "ita.dub"]):
-                    detected_lang = "it"
-                # Francès
-                elif any(x in combined for x in ["french", "français", "francais", " fra ", "fra.", "[fra]", "(fra)", "vff", "truefrench", "french.dub"]):
-                    detected_lang = "fr"
-                # Català
-                elif any(x in combined for x in ["catalan", "català", "catala", " cat ", "cat.", "[cat]", "(cat)"]):
-                    detected_lang = "ca"
-                # Japonès
-                elif any(x in combined for x in ["japanese", "japones", " jap ", "jap.", "[jap]", "(jap)", " jpn ", "jpn."]):
-                    detected_lang = "ja"
-                # Multi-idioma (pot tenir l'idioma desitjat)
-                elif any(x in combined for x in ["multi", "dual", "multiple", "varios"]):
-                    detected_lang = "multi"
-                # Anglès (només si explícitament dit)
-                elif any(x in combined for x in ["english", " eng ", "eng.", "[eng]", "(eng)", "en.dub"]):
-                    detected_lang = "en"
-                # Si no es detecta res, assumir que és VO (original)
-                else:
-                    detected_lang = "vo"  # Versió Original (normalment japonès per anime)
-
-                # Detectar font (TPB, 1337x, etc.)
-                source = "Unknown"
-                if "TPB" in name or "ThePirateBay" in name:
-                    source = "TPB"
-                elif "1337x" in name:
-                    source = "1337x"
-                elif "RARBG" in name:
-                    source = "RARBG"
-                elif "YTS" in name:
-                    source = "YTS"
-                elif "EZTV" in name:
-                    source = "EZTV"
-                elif "Torrent" in name:
-                    source = name.split("[")[0].strip() if "[" in name else "Torrent"
-
-                # Extreure mida si està disponible
-                size_match = re.search(r'(\d+(?:\.\d+)?)\s*(GB|MB|TB)', title, re.IGNORECASE)
-                size = size_match.group(0) if size_match else None
-
-                processed_streams.append({
-                    "title": title,
-                    "name": name,
-                    "quality": quality,
-                    "language": detected_lang,
-                    "source": source,
-                    "size": size,
-                    "url": stream.get("url"),
-                    "infoHash": stream.get("infoHash"),
-                    "fileIdx": stream.get("fileIdx"),
-                    # Scoring per ordenar
-                    "_quality_score": {"4K": 4, "1080p": 3, "720p": 2, "480p": 1, "SD": 0}.get(quality, 0),
-                    "_lang_match": 1 if lang and detected_lang == lang else 0
-                })
-
-            # Ordenar per idioma preferit primer, després per qualitat
-            processed_streams.sort(key=lambda x: (x["_lang_match"], x["_quality_score"]), reverse=True)
-
-            # Netejar camps interns
-            for s in processed_streams:
-                del s["_quality_score"]
-                del s["_lang_match"]
-
-            return {
-                "imdb_id": imdb_id,
-                "tmdb_id": tmdb_id,
-                "type": media_type,
-                "season": season,
-                "episode": episode,
-                "streams": processed_streams
-            }
-
-    except httpx.TimeoutException:
-        raise HTTPException(status_code=504, detail="Timeout connectant amb Torrentio")
-    except Exception as e:
-        logging.error(f"Error Torrentio: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return {
+        "available": True,
+        "imdb_id": imdb_id,
+        "languages": languages_info,
+        "total_streams": len(result.streams)
+    }
 
 
-@app.get("/api/torrentio/resolve/{media_type}/{tmdb_id}")
-async def resolve_torrentio_stream(
+@app.get("/api/torrentio/stream/{media_type}/{tmdb_id}")
+async def get_torrentio_verified_stream(
     media_type: str,
     tmdb_id: int,
     season: int = None,
@@ -2382,73 +2282,142 @@ async def resolve_torrentio_stream(
     quality: str = "1080p"
 ):
     """
-    Resol automàticament el millor stream de Torrentio i retorna la URL directa.
-    Selecciona automàticament el millor stream segons idioma i qualitat preferits.
+    Obté un stream verificat de Torrentio.
+    Comprova que la URL funciona abans de retornar-la.
+    Si no troba l'idioma exacte, busca 'multi'.
     """
-    # Obtenir tots els streams
-    streams_data = await get_torrentio_streams(media_type, tmdb_id, season, episode, lang)
-    streams = streams_data.get("streams", [])
+    # Obtenir IMDB ID
+    api_key = get_tmdb_api_key()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
 
-    if not streams:
-        raise HTTPException(status_code=404, detail="No s'han trobat streams")
+    from backend.metadata.tmdb import TMDBClient
+    client = TMDBClient(api_key)
+    tmdb_type = "movie" if media_type == "movie" else "tv"
+    imdb_id = await client.get_imdb_id(tmdb_type, tmdb_id)
 
-    # Buscar el millor stream per idioma i qualitat
-    best_stream = None
+    if not imdb_id:
+        raise HTTPException(status_code=404, detail="No s'ha trobat IMDB ID")
 
-    # Primer: buscar idioma exacte amb qualitat exacta
-    for stream in streams:
-        if stream["language"] == lang and stream["quality"] == quality:
-            best_stream = stream
-            break
+    # Obtenir stream verificat
+    stream = await get_verified_stream(
+        imdb_id=imdb_id,
+        media_type="movie" if media_type == "movie" else "series",
+        language=lang,
+        quality=quality,
+        season=season,
+        episode=episode
+    )
 
-    # Segon: buscar idioma exacte amb qualsevol qualitat
-    if not best_stream:
-        for stream in streams:
-            if stream["language"] == lang:
-                best_stream = stream
-                break
-
-    # Tercer: buscar "multi" (pot tenir l'idioma) amb qualitat preferida
-    if not best_stream:
-        for stream in streams:
-            if stream["language"] == "multi" and stream["quality"] == quality:
-                best_stream = stream
-                break
-
-    # Quart: buscar "multi" amb qualsevol qualitat
-    if not best_stream:
-        for stream in streams:
-            if stream["language"] == "multi":
-                best_stream = stream
-                break
-
-    # Si encara no trobem res i l'usuari vol japonès (VO), acceptar "vo"
-    if not best_stream and lang == "ja":
-        for stream in streams:
-            if stream["language"] == "vo":
-                best_stream = stream
-                break
-
-    # Si no hi ha res que coincideixi, retornar error perquè el frontend provi altra font
-    if not best_stream:
+    if not stream:
         raise HTTPException(
             status_code=404,
-            detail=f"No s'ha trobat cap stream en {lang}. Prova una altra font."
+            detail=f"No s'ha trobat cap stream verificat en '{lang}'"
         )
 
-    # Retornar URL directa per reproduir
-    if best_stream.get("url"):
-        return {
-            "stream_url": best_stream["url"],
-            "title": best_stream["title"],
-            "quality": best_stream["quality"],
-            "language": best_stream["language"],
-            "source": best_stream["source"],
-            "size": best_stream["size"],
-            "type": "direct"  # URL directa de Real-Debrid
+    return {
+        "stream_url": stream.url,
+        "title": stream.title,
+        "quality": stream.quality,
+        "language": stream.language,
+        "source": stream.source,
+        "size": stream.size,
+        "verified": stream.verified,
+        "type": "direct"
+    }
+
+
+@app.get("/api/torrentio/streams/{media_type}/{tmdb_id}")
+async def list_torrentio_streams(
+    media_type: str,
+    tmdb_id: int,
+    season: int = None,
+    episode: int = None,
+    verify: bool = False
+):
+    """
+    Llista tots els streams disponibles de Torrentio.
+    Opcionalment verifica les URLs.
+    """
+    # Obtenir IMDB ID
+    api_key = get_tmdb_api_key()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
+
+    from backend.metadata.tmdb import TMDBClient
+    client = TMDBClient(api_key)
+    tmdb_type = "movie" if media_type == "movie" else "tv"
+    imdb_id = await client.get_imdb_id(tmdb_type, tmdb_id)
+
+    if not imdb_id:
+        raise HTTPException(status_code=404, detail="No s'ha trobat IMDB ID")
+
+    result = await fetch_torrentio_streams(
+        imdb_id=imdb_id,
+        media_type="movie" if media_type == "movie" else "series",
+        season=season,
+        episode=episode,
+        verify_urls=verify
+    )
+
+    return {
+        "imdb_id": result.imdb_id,
+        "tmdb_id": tmdb_id,
+        "type": media_type,
+        "season": season,
+        "episode": episode,
+        "available_languages": result.available_languages,
+        "streams": [
+            {
+                "title": s.title,
+                "url": s.url,
+                "quality": s.quality,
+                "language": s.language,
+                "size": s.size,
+                "source": s.source,
+                "seeds": s.seeds,
+                "verified": s.verified
+            }
+            for s in result.streams
+        ],
+        "best_by_language": {
+            lang: {
+                "title": s.title,
+                "quality": s.quality,
+                "size": s.size,
+                "verified": s.verified
+            }
+            for lang, s in result.best_by_language.items()
         }
-    else:
-        raise HTTPException(status_code=404, detail="No s'ha pogut resoldre l'stream")
+    }
+
+
+@app.post("/api/torrentio/cache/clear")
+async def clear_stream_cache():
+    """Neteja el cache de streams de Torrentio"""
+    clear_torrentio_cache()
+    return {"status": "ok", "message": "Cache netejat"}
+
+
+# Mantenir compatibilitat amb l'antic endpoint
+@app.get("/api/torrentio/resolve/{media_type}/{tmdb_id}")
+async def resolve_torrentio_stream_legacy(
+    media_type: str,
+    tmdb_id: int,
+    season: int = None,
+    episode: int = None,
+    lang: str = "es",
+    quality: str = "1080p"
+):
+    """Legacy endpoint - redirigeix al nou"""
+    return await get_torrentio_verified_stream(
+        media_type=media_type,
+        tmdb_id=tmdb_id,
+        season=season,
+        episode=episode,
+        lang=lang,
+        quality=quality
+    )
 
 
 @app.get("/api/library/episodes/{episode_id}")
