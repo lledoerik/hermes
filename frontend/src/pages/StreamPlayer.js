@@ -286,17 +286,16 @@ function StreamPlayer() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [tmdbId, type, season, episode, mediaInfo, isWatched, showStartOverlay]);
 
-  // Amagar controls després d'un temps
+  // Amagar controls després de 3 segons d'inactivitat (igual que l'iframe)
   useEffect(() => {
     let timeout;
-    if (showControls && !showSourceMenu && !showEpisodesMenu) {
-      const delay = isFullscreen ? 2000 : 4000;
+    if (showControls && !showSourceMenu && !showEpisodesMenu && hasStartedPlaying && !loading) {
       timeout = setTimeout(() => {
         setShowControls(false);
-      }, delay);
+      }, 3000);
     }
     return () => clearTimeout(timeout);
-  }, [showControls, showSourceMenu, showEpisodesMenu, isFullscreen]);
+  }, [showControls, showSourceMenu, showEpisodesMenu, hasStartedPlaying, loading]);
 
   // Mostrar controls quan mous el ratolí
   const handleMouseMove = useCallback(() => {
@@ -344,14 +343,11 @@ function StreamPlayer() {
     setShowSourceMenu(false);
   }, []);
 
-  // Tornar enrere
+  // Tornar enrere - usar historial del navegador per anar a la pàgina correcta
   const handleBack = useCallback(() => {
-    if (type === 'movie') {
-      navigate(`/movies/${tmdbId}`);
-    } else {
-      navigate(`/series/${tmdbId}`);
-    }
-  }, [navigate, type, tmdbId]);
+    // Usar navigate(-1) per tornar a la pàgina anterior (Details amb ID correcte)
+    navigate(-1);
+  }, [navigate]);
 
   // Toggle fullscreen
   const toggleFullscreen = useCallback(() => {
