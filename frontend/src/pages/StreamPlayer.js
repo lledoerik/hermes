@@ -141,8 +141,8 @@ const addParams = (url, params) => {
 const LANGUAGE_SERVER_MAP = {
   'ja': ['animeonline', 'vidsrc', 'vidsrc-pro', 'smashystream', 'anime-api', 'autoembed'], // Japonès (VO)
   'en': ['vidsrc', 'vidsrc-pro', 'embedsu', 'autoembed', 'multiembed'], // Anglès
-  'es': ['animeonline', 'cuevana-embed', 'pelisplus-embed', 'vidsrc-latino', 'filmpertutti', 'multiembed', 'vidsrc'], // Castellà
-  'es-419': ['animeonline', 'cuevana-embed', 'pelisplus-embed', 'vidsrc-latino', 'multiembed', 'vidsrc'], // Espanyol llatí
+  'es': ['seriesflix', 'pelisflix', 'animeonline', 'cuevana-embed', 'pelisplus-embed', 'vidsrc-latino', 'filmpertutti', 'multiembed', 'vidsrc'], // Castellà
+  'es-419': ['seriesflix', 'pelisflix', 'animeonline', 'cuevana-embed', 'pelisplus-embed', 'vidsrc-latino', 'multiembed', 'vidsrc'], // Espanyol llatí
   'ca': ['vidsrc', 'multiembed', 'autoembed', 'tv3cat'], // Català
   'fr': ['frenchstream', 'vidsrc', 'autoembed', 'multiembed'], // Francès
   'it': ['filmpertutti', 'streamingcommunity', 'vidsrc', 'autoembed', 'multiembed'], // Italià
@@ -173,6 +173,36 @@ const EMBED_SOURCES = [
     }
   },
   // === FONTS AMB ESPANYOL / LLATÍ ===
+  {
+    id: 'seriesflix',
+    name: 'SeriesFlix',
+    supportsLang: true,
+    supportsTime: false,
+    description: '🇪🇸 Sèries en Castellà',
+    languages: ['es', 'es-419', 'en'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
+      const audio = lang === 'es-419' ? 'latino' : lang === 'es' ? 'castellano' : 'english';
+      if (type === 'movie') {
+        return `https://seriesflix.video/embed/movie/${tmdbId}?audio=${audio}`;
+      }
+      return `https://seriesflix.video/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?audio=${audio}`;
+    }
+  },
+  {
+    id: 'pelisflix',
+    name: 'PelisFlix',
+    supportsLang: true,
+    supportsTime: false,
+    description: '🇪🇸 Películes en Castellà',
+    languages: ['es', 'es-419', 'en'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
+      const audio = lang === 'es-419' ? 'latino' : lang === 'es' ? 'castellano' : 'english';
+      if (type === 'movie') {
+        return `https://pelisflix.tube/embed/movie/${tmdbId}?audio=${audio}`;
+      }
+      return `https://pelisflix.tube/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?audio=${audio}`;
+    }
+  },
   {
     id: 'cuevana-embed',
     name: 'Cuevana',
