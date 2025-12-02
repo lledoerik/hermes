@@ -112,8 +112,7 @@ function Movies() {
 
   // Initial load from cache
   useEffect(() => {
-    const contentTypeParam = selectedContentTypes.join(',');
-    const cacheKey = `1-50-name-${contentTypeParam}`;
+    const cacheKey = `1-50-name-all`;
     if (moviesCache.pages[cacheKey]?.data) {
       const cached = moviesCache.pages[cacheKey].data;
       setMovies(cached.items || []);
@@ -129,15 +128,10 @@ function Movies() {
     }
   }, [isAdmin]);
 
-  // Reload movies when content type filter or pagination changes
+  // Reload movies when pagination or sorting changes
   useEffect(() => {
     loadMovies();
-  }, [selectedContentTypes, currentPage, sortBy]);
-
-  // Reset to page 1 when filter changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedContentTypes]);
+  }, [currentPage, sortBy]);
 
   // Toggle content type selection
   const toggleContentType = (type) => {
@@ -155,9 +149,8 @@ function Movies() {
   const loadMovies = async () => {
     try {
       setLoading(true);
-      // Join selected types with comma for the API
-      const contentTypeParam = selectedContentTypes.length > 0 ? selectedContentTypes.join(',') : null;
-      const data = await getMovies(currentPage, itemsPerPage, sortBy, contentTypeParam);
+      // Carregar totes les pel·lícules sense filtre de content_type
+      const data = await getMovies(currentPage, itemsPerPage, sortBy, null);
       setMovies(data.items || []);
       setTotalPages(data.total_pages || 1);
       setTotalItems(data.total || 0);
@@ -372,18 +365,6 @@ function Movies() {
             <span className="library-count">({totalItems})</span>
           </div>
 
-          {/* Content type toggle filters - next to title */}
-          <div className="content-type-toggles">
-            {Object.entries(contentTypeLabels).map(([key, label]) => (
-              <button
-                key={key}
-                className={`content-type-toggle ${selectedContentTypes.includes(key) ? 'active' : ''}`}
-                onClick={() => toggleContentType(key)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
         </div>
 
         <div className="library-filters">
