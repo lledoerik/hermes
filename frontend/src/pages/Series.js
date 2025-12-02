@@ -95,6 +95,7 @@ function Series() {
   const [importing, setImporting] = useState({});
   const [imported, setImported] = useState({});
   const [importingAll, setImportingAll] = useState(false);
+  const [localSearchResults, setLocalSearchResults] = useState(null); // Resultats de cerca a la BD
 
   // Discover state (només admin)
   const [discoverCategory, setDiscoverCategory] = useState('popular');
@@ -126,6 +127,30 @@ function Series() {
   useEffect(() => {
     loadSeries();
   }, [currentPage, sortBy]);
+
+  // Search in database when searchQuery changes
+  useEffect(() => {
+    const searchInDatabase = async () => {
+      if (!searchQuery.trim()) {
+        setLocalSearchResults(null);
+        return;
+      }
+
+      setSearchLoading(true);
+      try {
+        const response = await axios.get(`/api/library/series?search=${encodeURIComponent(searchQuery)}&limit=500`);
+        setLocalSearchResults(response.data?.items || []);
+      } catch (error) {
+        console.error('Error cercant a la BD:', error);
+        setLocalSearchResults([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    };
+
+    const timer = setTimeout(searchInDatabase, 300); // Debounce
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Toggle content type selection
   const toggleContentType = (type) => {
@@ -316,12 +341,9 @@ function Series() {
     setExternalResults([]);
   };
 
-  // Filter local series by search (client-side for search only)
+  // Use API search results if searching, otherwise use paginated series
   const filteredSeries = searchQuery.trim()
-    ? series.filter(s =>
-        s.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        s.title?.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+    ? (localSearchResults || [])
     : series;
 
   // No need to sort client-side anymore - backend handles it
