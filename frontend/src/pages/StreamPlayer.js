@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import Hls from 'hls.js';
 import './StreamPlayer.css';
 
 const API_URL = window.location.hostname === 'localhost'
@@ -57,41 +56,54 @@ const PlayCircleIcon = () => (
   </svg>
 );
 
-const CopyIcon = () => (
+const LanguageIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+    <path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/>
   </svg>
 );
 
-const ExternalIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
-  </svg>
-);
-
-const RefreshIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
-  </svg>
-);
-
-// Fonts d'embed disponibles
+// Fonts d'embed disponibles amb suport d'idiomes
 const EMBED_SOURCES = [
   {
-    id: 'vidsrc',
-    name: 'VidSrc',
-    description: 'Multi-servidor',
+    id: 'vidsrc-es',
+    name: 'VidSrc Castellà',
+    description: 'Castellà d\'Espanya',
+    lang: 'es',
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
-        return `https://vidsrc.cc/v2/embed/movie/${tmdbId}`;
+        return `https://vidsrc.to/embed/movie/${tmdbId}?ds_lang=es`;
       }
-      return `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
+      return `https://vidsrc.to/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?ds_lang=es`;
+    }
+  },
+  {
+    id: 'vidsrc-en',
+    name: 'VidSrc English',
+    description: 'Anglès',
+    lang: 'en',
+    getUrl: (type, tmdbId, season, episode) => {
+      if (type === 'movie') {
+        return `https://vidsrc.to/embed/movie/${tmdbId}?ds_lang=en`;
+      }
+      return `https://vidsrc.to/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?ds_lang=en`;
+    }
+  },
+  {
+    id: 'vidsrc-orig',
+    name: 'VidSrc Original',
+    description: 'Versió original',
+    lang: 'orig',
+    getUrl: (type, tmdbId, season, episode) => {
+      if (type === 'movie') {
+        return `https://vidsrc.to/embed/movie/${tmdbId}`;
+      }
+      return `https://vidsrc.to/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
     }
   },
   {
     id: 'vidsrc-pro',
     name: 'VidSrc Pro',
-    description: 'Alta qualitat',
+    description: 'Alta qualitat (multi-idioma)',
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
         return `https://vidsrc.pro/embed/movie/${tmdbId}`;
@@ -100,19 +112,14 @@ const EMBED_SOURCES = [
     }
   },
   {
-    id: 'torrentio',
-    name: 'Torrentio',
-    description: 'Real-Debrid (HD)',
-    isTorrentio: true,
-    getUrl: (type, tmdbId, season, episode, quality = '1080p') => {
-      const baseUrl = window.location.hostname === 'localhost'
-        ? 'http://localhost:8000'
-        : '';
-      const params = new URLSearchParams();
-      if (season) params.set('season', season);
-      if (episode) params.set('episode', episode);
-      params.set('quality', quality);
-      return `${baseUrl}/api/torrentio/stream/${type}/${tmdbId}?${params.toString()}`;
+    id: 'vidsrc-cc',
+    name: 'VidSrc Alt',
+    description: 'Servidor alternatiu',
+    getUrl: (type, tmdbId, season, episode) => {
+      if (type === 'movie') {
+        return `https://vidsrc.cc/v2/embed/movie/${tmdbId}`;
+      }
+      return `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
     }
   },
 ];
@@ -151,15 +158,6 @@ function StreamPlayer() {
   const [showEpisodesMenu, setShowEpisodesMenu] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showStartOverlay, setShowStartOverlay] = useState(true);
-
-  // Estats per Torrentio
-  const [torrentioStream, setTorrentioStream] = useState(null);
-  const [torrentioError, setTorrentioError] = useState(null);
-  const [torrentioLoading, setTorrentioLoading] = useState(false);
-  const [videoError, setVideoError] = useState(null);
-  const [urlCopied, setUrlCopied] = useState(false);
-  const videoRef = useRef(null);
-  const hlsRef = useRef(null);
 
   const currentSource = EMBED_SOURCES[currentSourceIndex];
   const mediaType = type === 'movie' ? 'movie' : 'tv';
@@ -229,171 +227,6 @@ function StreamPlayer() {
       loadSeasonEpisodes();
     }
   }, [tmdbId, season, type, loadSeasonEpisodes]);
-
-  // Carregar stream de Torrentio quan es selecciona
-  useEffect(() => {
-    if (!currentSource?.isTorrentio) {
-      setTorrentioStream(null);
-      setTorrentioError(null);
-      setVideoError(null);
-      // Cleanup HLS si existeix
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
-      return;
-    }
-
-    const fetchTorrentioStream = async () => {
-      setTorrentioLoading(true);
-      setTorrentioError(null);
-      setVideoError(null);
-
-      const params = new URLSearchParams();
-      if (season) params.set('season', season);
-      if (episode) params.set('episode', episode);
-      params.set('quality', '1080p');
-
-      try {
-        // Primer intentar transcodificar (funciona amb tots els formats)
-        const transcodeResponse = await axios.get(
-          `${API_URL}/api/torrentio/transcode/${mediaType}/${tmdbId}?${params.toString()}`
-        );
-
-        if (transcodeResponse.data && transcodeResponse.data.playlist_url) {
-          setTorrentioStream({
-            stream_url: `${API_URL}${transcodeResponse.data.playlist_url}`,
-            title: transcodeResponse.data.title,
-            quality: transcodeResponse.data.quality,
-            source: transcodeResponse.data.source,
-            size: transcodeResponse.data.size,
-            type: 'hls',
-            stream_id: transcodeResponse.data.stream_id,
-            ffmpeg_available: true
-          });
-          setLoading(false);
-          return;
-        }
-      } catch (transcodeError) {
-        console.log('Transcodificació no disponible, intentant stream directe...');
-        // Si falla la transcodificació (FFmpeg no disponible), intentar stream directe
-      }
-
-      // Fallback a stream directe
-      try {
-        const directResponse = await axios.get(
-          `${API_URL}/api/torrentio/stream/${mediaType}/${tmdbId}?${params.toString()}`
-        );
-
-        if (directResponse.data && directResponse.data.stream_url) {
-          setTorrentioStream({
-            ...directResponse.data,
-            type: 'direct',
-            ffmpeg_available: false
-          });
-          setLoading(false);
-        } else {
-          throw new Error('No s\'ha trobat cap stream');
-        }
-      } catch (error) {
-        console.error('Error carregant Torrentio:', error);
-        setTorrentioError(error.response?.data?.detail || error.message);
-        setLoading(false);
-      } finally {
-        setTorrentioLoading(false);
-      }
-    };
-
-    fetchTorrentioStream();
-  }, [currentSource, mediaType, tmdbId, season, episode]);
-
-  // Configurar HLS.js quan tenim un stream
-  useEffect(() => {
-    if (!torrentioStream?.stream_url || !videoRef.current) return;
-
-    const video = videoRef.current;
-    const streamUrl = torrentioStream.stream_url;
-    const isHlsStream = torrentioStream.type === 'hls' || streamUrl.includes('.m3u8');
-
-    // Cleanup anterior
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
-    }
-
-    // Si és HLS (transcodificat o .m3u8), usar hls.js
-    if (isHlsStream) {
-      if (Hls.isSupported()) {
-        const hls = new Hls({
-          enableWorker: true,
-          lowLatencyMode: false,
-          startLevel: -1, // Auto-select quality
-          // Configuració per streams en directe/transcodificats
-          liveSyncDurationCount: 3,
-          liveMaxLatencyDurationCount: 10,
-          maxBufferLength: 30,
-          maxMaxBufferLength: 60,
-        });
-        hlsRef.current = hls;
-
-        hls.loadSource(streamUrl);
-        hls.attachMedia(video);
-
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          console.log('HLS manifest parsed, starting playback');
-          video.play().catch(e => console.log('Autoplay prevented:', e));
-          setLoading(false);
-          enterImmersiveMode();
-        });
-
-        hls.on(Hls.Events.ERROR, (event, data) => {
-          console.error('HLS error:', data);
-          if (data.fatal) {
-            switch (data.type) {
-              case Hls.ErrorTypes.NETWORK_ERROR:
-                console.log('HLS network error, trying to recover...');
-                hls.startLoad();
-                break;
-              case Hls.ErrorTypes.MEDIA_ERROR:
-                console.log('HLS media error, trying to recover...');
-                hls.recoverMediaError();
-                break;
-              default:
-                setVideoError('Error reproduint el stream HLS. Prova amb un altre servidor.');
-                break;
-            }
-          }
-        });
-
-        // Event quan el buffer està ple
-        hls.on(Hls.Events.BUFFER_APPENDED, () => {
-          setLoading(false);
-        });
-
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        // Safari pot reproduir HLS nativament
-        video.src = streamUrl;
-        video.addEventListener('loadedmetadata', () => {
-          video.play().catch(e => console.log('Autoplay prevented:', e));
-          setLoading(false);
-          enterImmersiveMode();
-        });
-      } else {
-        setVideoError('El teu navegador no suporta HLS. Prova amb Chrome, Firefox o Safari.');
-      }
-    } else {
-      // Stream directe (MP4, MKV, etc.) - intentar reproduir nativament
-      video.src = streamUrl;
-    }
-
-    // Cleanup on unmount
-    return () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
-    };
-  }, [torrentioStream, enterImmersiveMode]);
 
   // Amagar controls després d'un temps
   useEffect(() => {
@@ -565,134 +398,19 @@ function StreamPlayer() {
       onMouseMove={handleMouseMove}
       onClick={handleContainerClick}
     >
-      {/* Torrentio: Reproductor natiu de vídeo */}
-      {currentSource?.isTorrentio ? (
-        <>
-          {torrentioStream?.stream_url && !videoError ? (
-            <video
-              ref={videoRef}
-              className="stream-video-native"
-              autoPlay
-              controls
-              playsInline
-              onLoadedData={() => {
-                setLoading(false);
-                setVideoError(null);
-                enterImmersiveMode();
-              }}
-              onCanPlay={() => {
-                setLoading(false);
-              }}
-              onError={(e) => {
-                console.error('Video error:', e);
-                // Detectar si l'error és de còdec no suportat
-                const video = e.target;
-                if (video.error) {
-                  const errorMsg = video.error.code === 4
-                    ? 'El format del vídeo no és compatible amb el navegador (probablement H.265/HEVC). Pots copiar la URL i obrir-la amb VLC.'
-                    : 'Error reproduint el vídeo. Prova amb un altre servidor.';
-                  setVideoError(errorMsg);
-                }
-              }}
-            />
-          ) : null}
-
-          {/* Error de reproducció de vídeo - Oferir alternatives */}
-          {(torrentioError || videoError) && (
-            <div className="stream-error-overlay">
-              <div className="stream-error-content">
-                <span className="error-icon">⚠️</span>
-                <h3>{videoError ? 'Problema de compatibilitat' : 'Error carregant stream'}</h3>
-                <p>{videoError || torrentioError}</p>
-
-                {/* Opcions alternatives */}
-                <div className="error-alternatives">
-                  {torrentioStream?.stream_url && (
-                    <>
-                      <p className="alternatives-hint">Pots reproduir aquest vídeo amb un reproductor extern:</p>
-                      <div className="error-actions">
-                        <button
-                          className="alt-btn primary"
-                          onClick={() => {
-                            navigator.clipboard.writeText(torrentioStream.stream_url);
-                            setUrlCopied(true);
-                            setTimeout(() => setUrlCopied(false), 3000);
-                          }}
-                        >
-                          <CopyIcon />
-                          {urlCopied ? 'Copiat!' : 'Copiar URL'}
-                        </button>
-                        <button
-                          className="alt-btn"
-                          onClick={() => {
-                            // Intent d'obrir amb VLC (protocol vlc://)
-                            window.open(`vlc://${torrentioStream.stream_url}`, '_blank');
-                          }}
-                        >
-                          <ExternalIcon />
-                          Obrir amb VLC
-                        </button>
-                      </div>
-                    </>
-                  )}
-
-                  <div className="error-actions secondary">
-                    <button onClick={() => {
-                      setTorrentioError(null);
-                      setVideoError(null);
-                      setTorrentioLoading(true);
-                      // Retry
-                      const params = new URLSearchParams();
-                      if (season) params.set('season', season);
-                      if (episode) params.set('episode', episode);
-                      params.set('quality', '1080p');
-                      axios.get(`${API_URL}/api/torrentio/stream/${mediaType}/${tmdbId}?${params.toString()}`)
-                        .then(r => {
-                          if (r.data?.stream_url) setTorrentioStream(r.data);
-                          setTorrentioLoading(false);
-                        })
-                        .catch(e => {
-                          setTorrentioError(e.response?.data?.detail || e.message);
-                          setTorrentioLoading(false);
-                        });
-                    }}>
-                      <RefreshIcon />
-                      Reintentar
-                    </button>
-                    <button onClick={() => handleSourceChange(0)}>
-                      <ServerIcon />
-                      Canviar a VidSrc
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Info del stream Torrentio */}
-          {torrentioStream && !torrentioError && !videoError && (
-            <div className="torrentio-info">
-              <span className="quality-badge">{torrentioStream.quality}</span>
-              <span className="source-badge">{torrentioStream.source}</span>
-              {torrentioStream.size && <span className="size-badge">{torrentioStream.size}</span>}
-            </div>
-          )}
-        </>
-      ) : (
-        /* Iframe del reproductor embed */
-        <iframe
-          key={embedUrl}
-          src={embedUrl}
-          className="stream-iframe"
-          allowFullScreen
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          onLoad={handleIframeLoad}
-          title="Video Player"
-        />
-      )}
+      {/* Iframe del reproductor embed */}
+      <iframe
+        key={embedUrl}
+        src={embedUrl}
+        className="stream-iframe"
+        allowFullScreen
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        onLoad={handleIframeLoad}
+        title="Video Player"
+      />
 
       {/* Loading overlay */}
-      {(loading || torrentioLoading) && (
+      {loading && (
         <div className="stream-loading-overlay">
           <div className="stream-loading-spinner">
             <div className="spinner"></div>
