@@ -7,23 +7,29 @@
   align-items: center;
 }
 
-/* Botó de cerca */
+/* Botó de cerca - Hermes Style */
 .search-form .filter-btn {
-  padding: 10px 24px;
-  background: var(--bg-glass);
-  border: 1px solid var(--border-light);
+  padding: 12px 28px;
+  background: linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-primary) 100%);
+  border: none;
   border-radius: var(--radius-pill);
-  color: var(--text-secondary);
+  color: var(--text-primary);
   font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
   transition: all var(--transition-normal);
+  box-shadow: var(--shadow-primary);
 }
 
 .search-form .filter-btn:hover,
 .search-form .filter-btn.primary {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: white;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-primary-lg);
+}
+
+.search-form .filter-btn:active {
+  transform: scale(0.98);
 }
 
 /* Search Sections */
