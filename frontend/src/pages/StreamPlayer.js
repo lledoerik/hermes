@@ -160,16 +160,22 @@ const EMBED_SOURCES = [
     name: 'AnimeOnline.ninja',
     supportsLang: true,
     supportsTime: false,
+    needsTitle: true, // Necessita el títol de la sèrie
     description: '🎌 Anime ES/Latino/VO',
     languages: ['es', 'es-419', 'ja'],
-    // AnimeOnline.ninja - font principal per anime en espanyol
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      // Determinar el tipus d'àudio
-      const audio = lang === 'ja' ? 'japanese' : lang === 'es-419' ? 'latino' : 'spanish';
+    // AnimeOnline.ninja - URL real: https://ww3.animeonline.ninja/episodio/{slug}-t{season}-cap{episode}/
+    getUrl: (type, tmdbId, season, episode, lang, time, title) => {
+      // Convertir títol a slug
+      const slug = title ? title.toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Treure accents
+        .replace(/[^a-z0-9]+/g, '-') // Només lletres, números i guions
+        .replace(/^-+|-+$/g, '') // Treure guions al principi/final
+        : 'unknown';
+
       if (type === 'movie') {
-        return `https://animeonline.ninja/embed/movie/${tmdbId}?audio=${audio}`;
+        return `https://ww3.animeonline.ninja/pelicula/${slug}/`;
       }
-      return `https://animeonline.ninja/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?audio=${audio}`;
+      return `https://ww3.animeonline.ninja/episodio/${slug}-t${season || 1}-cap-${episode || 1}/`;
     }
   },
   // === FONTS AMB ESPANYOL / LLATÍ ===
@@ -178,14 +184,21 @@ const EMBED_SOURCES = [
     name: 'SeriesFlix',
     supportsLang: true,
     supportsTime: false,
+    needsTitle: true,
     description: '🇪🇸 Sèries en Castellà',
     languages: ['es', 'es-419', 'en'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      const audio = lang === 'es-419' ? 'latino' : lang === 'es' ? 'castellano' : 'english';
+    getUrl: (type, tmdbId, season, episode, lang, time, title) => {
+      // Convertir títol a slug
+      const slug = title ? title.toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        : 'unknown';
+
       if (type === 'movie') {
-        return `https://seriesflix.video/embed/movie/${tmdbId}?audio=${audio}`;
+        return `https://seriesflix.video/pelicula/${slug}/`;
       }
-      return `https://seriesflix.video/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?audio=${audio}`;
+      return `https://seriesflix.video/episodio/${slug}-${season || 1}x${episode || 1}/`;
     }
   },
   {
@@ -193,14 +206,21 @@ const EMBED_SOURCES = [
     name: 'PelisFlix',
     supportsLang: true,
     supportsTime: false,
+    needsTitle: true,
     description: '🇪🇸 Películes en Castellà',
     languages: ['es', 'es-419', 'en'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      const audio = lang === 'es-419' ? 'latino' : lang === 'es' ? 'castellano' : 'english';
+    getUrl: (type, tmdbId, season, episode, lang, time, title) => {
+      // Convertir títol a slug
+      const slug = title ? title.toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        : 'unknown';
+
       if (type === 'movie') {
-        return `https://pelisflix.tube/embed/movie/${tmdbId}?audio=${audio}`;
+        return `https://pelisflix2.foo/pelicula/${slug}/`;
       }
-      return `https://pelisflix.tube/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?audio=${audio}`;
+      return `https://pelisflix2.foo/episodio/${slug}-${season || 1}x${episode || 1}/`;
     }
   },
   {
@@ -636,14 +656,18 @@ function StreamPlayer() {
 
   const currentLang = availableLanguages.find(l => l.code === preferredLang) || availableLanguages[0];
 
-  // Construir URL amb idioma i temps si la font ho suporta
+  // Obtenir el títol per fonts que ho necessiten (com animeonline.ninja)
+  const mediaTitle = mediaInfo?.title || mediaInfo?.name || '';
+
+  // Construir URL amb idioma, temps i títol si la font ho suporta
   const embedUrl = React.useMemo(() => {
     const time = currentTime > 0 && currentSource.supportsTime ? currentTime : null;
+    const title = currentSource.needsTitle ? mediaTitle : null;
     if (currentSource.supportsLang) {
-      return currentSource.getUrl(mediaType, tmdbId, season, episode, preferredLang, time);
+      return currentSource.getUrl(mediaType, tmdbId, season, episode, preferredLang, time, title);
     }
-    return currentSource.getUrl(mediaType, tmdbId, season, episode, null, time);
-  }, [currentSource, mediaType, tmdbId, season, episode, preferredLang, currentTime]);
+    return currentSource.getUrl(mediaType, tmdbId, season, episode, null, time, title);
+  }, [currentSource, mediaType, tmdbId, season, episode, preferredLang, currentTime, mediaTitle]);
 
   // Funcions per carregar dades
   const loadMediaInfo = useCallback(async () => {
