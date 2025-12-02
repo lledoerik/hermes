@@ -75,7 +75,7 @@ const RefreshIcon = () => (
   </svg>
 );
 
-// Fonts d'embed disponibles - NOMÉS 3
+// Fonts d'embed disponibles
 const EMBED_SOURCES = [
   {
     id: 'vidsrc',
@@ -100,18 +100,36 @@ const EMBED_SOURCES = [
     }
   },
   {
-    id: 'torrentio',
-    name: 'Torrentio',
-    description: 'Real-Debrid (HD)',
+    id: 'torrentio-hls',
+    name: 'Torrentio HLS',
+    description: 'Real-Debrid (Transcodificat)',
     isTorrentio: true,
-    getUrl: (type, tmdbId, season, episode) => {
+    useTranscode: true,
+    getUrl: (type, tmdbId, season, episode, quality = '1080p') => {
       const baseUrl = window.location.hostname === 'localhost'
         ? 'http://localhost:8000'
         : '';
       const params = new URLSearchParams();
       if (season) params.set('season', season);
       if (episode) params.set('episode', episode);
-      params.set('quality', '1080p');
+      params.set('quality', quality);
+      return `${baseUrl}/api/torrentio/transcode/${type}/${tmdbId}?${params.toString()}`;
+    }
+  },
+  {
+    id: 'torrentio',
+    name: 'Torrentio Direct',
+    description: 'Real-Debrid (Directe)',
+    isTorrentio: true,
+    useTranscode: false,
+    getUrl: (type, tmdbId, season, episode, quality = '1080p') => {
+      const baseUrl = window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : '';
+      const params = new URLSearchParams();
+      if (season) params.set('season', season);
+      if (episode) params.set('episode', episode);
+      params.set('quality', quality);
       return `${baseUrl}/api/torrentio/stream/${type}/${tmdbId}?${params.toString()}`;
     }
   },
@@ -237,19 +255,52 @@ function StreamPlayer() {
         if (episode) params.set('episode', episode);
         params.set('quality', '1080p');
 
-        const response = await axios.get(
-          `${API_URL}/api/torrentio/stream/${mediaType}/${tmdbId}?${params.toString()}`
-        );
+        // Usar endpoint de transcodificació o directe segons la font
+        const endpoint = currentSource.useTranscode
+          ? `/api/torrentio/transcode/${mediaType}/${tmdbId}`
+          : `/api/torrentio/stream/${mediaType}/${tmdbId}`;
 
-        if (response.data && response.data.stream_url) {
-          setTorrentioStream(response.data);
-          setLoading(false);
+        const response = await axios.get(`${API_URL}${endpoint}?${params.toString()}`);
+
+        if (currentSource.useTranscode) {
+          // Stream transcodificat - usa playlist HLS
+          if (response.data && response.data.playlist_url) {
+            setTorrentioStream({
+              stream_url: `${API_URL}${response.data.playlist_url}`,
+              title: response.data.title,
+              quality: response.data.quality,
+              source: response.data.source,
+              size: response.data.size,
+              type: 'hls',
+              stream_id: response.data.stream_id,
+              ffmpeg_available: response.data.ffmpeg_available
+            });
+            setLoading(false);
+          } else {
+            throw new Error('No s\'ha pogut iniciar la transcodificació');
+          }
         } else {
-          throw new Error('No s\'ha trobat cap stream');
+          // Stream directe
+          if (response.data && response.data.stream_url) {
+            setTorrentioStream({
+              ...response.data,
+              type: 'direct'
+            });
+            setLoading(false);
+          } else {
+            throw new Error('No s\'ha trobat cap stream');
+          }
         }
       } catch (error) {
         console.error('Error carregant Torrentio:', error);
-        setTorrentioError(error.response?.data?.detail || error.message);
+        const errorDetail = error.response?.data?.detail;
+
+        // Si l'error és que FFmpeg no està disponible, mostrar missatge especial
+        if (errorDetail?.ffmpeg_available === false) {
+          setTorrentioError('FFmpeg no disponible. Prova amb "Torrentio Direct" o instal·la FFmpeg al servidor.');
+        } else {
+          setTorrentioError(typeof errorDetail === 'string' ? errorDetail : error.message);
+        }
         setLoading(false);
       } finally {
         setTorrentioLoading(false);
@@ -265,6 +316,7 @@ function StreamPlayer() {
 
     const video = videoRef.current;
     const streamUrl = torrentioStream.stream_url;
+    const isHlsStream = torrentioStream.type === 'hls' || streamUrl.includes('.m3u8');
 
     // Cleanup anterior
     if (hlsRef.current) {
@@ -272,12 +324,18 @@ function StreamPlayer() {
       hlsRef.current = null;
     }
 
-    // Si és HLS (.m3u8), usar hls.js
-    if (streamUrl.includes('.m3u8')) {
+    // Si és HLS (transcodificat o .m3u8), usar hls.js
+    if (isHlsStream) {
       if (Hls.isSupported()) {
         const hls = new Hls({
           enableWorker: true,
           lowLatencyMode: false,
+          startLevel: -1, // Auto-select quality
+          // Configuració per streams en directe/transcodificats
+          liveSyncDurationCount: 3,
+          liveMaxLatencyDurationCount: 10,
+          maxBufferLength: 30,
+          maxMaxBufferLength: 60,
         });
         hlsRef.current = hls;
 
@@ -285,23 +343,46 @@ function StreamPlayer() {
         hls.attachMedia(video);
 
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          console.log('HLS manifest parsed, starting playback');
           video.play().catch(e => console.log('Autoplay prevented:', e));
           setLoading(false);
           enterImmersiveMode();
         });
 
         hls.on(Hls.Events.ERROR, (event, data) => {
+          console.error('HLS error:', data);
           if (data.fatal) {
-            console.error('HLS fatal error:', data);
-            setVideoError('Error reproduint el stream HLS. Prova amb un altre servidor.');
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.log('HLS network error, trying to recover...');
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.log('HLS media error, trying to recover...');
+                hls.recoverMediaError();
+                break;
+              default:
+                setVideoError('Error reproduint el stream HLS. Prova amb un altre servidor.');
+                break;
+            }
           }
         });
+
+        // Event quan el buffer està ple
+        hls.on(Hls.Events.BUFFER_APPENDED, () => {
+          setLoading(false);
+        });
+
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         // Safari pot reproduir HLS nativament
         video.src = streamUrl;
         video.addEventListener('loadedmetadata', () => {
           video.play().catch(e => console.log('Autoplay prevented:', e));
+          setLoading(false);
+          enterImmersiveMode();
         });
+      } else {
+        setVideoError('El teu navegador no suporta HLS. Prova amb Chrome, Firefox o Safari.');
       }
     } else {
       // Stream directe (MP4, MKV, etc.) - intentar reproduir nativament
