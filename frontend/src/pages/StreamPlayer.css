@@ -1114,6 +1114,72 @@
   transform: translateY(-1px);
 }
 
+/* Error alternatives */
+.error-alternatives {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.alternatives-hint {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0;
+}
+
+.error-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.error-actions.secondary {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 16px;
+  margin-top: 8px;
+}
+
+.error-actions button,
+.alt-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.error-actions button:hover,
+.alt-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.alt-btn.primary {
+  background: var(--color-primary, #328492);
+  border-color: var(--color-primary, #328492);
+}
+
+.alt-btn.primary:hover {
+  background: var(--color-primary-dark, #276a75);
+}
+
+.error-actions button svg,
+.alt-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
 /* Loading hint per Torrentio */
 .stream-loading-spinner .loading-hint {
   margin-top: 8px;
