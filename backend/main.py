@@ -1787,6 +1787,70 @@ async def get_watch_providers(media_type: str, tmdb_id: int, country: str = "ES"
         await client.close()
 
 
+@app.get("/api/tmdb/search")
+async def search_tmdb(q: str, limit: int = 20):
+    """
+    Cerca a TMDB per pel·lícules i sèries.
+    Retorna resultats combinats amb poster URLs.
+    """
+    if not q or len(q) < 2:
+        return {"movies": [], "series": []}
+
+    api_key = get_tmdb_api_key()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
+
+    from backend.metadata.tmdb import TMDBClient
+    client = TMDBClient(api_key)
+
+    try:
+        # Cerca pel·lícules i sèries en paral·lel
+        movies_data = await client._request("/search/movie", {"query": q, "language": "ca-ES"})
+        tv_data = await client._request("/search/tv", {"query": q, "language": "ca-ES"})
+
+        movies = []
+        if movies_data and movies_data.get("results"):
+            for m in movies_data["results"][:limit]:
+                year = None
+                if m.get("release_date"):
+                    year = int(m["release_date"][:4])
+                movies.append({
+                    "tmdb_id": m["id"],
+                    "name": m.get("title"),
+                    "original_name": m.get("original_title"),
+                    "year": year,
+                    "overview": m.get("overview"),
+                    "rating": m.get("vote_average"),
+                    "poster": client.get_poster_url(m.get("poster_path")),
+                    "backdrop": client.get_backdrop_url(m.get("backdrop_path")),
+                    "type": "movie",
+                    "is_tmdb": True
+                })
+
+        series = []
+        if tv_data and tv_data.get("results"):
+            for s in tv_data["results"][:limit]:
+                year = None
+                if s.get("first_air_date"):
+                    year = int(s["first_air_date"][:4])
+                series.append({
+                    "tmdb_id": s["id"],
+                    "name": s.get("name"),
+                    "original_name": s.get("original_name"),
+                    "year": year,
+                    "overview": s.get("overview"),
+                    "rating": s.get("vote_average"),
+                    "poster": client.get_poster_url(s.get("poster_path")),
+                    "backdrop": client.get_backdrop_url(s.get("backdrop_path")),
+                    "type": "series",
+                    "is_tmdb": True
+                })
+
+        return {"movies": movies, "series": series}
+    finally:
+        await client.close()
+
+
 @app.get("/api/tmdb/tv/{tmdb_id}/seasons")
 async def get_tmdb_tv_seasons(tmdb_id: int):
     """

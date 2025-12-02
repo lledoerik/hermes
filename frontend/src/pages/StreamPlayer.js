@@ -897,14 +897,9 @@ function StreamPlayer() {
     return () => clearTimeout(timeout);
   }, [showControls, showSourceMenu, showEpisodesMenu, showLangMenu, isFullscreen]);
 
-  // Mostrar controls només quan el ratolí està a la part superior (60px)
+  // Mostrar controls quan mous el ratolí (a qualsevol lloc de la pantalla)
   const handleMouseMove = useCallback((e) => {
-    // Només mostrar controls si el ratolí està a la part superior de la pantalla
-    // Això evita interferir amb els controls del reproductor intern de l'iframe
-    const isNearTop = e.clientY < 80;
-    if (isNearTop) {
-      setShowControls(true);
-    }
+    setShowControls(true);
   }, []);
 
   // Amagar controls quan es fa clic a l'iframe (l'usuari vol usar el reproductor intern)
