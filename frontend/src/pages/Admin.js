@@ -36,23 +36,10 @@ const MovieIcon = () => (
   </svg>
 );
 
-const FolderIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-  </svg>
-);
-
 const ClockIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <circle cx="12" cy="12" r="10"></circle>
     <polyline points="12 6 12 12 16 14"></polyline>
-  </svg>
-);
-
-const SearchIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <circle cx="11" cy="11" r="8"></circle>
-    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
   </svg>
 );
 
@@ -67,16 +54,6 @@ const ClipboardIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
     <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
-  </svg>
-);
-
-const BroomIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M14 3v4a1 1 0 0 0 1 1h4"></path>
-    <path d="M5 12V5a2 2 0 0 1 2-2h7l5 5v4"></path>
-    <path d="M5 21h14"></path>
-    <path d="M5 12l7 9"></path>
-    <path d="M12 21l7-9"></path>
   </svg>
 );
 
@@ -123,7 +100,6 @@ const HeadphonesIcon = () => (
   </svg>
 );
 
-// Download icon
 const DownloadIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -132,29 +108,18 @@ const DownloadIcon = () => (
   </svg>
 );
 
-// Key icon
 const KeyIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
   </svg>
 );
 
-// Check icon (substitueix el símbol ✓)
 const CheckIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
     <polyline points="20 6 9 17 4 12"></polyline>
   </svg>
 );
 
-// X icon (substitueix el símbol ✗)
-const XIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-    <line x1="18" y1="6" x2="6" y2="18"></line>
-    <line x1="6" y1="6" x2="18" y2="18"></line>
-  </svg>
-);
-
-// Users icon
 const UsersIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -164,7 +129,6 @@ const UsersIcon = () => (
   </svg>
 );
 
-// Copy icon
 const CopyIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
@@ -172,7 +136,6 @@ const CopyIcon = () => (
   </svg>
 );
 
-// Trash icon
 const TrashIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <polyline points="3 6 5 6 21 6" />
@@ -180,7 +143,6 @@ const TrashIcon = () => (
   </svg>
 );
 
-// Mail/Invite icon
 const MailIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
@@ -188,7 +150,6 @@ const MailIcon = () => (
   </svg>
 );
 
-// Database icon
 const DatabaseIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
@@ -197,26 +158,31 @@ const DatabaseIcon = () => (
   </svg>
 );
 
+const RocketIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"></path>
+    <path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"></path>
+    <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"></path>
+    <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"></path>
+  </svg>
+);
+
 function Admin() {
   const [stats, setStats] = useState(null);
-  const [scanning, setScanning] = useState(false);
-  const [cleaning, setCleaning] = useState(false);
-  const [fetchingMetadata, setFetchingMetadata] = useState(false);
-  const [scanProgress, setScanProgress] = useState(0);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tmdbKey, setTmdbKey] = useState('');
   const [tmdbConfigured, setTmdbConfigured] = useState(false);
 
-  // Bulk import state (TMDB)
+  // Bulk import state (TMDB) - unified for all
   const [bulkImportStatus, setBulkImportStatus] = useState(null);
   const [bulkImportPages, setBulkImportPages] = useState(50);
 
-  // Bulk import state (Books)
+  // Book bulk import state
   const [bookBulkImportStatus, setBookBulkImportStatus] = useState(null);
   const [bookBulkImportMax, setBookBulkImportMax] = useState(100);
 
-  // Bulk import state (Audiobooks)
+  // Audiobook bulk import state
   const [audiobookBulkImportStatus, setAudiobookBulkImportStatus] = useState(null);
   const [audiobookBulkImportMax, setAudiobookBulkImportMax] = useState(50);
 
@@ -355,8 +321,22 @@ function Admin() {
         max_pages: bulkImportPages
       });
       addLog('info', `Importació massiva de ${mediaType === 'movie' ? 'pel·lícules' : 'sèries'} iniciada...`);
-      // Start polling
       pollBulkImportStatus();
+    } catch (error) {
+      addLog('error', error.response?.data?.detail || 'Error iniciant importació');
+    }
+  };
+
+  // Import ALL at once (movies + series)
+  const startBulkImportAll = async () => {
+    try {
+      // Start with movies first
+      await axios.post('/api/admin/bulk-import/start', {
+        media_type: 'movie',
+        max_pages: bulkImportPages
+      });
+      addLog('info', 'Importació massiva de TOT iniciada (pel·lícules primer, després sèries)...');
+      pollBulkImportStatus(true); // Pass flag to continue with series after movies
     } catch (error) {
       addLog('error', error.response?.data?.detail || 'Error iniciant importació');
     }
@@ -371,7 +351,7 @@ function Admin() {
     }
   };
 
-  const pollBulkImportStatus = async () => {
+  const pollBulkImportStatus = async (continueWithSeries = false) => {
     const poll = async () => {
       try {
         const response = await axios.get('/api/admin/bulk-import/status');
@@ -382,7 +362,16 @@ function Admin() {
           // Import finished
           if (response.data.imported_count > 0) {
             addLog('success', `Importació completada: ${response.data.imported_count} importats, ${response.data.skipped_count} omesos`);
-            loadStats(); // Refresh stats
+            loadStats();
+          }
+          // If we were importing movies and need to continue with series
+          if (continueWithSeries && response.data.media_type === 'movie') {
+            addLog('info', 'Ara important sèries...');
+            await axios.post('/api/admin/bulk-import/start', {
+              media_type: 'series',
+              max_pages: bulkImportPages
+            });
+            pollBulkImportStatus(false);
           }
         }
       } catch (error) {
@@ -527,241 +516,9 @@ function Admin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleFetchAllMetadata = async () => {
-    setFetchingMetadata(true);
-    addLog('info', 'Obtenint metadades... (pot trigar uns minuts)');
-    try {
-      const response = await axios.post('/api/metadata/fetch-all', {
-        tmdb_api_key: tmdbConfigured ? undefined : tmdbKey || undefined
-      });
-      const r = response.data.results;
-      if (r) {
-        if (!r.tmdb_configured) {
-          addLog('warning', 'Clau TMDB no configurada - no es descarregaran posters de pel·lícules/sèries');
-        }
-        addLog('success', `Pel·lícules: ${r.movies?.updated || 0} actualitzades (${r.movies?.processed || 0} processades)`);
-        addLog('success', `Sèries: ${r.series?.updated || 0} actualitzades (${r.series?.processed || 0} processades)`);
-        addLog('success', `Llibres: ${r.books?.updated || 0} actualitzats`);
-        addLog('success', `Audiollibres: ${r.audiobooks?.updated || 0} actualitzats`);
-        const errors = (r.movies?.errors || 0) + (r.series?.errors || 0) + (r.books?.errors || 0) + (r.audiobooks?.errors || 0);
-        if (errors > 0) {
-          addLog('warning', `${errors} errors (revisa la consola del servidor)`);
-        }
-      }
-      addLog('success', 'Metadades actualitzades!');
-    } catch (error) {
-      addLog('error', `Error: ${error.response?.data?.detail || error.message}`);
-    } finally {
-      setFetchingMetadata(false);
-    }
-  };
-
-  const [generatingThumbnails, setGeneratingThumbnails] = useState(false);
-  const [fetchingBookCovers, setFetchingBookCovers] = useState(false);
-  const [fetchingAudiobookCovers, setFetchingAudiobookCovers] = useState(false);
-
-  const [scanningBooks, setScanningBooks] = useState(false);
-  const [scanningAudiobooks, setScanningAudiobooks] = useState(false);
-  const [scanningAll, setScanningAll] = useState(false);
-
-  const handleScanAll = async () => {
-    setScanningAll(true);
-    addLog('info', 'Escanejant TOTES les biblioteques (sèries, pel·lícules, llibres, audiollibres)...');
-    try {
-      await axios.post('/api/library/scan-all');
-      addLog('success', 'Escaneig complet iniciat en segon pla. Pot trigar uns minuts...');
-    } catch (error) {
-      addLog('error', `Error: ${error.response?.data?.detail || error.message}`);
-    } finally {
-      setScanningAll(false);
-    }
-  };
-
-  const handleScanBooks = async () => {
-    setScanningBooks(true);
-    addLog('info', 'Escanejant biblioteca de llibres...');
-    try {
-      await axios.post('/api/books/scan');
-      addLog('success', 'Escaneig de llibres iniciat en segon pla');
-    } catch (error) {
-      addLog('error', `Error: ${error.response?.data?.detail || error.message}`);
-    } finally {
-      setScanningBooks(false);
-    }
-  };
-
-  const handleScanAudiobooks = async () => {
-    setScanningAudiobooks(true);
-    addLog('info', 'Escanejant biblioteca d\'audiollibres...');
-    try {
-      await axios.post('/api/audiobooks/scan');
-      addLog('success', 'Escaneig d\'audiollibres iniciat en segon pla');
-    } catch (error) {
-      addLog('error', `Error: ${error.response?.data?.detail || error.message}`);
-    } finally {
-      setScanningAudiobooks(false);
-    }
-  };
-
-  const handleFetchBookCovers = async () => {
-    setFetchingBookCovers(true);
-    addLog('info', 'Cercant portades de llibres a Open Library...');
-    try {
-      await axios.post('/api/metadata/books/auto-fetch');
-      addLog('success', 'Cerca de portades de llibres iniciada en segon pla');
-    } catch (error) {
-      addLog('error', `Error: ${error.response?.data?.detail || error.message}`);
-    } finally {
-      setFetchingBookCovers(false);
-    }
-  };
-
-  const handleFetchAudiobookCovers = async () => {
-    setFetchingAudiobookCovers(true);
-    addLog('info', 'Cercant portades d\'audiollibres a Open Library...');
-    try {
-      await axios.post('/api/metadata/audiobooks/auto-fetch');
-      addLog('success', 'Cerca de portades d\'audiollibres iniciada en segon pla');
-    } catch (error) {
-      addLog('error', `Error: ${error.response?.data?.detail || error.message}`);
-    } finally {
-      setFetchingAudiobookCovers(false);
-    }
-  };
-
-  const handleGenerateThumbnails = async () => {
-    setGeneratingThumbnails(true);
-    addLog('info', 'Generant miniatures noves... (pot trigar uns minuts)');
-    try {
-      const response = await axios.post('/api/thumbnails/generate-all');
-      const { generated, errors, skipped } = response.data;
-      addLog('success', `Miniatures generades: ${generated}, omeses: ${skipped}, errors: ${errors}`);
-    } catch (error) {
-      addLog('error', `Error: ${error.response?.data?.detail || error.message}`);
-    } finally {
-      setGeneratingThumbnails(false);
-    }
-  };
-
-  const [thumbnailProgress, setThumbnailProgress] = useState(null);
-
-  const handleRegenerateThumbnails = async () => {
-    if (!window.confirm('Això esborrarà TOTES les miniatures i les tornarà a generar. Pot trigar molt. Continuar?')) {
-      return;
-    }
-    setGeneratingThumbnails(true);
-    setThumbnailProgress({ status: 'starting', current: 0, total: 0 });
-    addLog('info', 'Esborrant i regenerant TOTES les miniatures...');
-
-    // Iniciar polling del progrés
-    const pollInterval = setInterval(async () => {
-      try {
-        const progressRes = await axios.get('/api/thumbnails/progress');
-        const prog = progressRes.data;
-        setThumbnailProgress(prog);
-
-        if (prog.status === 'completed' || !prog.active) {
-          clearInterval(pollInterval);
-        }
-      } catch (e) {
-        // Ignorar errors de polling
-      }
-    }, 1000);
-
-    try {
-      const response = await axios.post('/api/thumbnails/regenerate-all');
-      const { deleted, generated, errors } = response.data;
-      addLog('success', `Miniatures esborrades: ${deleted}, regenerades: ${generated}, errors: ${errors}`);
-    } catch (error) {
-      addLog('error', `Error: ${error.response?.data?.detail || error.message}`);
-    } finally {
-      clearInterval(pollInterval);
-      setGeneratingThumbnails(false);
-      setThumbnailProgress(null);
-    }
-  };
-
   const addLog = (type, message) => {
     const timestamp = new Date().toLocaleTimeString();
     setLogs(prev => [...prev, { type, message, timestamp }].slice(-50));
-  };
-
-  const handleScan = async () => {
-    setScanning(true);
-    setScanProgress(0);
-    addLog('info', 'Iniciant escaneig de la biblioteca...');
-
-    try {
-      // Simulate progress
-      const progressInterval = setInterval(() => {
-        setScanProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return prev;
-          }
-          return prev + Math.random() * 15;
-        });
-      }, 500);
-
-      const response = await axios.post('/api/library/scan');
-
-      clearInterval(progressInterval);
-      setScanProgress(100);
-
-      if (response.data.status === 'success') {
-        addLog('success', `Escaneig completat: ${response.data.stats?.series || 0} sèries, ${response.data.stats?.movies || 0} pel·lícules, ${response.data.stats?.files || 0} arxius`);
-        await loadStats();
-      } else {
-        addLog('warning', 'Escaneig completat amb advertències');
-      }
-    } catch (error) {
-      console.error('Error escanejant:', error);
-      addLog('error', `Error durant l'escaneig: ${error.message}`);
-    } finally {
-      setScanning(false);
-      setTimeout(() => setScanProgress(0), 2000);
-    }
-  };
-
-
-  const handleCleanupAll = async () => {
-    if (!window.confirm('Eliminar de la base de dades tot el contingut que ja no existeix al disc? (vídeos, llibres i audiollibres)')) {
-      return;
-    }
-
-    setCleaning(true);
-    addLog('info', 'Iniciant neteja completa...');
-
-    let totalRemoved = { videos: 0, episodes: 0, books: 0, audiobooks: 0, authors: 0 };
-
-    try {
-      // Netejar vídeos
-      addLog('info', 'Netejant vídeos...');
-      const videosRes = await axios.post('/api/library/cleanup');
-      if (videosRes.data.status === 'success') {
-        totalRemoved.videos = videosRes.data.series_removed || 0;
-        totalRemoved.episodes = videosRes.data.episodes_removed || 0;
-      }
-
-      // Netejar llibres
-      addLog('info', 'Netejant llibres...');
-      const booksRes = await axios.post('/api/books/cleanup');
-      totalRemoved.books = booksRes.data.books_removed || 0;
-      totalRemoved.authors += booksRes.data.authors_removed || 0;
-
-      // Netejar audiollibres
-      addLog('info', 'Netejant audiollibres...');
-      const audiobooksRes = await axios.post('/api/audiobooks/cleanup');
-      totalRemoved.audiobooks = audiobooksRes.data.audiobooks_removed || 0;
-      totalRemoved.authors += audiobooksRes.data.authors_removed || 0;
-
-      addLog('success', `Neteja completa: ${totalRemoved.videos} vídeos, ${totalRemoved.episodes} episodis, ${totalRemoved.books} llibres, ${totalRemoved.audiobooks} audiollibres, ${totalRemoved.authors} autors eliminats`);
-      await loadStats();
-    } catch (error) {
-      addLog('error', `Error durant la neteja: ${error.message}`);
-    } finally {
-      setCleaning(false);
-    }
   };
 
   if (loading) {
@@ -777,7 +534,7 @@ function Admin() {
     <div className="admin-container">
       <div className="admin-header">
         <h1><SettingsIcon /> Administració</h1>
-        <p>Gestiona la teva biblioteca multimèdia Hermes</p>
+        <p>Gestiona la teva biblioteca de streaming Hermes</p>
       </div>
 
       {/* Stats Grid */}
@@ -799,114 +556,32 @@ function Admin() {
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon"><FolderIcon /></div>
+          <div className="stat-icon"><BookIcon /></div>
           <div className="stat-info">
-            <h3>{stats?.files || 0}</h3>
-            <p>Arxius</p>
+            <h3>{stats?.books || 0}</h3>
+            <p>Llibres</p>
           </div>
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon"><ClockIcon /></div>
+          <div className="stat-icon"><HeadphonesIcon /></div>
           <div className="stat-info">
-            <h3>{stats?.total_hours || 0}h</h3>
-            <p>Contingut total</p>
+            <h3>{stats?.audiobooks || 0}</h3>
+            <p>Audiollibres</p>
           </div>
         </div>
       </div>
 
-      {/* Maintenance Section - Scanner + Cleanup combined */}
+      {/* TMDB Key Configuration */}
       <div className="admin-section">
         <div className="section-header">
-          <h2><BroomIcon /> Manteniment de la biblioteca</h2>
+          <h2><KeyIcon /> Configuració TMDB</h2>
         </div>
         <div className="section-content">
-          {/* Botó principal: Escanejar-ho TOT */}
-          <div className="scanner-actions" style={{ marginBottom: '1rem' }}>
-            <button
-              className="action-btn primary"
-              onClick={handleScanAll}
-              disabled={scanningAll || scanning || scanningBooks || scanningAudiobooks}
-              style={{ width: '100%', padding: '1rem', fontSize: '1.1rem' }}
-              title="Escaneja totes les biblioteques: sèries, pel·lícules, llibres i audiollibres"
-            >
-              {scanningAll ? <><RefreshIcon /> Escanejant tot...</> : <><SearchIcon /> Escanejar-ho TOT</>}
-            </button>
-          </div>
-
-          <div className="scanner-actions">
-            <button
-              className="action-btn"
-              onClick={handleScan}
-              disabled={scanning || scanningAll}
-            >
-              {scanning ? <><RefreshIcon /> Escanejant...</> : <><SearchIcon /> Escanejar vídeos</>}
-            </button>
-
-            <button
-              className="action-btn secondary"
-              onClick={handleScanBooks}
-              disabled={scanningBooks || scanningAll}
-              title="Escaneja la biblioteca de llibres"
-            >
-              {scanningBooks ? <><RefreshIcon /> Escanejant...</> : <><BookIcon /> Escanejar llibres</>}
-            </button>
-
-            <button
-              className="action-btn secondary"
-              onClick={handleScanAudiobooks}
-              disabled={scanningAudiobooks || scanningAll}
-              title="Escaneja la biblioteca d'audiollibres"
-            >
-              {scanningAudiobooks ? <><RefreshIcon /> Escanejant...</> : <><HeadphonesIcon /> Escanejar audiollibres</>}
-            </button>
-
-            <button
-              className="action-btn danger"
-              onClick={handleCleanupAll}
-              disabled={cleaning}
-            >
-              {cleaning ? <><RefreshIcon /> Netejant...</> : <><BroomIcon /> Netejar tot</>}
-            </button>
-          </div>
-
-          {scanning && (
-            <div className="scan-progress">
-              <h4><RefreshIcon /> Escaneig en procés...</h4>
-              <div className="progress-bar-container">
-                <div
-                  className="progress-bar-fill"
-                  style={{ width: `${scanProgress}%` }}
-                />
-              </div>
-              <div className="scan-status">
-                {scanProgress < 30 && 'Cercant arxius...'}
-                {scanProgress >= 30 && scanProgress < 60 && 'Analitzant contingut...'}
-                {scanProgress >= 60 && scanProgress < 90 && 'Actualitzant base de dades...'}
-                {scanProgress >= 90 && 'Finalitzant...'}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Metadata Section */}
-      <div className="admin-section">
-        <div className="section-header">
-          <h2><DownloadIcon /> Metadades externes</h2>
-        </div>
-        <div className="section-content">
-          <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '1rem' }}>
-            Descarrega automàticament metadades i caràtules des de TMDB (pel·lícules i sèries) i Open Library (llibres i audiollibres).
-          </p>
-
-          {!tmdbConfigured && (
-            <div className="tmdb-config" style={{ marginBottom: '1.5rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
-              <h4 style={{ color: 'white', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <KeyIcon /> Clau API de TMDB
-              </h4>
-              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem', marginBottom: '0.75rem' }}>
-                Per obtenir metadades de vídeos necessites una clau API de <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener noreferrer" style={{ color: '#8b5cf6' }}>themoviedb.org</a> (gratuïta)
+          {!tmdbConfigured ? (
+            <div className="tmdb-config">
+              <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '1rem' }}>
+                Per importar pel·lícules i sèries necessites una clau API de <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener noreferrer" style={{ color: '#328492' }}>themoviedb.org</a> (gratuïta)
               </p>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <input
@@ -934,108 +609,28 @@ function Admin() {
                 </button>
               </div>
             </div>
-          )}
-
-          {tmdbConfigured && (
-            <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: 'rgba(139, 92, 246, 0.15)', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <KeyIcon />
-              <span style={{ color: 'rgba(255,255,255,0.8)' }}>Clau TMDB configurada</span>
-            </div>
-          )}
-
-          <div className="scanner-actions">
-            <button
-              className="action-btn"
-              onClick={handleFetchAllMetadata}
-              disabled={fetchingMetadata}
-            >
-              {fetchingMetadata ? <><RefreshIcon /> Obtenint...</> : <><DownloadIcon /> Obtenir metadades</>}
-            </button>
-
-            <button
-              className="action-btn secondary"
-              onClick={handleGenerateThumbnails}
-              disabled={generatingThumbnails}
-              title="Genera miniatures per tots els episodis"
-            >
-              {generatingThumbnails ? <><RefreshIcon /> Generant...</> : <><TvIcon /> Generar miniatures</>}
-            </button>
-
-            <button
-              className="action-btn danger"
-              onClick={handleRegenerateThumbnails}
-              disabled={generatingThumbnails}
-              title="Esborra i regenera TOTES les miniatures"
-            >
-              <RefreshIcon /> Regenerar totes
-            </button>
-          </div>
-
-          {/* Botons per portades de llibres */}
-          <div className="scanner-actions" style={{ marginTop: '1rem' }}>
-            <button
-              className="action-btn secondary"
-              onClick={handleFetchBookCovers}
-              disabled={fetchingBookCovers}
-              title="Cerca portades per tots els llibres sense portada"
-            >
-              {fetchingBookCovers ? <><RefreshIcon /> Cercant...</> : <><BookIcon /> Portades llibres</>}
-            </button>
-
-            <button
-              className="action-btn secondary"
-              onClick={handleFetchAudiobookCovers}
-              disabled={fetchingAudiobookCovers}
-              title="Cerca portades per tots els audiollibres sense portada"
-            >
-              {fetchingAudiobookCovers ? <><RefreshIcon /> Cercant...</> : <><HeadphonesIcon /> Portades audiollibres</>}
-            </button>
-          </div>
-
-          {/* Barra de progrés de miniatures */}
-          {thumbnailProgress && thumbnailProgress.total > 0 && (
-            <div style={{ marginTop: '1rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '14px', color: 'rgba(255,255,255,0.8)' }}>
-                <span>
-                  {thumbnailProgress.status === 'deleting' && 'Esborrant miniatures...'}
-                  {thumbnailProgress.status === 'generating' && `Generant miniatura ${thumbnailProgress.current} de ${thumbnailProgress.total}`}
-                  {thumbnailProgress.status === 'completed' && 'Completat!'}
-                </span>
-                <span>{Math.round((thumbnailProgress.current / thumbnailProgress.total) * 100)}%</span>
-              </div>
-              <div style={{ height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
-                <div
-                  style={{
-                    width: `${(thumbnailProgress.current / thumbnailProgress.total) * 100}%`,
-                    height: '100%',
-                    background: 'linear-gradient(90deg, #8b5cf6, #a78bfa)',
-                    borderRadius: '4px',
-                    transition: 'width 0.3s ease'
-                  }}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', fontSize: '12px', color: 'rgba(255,255,255,0.6)', alignItems: 'center' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><CheckIcon /> {thumbnailProgress.generated} generades</span>
-                {thumbnailProgress.errors > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#ef4444' }}><XIcon /> {thumbnailProgress.errors} errors</span>}
-              </div>
+          ) : (
+            <div style={{ padding: '0.75rem 1rem', background: 'rgba(50, 132, 146, 0.15)', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <CheckIcon />
+              <span style={{ color: 'rgba(255,255,255,0.8)' }}>Clau TMDB configurada correctament</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* Bulk Import Section */}
+      {/* Bulk Import Section - MAIN FEATURE */}
       {tmdbConfigured && (
-        <div className="admin-section">
+        <div className="admin-section highlight">
           <div className="section-header">
-            <h2><DatabaseIcon /> Importació massiva TMDB</h2>
+            <h2><RocketIcon /> Importació massiva</h2>
           </div>
           <div className="section-content">
-            <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '1rem' }}>
-              Importa automàticament milers de pel·lícules i sèries des de TMDB. Inclou metadades completes, pòsters i backdrops.
-              Cada pàgina conté 20 títols. 50 pàgines = ~1000 títols per categoria.
+            <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '1.5rem' }}>
+              Importa automàticament milers de pel·lícules i sèries des de TMDB per veure en streaming.
+              Tot el contingut estarà disponible per reproduir online.
             </p>
 
-            <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
               <label style={{ color: 'rgba(255,255,255,0.8)' }}>Pàgines per categoria:</label>
               <input
                 type="number"
@@ -1059,20 +654,34 @@ function Admin() {
               </span>
             </div>
 
+            {/* MAIN BUTTON - Import ALL */}
+            <button
+              className="action-btn primary big"
+              onClick={startBulkImportAll}
+              disabled={bulkImportStatus?.running}
+              style={{ width: '100%', padding: '1.25rem', fontSize: '1.1rem', marginBottom: '1rem' }}
+            >
+              {bulkImportStatus?.running ? (
+                <><RefreshIcon /> Important...</>
+              ) : (
+                <><RocketIcon /> IMPORTAR TOT (Pel·lícules + Sèries)</>
+              )}
+            </button>
+
             <div className="scanner-actions">
               <button
                 className="action-btn"
                 onClick={() => startBulkImport('movie')}
                 disabled={bulkImportStatus?.running}
               >
-                <MovieIcon /> Importar pel·lícules
+                <MovieIcon /> Només pel·lícules
               </button>
               <button
                 className="action-btn"
                 onClick={() => startBulkImport('series')}
                 disabled={bulkImportStatus?.running}
               >
-                <TvIcon /> Importar sèries
+                <TvIcon /> Només sèries
               </button>
               {bulkImportStatus?.running && (
                 <button
@@ -1099,7 +708,7 @@ function Admin() {
                     style={{
                       width: `${(bulkImportStatus.current_page / bulkImportStatus.total_pages) * 100}%`,
                       height: '100%',
-                      background: 'linear-gradient(90deg, #8b5cf6, #a78bfa)',
+                      background: 'linear-gradient(90deg, #328492, #4aa3b3)',
                       borderRadius: '4px',
                       transition: 'width 0.3s ease'
                     }}
@@ -1139,15 +748,14 @@ function Admin() {
       {/* Book Bulk Import Section */}
       <div className="admin-section">
         <div className="section-header">
-          <h2><BookIcon /> Importació massiva de Llibres</h2>
+          <h2><BookIcon /> Importació de Llibres</h2>
         </div>
         <div className="section-content">
           <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '1rem' }}>
-            Importa automàticament milers de llibres des d'Open Library. Inclou metadades, portades i informació d'autors.
-            Els llibres s'importen per categories: ficció, ciència-ficció, fantasia, misteri, romanç, etc.
+            Importa llibres des d'Open Library per categories: ficció, ciència-ficció, fantasia, etc.
           </p>
 
-          <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
             <label style={{ color: 'rgba(255,255,255,0.8)' }}>Llibres per categoria:</label>
             <input
               type="number"
@@ -1166,9 +774,6 @@ function Admin() {
                 fontSize: '1rem'
               }}
             />
-            <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem' }}>
-              (~{bookBulkImportMax * 15} llibres totals)
-            </span>
           </div>
 
           <div className="scanner-actions">
@@ -1189,7 +794,7 @@ function Admin() {
             )}
           </div>
 
-          {/* Progress indicator */}
+          {/* Progress */}
           {bookBulkImportStatus?.running && (
             <div style={{ marginTop: '1.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '14px', color: 'rgba(255,255,255,0.8)' }}>
@@ -1197,7 +802,6 @@ function Admin() {
                   Important llibres...
                   {bookBulkImportStatus.current_subject && ` (${bookBulkImportStatus.current_subject})`}
                 </span>
-                <span>Categoria {bookBulkImportStatus.current_page}/{bookBulkImportStatus.total_pages}</span>
               </div>
               <div style={{ height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
                 <div
@@ -1210,30 +814,8 @@ function Admin() {
                   }}
                 />
               </div>
-              <div style={{ marginTop: '0.75rem', fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>
-                {bookBulkImportStatus.current_title && (
-                  <div style={{ marginBottom: '0.5rem', color: 'rgba(255,255,255,0.8)' }}>
-                    Importat: {bookBulkImportStatus.current_title}
-                  </div>
-                )}
-                <div style={{ display: 'flex', gap: '1.5rem' }}>
-                  <span style={{ color: '#22c55e' }}>Importats: {bookBulkImportStatus.imported_count}</span>
-                  <span>Omesos: {bookBulkImportStatus.skipped_count}</span>
-                  {bookBulkImportStatus.error_count > 0 && (
-                    <span style={{ color: '#ef4444' }}>Errors: {bookBulkImportStatus.error_count}</span>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Last import stats */}
-          {!bookBulkImportStatus?.running && bookBulkImportStatus?.imported_count > 0 && (
-            <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(34, 197, 94, 0.1)', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
-              <div style={{ color: '#22c55e', fontWeight: '500', marginBottom: '0.5rem' }}>Última importació de llibres</div>
-              <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)' }}>
-                {bookBulkImportStatus.imported_count} llibres importats, {bookBulkImportStatus.skipped_count} omesos
-                {bookBulkImportStatus.error_count > 0 && `, ${bookBulkImportStatus.error_count} errors`}
+              <div style={{ marginTop: '0.5rem', fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>
+                Importats: {bookBulkImportStatus.imported_count} | Omesos: {bookBulkImportStatus.skipped_count}
               </div>
             </div>
           )}
@@ -1243,15 +825,14 @@ function Admin() {
       {/* Audiobook Bulk Import Section */}
       <div className="admin-section">
         <div className="section-header">
-          <h2><HeadphonesIcon /> Importació massiva d'Audiollibres</h2>
+          <h2><HeadphonesIcon /> Importació d'Audiollibres</h2>
         </div>
         <div className="section-content">
           <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '1rem' }}>
-            Importa automàticament audiollibres des d'Audnexus (metadades d'Audible). Inclou informació de narradors, duració, i portades.
-            Cerca per autors populars i gèneres.
+            Importa audiollibres des d'Audnexus amb informació de narradors i duració.
           </p>
 
-          <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
             <label style={{ color: 'rgba(255,255,255,0.8)' }}>Audiollibres per cerca:</label>
             <input
               type="number"
@@ -1270,9 +851,6 @@ function Admin() {
                 fontSize: '1rem'
               }}
             />
-            <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem' }}>
-              (~{audiobookBulkImportMax * 16} audiollibres totals)
-            </span>
           </div>
 
           <div className="scanner-actions">
@@ -1293,7 +871,7 @@ function Admin() {
             )}
           </div>
 
-          {/* Progress indicator */}
+          {/* Progress */}
           {audiobookBulkImportStatus?.running && (
             <div style={{ marginTop: '1.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '14px', color: 'rgba(255,255,255,0.8)' }}>
@@ -1301,7 +879,6 @@ function Admin() {
                   Important audiollibres...
                   {audiobookBulkImportStatus.current_genre && ` (${audiobookBulkImportStatus.current_genre})`}
                 </span>
-                <span>Cerca {audiobookBulkImportStatus.current_page}/{audiobookBulkImportStatus.total_pages}</span>
               </div>
               <div style={{ height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
                 <div
@@ -1314,65 +891,11 @@ function Admin() {
                   }}
                 />
               </div>
-              <div style={{ marginTop: '0.75rem', fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>
-                {audiobookBulkImportStatus.current_title && (
-                  <div style={{ marginBottom: '0.5rem', color: 'rgba(255,255,255,0.8)' }}>
-                    Importat: {audiobookBulkImportStatus.current_title}
-                  </div>
-                )}
-                <div style={{ display: 'flex', gap: '1.5rem' }}>
-                  <span style={{ color: '#f59e0b' }}>Importats: {audiobookBulkImportStatus.imported_count}</span>
-                  <span>Omesos: {audiobookBulkImportStatus.skipped_count}</span>
-                  {audiobookBulkImportStatus.error_count > 0 && (
-                    <span style={{ color: '#ef4444' }}>Errors: {audiobookBulkImportStatus.error_count}</span>
-                  )}
-                </div>
+              <div style={{ marginTop: '0.5rem', fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>
+                Importats: {audiobookBulkImportStatus.imported_count} | Omesos: {audiobookBulkImportStatus.skipped_count}
               </div>
             </div>
           )}
-
-          {/* Last import stats */}
-          {!audiobookBulkImportStatus?.running && audiobookBulkImportStatus?.imported_count > 0 && (
-            <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(245, 158, 11, 0.1)', borderRadius: '8px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-              <div style={{ color: '#f59e0b', fontWeight: '500', marginBottom: '0.5rem' }}>Última importació d'audiollibres</div>
-              <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)' }}>
-                {audiobookBulkImportStatus.imported_count} audiollibres importats, {audiobookBulkImportStatus.skipped_count} omesos
-                {audiobookBulkImportStatus.error_count > 0 && `, ${audiobookBulkImportStatus.error_count} errors`}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Library Paths */}
-      <div className="admin-section">
-        <div className="section-header">
-          <h2><FolderIcon /> Directoris de la Biblioteca</h2>
-        </div>
-        <div className="section-content">
-          <div className="paths-list">
-            <div className="path-item">
-              <div className="path-info">
-                <div className="path-icon"><TvIcon /></div>
-                <div className="path-details">
-                  <h4>Sèries</h4>
-                  <p>./storage/series</p>
-                </div>
-              </div>
-              <span className="path-status active">Actiu</span>
-            </div>
-
-            <div className="path-item">
-              <div className="path-info">
-                <div className="path-icon"><MovieIcon /></div>
-                <div className="path-details">
-                  <h4>Pel·lícules</h4>
-                  <p>./storage/movies</p>
-                </div>
-              </div>
-              <span className="path-status active">Actiu</span>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -1539,7 +1062,7 @@ function Admin() {
                 <div className="path-icon"><VolumeIcon /></div>
                 <div className="path-details">
                   <h4>Idioma d'àudio preferit</h4>
-                  <p>Català (per defecte)</p>
+                  <p>Quan estigui disponible</p>
                 </div>
               </div>
               <select
@@ -1559,7 +1082,7 @@ function Admin() {
                 <div className="path-icon"><SubtitlesIcon /></div>
                 <div className="path-details">
                   <h4>Subtítols per defecte</h4>
-                  <p>Desactivats</p>
+                  <p>Quan estiguin disponibles</p>
                 </div>
               </div>
               <select
