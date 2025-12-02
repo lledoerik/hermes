@@ -216,6 +216,24 @@ function StreamPlayer() {
     }
   }, [tmdbId, season]);
 
+  // Funció per entrar en mode immersiu (definida aquí per evitar errors de referència)
+  const enterImmersiveMode = useCallback(async () => {
+    try {
+      if (containerRef.current && !document.fullscreenElement) {
+        await containerRef.current.requestFullscreen();
+      }
+      if (window.screen.orientation && window.screen.orientation.lock) {
+        try {
+          await window.screen.orientation.lock('landscape');
+        } catch (e) {
+          console.log('Orientation lock not supported');
+        }
+      }
+    } catch (e) {
+      console.log('Fullscreen request failed:', e);
+    }
+  }, []);
+
   // Carregar info del media si no s'ha passat per state
   useEffect(() => {
     if (!mediaInfo && tmdbId) {
@@ -422,24 +440,6 @@ function StreamPlayer() {
                           e.target.closest('.stream-episodes-dropdown');
     if (!isControlClick) {
       setShowControls(false);
-    }
-  }, []);
-
-  // Funció per entrar en mode immersiu
-  const enterImmersiveMode = useCallback(async () => {
-    try {
-      if (containerRef.current && !document.fullscreenElement) {
-        await containerRef.current.requestFullscreen();
-      }
-      if (window.screen.orientation && window.screen.orientation.lock) {
-        try {
-          await window.screen.orientation.lock('landscape');
-        } catch (e) {
-          console.log('Orientation lock not supported');
-        }
-      }
-    } catch (e) {
-      console.log('Fullscreen request failed:', e);
     }
   }, []);
 
