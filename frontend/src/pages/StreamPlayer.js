@@ -74,6 +74,12 @@ const PlayCircleIcon = () => (
   </svg>
 );
 
+const ClockIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+  </svg>
+);
+
 // Idiomes disponibles (preferits)
 const PREFERRED_LANGUAGES = [
   { code: 'ca', name: 'Català', flag: '🇦🇩' },
@@ -130,15 +136,32 @@ const addParams = (url, params) => {
   return paramStr ? `${url}${separator}${paramStr}` : url;
 };
 
-// Fonts d'embed disponibles amb suport d'idioma i autoplay
-// Nota: Algunes fonts tenen millor disponibilitat d'idiomes que d'altres
+// Mapatge d'idiomes a servidors preferits
+// Cada idioma té una llista de servidors ordenats per preferència per aquell idioma
+const LANGUAGE_SERVER_MAP = {
+  'ja': ['vidsrc', 'vidsrc-pro', 'smashystream', 'autoembed'], // Japonès (VO) - anime servers
+  'en': ['vidsrc', 'vidsrc-pro', 'embedsu', 'autoembed', 'multiembed'], // Anglès
+  'es': ['vidsrc', 'multiembed', 'autoembed', 'vidsrc-pro'], // Castellà
+  'es-419': ['multiembed', 'vidsrc', 'autoembed'], // Espanyol llatí
+  'ca': ['vidsrc', 'multiembed', 'autoembed'], // Català (rar, però intentem)
+  'fr': ['vidsrc', 'autoembed', 'multiembed'], // Francès
+  'it': ['vidsrc', 'autoembed', 'multiembed'], // Italià
+  'de': ['vidsrc', 'autoembed', 'multiembed'], // Alemany
+  'pt': ['vidsrc', 'autoembed', 'multiembed'], // Portuguès
+  'ko': ['vidsrc', 'smashystream', 'autoembed'], // Coreà
+};
+
+// Fonts d'embed disponibles amb suport d'idioma, autoplay i temps
+// Nota: Algunes fonts suporten el paràmetre de temps (t=seconds)
 const EMBED_SOURCES = [
   {
     id: 'vidsrc',
     name: 'VidSrc',
     supportsLang: true,
+    supportsTime: false,
     description: 'Multi-idioma',
-    getUrl: (type, tmdbId, season, episode, lang) => {
+    languages: ['en', 'es', 'ja', 'fr', 'de', 'it', 'pt', 'ko'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
       const base = type === 'movie'
         ? `https://vidsrc.cc/v2/embed/movie/${tmdbId}`
         : `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
@@ -149,8 +172,10 @@ const EMBED_SOURCES = [
     id: 'vidsrc-pro',
     name: 'VidSrc Pro',
     supportsLang: true,
+    supportsTime: false,
     description: 'Multi-servidor',
-    getUrl: (type, tmdbId, season, episode, lang) => {
+    languages: ['en', 'es', 'ja', 'fr', 'de', 'it'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
       const base = type === 'movie'
         ? `https://vidsrc.pro/embed/movie/${tmdbId}`
         : `https://vidsrc.pro/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
@@ -161,8 +186,10 @@ const EMBED_SOURCES = [
     id: 'vidsrc2',
     name: 'VidSrc 2',
     supportsLang: true,
+    supportsTime: false,
     description: 'Alternatiu',
-    getUrl: (type, tmdbId, season, episode, lang) => {
+    languages: ['en', 'es', 'ja'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
       const base = type === 'movie'
         ? `https://vidsrc.xyz/embed/movie/${tmdbId}`
         : `https://vidsrc.xyz/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
@@ -173,21 +200,26 @@ const EMBED_SOURCES = [
     id: 'superembed',
     name: 'SuperEmbed',
     supportsLang: true,
+    supportsTime: true,
     description: 'Multi-idioma + subtítols',
-    getUrl: (type, tmdbId, season, episode, lang) => {
-      // SuperEmbed utilitza IMDb ID o TMDB ID
+    languages: ['en', 'es', 'es-419', 'fr', 'de', 'it', 'pt'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
+      const params = { video_id: tmdbId, tmdb: 1, lang };
+      if (time) params.t = time;
       if (type === 'movie') {
-        return `https://multiembed.mov/directstream.php?video_id=${tmdbId}&tmdb=1&lang=${lang}`;
+        return addParams('https://multiembed.mov/directstream.php', params);
       }
-      return `https://multiembed.mov/directstream.php?video_id=${tmdbId}&tmdb=1&s=${season || 1}&e=${episode || 1}&lang=${lang}`;
+      return addParams('https://multiembed.mov/directstream.php', { ...params, s: season || 1, e: episode || 1 });
     }
   },
   {
     id: 'autoembed',
     name: 'AutoEmbed',
     supportsLang: true,
+    supportsTime: false,
     description: 'Auto-detecció',
-    getUrl: (type, tmdbId, season, episode, lang) => {
+    languages: ['en', 'es', 'fr', 'de', 'it'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
       const base = type === 'movie'
         ? `https://player.autoembed.cc/embed/movie/${tmdbId}`
         : `https://player.autoembed.cc/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
@@ -198,20 +230,26 @@ const EMBED_SOURCES = [
     id: 'embedsu',
     name: 'Embed.su',
     supportsLang: true,
+    supportsTime: true,
     description: 'Alta qualitat',
-    getUrl: (type, tmdbId, season, episode, lang) => {
+    languages: ['en', 'es', 'fr', 'de'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
+      const params = { autoplay: 1, lang };
+      if (time) params.t = time;
       if (type === 'movie') {
-        return addParams(`https://embed.su/embed/movie/${tmdbId}`, { autoplay: 1, lang });
+        return addParams(`https://embed.su/embed/movie/${tmdbId}`, params);
       }
-      return addParams(`https://embed.su/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`, { autoplay: 1, lang });
+      return addParams(`https://embed.su/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`, params);
     }
   },
   {
     id: '2embed',
     name: '2Embed',
     supportsLang: false,
+    supportsTime: false,
     description: 'Bàsic',
-    getUrl: (type, tmdbId, season, episode) => {
+    languages: ['en'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
       if (type === 'movie') {
         return addParams(`https://www.2embed.cc/embed/${tmdbId}`, { autoplay: 1 });
       }
@@ -222,20 +260,26 @@ const EMBED_SOURCES = [
     id: 'multiembed',
     name: 'MultiEmbed',
     supportsLang: true,
+    supportsTime: true,
     description: 'Multi-servidor',
-    getUrl: (type, tmdbId, season, episode, lang) => {
+    languages: ['en', 'es', 'es-419', 'fr', 'de', 'it', 'pt'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
+      const params = { video_id: tmdbId, tmdb: 1, autoplay: 1, lang };
+      if (time) params.t = time;
       if (type === 'movie') {
-        return `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1&autoplay=1&lang=${lang}`;
+        return addParams('https://multiembed.mov/', params);
       }
-      return `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1&s=${season || 1}&e=${episode || 1}&autoplay=1&lang=${lang}`;
+      return addParams('https://multiembed.mov/', { ...params, s: season || 1, e: episode || 1 });
     }
   },
   {
     id: 'smashystream',
     name: 'SmashyStream',
     supportsLang: true,
+    supportsTime: false,
     description: 'Anime + Sèries',
-    getUrl: (type, tmdbId, season, episode, lang) => {
+    languages: ['ja', 'en', 'ko'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
       if (type === 'movie') {
         return `https://player.smashy.stream/movie/${tmdbId}?lang=${lang}`;
       }
@@ -246,8 +290,10 @@ const EMBED_SOURCES = [
     id: 'moviesapi',
     name: 'MoviesAPI',
     supportsLang: true,
+    supportsTime: false,
     description: 'Multi-qualitat',
-    getUrl: (type, tmdbId, season, episode, lang) => {
+    languages: ['en', 'es'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
       if (type === 'movie') {
         return `https://moviesapi.club/movie/${tmdbId}?lang=${lang}`;
       }
@@ -255,6 +301,18 @@ const EMBED_SOURCES = [
     }
   },
 ];
+
+// Funció per trobar el millor servidor per un idioma
+const getBestServerForLanguage = (langCode) => {
+  const preferredServers = LANGUAGE_SERVER_MAP[langCode] || LANGUAGE_SERVER_MAP['en'];
+  for (const serverId of preferredServers) {
+    const serverIndex = EMBED_SOURCES.findIndex(s => s.id === serverId);
+    if (serverIndex >= 0) {
+      return serverIndex;
+    }
+  }
+  return 0; // Per defecte, el primer
+};
 
 function StreamPlayer() {
   const { type, tmdbId } = useParams();
@@ -300,6 +358,13 @@ function StreamPlayer() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showStartOverlay, setShowStartOverlay] = useState(true);
   const [langChangeMessage, setLangChangeMessage] = useState(null);
+
+  // Estat per al modal de canvi d'idioma amb temps
+  const [showTimeModal, setShowTimeModal] = useState(false);
+  const [pendingLangChange, setPendingLangChange] = useState(null);
+  const [timeInput, setTimeInput] = useState({ minutes: '', seconds: '' });
+  const [currentTime, setCurrentTime] = useState(0);
+  const timeModalRef = useRef(null);
 
   const currentSource = EMBED_SOURCES[currentSourceIndex];
   const mediaType = type === 'movie' ? 'movie' : 'tv';
@@ -353,10 +418,14 @@ function StreamPlayer() {
 
   const currentLang = availableLanguages.find(l => l.code === preferredLang) || availableLanguages[0];
 
-  // Construir URL amb idioma si la font ho suporta
-  const embedUrl = currentSource.supportsLang
-    ? currentSource.getUrl(mediaType, tmdbId, season, episode, preferredLang)
-    : currentSource.getUrl(mediaType, tmdbId, season, episode);
+  // Construir URL amb idioma i temps si la font ho suporta
+  const embedUrl = React.useMemo(() => {
+    const time = currentTime > 0 && currentSource.supportsTime ? currentTime : null;
+    if (currentSource.supportsLang) {
+      return currentSource.getUrl(mediaType, tmdbId, season, episode, preferredLang, time);
+    }
+    return currentSource.getUrl(mediaType, tmdbId, season, episode, null, time);
+  }, [currentSource, mediaType, tmdbId, season, episode, preferredLang, currentTime]);
 
   // Funcions per carregar dades
   const loadMediaInfo = useCallback(async () => {
@@ -475,6 +544,8 @@ function StreamPlayer() {
   // Quan l'iframe carrega
   const handleIframeLoad = useCallback(() => {
     setLoading(false);
+    // Reset del temps després de carregar (ja s'ha passat a la URL)
+    setCurrentTime(0);
     // Entrar automàticament en mode immersiu
     enterImmersiveMode();
   }, [enterImmersiveMode]);
@@ -487,29 +558,78 @@ function StreamPlayer() {
     setShowSourceMenu(false);
   }, []);
 
-  // Canviar d'idioma
+  // Canviar d'idioma - obre el modal per demanar el temps actual
   const handleLanguageChange = useCallback((langCode) => {
+    // Si és el mateix idioma, no fer res
+    if (langCode === preferredLang) {
+      setShowLangMenu(false);
+      return;
+    }
+
     const langInfo = availableLanguages.find(l => l.code === langCode);
+
+    // Guardar el canvi pendent i obrir modal de temps
+    setPendingLangChange({
+      langCode,
+      langInfo
+    });
+    setTimeInput({ minutes: '', seconds: '' });
+    setShowLangMenu(false);
+    setShowTimeModal(true);
+  }, [preferredLang, availableLanguages]);
+
+  // Confirmar el canvi d'idioma amb el temps
+  const confirmLanguageChange = useCallback(() => {
+    if (!pendingLangChange) return;
+
+    const { langCode, langInfo } = pendingLangChange;
+
+    // Calcular el temps en segons
+    const minutes = parseInt(timeInput.minutes) || 0;
+    const seconds = parseInt(timeInput.seconds) || 0;
+    const totalSeconds = (minutes * 60) + seconds;
+
+    // Trobar el millor servidor per aquest idioma
+    const bestServerIndex = getBestServerForLanguage(langCode);
+    const bestServer = EMBED_SOURCES[bestServerIndex];
+
+    // Actualitzar el temps (això farà que embedUrl inclogui el paràmetre t=)
+    setCurrentTime(totalSeconds);
+
+    // Actualitzar idioma i servidor
     setPreferredLang(langCode);
     localStorage.setItem('hermes_stream_lang', langCode);
-    setShowLangMenu(false);
+    setCurrentSourceIndex(bestServerIndex);
+    localStorage.setItem('hermes_stream_source', bestServer.id);
 
-    // Mostrar missatge indicant que cal seleccionar l'idioma dins del reproductor
+    // Tancar modal i reset
+    setShowTimeModal(false);
+    setPendingLangChange(null);
+    setTimeInput({ minutes: '', seconds: '' });
+
+    // No mostrar overlay d'inici - transició directa
+    setShowStartOverlay(false);
+    setLoading(true);
+
+    // Mostrar missatge breu
     setLangChangeMessage({
       lang: langInfo?.name || langCode,
-      flag: langInfo?.flag || '🌐'
+      flag: langInfo?.flag || '🌐',
+      server: bestServer.name,
+      time: totalSeconds > 0 ? `${minutes}:${seconds.toString().padStart(2, '0')}` : null
     });
 
-    // Amagar el missatge després de 5 segons
     setTimeout(() => {
       setLangChangeMessage(null);
-    }, 5000);
+    }, 4000);
+  }, [pendingLangChange, timeInput]);
 
-    // Recarregar el reproductor amb el nou idioma (si la font ho suporta)
-    if (currentSource.supportsLang) {
-      setLoading(true);
-    }
-  }, [currentSource.supportsLang, availableLanguages]);
+  // Cancel·lar el canvi d'idioma
+  const cancelLanguageChange = useCallback(() => {
+    setShowTimeModal(false);
+    setPendingLangChange(null);
+    setTimeInput({ minutes: '', seconds: '' });
+  }, []);
 
   // Tornar enrere
   const handleBack = useCallback(() => {
@@ -590,6 +710,16 @@ function StreamPlayer() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // Si el modal de temps està obert
+      if (showTimeModal) {
+        if (e.key === 'Escape') {
+          cancelLanguageChange();
+        } else if (e.key === 'Enter') {
+          confirmLanguageChange();
+        }
+        return;
+      }
+
       if (e.key === 'Escape') {
         if (showEpisodesMenu) {
           setShowEpisodesMenu(false);
@@ -614,7 +744,7 @@ function StreamPlayer() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFullscreen, handleBack, toggleFullscreen, goToNextEpisode, goToPrevEpisode, type, showEpisodesMenu, showSourceMenu, showLangMenu]);
+  }, [isFullscreen, handleBack, toggleFullscreen, goToNextEpisode, goToPrevEpisode, type, showEpisodesMenu, showSourceMenu, showLangMenu, showTimeModal, cancelLanguageChange, confirmLanguageChange]);
 
   // Tancar menús quan es clica fora
   useEffect(() => {
@@ -700,10 +830,75 @@ function StreamPlayer() {
         <div className="stream-lang-change-message">
           <span className="lang-flag">{langChangeMessage.flag}</span>
           <div className="message-content">
-            <strong>Idioma preferit: {langChangeMessage.lang}</strong>
-            <p>Busca l'idioma dins del reproductor (icona ⚙️ o 🔊)</p>
+            <strong>Canviant a: {langChangeMessage.lang}</strong>
+            {langChangeMessage.server && (
+              <p>Servidor: {langChangeMessage.server}</p>
+            )}
+            {langChangeMessage.time && (
+              <p>Continuant des de {langChangeMessage.time}</p>
+            )}
           </div>
           <button onClick={() => setLangChangeMessage(null)}>×</button>
+        </div>
+      )}
+
+      {/* Modal per introduir el temps actual */}
+      {showTimeModal && pendingLangChange && (
+        <div className="stream-time-modal-overlay" onClick={cancelLanguageChange}>
+          <div
+            className="stream-time-modal"
+            ref={timeModalRef}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="stream-time-modal-header">
+              <ClockIcon />
+              <h3>Canviar a {pendingLangChange.langInfo?.flag} {pendingLangChange.langInfo?.name}</h3>
+            </div>
+
+            <p className="stream-time-modal-desc">
+              Per on anaves? Introdueix el minut actual per continuar des del mateix punt.
+            </p>
+
+            <div className="stream-time-input-group">
+              <div className="stream-time-field">
+                <input
+                  type="number"
+                  min="0"
+                  max="999"
+                  placeholder="0"
+                  value={timeInput.minutes}
+                  onChange={(e) => setTimeInput(prev => ({ ...prev, minutes: e.target.value }))}
+                  autoFocus
+                />
+                <label>minuts</label>
+              </div>
+              <span className="stream-time-separator">:</span>
+              <div className="stream-time-field">
+                <input
+                  type="number"
+                  min="0"
+                  max="59"
+                  placeholder="00"
+                  value={timeInput.seconds}
+                  onChange={(e) => setTimeInput(prev => ({ ...prev, seconds: e.target.value }))}
+                />
+                <label>segons</label>
+              </div>
+            </div>
+
+            <p className="stream-time-hint">
+              💡 Deixa en blanc per començar des del principi
+            </p>
+
+            <div className="stream-time-modal-actions">
+              <button className="stream-time-btn cancel" onClick={cancelLanguageChange}>
+                Cancel·lar
+              </button>
+              <button className="stream-time-btn confirm" onClick={confirmLanguageChange}>
+                Canviar idioma
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
