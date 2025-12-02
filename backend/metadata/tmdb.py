@@ -308,6 +308,21 @@ class TMDBClient:
             return None
         return f"{self.IMAGE_BASE_URL}/{size}{backdrop_path}"
 
+    async def get_external_ids(self, media_type: str, tmdb_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Get external IDs (IMDB, TVDB, etc.) for a movie or TV series.
+        media_type: 'movie' or 'tv'
+        """
+        endpoint = f"/{media_type}/{tmdb_id}/external_ids"
+        return await self._request(endpoint)
+
+    async def get_imdb_id(self, media_type: str, tmdb_id: int) -> Optional[str]:
+        """Get IMDB ID for a movie or TV series."""
+        data = await self.get_external_ids(media_type, tmdb_id)
+        if data:
+            return data.get("imdb_id")
+        return None
+
     def _sync_download_image(self, image_path: str, save_path: Path, size: str = "w500") -> bool:
         """Download an image synchronously."""
         if not image_path:

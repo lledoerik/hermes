@@ -975,6 +975,125 @@
   }
 }
 
+/* Reproductor natiu de vídeo (Torrentio) */
+.stream-video-native {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  object-fit: contain;
+}
+
+/* Info de Torrentio */
+.torrentio-info {
+  position: absolute;
+  bottom: 80px;
+  right: 20px;
+  display: flex;
+  gap: 8px;
+  z-index: 50;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.stream-player-container:hover .torrentio-info {
+  opacity: 1;
+}
+
+.torrentio-info .quality-badge,
+.torrentio-info .source-badge,
+.torrentio-info .size-badge {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  backdrop-filter: blur(10px);
+}
+
+.torrentio-info .quality-badge {
+  background: rgba(50, 132, 146, 0.9);
+  color: white;
+}
+
+.torrentio-info .source-badge {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.torrentio-info .size-badge {
+  background: rgba(0, 0, 0, 0.5);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Error overlay */
+.stream-error-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.95);
+  z-index: 100;
+}
+
+.stream-error-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 40px;
+  text-align: center;
+  max-width: 400px;
+}
+
+.stream-error-content .error-icon {
+  font-size: 48px;
+}
+
+.stream-error-content h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: white;
+}
+
+.stream-error-content p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.stream-error-content button {
+  padding: 12px 24px;
+  background: var(--color-primary, #328492);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.stream-error-content button:hover {
+  background: var(--color-primary-dark, #276a75);
+  transform: translateY(-1px);
+}
+
+/* Loading hint per Torrentio */
+.stream-loading-spinner .loading-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
 /* Modal de temps per canvi d'idioma */
 .stream-time-modal-overlay {
   position: absolute;
