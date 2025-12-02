@@ -139,37 +139,66 @@ const addParams = (url, params) => {
 // Mapatge d'idiomes a servidors preferits
 // Cada idioma té una llista de servidors ordenats per preferència per aquell idioma
 const LANGUAGE_SERVER_MAP = {
-  'ja': ['animeonline', 'vidsrc', 'vidsrc-pro', 'smashystream', 'anime-api', 'autoembed'], // Japonès (VO)
-  'en': ['vidsrc', 'vidsrc-pro', 'embedsu', 'autoembed', 'multiembed'], // Anglès
-  'es': ['seriesflix', 'pelisflix', 'animeonline', 'cuevana-embed', 'pelisplus-embed', 'vidsrc-latino', 'filmpertutti', 'multiembed', 'vidsrc'], // Castellà
-  'es-419': ['seriesflix', 'pelisflix', 'animeonline', 'cuevana-embed', 'pelisplus-embed', 'vidsrc-latino', 'multiembed', 'vidsrc'], // Espanyol llatí
-  'ca': ['vidsrc', 'multiembed', 'autoembed', 'tv3cat'], // Català
-  'fr': ['frenchstream', 'vidsrc', 'autoembed', 'multiembed'], // Francès
-  'it': ['filmpertutti', 'streamingcommunity', 'vidsrc', 'autoembed', 'multiembed'], // Italià
-  'de': ['vidsrc', 'autoembed', 'multiembed'], // Alemany
-  'pt': ['warezcdn', 'vidsrc', 'autoembed', 'multiembed'], // Portuguès
-  'ko': ['vidsrc', 'smashystream', 'autoembed'], // Coreà
+  'ja': ['torrentio', 'animeonline', 'vidsrc', 'vidsrc-pro', 'smashystream', 'anime-api', 'autoembed'], // Japonès (VO)
+  'en': ['torrentio', 'vidsrc', 'vidsrc-pro', 'embedsu', 'autoembed', 'multiembed'], // Anglès
+  'es': ['torrentio', 'seriesflix', 'pelisflix', 'animeonline', 'cuevana-embed', 'pelisplus-embed', 'vidsrc-latino', 'filmpertutti', 'multiembed', 'vidsrc'], // Castellà
+  'es-419': ['torrentio', 'seriesflix', 'pelisflix', 'animeonline', 'cuevana-embed', 'pelisplus-embed', 'vidsrc-latino', 'multiembed', 'vidsrc'], // Espanyol llatí
+  'ca': ['torrentio', 'vidsrc', 'multiembed', 'autoembed', 'tv3cat'], // Català
+  'fr': ['torrentio', 'frenchstream', 'vidsrc', 'autoembed', 'multiembed'], // Francès
+  'it': ['torrentio', 'filmpertutti', 'streamingcommunity', 'vidsrc', 'autoembed', 'multiembed'], // Italià
+  'de': ['torrentio', 'vidsrc', 'autoembed', 'multiembed'], // Alemany
+  'pt': ['torrentio', 'warezcdn', 'vidsrc', 'autoembed', 'multiembed'], // Portuguès
+  'ko': ['torrentio', 'vidsrc', 'smashystream', 'autoembed'], // Coreà
 };
 
 // Fonts d'embed disponibles amb suport d'idioma, autoplay i temps
 // Nota: Algunes fonts suporten el paràmetre de temps (t=seconds)
 const EMBED_SOURCES = [
+  // === TORRENTIO (Real-Debrid) - MILLOR QUALITAT ===
+  {
+    id: 'torrentio',
+    name: 'Torrentio',
+    supportsLang: true,
+    supportsTime: true,
+    isTorrentio: true, // Flag especial per gestió diferent
+    description: '🔥 Alta qualitat (Real-Debrid)',
+    languages: ['es', 'es-419', 'en', 'ca', 'fr', 'it', 'ja', 'multi'],
+    // Torrentio no usa embed URL, sinó API
+    getUrl: (type, tmdbId, season, episode, lang, time, title) => {
+      // Retornem l'URL de l'API per obtenir streams
+      const baseUrl = window.location.hostname === 'localhost'
+        ? 'http://localhost:8000'
+        : '';
+      const params = new URLSearchParams();
+      if (season) params.set('season', season);
+      if (episode) params.set('episode', episode);
+      if (lang) params.set('lang', lang);
+      params.set('quality', '1080p');
+      return `${baseUrl}/api/torrentio/resolve/${type}/${tmdbId}?${params.toString()}`;
+    }
+  },
   // === ANIME (ESPANYOL/JAPONÈS) ===
   {
     id: 'animeonline',
     name: 'AnimeOnline.ninja',
     supportsLang: true,
     supportsTime: false,
+    needsTitle: true, // Necessita el títol de la sèrie
     description: '🎌 Anime ES/Latino/VO',
     languages: ['es', 'es-419', 'ja'],
-    // AnimeOnline.ninja - font principal per anime en espanyol
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      // Determinar el tipus d'àudio
-      const audio = lang === 'ja' ? 'japanese' : lang === 'es-419' ? 'latino' : 'spanish';
+    // AnimeOnline.ninja - URL real: https://ww3.animeonline.ninja/episodio/{slug}-t{season}-cap{episode}/
+    getUrl: (type, tmdbId, season, episode, lang, time, title) => {
+      // Convertir títol a slug
+      const slug = title ? title.toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Treure accents
+        .replace(/[^a-z0-9]+/g, '-') // Només lletres, números i guions
+        .replace(/^-+|-+$/g, '') // Treure guions al principi/final
+        : 'unknown';
+
       if (type === 'movie') {
-        return `https://animeonline.ninja/embed/movie/${tmdbId}?audio=${audio}`;
+        return `https://ww3.animeonline.ninja/pelicula/${slug}/`;
       }
-      return `https://animeonline.ninja/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?audio=${audio}`;
+      return `https://ww3.animeonline.ninja/episodio/${slug}-t${season || 1}-cap-${episode || 1}/`;
     }
   },
   // === FONTS AMB ESPANYOL / LLATÍ ===
@@ -178,14 +207,21 @@ const EMBED_SOURCES = [
     name: 'SeriesFlix',
     supportsLang: true,
     supportsTime: false,
+    needsTitle: true,
     description: '🇪🇸 Sèries en Castellà',
     languages: ['es', 'es-419', 'en'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      const audio = lang === 'es-419' ? 'latino' : lang === 'es' ? 'castellano' : 'english';
+    getUrl: (type, tmdbId, season, episode, lang, time, title) => {
+      // Convertir títol a slug
+      const slug = title ? title.toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        : 'unknown';
+
       if (type === 'movie') {
-        return `https://seriesflix.video/embed/movie/${tmdbId}?audio=${audio}`;
+        return `https://seriesflix.video/pelicula/${slug}/`;
       }
-      return `https://seriesflix.video/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?audio=${audio}`;
+      return `https://seriesflix.video/episodio/${slug}-${season || 1}x${episode || 1}/`;
     }
   },
   {
@@ -193,14 +229,21 @@ const EMBED_SOURCES = [
     name: 'PelisFlix',
     supportsLang: true,
     supportsTime: false,
+    needsTitle: true,
     description: '🇪🇸 Películes en Castellà',
     languages: ['es', 'es-419', 'en'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      const audio = lang === 'es-419' ? 'latino' : lang === 'es' ? 'castellano' : 'english';
+    getUrl: (type, tmdbId, season, episode, lang, time, title) => {
+      // Convertir títol a slug
+      const slug = title ? title.toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        : 'unknown';
+
       if (type === 'movie') {
-        return `https://pelisflix.tube/embed/movie/${tmdbId}?audio=${audio}`;
+        return `https://pelisflix2.foo/pelicula/${slug}/`;
       }
-      return `https://pelisflix.tube/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?audio=${audio}`;
+      return `https://pelisflix2.foo/episodio/${slug}-${season || 1}x${episode || 1}/`;
     }
   },
   {
@@ -584,6 +627,12 @@ function StreamPlayer() {
   const [currentTime, setCurrentTime] = useState(0);
   const timeModalRef = useRef(null);
 
+  // Estat per Torrentio (reproductor natiu)
+  const [torrentioStream, setTorrentioStream] = useState(null);
+  const [torrentioError, setTorrentioError] = useState(null);
+  const [torrentioLoading, setTorrentioLoading] = useState(false);
+  const videoRef = useRef(null);
+
   const currentSource = EMBED_SOURCES[currentSourceIndex];
   const mediaType = type === 'movie' ? 'movie' : 'tv';
 
@@ -636,14 +685,18 @@ function StreamPlayer() {
 
   const currentLang = availableLanguages.find(l => l.code === preferredLang) || availableLanguages[0];
 
-  // Construir URL amb idioma i temps si la font ho suporta
+  // Obtenir el títol per fonts que ho necessiten (com animeonline.ninja)
+  const mediaTitle = mediaInfo?.title || mediaInfo?.name || '';
+
+  // Construir URL amb idioma, temps i títol si la font ho suporta
   const embedUrl = React.useMemo(() => {
     const time = currentTime > 0 && currentSource.supportsTime ? currentTime : null;
+    const title = currentSource.needsTitle ? mediaTitle : null;
     if (currentSource.supportsLang) {
-      return currentSource.getUrl(mediaType, tmdbId, season, episode, preferredLang, time);
+      return currentSource.getUrl(mediaType, tmdbId, season, episode, preferredLang, time, title);
     }
-    return currentSource.getUrl(mediaType, tmdbId, season, episode, null, time);
-  }, [currentSource, mediaType, tmdbId, season, episode, preferredLang, currentTime]);
+    return currentSource.getUrl(mediaType, tmdbId, season, episode, null, time, title);
+  }, [currentSource, mediaType, tmdbId, season, episode, preferredLang, currentTime, mediaTitle]);
 
   // Funcions per carregar dades
   const loadMediaInfo = useCallback(async () => {
@@ -687,6 +740,40 @@ function StreamPlayer() {
       loadSeasonEpisodes();
     }
   }, [tmdbId, season, type, loadSeasonEpisodes]);
+
+  // Carregar stream de Torrentio quan es selecciona
+  useEffect(() => {
+    if (!currentSource?.isTorrentio) {
+      setTorrentioStream(null);
+      setTorrentioError(null);
+      return;
+    }
+
+    const fetchTorrentioStream = async () => {
+      setTorrentioLoading(true);
+      setTorrentioError(null);
+
+      try {
+        const url = currentSource.getUrl(mediaType, tmdbId, season, episode, preferredLang, currentTime, null);
+        const response = await axios.get(url);
+
+        if (response.data && response.data.stream_url) {
+          setTorrentioStream(response.data);
+          setLoading(false);
+        } else {
+          throw new Error('No s\'ha trobat cap stream');
+        }
+      } catch (error) {
+        console.error('Error carregant Torrentio:', error);
+        setTorrentioError(error.response?.data?.detail || error.message || 'Error carregant stream');
+        setLoading(false);
+      } finally {
+        setTorrentioLoading(false);
+      }
+    };
+
+    fetchTorrentioStream();
+  }, [currentSource, mediaType, tmdbId, season, episode, preferredLang, currentTime]);
 
   // Mostrar tip d'idioma el primer cop
   useEffect(() => {
@@ -997,23 +1084,74 @@ function StreamPlayer() {
       onMouseMove={handleMouseMove}
       onClick={handleContainerClick}
     >
-      {/* Iframe del reproductor embed */}
-      <iframe
-        key={embedUrl}
-        src={embedUrl}
-        className="stream-iframe"
-        allowFullScreen
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-        onLoad={handleIframeLoad}
-        title="Video Player"
-      />
+      {/* Torrentio: Reproductor natiu de vídeo */}
+      {currentSource?.isTorrentio ? (
+        <>
+          {torrentioStream?.stream_url ? (
+            <video
+              ref={videoRef}
+              className="stream-video-native"
+              src={torrentioStream.stream_url}
+              autoPlay
+              controls
+              onLoadedData={() => {
+                setLoading(false);
+                enterImmersiveMode();
+              }}
+              onError={() => setTorrentioError('Error reproduint el vídeo')}
+            />
+          ) : torrentioError ? (
+            <div className="stream-error-overlay">
+              <div className="stream-error-content">
+                <span className="error-icon">⚠️</span>
+                <h3>Error carregant stream</h3>
+                <p>{torrentioError}</p>
+                <button onClick={() => {
+                  setTorrentioError(null);
+                  setLoading(true);
+                  // Retry
+                  const url = currentSource.getUrl(mediaType, tmdbId, season, episode, preferredLang, currentTime, null);
+                  axios.get(url).then(r => {
+                    if (r.data?.stream_url) setTorrentioStream(r.data);
+                  }).catch(e => setTorrentioError(e.message));
+                }}>
+                  Reintentar
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Info del stream Torrentio */}
+          {torrentioStream && (
+            <div className="torrentio-info">
+              <span className="quality-badge">{torrentioStream.quality}</span>
+              <span className="source-badge">{torrentioStream.source}</span>
+              {torrentioStream.size && <span className="size-badge">{torrentioStream.size}</span>}
+            </div>
+          )}
+        </>
+      ) : (
+        /* Iframe del reproductor embed */
+        <iframe
+          key={embedUrl}
+          src={embedUrl}
+          className="stream-iframe"
+          allowFullScreen
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          onLoad={handleIframeLoad}
+          title="Video Player"
+        />
+      )}
 
       {/* Loading overlay */}
-      {loading && (
+      {(loading || torrentioLoading) && (
         <div className="stream-loading-overlay">
           <div className="stream-loading-spinner">
             <div className="spinner"></div>
             <p>Carregant {currentSource.name}...</p>
+            {currentSource?.isTorrentio && (
+              <p className="loading-hint">Cercant millor qualitat en {preferredLang === 'es' ? 'castellà' : preferredLang === 'es-419' ? 'llatí' : preferredLang}...</p>
+            )}
           </div>
         </div>
       )}
