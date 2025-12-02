@@ -156,7 +156,7 @@ function Search() {
         </div>
 
         <form className="search-form" onSubmit={handleSearch}>
-          <div className="search-input-wrapper">
+          <div className="search-box">
             <SearchIcon />
             <input
               type="text"
@@ -165,8 +165,17 @@ function Search() {
               placeholder="Cercar pel·lícules, sèries..."
               autoFocus
             />
+            {searchInput && (
+              <button
+                type="button"
+                className="clear-search"
+                onClick={() => setSearchInput('')}
+              >
+                ×
+              </button>
+            )}
           </div>
-          <button type="submit" className="search-submit-btn">
+          <button type="submit" className="filter-btn primary">
             Cercar
           </button>
         </form>
