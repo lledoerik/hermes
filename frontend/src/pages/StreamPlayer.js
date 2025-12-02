@@ -58,12 +58,6 @@ const PlayCircleIcon = () => (
   </svg>
 );
 
-const LanguageIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/>
-  </svg>
-);
-
 const CheckIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor">
     <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
@@ -76,37 +70,12 @@ const CheckCircleIcon = () => (
   </svg>
 );
 
-// Fonts d'embed disponibles amb suport d'idiomes
+// Fonts d'embed - VidSrc principal amb fallback a Pro
 const EMBED_SOURCES = [
   {
-    id: 'vidsrc-es',
-    name: 'VidSrc Castellà',
-    description: 'Castellà d\'Espanya',
-    lang: 'es',
-    getUrl: (type, tmdbId, season, episode) => {
-      if (type === 'movie') {
-        return `https://vidsrc.to/embed/movie/${tmdbId}?ds_lang=es`;
-      }
-      return `https://vidsrc.to/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?ds_lang=es`;
-    }
-  },
-  {
-    id: 'vidsrc-en',
-    name: 'VidSrc English',
-    description: 'Anglès',
-    lang: 'en',
-    getUrl: (type, tmdbId, season, episode) => {
-      if (type === 'movie') {
-        return `https://vidsrc.to/embed/movie/${tmdbId}?ds_lang=en`;
-      }
-      return `https://vidsrc.to/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?ds_lang=en`;
-    }
-  },
-  {
-    id: 'vidsrc-orig',
-    name: 'VidSrc Original',
-    description: 'Versió original',
-    lang: 'orig',
+    id: 'vidsrc',
+    name: 'VidSrc',
+    description: 'Servidor principal',
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
         return `https://vidsrc.to/embed/movie/${tmdbId}`;
@@ -117,25 +86,14 @@ const EMBED_SOURCES = [
   {
     id: 'vidsrc-pro',
     name: 'VidSrc Pro',
-    description: 'Alta qualitat (multi-idioma)',
+    description: 'Servidor alternatiu',
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
         return `https://vidsrc.pro/embed/movie/${tmdbId}`;
       }
       return `https://vidsrc.pro/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
     }
-  },
-  {
-    id: 'vidsrc-cc',
-    name: 'VidSrc Alt',
-    description: 'Servidor alternatiu',
-    getUrl: (type, tmdbId, season, episode) => {
-      if (type === 'movie') {
-        return `https://vidsrc.cc/v2/embed/movie/${tmdbId}`;
-      }
-      return `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
-    }
-  },
+  }
 ];
 
 function StreamPlayer() {
@@ -155,23 +113,16 @@ function StreamPlayer() {
   const [episodes, setEpisodes] = useState([]);
   const [seasons, setSeasons] = useState([]);
 
-  // Carregar font preferida de localStorage
-  const getInitialSource = () => {
-    const saved = localStorage.getItem('hermes_stream_source');
-    if (saved) {
-      const index = EMBED_SOURCES.findIndex(s => s.id === saved);
-      if (index >= 0) return index;
-    }
-    return 0;
-  };
-
-  const [currentSourceIndex, setCurrentSourceIndex] = useState(getInitialSource);
-  const [loading, setLoading] = useState(true);
+  // Sempre començar amb VidSrc principal (índex 0)
+  const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
+  const [loading, setLoading] = useState(false); // No carregar fins que l'usuari cliqui
   const [showControls, setShowControls] = useState(true);
   const [showSourceMenu, setShowSourceMenu] = useState(false);
   const [showEpisodesMenu, setShowEpisodesMenu] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showStartOverlay, setShowStartOverlay] = useState(true);
+  const [hasStartedPlaying, setHasStartedPlaying] = useState(false);
+  const [hasTriedFallback, setHasTriedFallback] = useState(false);
 
   // Estat de progrés de visualització
   const [isWatched, setIsWatched] = useState(false);
@@ -365,14 +316,31 @@ function StreamPlayer() {
   // Quan l'iframe carrega
   const handleIframeLoad = useCallback(() => {
     setLoading(false);
-    enterImmersiveMode();
-  }, [enterImmersiveMode]);
+    if (!showStartOverlay) {
+      enterImmersiveMode();
+    }
+  }, [enterImmersiveMode, showStartOverlay]);
+
+  // Fallback automàtic a VidSrc Pro després de 15 segons si no carrega
+  useEffect(() => {
+    if (!hasStartedPlaying || !loading || hasTriedFallback) return;
+
+    const fallbackTimer = setTimeout(() => {
+      // Si encara està carregant després de 15s, provar VidSrc Pro
+      if (loading && currentSourceIndex === 0) {
+        console.log('Fallback a VidSrc Pro');
+        setCurrentSourceIndex(1);
+        setHasTriedFallback(true);
+      }
+    }, 15000);
+
+    return () => clearTimeout(fallbackTimer);
+  }, [hasStartedPlaying, loading, hasTriedFallback, currentSourceIndex]);
 
   // Canviar de font
   const handleSourceChange = useCallback((index) => {
     setLoading(true);
     setCurrentSourceIndex(index);
-    localStorage.setItem('hermes_stream_source', EMBED_SOURCES[index].id);
     setShowSourceMenu(false);
   }, []);
 
@@ -445,6 +413,9 @@ function StreamPlayer() {
   // Handler per iniciar la reproducció
   const handleStartPlayback = useCallback(() => {
     setShowStartOverlay(false);
+    setHasStartedPlaying(true);
+    setLoading(true);
+    setHasTriedFallback(false); // Reset per si canviem d'episodi
     enterImmersiveMode();
   }, [enterImmersiveMode]);
 
@@ -500,6 +471,17 @@ function StreamPlayer() {
     return ep?.name || '';
   };
 
+  // Obtenir URL del backdrop
+  const getBackdropUrl = () => {
+    if (mediaInfo?.backdrop_path) {
+      return `https://image.tmdb.org/t/p/w1280${mediaInfo.backdrop_path}`;
+    }
+    if (mediaInfo?.poster_path) {
+      return `https://image.tmdb.org/t/p/w780${mediaInfo.poster_path}`;
+    }
+    return null;
+  };
+
   return (
     <div
       className={`stream-player-container ${isFullscreen ? 'is-fullscreen' : ''}`}
@@ -507,19 +489,21 @@ function StreamPlayer() {
       onMouseMove={handleMouseMove}
       onClick={handleContainerClick}
     >
-      {/* Iframe del reproductor embed */}
-      <iframe
-        key={embedUrl}
-        src={embedUrl}
-        className="stream-iframe"
-        allowFullScreen
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-        onLoad={handleIframeLoad}
-        title="Video Player"
-      />
+      {/* Iframe del reproductor embed - només mostrar quan s'ha iniciat */}
+      {hasStartedPlaying && (
+        <iframe
+          key={embedUrl}
+          src={embedUrl}
+          className="stream-iframe"
+          allowFullScreen
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          onLoad={handleIframeLoad}
+          title="Video Player"
+        />
+      )}
 
       {/* Loading overlay */}
-      {loading && (
+      {loading && hasStartedPlaying && (
         <div className="stream-loading-overlay">
           <div className="stream-loading-spinner">
             <div className="spinner"></div>
@@ -528,15 +512,24 @@ function StreamPlayer() {
         </div>
       )}
 
-      {/* Start overlay */}
-      {showStartOverlay && !loading && (
-        <div className="stream-start-overlay" onClick={handleStartPlayback}>
+      {/* Start overlay - amb backdrop del contingut */}
+      {showStartOverlay && (
+        <div
+          className="stream-start-overlay"
+          onClick={handleStartPlayback}
+          style={{
+            backgroundImage: getBackdropUrl() ? `url(${getBackdropUrl()})` : 'none'
+          }}
+        >
           <div className="stream-start-content">
+            <h2 className="stream-start-title">{getTitle()}</h2>
+            {season && episode && (
+              <p className="stream-start-episode">Temporada {season} - Episodi {episode}</p>
+            )}
             <div className="stream-start-icon">
               <PlayCircleIcon />
             </div>
-            <p className="stream-start-text">Toca per reproduir</p>
-            <p className="stream-start-hint">Pantalla completa</p>
+            <p className="stream-start-text">Reproduir</p>
           </div>
         </div>
       )}
