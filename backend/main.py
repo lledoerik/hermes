@@ -2416,6 +2416,104 @@ async def get_torrentio_verified_stream(
     }
 
 
+@app.get("/api/torrentio/transcode/{media_type}/{tmdb_id}")
+async def get_torrentio_transcoded_stream(
+    media_type: str,
+    tmdb_id: int,
+    season: int = None,
+    episode: int = None,
+    quality: str = "1080p"
+):
+    """
+    Obté un stream de Torrentio i el transcodifica a HLS H.264.
+    Compatible amb tots els navegadors.
+    """
+    from backend.streaming.hls_engine import HermesStreamer, FFMPEG_AVAILABLE
+
+    # Primer comprovar si FFmpeg està disponible
+    if not FFMPEG_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "FFmpeg no disponible",
+                "message": "Per transcodificar, instal·la FFmpeg: apt install ffmpeg",
+                "ffmpeg_available": False
+            }
+        )
+
+    # Obtenir IMDB ID
+    api_key = get_tmdb_api_key()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
+
+    from backend.metadata.tmdb import TMDBClient
+    client = TMDBClient(api_key)
+    tmdb_type = "movie" if media_type == "movie" else "tv"
+    imdb_id = await client.get_imdb_id(tmdb_type, tmdb_id)
+
+    if not imdb_id:
+        raise HTTPException(status_code=404, detail="No s'ha trobat IMDB ID")
+
+    # Obtenir millor stream verificat
+    stream = await get_best_stream(
+        imdb_id=imdb_id,
+        media_type="movie" if media_type == "movie" else "series",
+        quality=quality,
+        season=season,
+        episode=episode
+    )
+
+    if not stream:
+        raise HTTPException(
+            status_code=404,
+            detail="No s'ha trobat cap stream verificat"
+        )
+
+    # Iniciar transcodificació
+    streamer = HermesStreamer()
+    stream_key = f"torrentio_{tmdb_id}_{season}_{episode}"
+
+    result = streamer.start_remote_stream(
+        stream_url=stream.url,
+        stream_key=stream_key,
+        quality=quality,
+        force_transcode=True
+    )
+
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result)
+
+    # Esperar que la playlist estigui llesta (màxim 15 segons)
+    playlist_ready = await streamer.wait_for_playlist(result["stream_id"], timeout=15.0)
+
+    return {
+        "stream_id": result["stream_id"],
+        "playlist_url": result["playlist_url"],
+        "original_url": stream.url,
+        "title": stream.title,
+        "quality": quality,
+        "source": stream.source,
+        "size": stream.size,
+        "type": "hls",
+        "ready": playlist_ready,
+        "ffmpeg_available": True
+    }
+
+
+@app.get("/api/stream/ffmpeg-status")
+async def check_ffmpeg_status():
+    """Comprova si FFmpeg està disponible"""
+    from backend.streaming.hls_engine import FFMPEG_AVAILABLE, check_ffmpeg_available
+
+    # Recomprovar per si s'ha instal·lat durant l'execució
+    current_status = check_ffmpeg_available()
+
+    return {
+        "ffmpeg_available": current_status,
+        "message": "FFmpeg disponible" if current_status else "FFmpeg no instal·lat. Executa: apt install ffmpeg"
+    }
+
+
 @app.get("/api/torrentio/streams/{media_type}/{tmdb_id}")
 async def list_torrentio_streams(
     media_type: str,

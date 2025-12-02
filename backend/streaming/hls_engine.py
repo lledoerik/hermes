@@ -2,6 +2,7 @@
 """
 Motor de streaming HLS per Hermes
 Suporta múltiples pistes d'àudio i subtítols
+Suporta fitxers locals i URLs remotes (Real-Debrid, etc.)
 """
 
 import os
@@ -10,10 +11,26 @@ import hashlib
 import shutil
 import asyncio
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def check_ffmpeg_available() -> bool:
+    """Comprova si FFmpeg està disponible al sistema"""
+    try:
+        result = subprocess.run(
+            ['ffmpeg', '-version'],
+            capture_output=True,
+            timeout=5
+        )
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
+
+
+FFMPEG_AVAILABLE = check_ffmpeg_available()
 
 
 class HermesStreamer:
@@ -210,3 +227,162 @@ class HermesStreamer:
             "playlist_exists": playlist_path.exists(),
             "media_id": stream['media_id']
         }
+
+    def start_remote_stream(
+        self,
+        stream_url: str,
+        stream_key: str,
+        quality: str = "1080p",
+        force_transcode: bool = True
+    ) -> dict:
+        """
+        Inicia un stream HLS des d'una URL remota (Real-Debrid, etc.)
+
+        Args:
+            stream_url: URL del stream remot
+            stream_key: Clau única per identificar el stream
+            quality: Qualitat de sortida (1080p, 720p, 480p)
+            force_transcode: Si True, sempre transcodifica a H.264
+
+        Returns:
+            dict amb playlist_url i stream_id, o error si FFmpeg no disponible
+        """
+        if not FFMPEG_AVAILABLE:
+            return {
+                "error": "FFmpeg no està instal·lat",
+                "message": "Per transcodificar streams, instal·la FFmpeg: apt install ffmpeg",
+                "stream_url": stream_url  # Retornem la URL original com a fallback
+            }
+
+        # Generar ID únic pel stream
+        stream_id = hashlib.md5(f"{stream_key}_{quality}".encode()).hexdigest()[:12]
+
+        # Crear directori pel stream
+        stream_dir = self.cache_dir / stream_id
+        stream_dir.mkdir(exist_ok=True)
+
+        # Playlist path
+        playlist_path = stream_dir / "playlist.m3u8"
+
+        # Si ja existeix i el procés està actiu, retornar
+        if stream_id in self.active_streams:
+            process = self.active_streams[stream_id].get('process')
+            if process and process.poll() is None:
+                return {
+                    "stream_id": stream_id,
+                    "playlist_url": f"/api/stream/hls/{stream_id}/playlist.m3u8",
+                    "status": "running"
+                }
+
+        # Netejar stream anterior si existeix
+        if playlist_path.exists():
+            shutil.rmtree(stream_dir)
+            stream_dir.mkdir(exist_ok=True)
+
+        # Configuració de qualitat
+        quality_settings = {
+            "4k": {"crf": "20", "preset": "fast", "maxrate": "20M", "bufsize": "40M"},
+            "1080p": {"crf": "22", "preset": "fast", "maxrate": "8M", "bufsize": "16M"},
+            "720p": {"crf": "23", "preset": "fast", "maxrate": "4M", "bufsize": "8M"},
+            "480p": {"crf": "24", "preset": "fast", "maxrate": "2M", "bufsize": "4M"},
+        }
+
+        q = quality_settings.get(quality, quality_settings["1080p"])
+
+        # Construir comanda FFmpeg per URL remota
+        cmd = [
+            'ffmpeg', '-y',
+            '-reconnect', '1',                    # Reconnectar si es perd la connexió
+            '-reconnect_streamed', '1',
+            '-reconnect_delay_max', '5',
+            '-timeout', '30000000',               # Timeout de 30 segons
+            '-i', stream_url,                     # URL del stream
+            '-map', '0:v:0',                      # Primer stream de vídeo
+            '-map', '0:a:0?',                     # Primer stream d'àudio (opcional)
+        ]
+
+        if force_transcode:
+            # Transcodificar a H.264 (compatible amb tots els navegadors)
+            cmd.extend([
+                '-c:v', 'libx264',
+                '-preset', q['preset'],
+                '-crf', q['crf'],
+                '-maxrate', q['maxrate'],
+                '-bufsize', q['bufsize'],
+                '-pix_fmt', 'yuv420p',            # Compatibilitat màxima
+            ])
+        else:
+            # Intentar copiar el vídeo sense re-codificar
+            cmd.extend(['-c:v', 'copy'])
+
+        # Configuració d'àudio
+        cmd.extend([
+            '-c:a', 'aac',
+            '-b:a', '192k',
+            '-ac', '2'
+        ])
+
+        # Configuració HLS
+        cmd.extend([
+            '-f', 'hls',
+            '-hls_time', '4',                     # Segments de 4 segons
+            '-hls_list_size', '0',                # Mantenir tots els segments
+            '-hls_segment_type', 'mpegts',
+            '-hls_flags', 'independent_segments+append_list',
+            '-hls_segment_filename', str(stream_dir / 'segment%04d.ts'),
+            str(playlist_path)
+        ])
+
+        logger.info(f"Iniciant transcodificació remota {stream_id}")
+        logger.debug(f"Comanda: ffmpeg -i [URL] ... {str(playlist_path)}")
+
+        try:
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+
+            self.active_streams[stream_id] = {
+                'stream_url': stream_url,
+                'stream_key': stream_key,
+                'quality': quality,
+                'playlist': str(playlist_path),
+                'process': process,
+                'type': 'remote'
+            }
+
+            return {
+                "stream_id": stream_id,
+                "playlist_url": f"/api/stream/hls/{stream_id}/playlist.m3u8",
+                "status": "starting"
+            }
+
+        except Exception as e:
+            logger.error(f"Error iniciant FFmpeg: {e}")
+            return {
+                "error": str(e),
+                "stream_url": stream_url
+            }
+
+    async def wait_for_playlist(self, stream_id: str, timeout: float = 30.0) -> bool:
+        """
+        Espera fins que la playlist HLS estigui disponible.
+
+        Returns:
+            True si la playlist està llesta, False si timeout
+        """
+        playlist_path = self.cache_dir / stream_id / "playlist.m3u8"
+        elapsed = 0
+        interval = 0.5
+
+        while elapsed < timeout:
+            if playlist_path.exists() and playlist_path.stat().st_size > 0:
+                # Verificar que hi ha almenys un segment
+                segment_path = self.cache_dir / stream_id / "segment0000.ts"
+                if segment_path.exists():
+                    return True
+            await asyncio.sleep(interval)
+            elapsed += interval
+
+        return False
