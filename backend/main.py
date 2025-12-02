@@ -1806,6 +1806,75 @@ async def get_watch_providers(media_type: str, tmdb_id: int, country: str = "ES"
         await client.close()
 
 
+@app.get("/api/tmdb/tv/{tmdb_id}/seasons")
+async def get_tmdb_tv_seasons(tmdb_id: int):
+    """
+    Obtenir totes les temporades d'una sèrie des de TMDB.
+    Retorna la llista de temporades amb episodi count, etc.
+    """
+    api_key = get_tmdb_api_key()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
+
+    from backend.metadata.tmdb import TMDBClient
+
+    client = TMDBClient(api_key)
+    try:
+        seasons = await client.get_tv_seasons(tmdb_id)
+        # Filter out season 0 (specials) unless it's the only season
+        if len(seasons) > 1:
+            seasons = [s for s in seasons if s["season_number"] != 0]
+        return {
+            "tmdb_id": tmdb_id,
+            "seasons": seasons
+        }
+    finally:
+        await client.close()
+
+
+@app.get("/api/tmdb/tv/{tmdb_id}/season/{season_number}")
+async def get_tmdb_tv_season_details(tmdb_id: int, season_number: int):
+    """
+    Obtenir tots els episodis d'una temporada específica des de TMDB.
+    Retorna informació detallada de cada episodi.
+    """
+    api_key = get_tmdb_api_key()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
+
+    from backend.metadata.tmdb import TMDBClient
+
+    client = TMDBClient(api_key)
+    try:
+        season_data = await client.get_tv_season_details(tmdb_id, season_number)
+        if not season_data:
+            raise HTTPException(status_code=404, detail="Temporada no trobada")
+
+        # Format episodes for frontend
+        episodes = []
+        for ep in season_data.get("episodes", []):
+            episodes.append({
+                "episode_number": ep.get("episode_number"),
+                "name": ep.get("name"),
+                "overview": ep.get("overview", ""),
+                "air_date": ep.get("air_date"),
+                "runtime": ep.get("runtime"),
+                "still_path": f"https://image.tmdb.org/t/p/w300{ep.get('still_path')}" if ep.get("still_path") else None,
+                "vote_average": ep.get("vote_average")
+            })
+
+        return {
+            "tmdb_id": tmdb_id,
+            "season_number": season_number,
+            "name": season_data.get("name"),
+            "overview": season_data.get("overview", ""),
+            "air_date": season_data.get("air_date"),
+            "episodes": episodes
+        }
+    finally:
+        await client.close()
+
+
 @app.get("/api/embed-sources/{media_type}/{tmdb_id}")
 async def get_embed_sources(media_type: str, tmdb_id: int, season: int = None, episode: int = None):
     """
