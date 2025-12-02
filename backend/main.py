@@ -2280,23 +2280,39 @@ async def get_torrentio_streams(
                 elif "480" in title:
                     quality = "480p"
 
-                # Detectar idioma
-                detected_lang = "en"  # Default
+                # Detectar idioma - millorat amb més patrons
+                detected_lang = None  # No assumir res per defecte
                 title_lower = title.lower()
-                if "castellano" in title_lower or "spanish" in title_lower or "español" in title_lower or "spa" in title_lower:
+                name_lower = name.lower()
+                combined = title_lower + " " + name_lower
+
+                # Espanyol (Castellà)
+                if any(x in combined for x in ["castellano", "spanish", "español", "espa", " spa ", "spa.", "[spa]", "(spa)", "spanish.dub", "cast"]):
                     detected_lang = "es"
-                elif "latino" in title_lower or "lat" in title_lower:
+                # Espanyol Llatí
+                elif any(x in combined for x in ["latino", "latin", " lat ", "lat.", "[lat]", "(lat)", "la.dub", "latinoamerica"]):
                     detected_lang = "es-419"
-                elif "catalan" in title_lower or "català" in title_lower or "cat" in title_lower:
-                    detected_lang = "ca"
-                elif "french" in title_lower or "français" in title_lower or "fra" in title_lower or "vff" in title_lower:
-                    detected_lang = "fr"
-                elif "italian" in title_lower or "italiano" in title_lower or "ita" in title_lower:
+                # Italià
+                elif any(x in combined for x in ["italian", "italiano", " ita ", "ita.", "[ita]", "(ita)", "ita.dub"]):
                     detected_lang = "it"
-                elif "japanese" in title_lower or "jap" in title_lower:
+                # Francès
+                elif any(x in combined for x in ["french", "français", "francais", " fra ", "fra.", "[fra]", "(fra)", "vff", "truefrench", "french.dub"]):
+                    detected_lang = "fr"
+                # Català
+                elif any(x in combined for x in ["catalan", "català", "catala", " cat ", "cat.", "[cat]", "(cat)"]):
+                    detected_lang = "ca"
+                # Japonès
+                elif any(x in combined for x in ["japanese", "japones", " jap ", "jap.", "[jap]", "(jap)", " jpn ", "jpn."]):
                     detected_lang = "ja"
-                elif "multi" in title_lower:
+                # Multi-idioma (pot tenir l'idioma desitjat)
+                elif any(x in combined for x in ["multi", "dual", "multiple", "varios"]):
                     detected_lang = "multi"
+                # Anglès (només si explícitament dit)
+                elif any(x in combined for x in ["english", " eng ", "eng.", "[eng]", "(eng)", "en.dub"]):
+                    detected_lang = "en"
+                # Si no es detecta res, assumir que és VO (original)
+                else:
+                    detected_lang = "vo"  # Versió Original (normalment japonès per anime)
 
                 # Detectar font (TPB, 1337x, etc.)
                 source = "Unknown"
@@ -2379,7 +2395,7 @@ async def resolve_torrentio_stream(
     # Buscar el millor stream per idioma i qualitat
     best_stream = None
 
-    # Primer: buscar idioma exacte amb qualitat
+    # Primer: buscar idioma exacte amb qualitat exacta
     for stream in streams:
         if stream["language"] == lang and stream["quality"] == quality:
             best_stream = stream
@@ -2392,16 +2408,33 @@ async def resolve_torrentio_stream(
                 best_stream = stream
                 break
 
-    # Tercer: buscar qualitat exacta amb qualsevol idioma
+    # Tercer: buscar "multi" (pot tenir l'idioma) amb qualitat preferida
     if not best_stream:
         for stream in streams:
-            if stream["quality"] == quality:
+            if stream["language"] == "multi" and stream["quality"] == quality:
                 best_stream = stream
                 break
 
-    # Últim: agafar el primer
+    # Quart: buscar "multi" amb qualsevol qualitat
     if not best_stream:
-        best_stream = streams[0]
+        for stream in streams:
+            if stream["language"] == "multi":
+                best_stream = stream
+                break
+
+    # Si encara no trobem res i l'usuari vol japonès (VO), acceptar "vo"
+    if not best_stream and lang == "ja":
+        for stream in streams:
+            if stream["language"] == "vo":
+                best_stream = stream
+                break
+
+    # Si no hi ha res que coincideixi, retornar error perquè el frontend provi altra font
+    if not best_stream:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No s'ha trobat cap stream en {lang}. Prova una altra font."
+        )
 
     # Retornar URL directa per reproduir
     if best_stream.get("url"):
