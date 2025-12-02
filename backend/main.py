@@ -386,6 +386,8 @@ class StreamingProgressRequest(BaseModel):
     progress_percent: float = 50.0
     completed: bool = False
     title: Optional[str] = None
+    poster_path: Optional[str] = None
+    backdrop_path: Optional[str] = None
 
 
 # === STREAMING AMB RANGE SUPPORT ===
@@ -988,16 +990,19 @@ async def save_streaming_progress(data: StreamingProgressRequest, request: Reque
         cursor.execute("""
             INSERT INTO streaming_progress (
                 user_id, tmdb_id, media_type, season_number, episode_number,
-                progress_percent, completed, title, updated_date
+                progress_percent, completed, title, poster_path, backdrop_path, updated_date
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
             ON CONFLICT(user_id, tmdb_id, media_type, season_number, episode_number) DO UPDATE SET
                 progress_percent = excluded.progress_percent,
                 completed = excluded.completed,
                 title = COALESCE(excluded.title, streaming_progress.title),
+                poster_path = COALESCE(excluded.poster_path, streaming_progress.poster_path),
+                backdrop_path = COALESCE(excluded.backdrop_path, streaming_progress.backdrop_path),
                 updated_date = datetime('now')
         """, (user_id, data.tmdb_id, data.media_type, season, episode,
-              data.progress_percent, 1 if data.completed else 0, data.title))
+              data.progress_percent, 1 if data.completed else 0, data.title,
+              data.poster_path, data.backdrop_path))
 
         conn.commit()
 
