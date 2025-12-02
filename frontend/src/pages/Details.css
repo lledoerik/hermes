@@ -1160,3 +1160,96 @@
     min-width: unset;
   }
 }
+
+/* ========================================
+   PREMIUM LOCKED STATES
+   ======================================== */
+
+/* Botó de reproducció bloquejat per no-premium */
+.details-actions .play-btn.premium-locked {
+  background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+  color: #a0aec0;
+  cursor: not-allowed;
+  opacity: 0.9;
+}
+
+.details-actions .play-btn.premium-locked:hover {
+  background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+  transform: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.details-actions .play-btn.premium-locked svg {
+  fill: #a0aec0;
+  width: 18px;
+  height: 18px;
+}
+
+/* Botó disabled general */
+.details-actions .play-btn.disabled {
+  background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+  color: #a0aec0;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.details-actions .play-btn.disabled:hover {
+  transform: none;
+}
+
+/* Episode thumbnail bloquejat per no-premium */
+.episode-thumbnail.premium-locked {
+  cursor: not-allowed;
+  position: relative;
+}
+
+.episode-thumbnail.premium-locked::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.episode-thumbnail.premium-locked .episode-play-icon {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.episode-card:hover .episode-thumbnail.premium-locked .episode-play-icon {
+  transform: translate(-50%, -50%) scale(0);
+}
+
+/* Icon candau a la thumbnail */
+.episode-thumbnail.premium-locked::before {
+  content: '🔒';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 24px;
+  z-index: 10;
+  opacity: 0.8;
+}
+
+/* Watch providers més prominents per no-premium */
+.watch-providers-section.prominent {
+  background: rgba(var(--color-primary-rgb), 0.1);
+  border: 1px solid rgba(var(--color-primary-rgb), 0.3);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  margin-top: var(--space-xl);
+}
+
+.watch-providers-section.prominent .providers-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-md);
+}
+
+.watch-providers-section.prominent .provider-logo {
+  width: 55px;
+  height: 55px;
+}
