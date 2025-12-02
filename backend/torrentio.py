@@ -1,11 +1,10 @@
 """
-Torrentio Service - Gestió robusta de streams via Real-Debrid
+Torrentio Service - Gestió de streams via Real-Debrid
 
-Aquest mòdul proporciona:
+Funcionalitats:
 - Cerca de streams a Torrentio
 - Verificació d'URLs de Real-Debrid
 - Cache de resultats
-- Detecció intel·ligent d'idiomes
 """
 
 import re
@@ -30,11 +29,10 @@ CACHE_TTL = 3600  # 1 hora
 
 @dataclass
 class TorrentioStream:
-    """Representa un stream de Torrentio verificat"""
+    """Representa un stream de Torrentio"""
     title: str
     url: str
     quality: str
-    language: str
     size: Optional[str]
     source: str
     seeds: int = 0
@@ -50,8 +48,6 @@ class TorrentioResult:
     season: Optional[int] = None
     episode: Optional[int] = None
     streams: List[TorrentioStream] = field(default_factory=list)
-    available_languages: List[str] = field(default_factory=list)
-    best_by_language: Dict[str, TorrentioStream] = field(default_factory=dict)
 
 
 def _get_cache_key(imdb_id: str, season: Optional[int], episode: Optional[int]) -> str:
@@ -70,66 +66,6 @@ def _is_cache_valid(key: str) -> bool:
         return False
     _, timestamp = _stream_cache[key]
     return (datetime.now() - timestamp).total_seconds() < CACHE_TTL
-
-
-def _detect_language(title: str, name: str) -> str:
-    """
-    Detecta l'idioma d'un stream basant-se en el títol i nom.
-    Retorna el codi d'idioma o 'unknown'.
-    """
-    combined = (title + " " + name).lower()
-
-    # Patrons per cada idioma (ordenats per especificitat)
-    patterns = {
-        'es': [
-            r'\bcastellano\b', r'\bspanish\b', r'\bespañol\b', r'\bespa\b',
-            r'\bspa\b', r'\[spa\]', r'\(spa\)', r'spanish\.dub', r'\bcast\b',
-            r'audio\s*español', r'spanish\s*audio'
-        ],
-        'es-419': [
-            r'\blatino\b', r'\blatin\b', r'\blat\b', r'\[lat\]', r'\(lat\)',
-            r'la\.dub', r'\blatinoamerica\b', r'español\s*latino', r'spanish\s*latin'
-        ],
-        'it': [
-            r'\bitalian\b', r'\bitaliano\b', r'\bita\b', r'\[ita\]', r'\(ita\)',
-            r'ita\.dub', r'italian\s*audio'
-        ],
-        'fr': [
-            r'\bfrench\b', r'\bfrançais\b', r'\bfrancais\b', r'\bfra\b',
-            r'\[fra\]', r'\(fra\)', r'\bvff\b', r'\btruefrench\b', r'french\.dub'
-        ],
-        'ca': [
-            r'\bcatalan\b', r'\bcatalà\b', r'\bcatala\b', r'\bcat\b',
-            r'\[cat\]', r'\(cat\)'
-        ],
-        'de': [
-            r'\bgerman\b', r'\bdeutsch\b', r'\bger\b', r'\[ger\]', r'\(ger\)',
-            r'\bdeu\b', r'german\s*audio'
-        ],
-        'pt': [
-            r'\bportuguese\b', r'\bportuguês\b', r'\bpor\b', r'\[por\]', r'\(por\)',
-            r'\bbrazilian\b', r'portuguese\s*audio'
-        ],
-        'ja': [
-            r'\bjapanese\b', r'\bjapones\b', r'\bjap\b', r'\[jap\]', r'\(jap\)',
-            r'\bjpn\b', r'japanese\s*audio'
-        ],
-        'en': [
-            r'\benglish\b', r'\beng\b', r'\[eng\]', r'\(eng\)', r'en\.dub',
-            r'english\s*audio'
-        ],
-        'multi': [
-            r'\bmulti\b', r'\bdual\b', r'\bmultiple\b', r'\bvarios\b',
-            r'multi\s*audio', r'dual\s*audio'
-        ],
-    }
-
-    for lang, lang_patterns in patterns.items():
-        for pattern in lang_patterns:
-            if re.search(pattern, combined):
-                return lang
-
-    return 'unknown'
 
 
 def _detect_quality(title: str) -> str:
@@ -226,7 +162,7 @@ async def fetch_torrentio_streams(
         verify_urls: Si és True, verifica cada URL abans de retornar-la
 
     Returns:
-        TorrentioResult amb tots els streams i millors per idioma
+        TorrentioResult amb tots els streams
     """
     # Comprovar cache
     cache_key = _get_cache_key(imdb_id, season, episode)
@@ -283,7 +219,6 @@ async def fetch_torrentio_streams(
                     title=title,
                     url=url,
                     quality=_detect_quality(title),
-                    language=_detect_language(title, name),
                     size=_extract_size(title),
                     source=_extract_source(name),
                     seeds=_extract_seeds(title),
@@ -308,29 +243,6 @@ async def fetch_torrentio_streams(
 
             result.streams = streams
 
-            # Identificar idiomes disponibles
-            languages = set()
-            for s in streams:
-                if s.language != 'unknown':
-                    languages.add(s.language)
-            result.available_languages = sorted(list(languages))
-
-            # Trobar el millor stream per cada idioma
-            for lang in result.available_languages:
-                lang_streams = [s for s in streams if s.language == lang]
-                # Ordenar per: verificat > qualitat > seeds
-                quality_order = {'4K': 4, '1080p': 3, '720p': 2, '480p': 1, 'SD': 0}
-                lang_streams.sort(
-                    key=lambda x: (
-                        x.verified,
-                        quality_order.get(x.quality, 0),
-                        x.seeds
-                    ),
-                    reverse=True
-                )
-                if lang_streams:
-                    result.best_by_language[lang] = lang_streams[0]
-
             # Guardar al cache
             _stream_cache[cache_key] = (result, datetime.now())
 
@@ -344,16 +256,15 @@ async def fetch_torrentio_streams(
         return result
 
 
-async def get_verified_stream(
+async def get_best_stream(
     imdb_id: str,
     media_type: str,
-    language: str,
     quality: str = '1080p',
     season: Optional[int] = None,
     episode: Optional[int] = None
 ) -> Optional[TorrentioStream]:
     """
-    Obté el millor stream verificat per un idioma i qualitat específics.
+    Obté el millor stream verificat per una qualitat específica.
 
     Returns:
         TorrentioStream si es troba, None si no
@@ -369,16 +280,6 @@ async def get_verified_stream(
     if not result.streams:
         return None
 
-    # Buscar per idioma exacte
-    candidates = [s for s in result.streams if s.language == language]
-
-    # Si no hi ha, buscar 'multi'
-    if not candidates:
-        candidates = [s for s in result.streams if s.language == 'multi']
-
-    if not candidates:
-        return None
-
     # Ordenar per qualitat i seeds
     quality_order = {'4K': 4, '1080p': 3, '720p': 2, '480p': 1, 'SD': 0}
     preferred_quality = quality_order.get(quality, 2)
@@ -389,10 +290,10 @@ async def get_verified_stream(
         quality_diff = abs(q - preferred_quality)
         return (s.verified, -quality_diff, q, s.seeds)
 
-    candidates.sort(key=score_stream, reverse=True)
+    result.streams.sort(key=score_stream, reverse=True)
 
     # Retornar el millor candidat, preferiblement verificat
-    best = candidates[0]
+    best = result.streams[0]
 
     # Si el millor no està verificat, intentar verificar-lo ara
     if not best.verified:

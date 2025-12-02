@@ -147,6 +147,9 @@ def init_all_tables():
             ("content_type", "TEXT"),  # movie, anime_movie, animated, series, anime, toons
             ("origin_country", "TEXT"),
             ("original_language", "TEXT"),
+            # Camps per metadades TMDB (temporades/episodis totals)
+            ("tmdb_seasons", "INTEGER"),
+            ("tmdb_episodes", "INTEGER"),
         ]
         for col_name, col_type in series_columns:
             try:
@@ -974,14 +977,29 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
 
         series = []
         for row in cursor.fetchall():
+            # Usar TMDB metadata si no hi ha fitxers locals
+            local_seasons = row["season_count"]
+            local_episodes = row["episode_count"]
+            tmdb_seasons = row["tmdb_seasons"] if "tmdb_seasons" in row.keys() else None
+            tmdb_episodes = row["tmdb_episodes"] if "tmdb_episodes" in row.keys() else None
+
+            # Prioritzar: si hi ha locals, usar-los; si no, usar TMDB
+            final_seasons = local_seasons if local_seasons > 0 else (tmdb_seasons or 0)
+            final_episodes = local_episodes if local_episodes > 0 else (tmdb_episodes or 0)
+
             series.append({
                 "id": row["id"],
                 "name": row["name"],
                 "path": row["path"],
                 "poster": row["poster"],
                 "backdrop": row["backdrop"],
-                "season_count": row["season_count"],
-                "episode_count": row["episode_count"],
+                "season_count": final_seasons,
+                "episode_count": final_episodes,
+                "local_season_count": local_seasons,
+                "local_episode_count": local_episodes,
+                "tmdb_id": row["tmdb_id"] if "tmdb_id" in row.keys() else None,
+                "year": row["year"] if "year" in row.keys() else None,
+                "rating": row["rating"] if "rating" in row.keys() else None,
                 "content_type": row["content_type"] or "series"
             })
 
@@ -1787,6 +1805,70 @@ async def get_watch_providers(media_type: str, tmdb_id: int, country: str = "ES"
         await client.close()
 
 
+@app.get("/api/tmdb/search")
+async def search_tmdb(q: str, limit: int = 20):
+    """
+    Cerca a TMDB per pel·lícules i sèries.
+    Retorna resultats combinats amb poster URLs.
+    """
+    if not q or len(q) < 2:
+        return {"movies": [], "series": []}
+
+    api_key = get_tmdb_api_key()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
+
+    from backend.metadata.tmdb import TMDBClient
+    client = TMDBClient(api_key)
+
+    try:
+        # Cerca pel·lícules i sèries en paral·lel
+        movies_data = await client._request("/search/movie", {"query": q, "language": "ca-ES"})
+        tv_data = await client._request("/search/tv", {"query": q, "language": "ca-ES"})
+
+        movies = []
+        if movies_data and movies_data.get("results"):
+            for m in movies_data["results"][:limit]:
+                year = None
+                if m.get("release_date"):
+                    year = int(m["release_date"][:4])
+                movies.append({
+                    "tmdb_id": m["id"],
+                    "name": m.get("title"),
+                    "original_name": m.get("original_title"),
+                    "year": year,
+                    "overview": m.get("overview"),
+                    "rating": m.get("vote_average"),
+                    "poster": client.get_poster_url(m.get("poster_path")),
+                    "backdrop": client.get_backdrop_url(m.get("backdrop_path")),
+                    "type": "movie",
+                    "is_tmdb": True
+                })
+
+        series = []
+        if tv_data and tv_data.get("results"):
+            for s in tv_data["results"][:limit]:
+                year = None
+                if s.get("first_air_date"):
+                    year = int(s["first_air_date"][:4])
+                series.append({
+                    "tmdb_id": s["id"],
+                    "name": s.get("name"),
+                    "original_name": s.get("original_name"),
+                    "year": year,
+                    "overview": s.get("overview"),
+                    "rating": s.get("vote_average"),
+                    "poster": client.get_poster_url(s.get("poster_path")),
+                    "backdrop": client.get_backdrop_url(s.get("backdrop_path")),
+                    "type": "series",
+                    "is_tmdb": True
+                })
+
+        return {"movies": movies, "series": series}
+    finally:
+        await client.close()
+
+
 @app.get("/api/tmdb/tv/{tmdb_id}/seasons")
 async def get_tmdb_tv_seasons(tmdb_id: int):
     """
@@ -2203,10 +2285,10 @@ async def extract_stream_url(media_type: str, tmdb_id: int, season: int = None, 
     )
 
 
-# === TORRENTIO INTEGRATION (Nou servei robust) ===
+# === TORRENTIO INTEGRATION ===
 from backend.torrentio import (
     fetch_torrentio_streams,
-    get_verified_stream,
+    get_best_stream,
     verify_stream_url,
     clear_cache as clear_torrentio_cache,
     TorrentioStream,
@@ -2222,9 +2304,7 @@ async def check_torrentio_availability(
     episode: int = None
 ):
     """
-    Comprova quins idiomes estan disponibles per un contingut a Torrentio.
-    Retorna la llista d'idiomes amb streams verificats.
-    Útil per mostrar a l'usuari només les opcions que funcionaran.
+    Comprova si hi ha streams disponibles per un contingut a Torrentio.
     """
     # Obtenir IMDB ID
     api_key = get_tmdb_api_key()
@@ -2237,7 +2317,7 @@ async def check_torrentio_availability(
     imdb_id = await client.get_imdb_id(tmdb_type, tmdb_id)
 
     if not imdb_id:
-        return {"available": False, "languages": [], "error": "No s'ha trobat IMDB ID"}
+        return {"available": False, "error": "No s'ha trobat IMDB ID"}
 
     # Obtenir streams (amb verificació)
     result = await fetch_torrentio_streams(
@@ -2249,26 +2329,15 @@ async def check_torrentio_availability(
     )
 
     if not result.streams:
-        return {"available": False, "languages": [], "error": "No hi ha streams disponibles"}
+        return {"available": False, "error": "No hi ha streams disponibles"}
 
-    # Construir resposta amb idiomes disponibles i el millor stream per cada un
-    languages_info = []
-    for lang in result.available_languages:
-        best = result.best_by_language.get(lang)
-        if best:
-            languages_info.append({
-                "code": lang,
-                "quality": best.quality,
-                "size": best.size,
-                "verified": best.verified,
-                "source": best.source
-            })
-
+    # Retornar info bàsica
+    verified_count = sum(1 for s in result.streams if s.verified)
     return {
         "available": True,
         "imdb_id": imdb_id,
-        "languages": languages_info,
-        "total_streams": len(result.streams)
+        "total_streams": len(result.streams),
+        "verified_streams": verified_count
     }
 
 
@@ -2278,13 +2347,11 @@ async def get_torrentio_verified_stream(
     tmdb_id: int,
     season: int = None,
     episode: int = None,
-    lang: str = "es",
     quality: str = "1080p"
 ):
     """
-    Obté un stream verificat de Torrentio.
+    Obté el millor stream verificat de Torrentio.
     Comprova que la URL funciona abans de retornar-la.
-    Si no troba l'idioma exacte, busca 'multi'.
     """
     # Obtenir IMDB ID
     api_key = get_tmdb_api_key()
@@ -2299,11 +2366,10 @@ async def get_torrentio_verified_stream(
     if not imdb_id:
         raise HTTPException(status_code=404, detail="No s'ha trobat IMDB ID")
 
-    # Obtenir stream verificat
-    stream = await get_verified_stream(
+    # Obtenir millor stream verificat
+    stream = await get_best_stream(
         imdb_id=imdb_id,
         media_type="movie" if media_type == "movie" else "series",
-        language=lang,
         quality=quality,
         season=season,
         episode=episode
@@ -2312,14 +2378,13 @@ async def get_torrentio_verified_stream(
     if not stream:
         raise HTTPException(
             status_code=404,
-            detail=f"No s'ha trobat cap stream verificat en '{lang}'"
+            detail="No s'ha trobat cap stream verificat"
         )
 
     return {
         "stream_url": stream.url,
         "title": stream.title,
         "quality": stream.quality,
-        "language": stream.language,
         "source": stream.source,
         "size": stream.size,
         "verified": stream.verified,
@@ -2366,29 +2431,18 @@ async def list_torrentio_streams(
         "type": media_type,
         "season": season,
         "episode": episode,
-        "available_languages": result.available_languages,
         "streams": [
             {
                 "title": s.title,
                 "url": s.url,
                 "quality": s.quality,
-                "language": s.language,
                 "size": s.size,
                 "source": s.source,
                 "seeds": s.seeds,
                 "verified": s.verified
             }
             for s in result.streams
-        ],
-        "best_by_language": {
-            lang: {
-                "title": s.title,
-                "quality": s.quality,
-                "size": s.size,
-                "verified": s.verified
-            }
-            for lang, s in result.best_by_language.items()
-        }
+        ]
     }
 
 
@@ -2406,7 +2460,6 @@ async def resolve_torrentio_stream_legacy(
     tmdb_id: int,
     season: int = None,
     episode: int = None,
-    lang: str = "es",
     quality: str = "1080p"
 ):
     """Legacy endpoint - redirigeix al nou"""
@@ -2415,7 +2468,6 @@ async def resolve_torrentio_stream_legacy(
         tmdb_id=tmdb_id,
         season=season,
         episode=episode,
-        lang=lang,
         quality=quality
     )
 
@@ -3828,6 +3880,8 @@ async def fetch_all_metadata(request: MetadataRequest):
                                         rating = ?,
                                         genres = ?,
                                         runtime = ?,
+                                        tmdb_seasons = ?,
+                                        tmdb_episodes = ?,
                                         poster = CASE WHEN ? = 1 THEN ? ELSE poster END,
                                         backdrop = CASE WHEN ? = 1 THEN ? ELSE backdrop END,
                                         updated_date = CURRENT_TIMESTAMP
@@ -3840,6 +3894,8 @@ async def fetch_all_metadata(request: MetadataRequest):
                                     metadata.get("rating"),
                                     genres_json,
                                     metadata.get("runtime"),
+                                    metadata.get("seasons"),
+                                    metadata.get("episodes"),
                                     1 if metadata.get("poster_downloaded") else 0,
                                     str(poster_path) if metadata.get("poster_downloaded") else None,
                                     1 if metadata.get("backdrop_downloaded") else 0,
@@ -4264,6 +4320,8 @@ async def auto_fetch_all_metadata():
                             rating = ?,
                             genres = ?,
                             runtime = ?,
+                            tmdb_seasons = ?,
+                            tmdb_episodes = ?,
                             poster = CASE WHEN ? = 1 THEN ? ELSE poster END,
                             backdrop = CASE WHEN ? = 1 THEN ? ELSE backdrop END,
                             updated_date = CURRENT_TIMESTAMP
@@ -4276,6 +4334,8 @@ async def auto_fetch_all_metadata():
                         result.get("rating"),
                         genres_json,
                         result.get("runtime"),
+                        result.get("seasons"),
+                        result.get("episodes"),
                         1 if result.get("poster_downloaded") else 0,
                         str(poster_path) if result.get("poster_downloaded") else None,
                         1 if result.get("backdrop_downloaded") else 0,
@@ -4378,6 +4438,8 @@ async def refresh_all_metadata(background_tasks: BackgroundTasks):
                                 rating = ?,
                                 genres = ?,
                                 runtime = ?,
+                                tmdb_seasons = ?,
+                                tmdb_episodes = ?,
                                 poster = CASE WHEN ? = 1 THEN ? ELSE poster END,
                                 backdrop = CASE WHEN ? = 1 THEN ? ELSE backdrop END,
                                 updated_date = CURRENT_TIMESTAMP
@@ -4390,6 +4452,8 @@ async def refresh_all_metadata(background_tasks: BackgroundTasks):
                             result.get("rating"),
                             genres_json,
                             result.get("runtime"),
+                            result.get("seasons"),
+                            result.get("episodes"),
                             1 if result.get("poster_downloaded") else 0,
                             str(poster_path) if result.get("poster_downloaded") else None,
                             1 if result.get("backdrop_downloaded") else 0,
@@ -5499,8 +5563,9 @@ async def import_from_tmdb(data: ImportTMDBRequest):
                     name, path, media_type, tmdb_id, title, year, overview, rating, genres, runtime,
                     poster, backdrop, director, creators, cast_members,
                     is_imported, source_type, external_url, added_date,
-                    content_type, origin_country, original_language
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'tmdb', ?, datetime('now'), ?, ?, ?)
+                    content_type, origin_country, original_language,
+                    tmdb_seasons, tmdb_episodes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'tmdb', ?, datetime('now'), ?, ?, ?, ?, ?)
             """, (
                 metadata.get("title"),
                 virtual_path,
@@ -5520,7 +5585,9 @@ async def import_from_tmdb(data: ImportTMDBRequest):
                 f"https://www.themoviedb.org/{data.media_type}/{data.tmdb_id}",
                 metadata.get("content_type"),
                 json.dumps(metadata.get("origin_country", [])) if metadata.get("origin_country") else None,
-                metadata.get("original_language")
+                metadata.get("original_language"),
+                metadata.get("seasons"),
+                metadata.get("episodes")
             ))
 
             series_id = cursor.lastrowid
