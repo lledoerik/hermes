@@ -620,12 +620,7 @@ function StreamPlayer() {
   const [showStartOverlay, setShowStartOverlay] = useState(true);
   const [langChangeMessage, setLangChangeMessage] = useState(null);
 
-  // Estat per al modal de canvi d'idioma amb temps
-  const [showTimeModal, setShowTimeModal] = useState(false);
-  const [pendingLangChange, setPendingLangChange] = useState(null);
-  const [timeInput, setTimeInput] = useState({ minutes: '', seconds: '' });
-  const [currentTime, setCurrentTime] = useState(0);
-  const timeModalRef = useRef(null);
+  // Estats de temps eliminats - ara el canvi d'idioma és directe
 
   // Estat per Torrentio (reproductor natiu)
   const [torrentioStream, setTorrentioStream] = useState(null);
@@ -863,7 +858,7 @@ function StreamPlayer() {
     setShowSourceMenu(false);
   }, []);
 
-  // Canviar d'idioma - obre el modal per demanar el temps actual
+  // Canviar d'idioma - canvi directe sense modal
   const handleLanguageChange = useCallback((langCode) => {
     // Si és el mateix idioma, no fer res
     if (langCode === preferredLang) {
@@ -873,46 +868,18 @@ function StreamPlayer() {
 
     const langInfo = availableLanguages.find(l => l.code === langCode);
 
-    // Guardar el canvi pendent i obrir modal de temps
-    setPendingLangChange({
-      langCode,
-      langInfo
-    });
-    setTimeInput({ minutes: '', seconds: '' });
-    setShowLangMenu(false);
-    setShowTimeModal(true);
-  }, [preferredLang, availableLanguages]);
-
-  // Confirmar el canvi d'idioma amb el temps
-  const confirmLanguageChange = useCallback(() => {
-    if (!pendingLangChange) return;
-
-    const { langCode, langInfo } = pendingLangChange;
-
-    // Calcular el temps en segons
-    const minutes = parseInt(timeInput.minutes) || 0;
-    const seconds = parseInt(timeInput.seconds) || 0;
-    const totalSeconds = (minutes * 60) + seconds;
-
     // Trobar el millor servidor per aquest idioma
     const bestServerIndex = getBestServerForLanguage(langCode);
     const bestServer = EMBED_SOURCES[bestServerIndex];
 
-    // Actualitzar el temps (això farà que embedUrl inclogui el paràmetre t=)
-    setCurrentTime(totalSeconds);
-
-    // Actualitzar idioma i servidor
+    // Actualitzar idioma i servidor directament
     setPreferredLang(langCode);
     localStorage.setItem('hermes_stream_lang', langCode);
     setCurrentSourceIndex(bestServerIndex);
     localStorage.setItem('hermes_stream_source', bestServer.id);
 
-    // Tancar modal i reset
-    setShowTimeModal(false);
-    setPendingLangChange(null);
-    setTimeInput({ minutes: '', seconds: '' });
-
-    // No mostrar overlay d'inici - transició directa
+    // Tancar menú i començar càrrega
+    setShowLangMenu(false);
     setShowStartOverlay(false);
     setLoading(true);
 
@@ -921,20 +888,15 @@ function StreamPlayer() {
       lang: langInfo?.name || langCode,
       flag: langInfo?.flag || '🌐',
       server: bestServer.name,
-      time: totalSeconds > 0 ? `${minutes}:${seconds.toString().padStart(2, '0')}` : null
+      time: null
     });
 
     setTimeout(() => {
       setLangChangeMessage(null);
     }, 4000);
-  }, [pendingLangChange, timeInput]);
+  }, [preferredLang, availableLanguages]);
 
-  // Cancel·lar el canvi d'idioma
-  const cancelLanguageChange = useCallback(() => {
-    setShowTimeModal(false);
-    setPendingLangChange(null);
-    setTimeInput({ minutes: '', seconds: '' });
-  }, []);
+  // Funcions de modal de temps eliminades - ara el canvi és directe
 
   // Tornar enrere
   const handleBack = useCallback(() => {
@@ -1015,16 +977,6 @@ function StreamPlayer() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Si el modal de temps està obert
-      if (showTimeModal) {
-        if (e.key === 'Escape') {
-          cancelLanguageChange();
-        } else if (e.key === 'Enter') {
-          confirmLanguageChange();
-        }
-        return;
-      }
-
       if (e.key === 'Escape') {
         if (showEpisodesMenu) {
           setShowEpisodesMenu(false);
@@ -1049,7 +1001,7 @@ function StreamPlayer() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFullscreen, handleBack, toggleFullscreen, goToNextEpisode, goToPrevEpisode, type, showEpisodesMenu, showSourceMenu, showLangMenu, showTimeModal, cancelLanguageChange, confirmLanguageChange]);
+  }, [isFullscreen, handleBack, toggleFullscreen, goToNextEpisode, goToPrevEpisode, type, showEpisodesMenu, showSourceMenu, showLangMenu]);
 
   // Tancar menús quan es clica fora
   useEffect(() => {
@@ -1198,65 +1150,7 @@ function StreamPlayer() {
         </div>
       )}
 
-      {/* Modal per introduir el temps actual */}
-      {showTimeModal && pendingLangChange && (
-        <div className="stream-time-modal-overlay" onClick={cancelLanguageChange}>
-          <div
-            className="stream-time-modal"
-            ref={timeModalRef}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="stream-time-modal-header">
-              <ClockIcon />
-              <h3>Canviar a {pendingLangChange.langInfo?.flag} {pendingLangChange.langInfo?.name}</h3>
-            </div>
-
-            <p className="stream-time-modal-desc">
-              Per on anaves? Introdueix el minut actual per continuar des del mateix punt.
-            </p>
-
-            <div className="stream-time-input-group">
-              <div className="stream-time-field">
-                <input
-                  type="number"
-                  min="0"
-                  max="999"
-                  placeholder="0"
-                  value={timeInput.minutes}
-                  onChange={(e) => setTimeInput(prev => ({ ...prev, minutes: e.target.value }))}
-                  autoFocus
-                />
-                <label>minuts</label>
-              </div>
-              <span className="stream-time-separator">:</span>
-              <div className="stream-time-field">
-                <input
-                  type="number"
-                  min="0"
-                  max="59"
-                  placeholder="00"
-                  value={timeInput.seconds}
-                  onChange={(e) => setTimeInput(prev => ({ ...prev, seconds: e.target.value }))}
-                />
-                <label>segons</label>
-              </div>
-            </div>
-
-            <p className="stream-time-hint">
-              💡 Deixa en blanc per començar des del principi
-            </p>
-
-            <div className="stream-time-modal-actions">
-              <button className="stream-time-btn cancel" onClick={cancelLanguageChange}>
-                Cancel·lar
-              </button>
-              <button className="stream-time-btn confirm" onClick={confirmLanguageChange}>
-                Canviar idioma
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modal de temps eliminat - canvi d'idioma automàtic */}
 
       {/* Barra de controls superior */}
       <div className={`stream-controls-bar ${showControls ? 'visible' : ''}`}>
