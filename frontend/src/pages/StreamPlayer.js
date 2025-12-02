@@ -100,28 +100,10 @@ const EMBED_SOURCES = [
     }
   },
   {
-    id: 'torrentio-hls',
-    name: 'Torrentio HLS',
-    description: 'Real-Debrid (Transcodificat)',
-    isTorrentio: true,
-    useTranscode: true,
-    getUrl: (type, tmdbId, season, episode, quality = '1080p') => {
-      const baseUrl = window.location.hostname === 'localhost'
-        ? 'http://localhost:8000'
-        : '';
-      const params = new URLSearchParams();
-      if (season) params.set('season', season);
-      if (episode) params.set('episode', episode);
-      params.set('quality', quality);
-      return `${baseUrl}/api/torrentio/transcode/${type}/${tmdbId}?${params.toString()}`;
-    }
-  },
-  {
     id: 'torrentio',
-    name: 'Torrentio Direct',
-    description: 'Real-Debrid (Directe)',
+    name: 'Torrentio',
+    description: 'Real-Debrid (HD)',
     isTorrentio: true,
-    useTranscode: false,
     getUrl: (type, tmdbId, season, episode, quality = '1080p') => {
       const baseUrl = window.location.hostname === 'localhost'
         ? 'http://localhost:8000'
@@ -267,58 +249,55 @@ function StreamPlayer() {
       setTorrentioError(null);
       setVideoError(null);
 
+      const params = new URLSearchParams();
+      if (season) params.set('season', season);
+      if (episode) params.set('episode', episode);
+      params.set('quality', '1080p');
+
       try {
-        const params = new URLSearchParams();
-        if (season) params.set('season', season);
-        if (episode) params.set('episode', episode);
-        params.set('quality', '1080p');
+        // Primer intentar transcodificar (funciona amb tots els formats)
+        const transcodeResponse = await axios.get(
+          `${API_URL}/api/torrentio/transcode/${mediaType}/${tmdbId}?${params.toString()}`
+        );
 
-        // Usar endpoint de transcodificació o directe segons la font
-        const endpoint = currentSource.useTranscode
-          ? `/api/torrentio/transcode/${mediaType}/${tmdbId}`
-          : `/api/torrentio/stream/${mediaType}/${tmdbId}`;
+        if (transcodeResponse.data && transcodeResponse.data.playlist_url) {
+          setTorrentioStream({
+            stream_url: `${API_URL}${transcodeResponse.data.playlist_url}`,
+            title: transcodeResponse.data.title,
+            quality: transcodeResponse.data.quality,
+            source: transcodeResponse.data.source,
+            size: transcodeResponse.data.size,
+            type: 'hls',
+            stream_id: transcodeResponse.data.stream_id,
+            ffmpeg_available: true
+          });
+          setLoading(false);
+          return;
+        }
+      } catch (transcodeError) {
+        console.log('Transcodificació no disponible, intentant stream directe...');
+        // Si falla la transcodificació (FFmpeg no disponible), intentar stream directe
+      }
 
-        const response = await axios.get(`${API_URL}${endpoint}?${params.toString()}`);
+      // Fallback a stream directe
+      try {
+        const directResponse = await axios.get(
+          `${API_URL}/api/torrentio/stream/${mediaType}/${tmdbId}?${params.toString()}`
+        );
 
-        if (currentSource.useTranscode) {
-          // Stream transcodificat - usa playlist HLS
-          if (response.data && response.data.playlist_url) {
-            setTorrentioStream({
-              stream_url: `${API_URL}${response.data.playlist_url}`,
-              title: response.data.title,
-              quality: response.data.quality,
-              source: response.data.source,
-              size: response.data.size,
-              type: 'hls',
-              stream_id: response.data.stream_id,
-              ffmpeg_available: response.data.ffmpeg_available
-            });
-            setLoading(false);
-          } else {
-            throw new Error('No s\'ha pogut iniciar la transcodificació');
-          }
+        if (directResponse.data && directResponse.data.stream_url) {
+          setTorrentioStream({
+            ...directResponse.data,
+            type: 'direct',
+            ffmpeg_available: false
+          });
+          setLoading(false);
         } else {
-          // Stream directe
-          if (response.data && response.data.stream_url) {
-            setTorrentioStream({
-              ...response.data,
-              type: 'direct'
-            });
-            setLoading(false);
-          } else {
-            throw new Error('No s\'ha trobat cap stream');
-          }
+          throw new Error('No s\'ha trobat cap stream');
         }
       } catch (error) {
         console.error('Error carregant Torrentio:', error);
-        const errorDetail = error.response?.data?.detail;
-
-        // Si l'error és que FFmpeg no està disponible, mostrar missatge especial
-        if (errorDetail?.ffmpeg_available === false) {
-          setTorrentioError('FFmpeg no disponible. Prova amb "Torrentio Direct" o instal·la FFmpeg al servidor.');
-        } else {
-          setTorrentioError(typeof errorDetail === 'string' ? errorDetail : error.message);
-        }
+        setTorrentioError(error.response?.data?.detail || error.message);
         setLoading(false);
       } finally {
         setTorrentioLoading(false);
