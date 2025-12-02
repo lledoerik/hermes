@@ -202,17 +202,21 @@ function MediaCard({ item, type = 'series', width = 180, isTmdb = false }) {
   };
 
   const getMeta = () => {
-    if (isStreamingOnly) {
-      return 'Streaming';
-    }
     if (type === 'movies') {
-      if (item.has_file === false) {
+      if (item.has_file === false && !isStreamingOnly) {
         return 'Només metadades';
       }
       const duration = item.duration ? Math.round(item.duration / 60) : 0;
-      return `${duration} min`;
+      if (duration > 0) {
+        return `${duration} min`;
+      }
+      return item.year || '';
     }
-    return `${item.season_count || 0} temp. · ${item.episode_count || 0} ep.`;
+    // Per sèries
+    if (item.season_count || item.episode_count) {
+      return `${item.season_count || 0} temp. · ${item.episode_count || 0} ep.`;
+    }
+    return item.year || '';
   };
 
   const hasFile = isStreamingOnly || type !== 'movies' || item.has_file !== false;
@@ -270,27 +274,6 @@ function MediaCard({ item, type = 'series', width = 180, isTmdb = false }) {
           {hasFile ? <PlayIcon /> : <InfoIcon />}
         </button>
 
-        {item.year && (
-          <div style={styles.badge}>{item.year}</div>
-        )}
-
-        {isStreamingOnly && (
-          <div style={{
-            ...styles.badge,
-            top: 'auto',
-            bottom: '10px',
-            left: '10px',
-            background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px'
-          }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>
-            </svg>
-            Streaming
-          </div>
-        )}
 
         {progress > 0 && (
           <div style={styles.progressBar}>
