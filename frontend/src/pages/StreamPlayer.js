@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
+import Hls from 'hls.js';
 import './StreamPlayer.css';
 
 const API_URL = window.location.hostname === 'localhost'
@@ -53,6 +54,24 @@ const EpisodesIcon = () => (
 const PlayCircleIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor">
     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+  </svg>
+);
+
+const CopyIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+  </svg>
+);
+
+const ExternalIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
+  </svg>
+);
+
+const RefreshIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
   </svg>
 );
 
@@ -137,7 +156,10 @@ function StreamPlayer() {
   const [torrentioStream, setTorrentioStream] = useState(null);
   const [torrentioError, setTorrentioError] = useState(null);
   const [torrentioLoading, setTorrentioLoading] = useState(false);
+  const [videoError, setVideoError] = useState(null);
+  const [urlCopied, setUrlCopied] = useState(false);
   const videoRef = useRef(null);
+  const hlsRef = useRef(null);
 
   const currentSource = EMBED_SOURCES[currentSourceIndex];
   const mediaType = type === 'movie' ? 'movie' : 'tv';
@@ -195,12 +217,19 @@ function StreamPlayer() {
     if (!currentSource?.isTorrentio) {
       setTorrentioStream(null);
       setTorrentioError(null);
+      setVideoError(null);
+      // Cleanup HLS si existeix
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
       return;
     }
 
     const fetchTorrentioStream = async () => {
       setTorrentioLoading(true);
       setTorrentioError(null);
+      setVideoError(null);
 
       try {
         const params = new URLSearchParams();
@@ -229,6 +258,64 @@ function StreamPlayer() {
 
     fetchTorrentioStream();
   }, [currentSource, mediaType, tmdbId, season, episode]);
+
+  // Configurar HLS.js quan tenim un stream
+  useEffect(() => {
+    if (!torrentioStream?.stream_url || !videoRef.current) return;
+
+    const video = videoRef.current;
+    const streamUrl = torrentioStream.stream_url;
+
+    // Cleanup anterior
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    // Si és HLS (.m3u8), usar hls.js
+    if (streamUrl.includes('.m3u8')) {
+      if (Hls.isSupported()) {
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: false,
+        });
+        hlsRef.current = hls;
+
+        hls.loadSource(streamUrl);
+        hls.attachMedia(video);
+
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          video.play().catch(e => console.log('Autoplay prevented:', e));
+          setLoading(false);
+          enterImmersiveMode();
+        });
+
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          if (data.fatal) {
+            console.error('HLS fatal error:', data);
+            setVideoError('Error reproduint el stream HLS. Prova amb un altre servidor.');
+          }
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari pot reproduir HLS nativament
+        video.src = streamUrl;
+        video.addEventListener('loadedmetadata', () => {
+          video.play().catch(e => console.log('Autoplay prevented:', e));
+        });
+      }
+    } else {
+      // Stream directe (MP4, MKV, etc.) - intentar reproduir nativament
+      video.src = streamUrl;
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [torrentioStream, enterImmersiveMode]);
 
   // Amagar controls després d'un temps
   useEffect(() => {
@@ -421,56 +508,109 @@ function StreamPlayer() {
       {/* Torrentio: Reproductor natiu de vídeo */}
       {currentSource?.isTorrentio ? (
         <>
-          {torrentioStream?.stream_url ? (
+          {torrentioStream?.stream_url && !videoError ? (
             <video
               ref={videoRef}
               className="stream-video-native"
-              src={torrentioStream.stream_url}
               autoPlay
               controls
+              playsInline
               onLoadedData={() => {
                 setLoading(false);
+                setVideoError(null);
                 enterImmersiveMode();
               }}
-              onError={() => setTorrentioError('Error reproduint el vídeo')}
+              onCanPlay={() => {
+                setLoading(false);
+              }}
+              onError={(e) => {
+                console.error('Video error:', e);
+                // Detectar si l'error és de còdec no suportat
+                const video = e.target;
+                if (video.error) {
+                  const errorMsg = video.error.code === 4
+                    ? 'El format del vídeo no és compatible amb el navegador (probablement H.265/HEVC). Pots copiar la URL i obrir-la amb VLC.'
+                    : 'Error reproduint el vídeo. Prova amb un altre servidor.';
+                  setVideoError(errorMsg);
+                }
+              }}
             />
-          ) : torrentioError ? (
+          ) : null}
+
+          {/* Error de reproducció de vídeo - Oferir alternatives */}
+          {(torrentioError || videoError) && (
             <div className="stream-error-overlay">
               <div className="stream-error-content">
                 <span className="error-icon">⚠️</span>
-                <h3>Error carregant stream</h3>
-                <p>{torrentioError}</p>
-                <div className="error-actions">
-                  <button onClick={() => {
-                    setTorrentioError(null);
-                    setTorrentioLoading(true);
-                    // Retry
-                    const params = new URLSearchParams();
-                    if (season) params.set('season', season);
-                    if (episode) params.set('episode', episode);
-                    params.set('quality', '1080p');
-                    axios.get(`${API_URL}/api/torrentio/stream/${mediaType}/${tmdbId}?${params.toString()}`)
-                      .then(r => {
-                        if (r.data?.stream_url) setTorrentioStream(r.data);
-                        setTorrentioLoading(false);
-                      })
-                      .catch(e => {
-                        setTorrentioError(e.response?.data?.detail || e.message);
-                        setTorrentioLoading(false);
-                      });
-                  }}>
-                    Reintentar
-                  </button>
-                  <button onClick={() => handleSourceChange(0)}>
-                    Canviar a VidSrc
-                  </button>
+                <h3>{videoError ? 'Problema de compatibilitat' : 'Error carregant stream'}</h3>
+                <p>{videoError || torrentioError}</p>
+
+                {/* Opcions alternatives */}
+                <div className="error-alternatives">
+                  {torrentioStream?.stream_url && (
+                    <>
+                      <p className="alternatives-hint">Pots reproduir aquest vídeo amb un reproductor extern:</p>
+                      <div className="error-actions">
+                        <button
+                          className="alt-btn primary"
+                          onClick={() => {
+                            navigator.clipboard.writeText(torrentioStream.stream_url);
+                            setUrlCopied(true);
+                            setTimeout(() => setUrlCopied(false), 3000);
+                          }}
+                        >
+                          <CopyIcon />
+                          {urlCopied ? 'Copiat!' : 'Copiar URL'}
+                        </button>
+                        <button
+                          className="alt-btn"
+                          onClick={() => {
+                            // Intent d'obrir amb VLC (protocol vlc://)
+                            window.open(`vlc://${torrentioStream.stream_url}`, '_blank');
+                          }}
+                        >
+                          <ExternalIcon />
+                          Obrir amb VLC
+                        </button>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="error-actions secondary">
+                    <button onClick={() => {
+                      setTorrentioError(null);
+                      setVideoError(null);
+                      setTorrentioLoading(true);
+                      // Retry
+                      const params = new URLSearchParams();
+                      if (season) params.set('season', season);
+                      if (episode) params.set('episode', episode);
+                      params.set('quality', '1080p');
+                      axios.get(`${API_URL}/api/torrentio/stream/${mediaType}/${tmdbId}?${params.toString()}`)
+                        .then(r => {
+                          if (r.data?.stream_url) setTorrentioStream(r.data);
+                          setTorrentioLoading(false);
+                        })
+                        .catch(e => {
+                          setTorrentioError(e.response?.data?.detail || e.message);
+                          setTorrentioLoading(false);
+                        });
+                    }}>
+                      <RefreshIcon />
+                      Reintentar
+                    </button>
+                    <button onClick={() => handleSourceChange(0)}>
+                      <ServerIcon />
+                      Canviar a VidSrc
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          ) : null}
+          )}
 
           {/* Info del stream Torrentio */}
-          {torrentioStream && (
+          {torrentioStream && !torrentioError && !videoError && (
             <div className="torrentio-info">
               <span className="quality-badge">{torrentioStream.quality}</span>
               <span className="source-badge">{torrentioStream.source}</span>
