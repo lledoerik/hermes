@@ -453,3 +453,207 @@
     max-width: 300px;
   }
 }
+
+/* Selector d'idioma */
+.stream-lang-selector {
+  position: relative;
+}
+
+.stream-lang-btn {
+  padding: 10px 12px;
+}
+
+.stream-lang-btn .lang-flag {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.stream-lang-btn svg {
+  width: 16px;
+  height: 16px;
+  margin-left: -4px;
+}
+
+/* Dropdown d'idioma */
+.stream-lang-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  background: rgba(20, 20, 20, 0.98);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  z-index: 200;
+  animation: dropdownFadeIn 0.2s ease;
+}
+
+.stream-lang-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+}
+
+.stream-lang-header svg {
+  width: 18px;
+  height: 18px;
+  opacity: 0.8;
+}
+
+.stream-lang-note {
+  padding: 10px 16px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.stream-lang-list {
+  padding: 8px;
+}
+
+.stream-lang-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stream-lang-option:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.stream-lang-option.active {
+  background: var(--color-primary, #328492);
+  color: white;
+}
+
+.stream-lang-option .lang-flag {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.stream-lang-option .lang-name {
+  flex: 1;
+}
+
+.stream-lang-option .check {
+  font-size: 14px;
+  font-weight: bold;
+}
+
+/* Indicador de suport d'idioma a les fonts */
+.stream-source-option .lang-support {
+  font-size: 14px;
+  margin-left: auto;
+  margin-right: 8px;
+  opacity: 0.7;
+}
+
+/* Tip d'idioma */
+.stream-lang-tip {
+  position: absolute;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 500px;
+  padding: 16px 20px;
+  background: rgba(20, 20, 20, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  line-height: 1.5;
+  z-index: 150;
+  animation: tipFadeIn 0.3s ease;
+}
+
+@keyframes tipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.stream-lang-tip svg {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  color: var(--color-primary, #328492);
+}
+
+.stream-lang-tip strong {
+  color: white;
+}
+
+.stream-lang-tip button {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.stream-lang-tip button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+/* Responsive per idioma */
+@media (max-width: 768px) {
+  .stream-lang-dropdown {
+    min-width: 200px;
+  }
+
+  .stream-lang-tip {
+    left: 20px;
+    right: 20px;
+    transform: none;
+    max-width: none;
+    bottom: 80px;
+  }
+}
+
+@media (max-width: 480px) {
+  .stream-lang-btn svg {
+    display: none;
+  }
+
+  .stream-lang-tip {
+    font-size: 13px;
+    padding: 14px 16px;
+  }
+}
