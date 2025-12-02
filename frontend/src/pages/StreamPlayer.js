@@ -56,31 +56,57 @@ const EpisodesIcon = () => (
   </svg>
 );
 
-// Fonts d'embed disponibles
+const LanguageIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/>
+  </svg>
+);
+
+const InfoIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+  </svg>
+);
+
+// Idiomes disponibles
+const LANGUAGES = [
+  { code: 'ca', name: 'Català', flag: '🇦🇩' },
+  { code: 'en', name: 'Anglès', flag: '🇬🇧' },
+  { code: 'es', name: 'Castellà', flag: '🇪🇸' },
+  { code: 'es-419', name: 'Espanyol (Llatí)', flag: '🇲🇽' },
+  { code: 'fr', name: 'Francès', flag: '🇫🇷' },
+  { code: 'it', name: 'Italià', flag: '🇮🇹' },
+];
+
+// Fonts d'embed disponibles amb suport d'idioma
 const EMBED_SOURCES = [
   {
     id: 'vidsrc',
     name: 'VidSrc',
-    getUrl: (type, tmdbId, season, episode) => {
-      if (type === 'movie') {
-        return `https://vidsrc.cc/v2/embed/movie/${tmdbId}`;
-      }
-      return `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
+    supportsLang: true,
+    getUrl: (type, tmdbId, season, episode, lang) => {
+      const base = type === 'movie'
+        ? `https://vidsrc.cc/v2/embed/movie/${tmdbId}`
+        : `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
+      // VidSrc suporta ds_lang per subtítols per defecte
+      return lang ? `${base}?ds_lang=${lang}` : base;
     }
   },
   {
     id: 'vidsrc2',
     name: 'VidSrc 2',
-    getUrl: (type, tmdbId, season, episode) => {
-      if (type === 'movie') {
-        return `https://vidsrc.xyz/embed/movie/${tmdbId}`;
-      }
-      return `https://vidsrc.xyz/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
+    supportsLang: true,
+    getUrl: (type, tmdbId, season, episode, lang) => {
+      const base = type === 'movie'
+        ? `https://vidsrc.xyz/embed/movie/${tmdbId}`
+        : `https://vidsrc.xyz/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
+      return lang ? `${base}?ds_lang=${lang}` : base;
     }
   },
   {
     id: '2embed',
     name: '2Embed',
+    supportsLang: false,
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
         return `https://www.2embed.cc/embed/${tmdbId}`;
@@ -91,6 +117,7 @@ const EMBED_SOURCES = [
   {
     id: 'multiembed',
     name: 'MultiEmbed',
+    supportsLang: false,
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
         return `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1`;
@@ -101,16 +128,18 @@ const EMBED_SOURCES = [
   {
     id: 'autoembed',
     name: 'AutoEmbed',
-    getUrl: (type, tmdbId, season, episode) => {
-      if (type === 'movie') {
-        return `https://player.autoembed.cc/embed/movie/${tmdbId}`;
-      }
-      return `https://player.autoembed.cc/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
+    supportsLang: true,
+    getUrl: (type, tmdbId, season, episode, lang) => {
+      const base = type === 'movie'
+        ? `https://player.autoembed.cc/embed/movie/${tmdbId}`
+        : `https://player.autoembed.cc/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
+      return lang ? `${base}?lang=${lang}` : base;
     }
   },
   {
     id: 'embedsu',
     name: 'Embed.su',
+    supportsLang: false,
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
         return `https://embed.su/embed/movie/${tmdbId}`;
@@ -126,6 +155,7 @@ function StreamPlayer() {
   const navigate = useNavigate();
   const containerRef = useRef(null);
   const episodesMenuRef = useRef(null);
+  const langMenuRef = useRef(null);
 
   // Parsejar paràmetres de la URL (season, episode)
   const searchParams = new URLSearchParams(location.search);
@@ -147,16 +177,29 @@ function StreamPlayer() {
     return 0;
   };
 
+  // Carregar idioma preferit de localStorage
+  const getInitialLanguage = () => {
+    return localStorage.getItem('hermes_stream_lang') || 'ca';
+  };
+
   const [currentSourceIndex, setCurrentSourceIndex] = useState(getInitialSource);
+  const [preferredLang, setPreferredLang] = useState(getInitialLanguage);
   const [loading, setLoading] = useState(true);
   const [showControls, setShowControls] = useState(true);
   const [showSourceMenu, setShowSourceMenu] = useState(false);
   const [showEpisodesMenu, setShowEpisodesMenu] = useState(false);
+  const [showLangMenu, setShowLangMenu] = useState(false);
+  const [showLangTip, setShowLangTip] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const currentSource = EMBED_SOURCES[currentSourceIndex];
+  const currentLang = LANGUAGES.find(l => l.code === preferredLang) || LANGUAGES[0];
   const mediaType = type === 'movie' ? 'movie' : 'tv';
-  const embedUrl = currentSource.getUrl(mediaType, tmdbId, season, episode);
+
+  // Construir URL amb idioma si la font ho suporta
+  const embedUrl = currentSource.supportsLang
+    ? currentSource.getUrl(mediaType, tmdbId, season, episode, preferredLang)
+    : currentSource.getUrl(mediaType, tmdbId, season, episode);
 
   // Carregar info del media si no s'ha passat per state
   useEffect(() => {
@@ -171,6 +214,20 @@ function StreamPlayer() {
       loadSeasonEpisodes();
     }
   }, [tmdbId, season, type]);
+
+  // Mostrar tip d'idioma el primer cop
+  useEffect(() => {
+    const hasSeenTip = localStorage.getItem('hermes_lang_tip_seen');
+    if (!hasSeenTip) {
+      setTimeout(() => {
+        setShowLangTip(true);
+        setTimeout(() => {
+          setShowLangTip(false);
+          localStorage.setItem('hermes_lang_tip_seen', 'true');
+        }, 8000);
+      }, 3000);
+    }
+  }, []);
 
   const loadMediaInfo = async () => {
     try {
@@ -203,13 +260,13 @@ function StreamPlayer() {
   // Amagar controls després d'un temps
   useEffect(() => {
     let timeout;
-    if (showControls && !showSourceMenu && !showEpisodesMenu) {
+    if (showControls && !showSourceMenu && !showEpisodesMenu && !showLangMenu) {
       timeout = setTimeout(() => {
         setShowControls(false);
       }, 4000);
     }
     return () => clearTimeout(timeout);
-  }, [showControls, showSourceMenu, showEpisodesMenu]);
+  }, [showControls, showSourceMenu, showEpisodesMenu, showLangMenu]);
 
   // Mostrar controls amb moviment del ratolí
   const handleMouseMove = useCallback(() => {
@@ -225,14 +282,23 @@ function StreamPlayer() {
   const handleSourceChange = useCallback((index) => {
     setLoading(true);
     setCurrentSourceIndex(index);
-    // Guardar preferència
     localStorage.setItem('hermes_stream_source', EMBED_SOURCES[index].id);
     setShowSourceMenu(false);
   }, []);
 
+  // Canviar d'idioma
+  const handleLanguageChange = useCallback((langCode) => {
+    setPreferredLang(langCode);
+    localStorage.setItem('hermes_stream_lang', langCode);
+    setShowLangMenu(false);
+    // Recarregar el reproductor amb el nou idioma
+    if (currentSource.supportsLang) {
+      setLoading(true);
+    }
+  }, [currentSource.supportsLang]);
+
   // Tornar enrere
   const handleBack = useCallback(() => {
-    // Tornar a la pàgina de detalls
     if (type === 'movie') {
       navigate(`/movies/${tmdbId}`);
     } else {
@@ -252,9 +318,7 @@ function StreamPlayer() {
   // Navegació d'episodis
   const goToPrevEpisode = useCallback(() => {
     if (!episode || episode <= 1) {
-      // Si estem al primer episodi, anar a la temporada anterior
       if (season && season > 1) {
-        // TODO: Podríem carregar l'últim episodi de la temporada anterior
         navigate(`/stream/tv/${tmdbId}?s=${season - 1}&e=1`);
       }
       return;
@@ -267,7 +331,6 @@ function StreamPlayer() {
     if (!episode) return;
     const maxEpisode = episodes.length > 0 ? episodes.length : 999;
     if (episode >= maxEpisode) {
-      // Anar a la següent temporada
       const maxSeason = seasons.length > 0 ? Math.max(...seasons.map(s => s.season_number)) : 999;
       if (season && season < maxSeason) {
         navigate(`/stream/tv/${tmdbId}?s=${season + 1}&e=1`);
@@ -302,6 +365,8 @@ function StreamPlayer() {
           setShowEpisodesMenu(false);
         } else if (showSourceMenu) {
           setShowSourceMenu(false);
+        } else if (showLangMenu) {
+          setShowLangMenu(false);
         } else if (isFullscreen) {
           document.exitFullscreen();
         } else {
@@ -313,11 +378,13 @@ function StreamPlayer() {
         if (type !== 'movie') goToNextEpisode();
       } else if (e.key === 'p' || e.key === 'P') {
         if (type !== 'movie') goToPrevEpisode();
+      } else if (e.key === 'l' || e.key === 'L') {
+        setShowLangMenu(prev => !prev);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFullscreen, handleBack, toggleFullscreen, goToNextEpisode, goToPrevEpisode, type, showEpisodesMenu, showSourceMenu]);
+  }, [isFullscreen, handleBack, toggleFullscreen, goToNextEpisode, goToPrevEpisode, type, showEpisodesMenu, showSourceMenu, showLangMenu]);
 
   // Tancar menús quan es clica fora
   useEffect(() => {
@@ -325,10 +392,13 @@ function StreamPlayer() {
       if (showEpisodesMenu && episodesMenuRef.current && !episodesMenuRef.current.contains(e.target)) {
         setShowEpisodesMenu(false);
       }
+      if (showLangMenu && langMenuRef.current && !langMenuRef.current.contains(e.target)) {
+        setShowLangMenu(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showEpisodesMenu]);
+  }, [showEpisodesMenu, showLangMenu]);
 
   // Construir títol
   const getTitle = () => {
@@ -366,6 +436,18 @@ function StreamPlayer() {
             <div className="spinner"></div>
             <p>Carregant {currentSource.name}...</p>
           </div>
+        </div>
+      )}
+
+      {/* Tip d'idioma */}
+      {showLangTip && (
+        <div className="stream-lang-tip">
+          <InfoIcon />
+          <div>
+            <strong>Consell:</strong> Per canviar l'idioma d'àudio, fes clic a la icona d'engranatge o àudio dins del reproductor.
+            Els subtítols es poden seleccionar amb el botó d'idioma ({currentLang.flag}).
+          </div>
+          <button onClick={() => setShowLangTip(false)}>×</button>
         </div>
       )}
 
@@ -446,6 +528,43 @@ function StreamPlayer() {
           </div>
         )}
 
+        {/* Selector d'idioma */}
+        <div className="stream-lang-selector" ref={langMenuRef}>
+          <button
+            className={`stream-btn stream-lang-btn ${showLangMenu ? 'active' : ''}`}
+            onClick={() => setShowLangMenu(!showLangMenu)}
+            title="Idioma preferit (L)"
+          >
+            <span className="lang-flag">{currentLang.flag}</span>
+            <ChevronDownIcon />
+          </button>
+
+          {showLangMenu && (
+            <div className="stream-lang-dropdown">
+              <div className="stream-lang-header">
+                <LanguageIcon />
+                <span>Idioma preferit</span>
+              </div>
+              <div className="stream-lang-note">
+                Per canviar l'àudio, usa els controls del reproductor (icona d'engranatge)
+              </div>
+              <div className="stream-lang-list">
+                {LANGUAGES.map((lang) => (
+                  <button
+                    key={lang.code}
+                    className={`stream-lang-option ${lang.code === preferredLang ? 'active' : ''}`}
+                    onClick={() => handleLanguageChange(lang.code)}
+                  >
+                    <span className="lang-flag">{lang.flag}</span>
+                    <span className="lang-name">{lang.name}</span>
+                    {lang.code === preferredLang && <span className="check">✓</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Selector de font */}
         <div className="stream-source-selector">
           <button
@@ -465,7 +584,8 @@ function StreamPlayer() {
                   className={`stream-source-option ${index === currentSourceIndex ? 'active' : ''}`}
                   onClick={() => handleSourceChange(index)}
                 >
-                  {source.name}
+                  <span>{source.name}</span>
+                  {source.supportsLang && <span className="lang-support" title="Suporta idioma">🌐</span>}
                   {index === currentSourceIndex && <span className="check">✓</span>}
                 </button>
               ))}
