@@ -1476,3 +1476,86 @@
     font-size: 14px;
   }
 }
+
+/* ============================================
+   BOTÓ FLOTANT SEGÜENT CAPÍTOL
+   ============================================ */
+
+.stream-next-episode-btn {
+  position: absolute;
+  bottom: 100px;
+  right: 30px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 24px;
+  background: linear-gradient(135deg, var(--color-primary, #328492) 0%, var(--color-primary-dark, #276a75) 100%);
+  border: none;
+  border-radius: 50px;
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transform: translateX(20px);
+  pointer-events: none;
+  z-index: 100;
+}
+
+.stream-next-episode-btn.visible {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.stream-next-episode-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 28px rgba(50, 132, 146, 0.5);
+}
+
+.stream-next-episode-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+.next-episode-text {
+  white-space: nowrap;
+}
+
+/* En pantalla completa, ajustar posició */
+.stream-player-container.is-fullscreen .stream-next-episode-btn {
+  bottom: 120px;
+  right: 40px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .stream-next-episode-btn {
+    bottom: 80px;
+    right: 16px;
+    padding: 12px 18px;
+    font-size: 14px;
+  }
+
+  .stream-next-episode-btn svg {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .stream-next-episode-btn {
+    bottom: 70px;
+    right: 12px;
+    padding: 10px 16px;
+    font-size: 13px;
+    gap: 8px;
+  }
+
+  .stream-next-episode-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+}
