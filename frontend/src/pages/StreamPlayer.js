@@ -115,18 +115,18 @@ function StreamPlayer() {
 
   // Sempre començar amb VidSrc principal (índex 0)
   const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
-  const [loading, setLoading] = useState(false); // No carregar fins que l'usuari cliqui
+  const [loading, setLoading] = useState(true); // Carregar directament
   const [showControls, setShowControls] = useState(true);
   const [showSourceMenu, setShowSourceMenu] = useState(false);
   const [showEpisodesMenu, setShowEpisodesMenu] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showStartOverlay, setShowStartOverlay] = useState(true);
-  const [hasStartedPlaying, setHasStartedPlaying] = useState(false);
+  const [showStartOverlay, setShowStartOverlay] = useState(false); // Sense overlay
+  const [hasStartedPlaying, setHasStartedPlaying] = useState(true); // Reproduir directament
   const [hasTriedFallback, setHasTriedFallback] = useState(false);
 
   // Estat de progrés de visualització
   const [isWatched, setIsWatched] = useState(false);
-  const [watchStartTime, setWatchStartTime] = useState(null);
+  const [watchStartTime, setWatchStartTime] = useState(Date.now()); // Iniciar temps de visualització
 
   const currentSource = EMBED_SOURCES[currentSourceIndex];
   const mediaType = type === 'movie' ? 'movie' : 'tv';
