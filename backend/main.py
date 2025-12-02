@@ -2285,10 +2285,10 @@ async def extract_stream_url(media_type: str, tmdb_id: int, season: int = None, 
     )
 
 
-# === TORRENTIO INTEGRATION (Nou servei robust) ===
+# === TORRENTIO INTEGRATION ===
 from backend.torrentio import (
     fetch_torrentio_streams,
-    get_verified_stream,
+    get_best_stream,
     verify_stream_url,
     clear_cache as clear_torrentio_cache,
     TorrentioStream,
@@ -2304,9 +2304,7 @@ async def check_torrentio_availability(
     episode: int = None
 ):
     """
-    Comprova quins idiomes estan disponibles per un contingut a Torrentio.
-    Retorna la llista d'idiomes amb streams verificats.
-    Útil per mostrar a l'usuari només les opcions que funcionaran.
+    Comprova si hi ha streams disponibles per un contingut a Torrentio.
     """
     # Obtenir IMDB ID
     api_key = get_tmdb_api_key()
@@ -2319,7 +2317,7 @@ async def check_torrentio_availability(
     imdb_id = await client.get_imdb_id(tmdb_type, tmdb_id)
 
     if not imdb_id:
-        return {"available": False, "languages": [], "error": "No s'ha trobat IMDB ID"}
+        return {"available": False, "error": "No s'ha trobat IMDB ID"}
 
     # Obtenir streams (amb verificació)
     result = await fetch_torrentio_streams(
@@ -2331,26 +2329,15 @@ async def check_torrentio_availability(
     )
 
     if not result.streams:
-        return {"available": False, "languages": [], "error": "No hi ha streams disponibles"}
+        return {"available": False, "error": "No hi ha streams disponibles"}
 
-    # Construir resposta amb idiomes disponibles i el millor stream per cada un
-    languages_info = []
-    for lang in result.available_languages:
-        best = result.best_by_language.get(lang)
-        if best:
-            languages_info.append({
-                "code": lang,
-                "quality": best.quality,
-                "size": best.size,
-                "verified": best.verified,
-                "source": best.source
-            })
-
+    # Retornar info bàsica
+    verified_count = sum(1 for s in result.streams if s.verified)
     return {
         "available": True,
         "imdb_id": imdb_id,
-        "languages": languages_info,
-        "total_streams": len(result.streams)
+        "total_streams": len(result.streams),
+        "verified_streams": verified_count
     }
 
 
@@ -2360,13 +2347,11 @@ async def get_torrentio_verified_stream(
     tmdb_id: int,
     season: int = None,
     episode: int = None,
-    lang: str = "es",
     quality: str = "1080p"
 ):
     """
-    Obté un stream verificat de Torrentio.
+    Obté el millor stream verificat de Torrentio.
     Comprova que la URL funciona abans de retornar-la.
-    Si no troba l'idioma exacte, busca 'multi'.
     """
     # Obtenir IMDB ID
     api_key = get_tmdb_api_key()
@@ -2381,11 +2366,10 @@ async def get_torrentio_verified_stream(
     if not imdb_id:
         raise HTTPException(status_code=404, detail="No s'ha trobat IMDB ID")
 
-    # Obtenir stream verificat
-    stream = await get_verified_stream(
+    # Obtenir millor stream verificat
+    stream = await get_best_stream(
         imdb_id=imdb_id,
         media_type="movie" if media_type == "movie" else "series",
-        language=lang,
         quality=quality,
         season=season,
         episode=episode
@@ -2394,14 +2378,13 @@ async def get_torrentio_verified_stream(
     if not stream:
         raise HTTPException(
             status_code=404,
-            detail=f"No s'ha trobat cap stream verificat en '{lang}'"
+            detail="No s'ha trobat cap stream verificat"
         )
 
     return {
         "stream_url": stream.url,
         "title": stream.title,
         "quality": stream.quality,
-        "language": stream.language,
         "source": stream.source,
         "size": stream.size,
         "verified": stream.verified,
@@ -2448,29 +2431,18 @@ async def list_torrentio_streams(
         "type": media_type,
         "season": season,
         "episode": episode,
-        "available_languages": result.available_languages,
         "streams": [
             {
                 "title": s.title,
                 "url": s.url,
                 "quality": s.quality,
-                "language": s.language,
                 "size": s.size,
                 "source": s.source,
                 "seeds": s.seeds,
                 "verified": s.verified
             }
             for s in result.streams
-        ],
-        "best_by_language": {
-            lang: {
-                "title": s.title,
-                "quality": s.quality,
-                "size": s.size,
-                "verified": s.verified
-            }
-            for lang, s in result.best_by_language.items()
-        }
+        ]
     }
 
 
@@ -2488,7 +2460,6 @@ async def resolve_torrentio_stream_legacy(
     tmdb_id: int,
     season: int = None,
     episode: int = None,
-    lang: str = "es",
     quality: str = "1080p"
 ):
     """Legacy endpoint - redirigeix al nou"""
@@ -2497,7 +2468,6 @@ async def resolve_torrentio_stream_legacy(
         tmdb_id=tmdb_id,
         season=season,
         episode=episode,
-        lang=lang,
         quality=quality
     )
 
