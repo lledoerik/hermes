@@ -728,24 +728,26 @@
   margin-top: 4px;
 }
 
+/* Compact Search Bar - Hermes Style */
 .home-header .search-bar.compact {
-  max-width: 300px;
-  background: var(--bg-glass);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
-  display: flex;
+  position: relative;
+  display: inline-flex;
   align-items: center;
-  padding: var(--space-sm) var(--space-md);
 }
 
 .home-header .search-bar.compact input {
-  background: transparent;
-  border: none;
-  color: var(--text-primary);
+  width: 280px;
+  height: 44px;
+  border: 2px solid var(--color-primary-dark);
+  border-radius: var(--radius-pill);
+  padding: var(--space-sm) var(--space-lg);
+  padding-right: 55px;
   font-size: var(--font-size-sm);
-  padding: var(--space-xs);
-  flex: 1;
-  min-width: 150px;
+  background-color: var(--bg-glass);
+  backdrop-filter: blur(8px);
+  color: var(--text-primary);
+  transition: all var(--transition-normal);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);
 }
 
 .home-header .search-bar.compact input::placeholder {
@@ -754,21 +756,35 @@
 
 .home-header .search-bar.compact input:focus {
   outline: none;
+  width: 340px;
+  background-color: rgba(255, 255, 255, 0.15);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.15), 0 0 15px rgba(var(--color-primary-rgb), 0.3);
+  border-color: var(--color-primary);
 }
 
 .home-header .search-bar.compact button {
-  background: transparent;
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 50px;
+  height: 44px;
   border: none;
-  color: var(--text-secondary);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-primary) 100%);
+  color: var(--text-primary);
   cursor: pointer;
-  padding: var(--space-xs);
+  transition: all var(--transition-normal);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .home-header .search-bar.compact button:hover {
-  color: var(--text-primary);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+}
+
+.home-header .search-bar.compact button:active {
+  transform: scale(0.95);
 }
 
 .row-title .title-icon {
@@ -1028,6 +1044,30 @@
 @media (max-width: 768px) {
   .home-container.authenticated {
     padding-top: 70px;
+  }
+
+  .home-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-md);
+  }
+
+  .home-header .search-bar.compact {
+    width: 100%;
+  }
+
+  .home-header .search-bar.compact input {
+    width: 100%;
+    height: 42px;
+  }
+
+  .home-header .search-bar.compact input:focus {
+    width: 100%;
+  }
+
+  .home-header .search-bar.compact button {
+    height: 42px;
+    width: 48px;
   }
 
   .welcome-header h1 {
