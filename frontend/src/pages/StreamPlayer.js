@@ -32,12 +32,6 @@ const FullscreenExitIcon = () => (
   </svg>
 );
 
-const ChevronDownIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
-  </svg>
-);
-
 const PrevIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor">
     <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
@@ -56,524 +50,53 @@ const EpisodesIcon = () => (
   </svg>
 );
 
-const LanguageIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/>
-  </svg>
-);
-
-const InfoIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
-  </svg>
-);
-
 const PlayCircleIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor">
     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
   </svg>
 );
 
-const ClockIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
-  </svg>
-);
-
-// Idiomes disponibles (preferits)
-const PREFERRED_LANGUAGES = [
-  { code: 'ca', name: 'Català', flag: '🇦🇩' },
-  { code: 'en', name: 'Anglès', flag: '🇬🇧' },
-  { code: 'es', name: 'Castellà', flag: '🇪🇸' },
-  { code: 'es-419', name: 'Espanyol (Llatí)', flag: '🇲🇽' },
-  { code: 'fr', name: 'Francès', flag: '🇫🇷' },
-  { code: 'it', name: 'Italià', flag: '🇮🇹' },
-];
-
-// Mapa de codis d'idioma a noms i banderes
-const LANGUAGE_INFO = {
-  'ca': { name: 'Català', flag: '🇦🇩' },
-  'en': { name: 'Anglès', flag: '🇬🇧' },
-  'es': { name: 'Castellà', flag: '🇪🇸' },
-  'es-419': { name: 'Espanyol (Llatí)', flag: '🇲🇽' },
-  'fr': { name: 'Francès', flag: '🇫🇷' },
-  'it': { name: 'Italià', flag: '🇮🇹' },
-  'de': { name: 'Alemany', flag: '🇩🇪' },
-  'pt': { name: 'Portuguès', flag: '🇵🇹' },
-  'ja': { name: 'Japonès', flag: '🇯🇵' },
-  'ko': { name: 'Coreà', flag: '🇰🇷' },
-  'zh': { name: 'Xinès', flag: '🇨🇳' },
-  'ru': { name: 'Rus', flag: '🇷🇺' },
-  'ar': { name: 'Àrab', flag: '🇸🇦' },
-  'hi': { name: 'Hindi', flag: '🇮🇳' },
-  'nl': { name: 'Neerlandès', flag: '🇳🇱' },
-  'pl': { name: 'Polonès', flag: '🇵🇱' },
-  'sv': { name: 'Suec', flag: '🇸🇪' },
-  'da': { name: 'Danès', flag: '🇩🇰' },
-  'no': { name: 'Noruec', flag: '🇳🇴' },
-  'fi': { name: 'Finès', flag: '🇫🇮' },
-  'tr': { name: 'Turc', flag: '🇹🇷' },
-  'el': { name: 'Grec', flag: '🇬🇷' },
-  'he': { name: 'Hebreu', flag: '🇮🇱' },
-  'th': { name: 'Tailandès', flag: '🇹🇭' },
-  'vi': { name: 'Vietnamita', flag: '🇻🇳' },
-  'id': { name: 'Indonesi', flag: '🇮🇩' },
-  'ms': { name: 'Malai', flag: '🇲🇾' },
-  'tl': { name: 'Tagal', flag: '🇵🇭' },
-  'uk': { name: 'Ucraïnès', flag: '🇺🇦' },
-  'cs': { name: 'Txec', flag: '🇨🇿' },
-  'hu': { name: 'Hongarès', flag: '🇭🇺' },
-  'ro': { name: 'Romanès', flag: '🇷🇴' },
-};
-
-// Helper per afegir paràmetres a URL
-const addParams = (url, params) => {
-  const separator = url.includes('?') ? '&' : '?';
-  const paramStr = Object.entries(params)
-    .filter(([_, v]) => v !== undefined && v !== null)
-    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
-    .join('&');
-  return paramStr ? `${url}${separator}${paramStr}` : url;
-};
-
-// Mapatge d'idiomes a servidors preferits
-// Cada idioma té una llista de servidors ordenats per preferència per aquell idioma
-const LANGUAGE_SERVER_MAP = {
-  'ja': ['torrentio', 'animeonline', 'vidsrc', 'vidsrc-pro', 'smashystream', 'anime-api', 'autoembed'], // Japonès (VO)
-  'en': ['torrentio', 'vidsrc', 'vidsrc-pro', 'embedsu', 'autoembed', 'multiembed'], // Anglès
-  'es': ['torrentio', 'seriesflix', 'pelisflix', 'animeonline', 'cuevana-embed', 'pelisplus-embed', 'vidsrc-latino', 'filmpertutti', 'multiembed', 'vidsrc'], // Castellà
-  'es-419': ['torrentio', 'seriesflix', 'pelisflix', 'animeonline', 'cuevana-embed', 'pelisplus-embed', 'vidsrc-latino', 'multiembed', 'vidsrc'], // Espanyol llatí
-  'ca': ['torrentio', 'vidsrc', 'multiembed', 'autoembed', 'tv3cat'], // Català
-  'fr': ['torrentio', 'frenchstream', 'vidsrc', 'autoembed', 'multiembed'], // Francès
-  'it': ['torrentio', 'filmpertutti', 'streamingcommunity', 'vidsrc', 'autoembed', 'multiembed'], // Italià
-  'de': ['torrentio', 'vidsrc', 'autoembed', 'multiembed'], // Alemany
-  'pt': ['torrentio', 'warezcdn', 'vidsrc', 'autoembed', 'multiembed'], // Portuguès
-  'ko': ['torrentio', 'vidsrc', 'smashystream', 'autoembed'], // Coreà
-};
-
-// Fonts d'embed disponibles amb suport d'idioma, autoplay i temps
-// Nota: Algunes fonts suporten el paràmetre de temps (t=seconds)
+// Fonts d'embed disponibles - NOMÉS 3
 const EMBED_SOURCES = [
-  // === TORRENTIO (Real-Debrid) - MILLOR QUALITAT ===
+  {
+    id: 'vidsrc',
+    name: 'VidSrc',
+    description: 'Multi-servidor',
+    getUrl: (type, tmdbId, season, episode) => {
+      if (type === 'movie') {
+        return `https://vidsrc.cc/v2/embed/movie/${tmdbId}`;
+      }
+      return `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
+    }
+  },
+  {
+    id: 'vidsrc-pro',
+    name: 'VidSrc Pro',
+    description: 'Alta qualitat',
+    getUrl: (type, tmdbId, season, episode) => {
+      if (type === 'movie') {
+        return `https://vidsrc.pro/embed/movie/${tmdbId}`;
+      }
+      return `https://vidsrc.pro/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
+    }
+  },
   {
     id: 'torrentio',
     name: 'Torrentio',
-    supportsLang: true,
-    supportsTime: true,
-    isTorrentio: true, // Flag especial per gestió diferent
-    description: '🔥 Alta qualitat (Real-Debrid)',
-    languages: ['es', 'es-419', 'en', 'ca', 'fr', 'it', 'ja', 'multi'],
-    // Torrentio no usa embed URL, sinó API
-    getUrl: (type, tmdbId, season, episode, lang, time, title) => {
-      // Retornem l'URL de l'API per obtenir streams
+    description: 'Real-Debrid (HD)',
+    isTorrentio: true,
+    getUrl: (type, tmdbId, season, episode) => {
       const baseUrl = window.location.hostname === 'localhost'
         ? 'http://localhost:8000'
         : '';
       const params = new URLSearchParams();
       if (season) params.set('season', season);
       if (episode) params.set('episode', episode);
-      if (lang) params.set('lang', lang);
       params.set('quality', '1080p');
-      return `${baseUrl}/api/torrentio/resolve/${type}/${tmdbId}?${params.toString()}`;
-    }
-  },
-  // === ANIME (ESPANYOL/JAPONÈS) ===
-  {
-    id: 'animeonline',
-    name: 'AnimeOnline.ninja',
-    supportsLang: true,
-    supportsTime: false,
-    needsTitle: true, // Necessita el títol de la sèrie
-    description: '🎌 Anime ES/Latino/VO',
-    languages: ['es', 'es-419', 'ja'],
-    // AnimeOnline.ninja - URL real: https://ww3.animeonline.ninja/episodio/{slug}-t{season}-cap{episode}/
-    getUrl: (type, tmdbId, season, episode, lang, time, title) => {
-      // Convertir títol a slug
-      const slug = title ? title.toLowerCase()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Treure accents
-        .replace(/[^a-z0-9]+/g, '-') // Només lletres, números i guions
-        .replace(/^-+|-+$/g, '') // Treure guions al principi/final
-        : 'unknown';
-
-      if (type === 'movie') {
-        return `https://ww3.animeonline.ninja/pelicula/${slug}/`;
-      }
-      return `https://ww3.animeonline.ninja/episodio/${slug}-t${season || 1}-cap-${episode || 1}/`;
-    }
-  },
-  // === FONTS AMB ESPANYOL / LLATÍ ===
-  {
-    id: 'seriesflix',
-    name: 'SeriesFlix',
-    supportsLang: true,
-    supportsTime: false,
-    needsTitle: true,
-    description: '🇪🇸 Sèries en Castellà',
-    languages: ['es', 'es-419', 'en'],
-    getUrl: (type, tmdbId, season, episode, lang, time, title) => {
-      // Convertir títol a slug
-      const slug = title ? title.toLowerCase()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        : 'unknown';
-
-      if (type === 'movie') {
-        return `https://seriesflix.video/pelicula/${slug}/`;
-      }
-      return `https://seriesflix.video/episodio/${slug}-${season || 1}x${episode || 1}/`;
-    }
-  },
-  {
-    id: 'pelisflix',
-    name: 'PelisFlix',
-    supportsLang: true,
-    supportsTime: false,
-    needsTitle: true,
-    description: '🇪🇸 Películes en Castellà',
-    languages: ['es', 'es-419', 'en'],
-    getUrl: (type, tmdbId, season, episode, lang, time, title) => {
-      // Convertir títol a slug
-      const slug = title ? title.toLowerCase()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        : 'unknown';
-
-      if (type === 'movie') {
-        return `https://pelisflix2.foo/pelicula/${slug}/`;
-      }
-      return `https://pelisflix2.foo/episodio/${slug}-${season || 1}x${episode || 1}/`;
-    }
-  },
-  {
-    id: 'cuevana-embed',
-    name: 'Cuevana',
-    supportsLang: true,
-    supportsTime: false,
-    description: '🇪🇸 Espanyol/Latino',
-    languages: ['es', 'es-419', 'en'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      // Cuevana usa el format latino per defecte
-      if (type === 'movie') {
-        return `https://embed.cuevana.biz/movie/${tmdbId}?lang=${lang === 'es-419' ? 'latino' : lang === 'es' ? 'spanish' : 'english'}`;
-      }
-      return `https://embed.cuevana.biz/tv/${tmdbId}/${season || 1}/${episode || 1}?lang=${lang === 'es-419' ? 'latino' : lang === 'es' ? 'spanish' : 'english'}`;
-    }
-  },
-  {
-    id: 'pelisplus-embed',
-    name: 'PelisPlus',
-    supportsLang: true,
-    supportsTime: false,
-    description: '🇲🇽 Latino/Castellà',
-    languages: ['es', 'es-419', 'en'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      const langParam = lang === 'es-419' ? 'latino' : lang === 'es' ? 'espanol' : 'ingles';
-      if (type === 'movie') {
-        return `https://pelisplus.icu/embed/movie/${tmdbId}?audio=${langParam}`;
-      }
-      return `https://pelisplus.icu/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?audio=${langParam}`;
-    }
-  },
-  {
-    id: 'vidsrc-latino',
-    name: 'VidSrc Latino',
-    supportsLang: true,
-    supportsTime: false,
-    description: '🇲🇽 Doblat Latino',
-    languages: ['es-419', 'es', 'en'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      // Versió de VidSrc amb preferència per contingut en espanyol
-      const base = type === 'movie'
-        ? `https://vidsrc.xyz/embed/movie/${tmdbId}`
-        : `https://vidsrc.xyz/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
-      return addParams(base, { ds_lang: 'es', sub_lang: 'es', autoplay: 1 });
-    }
-  },
-  // === FONTS FRANCESES ===
-  {
-    id: 'frenchstream',
-    name: 'FrenchStream',
-    supportsLang: true,
-    supportsTime: false,
-    description: '🇫🇷 Francès (VF/VOSTFR)',
-    languages: ['fr', 'en'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      // French stream - VF = Version Française, VOSTFR = VO sub français
-      const version = lang === 'fr' ? 'vf' : 'vostfr';
-      if (type === 'movie') {
-        return `https://french-stream.re/embed/movie/${tmdbId}?version=${version}`;
-      }
-      return `https://french-stream.re/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?version=${version}`;
-    }
-  },
-  {
-    id: 'voirfilms',
-    name: 'VoirFilms',
-    supportsLang: true,
-    supportsTime: false,
-    description: '🇫🇷 Películes FR',
-    languages: ['fr'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      if (type === 'movie') {
-        return `https://voirfilms.ws/embed/movie/${tmdbId}`;
-      }
-      return `https://voirfilms.ws/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
-    }
-  },
-  // === FONTS ITALIANES ===
-  {
-    id: 'filmpertutti',
-    name: 'FilmPerTutti',
-    supportsLang: true,
-    supportsTime: false,
-    description: '🇮🇹 Italià (ITA)',
-    languages: ['it', 'en'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      if (type === 'movie') {
-        return `https://filmpertutti.pub/embed/movie/${tmdbId}?lang=${lang === 'it' ? 'ita' : 'eng'}`;
-      }
-      return `https://filmpertutti.pub/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?lang=${lang === 'it' ? 'ita' : 'eng'}`;
-    }
-  },
-  {
-    id: 'streamingcommunity',
-    name: 'StreamingCommunity',
-    supportsLang: true,
-    supportsTime: false,
-    description: '🇮🇹 ITA streaming',
-    languages: ['it'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      if (type === 'movie') {
-        return `https://streamingcommunity.computer/embed/movie/${tmdbId}`;
-      }
-      return `https://streamingcommunity.computer/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
-    }
-  },
-  // === CATALÀ (molt rar) ===
-  {
-    id: 'tv3cat',
-    name: 'TV3/3Cat',
-    supportsLang: true,
-    supportsTime: false,
-    description: '🇦🇩 Contingut català',
-    languages: ['ca'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      // TV3/3Cat té molt poc contingut accessible via embed
-      // Alternativa: usar VidSrc amb subtítols catalans si existeixen
-      const base = type === 'movie'
-        ? `https://vidsrc.xyz/embed/movie/${tmdbId}`
-        : `https://vidsrc.xyz/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
-      return addParams(base, { sub_lang: 'ca', autoplay: 1 });
-    }
-  },
-  // === FONTS GENERALS ===
-  {
-    id: 'vidsrc',
-    name: 'VidSrc',
-    supportsLang: true,
-    supportsTime: false,
-    description: 'Multi-idioma',
-    languages: ['en', 'es', 'ja', 'fr', 'de', 'it', 'pt', 'ko'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      const base = type === 'movie'
-        ? `https://vidsrc.cc/v2/embed/movie/${tmdbId}`
-        : `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
-      return addParams(base, { ds_lang: lang, autoplay: 1 });
-    }
-  },
-  {
-    id: 'vidsrc-pro',
-    name: 'VidSrc Pro',
-    supportsLang: true,
-    supportsTime: false,
-    description: 'Multi-servidor',
-    languages: ['en', 'es', 'ja', 'fr', 'de', 'it'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      const base = type === 'movie'
-        ? `https://vidsrc.pro/embed/movie/${tmdbId}`
-        : `https://vidsrc.pro/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
-      return addParams(base, { ds_lang: lang });
-    }
-  },
-  {
-    id: 'vidsrc2',
-    name: 'VidSrc 2',
-    supportsLang: true,
-    supportsTime: false,
-    description: 'Alternatiu',
-    languages: ['en', 'es', 'ja'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      const base = type === 'movie'
-        ? `https://vidsrc.xyz/embed/movie/${tmdbId}`
-        : `https://vidsrc.xyz/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
-      return addParams(base, { ds_lang: lang, autoplay: 1 });
-    }
-  },
-  {
-    id: 'superembed',
-    name: 'SuperEmbed',
-    supportsLang: true,
-    supportsTime: true,
-    description: 'Multi-idioma + subtítols',
-    languages: ['en', 'es', 'es-419', 'fr', 'de', 'it', 'pt'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      const params = { video_id: tmdbId, tmdb: 1, lang };
-      if (time) params.t = time;
-      if (type === 'movie') {
-        return addParams('https://multiembed.mov/directstream.php', params);
-      }
-      return addParams('https://multiembed.mov/directstream.php', { ...params, s: season || 1, e: episode || 1 });
-    }
-  },
-  {
-    id: 'autoembed',
-    name: 'AutoEmbed',
-    supportsLang: true,
-    supportsTime: false,
-    description: 'Auto-detecció',
-    languages: ['en', 'es', 'fr', 'de', 'it'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      const base = type === 'movie'
-        ? `https://player.autoembed.cc/embed/movie/${tmdbId}`
-        : `https://player.autoembed.cc/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
-      return addParams(base, { lang, autoplay: 1 });
-    }
-  },
-  {
-    id: 'embedsu',
-    name: 'Embed.su',
-    supportsLang: true,
-    supportsTime: true,
-    description: 'Alta qualitat',
-    languages: ['en', 'es', 'fr', 'de'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      const params = { autoplay: 1, lang };
-      if (time) params.t = time;
-      if (type === 'movie') {
-        return addParams(`https://embed.su/embed/movie/${tmdbId}`, params);
-      }
-      return addParams(`https://embed.su/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`, params);
-    }
-  },
-  {
-    id: '2embed',
-    name: '2Embed',
-    supportsLang: false,
-    supportsTime: false,
-    description: 'Bàsic',
-    languages: ['en'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      if (type === 'movie') {
-        return addParams(`https://www.2embed.cc/embed/${tmdbId}`, { autoplay: 1 });
-      }
-      return `https://www.2embed.cc/embedtv/${tmdbId}&s=${season || 1}&e=${episode || 1}&autoplay=1`;
-    }
-  },
-  {
-    id: 'multiembed',
-    name: 'MultiEmbed',
-    supportsLang: true,
-    supportsTime: true,
-    description: 'Multi-servidor',
-    languages: ['en', 'es', 'es-419', 'fr', 'de', 'it', 'pt'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      const params = { video_id: tmdbId, tmdb: 1, autoplay: 1, lang };
-      if (time) params.t = time;
-      if (type === 'movie') {
-        return addParams('https://multiembed.mov/', params);
-      }
-      return addParams('https://multiembed.mov/', { ...params, s: season || 1, e: episode || 1 });
-    }
-  },
-  // === FONTS ANIME ===
-  {
-    id: 'anime-api',
-    name: 'AnimeAPI',
-    supportsLang: true,
-    supportsTime: false,
-    description: '🎌 Anime VO/Dub',
-    languages: ['ja', 'en', 'es'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      // Determinar si volem dub o sub
-      const isDub = lang !== 'ja';
-      if (type === 'movie') {
-        return `https://api.animemix.live/embed/movie/${tmdbId}?dub=${isDub ? 1 : 0}&lang=${lang}`;
-      }
-      return `https://api.animemix.live/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?dub=${isDub ? 1 : 0}&lang=${lang}`;
-    }
-  },
-  {
-    id: 'smashystream',
-    name: 'SmashyStream',
-    supportsLang: true,
-    supportsTime: false,
-    description: 'Anime + Sèries',
-    languages: ['ja', 'en', 'ko'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      if (type === 'movie') {
-        return `https://player.smashy.stream/movie/${tmdbId}?lang=${lang}`;
-      }
-      return `https://player.smashy.stream/tv/${tmdbId}?s=${season || 1}&e=${episode || 1}&lang=${lang}`;
-    }
-  },
-  {
-    id: 'moviesapi',
-    name: 'MoviesAPI',
-    supportsLang: true,
-    supportsTime: false,
-    description: 'Multi-qualitat',
-    languages: ['en', 'es'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      if (type === 'movie') {
-        return `https://moviesapi.club/movie/${tmdbId}?lang=${lang}`;
-      }
-      return `https://moviesapi.club/tv/${tmdbId}-${season || 1}-${episode || 1}?lang=${lang}`;
-    }
-  },
-  // === FONTS ALTERNATIVES ===
-  {
-    id: 'warezcdn',
-    name: 'WarezCDN',
-    supportsLang: true,
-    supportsTime: false,
-    description: '🇧🇷 PT/ES/EN',
-    languages: ['pt', 'es', 'en'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      if (type === 'movie') {
-        return `https://embed.warezcdn.link/filme/${tmdbId}?lang=${lang}`;
-      }
-      return `https://embed.warezcdn.link/serie/${tmdbId}/${season || 1}/${episode || 1}?lang=${lang}`;
-    }
-  },
-  {
-    id: 'nontongo',
-    name: 'NonTongo',
-    supportsLang: true,
-    supportsTime: false,
-    description: 'Multi-idioma alternatiu',
-    languages: ['en', 'es', 'fr', 'de', 'it'],
-    getUrl: (type, tmdbId, season, episode, lang, time) => {
-      if (type === 'movie') {
-        return `https://www.nontongo.win/embed/movie/${tmdbId}?lang=${lang}`;
-      }
-      return `https://www.nontongo.win/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?lang=${lang}`;
+      return `${baseUrl}/api/torrentio/stream/${type}/${tmdbId}?${params.toString()}`;
     }
   },
 ];
-
-// Funció per trobar el millor servidor per un idioma
-const getBestServerForLanguage = (langCode) => {
-  const preferredServers = LANGUAGE_SERVER_MAP[langCode] || LANGUAGE_SERVER_MAP['en'];
-  for (const serverId of preferredServers) {
-    const serverIndex = EMBED_SOURCES.findIndex(s => s.id === serverId);
-    if (serverIndex >= 0) {
-      return serverIndex;
-    }
-  }
-  return 0; // Per defecte, el primer
-};
 
 function StreamPlayer() {
   const { type, tmdbId } = useParams();
@@ -581,7 +104,6 @@ function StreamPlayer() {
   const navigate = useNavigate();
   const containerRef = useRef(null);
   const episodesMenuRef = useRef(null);
-  const langMenuRef = useRef(null);
 
   // Parsejar paràmetres de la URL (season, episode)
   const searchParams = new URLSearchParams(location.search);
@@ -603,118 +125,27 @@ function StreamPlayer() {
     return 0;
   };
 
-  // Carregar idioma preferit de localStorage
-  const getInitialLanguage = () => {
-    return localStorage.getItem('hermes_stream_lang') || 'ca';
-  };
-
   const [currentSourceIndex, setCurrentSourceIndex] = useState(getInitialSource);
-  const [preferredLang, setPreferredLang] = useState(getInitialLanguage);
   const [loading, setLoading] = useState(true);
   const [showControls, setShowControls] = useState(true);
   const [showSourceMenu, setShowSourceMenu] = useState(false);
   const [showEpisodesMenu, setShowEpisodesMenu] = useState(false);
-  const [showLangMenu, setShowLangMenu] = useState(false);
-  const [showLangTip, setShowLangTip] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showStartOverlay, setShowStartOverlay] = useState(true);
-  const [langChangeMessage, setLangChangeMessage] = useState(null);
 
-  // Estats de temps eliminats - ara el canvi d'idioma és directe
-
-  // Estat per Torrentio (reproductor natiu) - MILLORAT
+  // Estats per Torrentio
   const [torrentioStream, setTorrentioStream] = useState(null);
   const [torrentioError, setTorrentioError] = useState(null);
   const [torrentioLoading, setTorrentioLoading] = useState(false);
-  const [torrentioAvailability, setTorrentioAvailability] = useState(null); // Idiomes disponibles verificats
-  const [checkingAvailability, setCheckingAvailability] = useState(false);
   const videoRef = useRef(null);
 
   const currentSource = EMBED_SOURCES[currentSourceIndex];
   const mediaType = type === 'movie' ? 'movie' : 'tv';
 
-  // Calcular idiomes disponibles - PRIORITZAR idiomes verificats de Torrentio
-  const availableLanguages = React.useMemo(() => {
-    // Si tenim info de Torrentio, mostrar només idiomes verificats
-    if (torrentioAvailability?.languages?.length > 0) {
-      const verified = [];
-      const verifiedCodes = torrentioAvailability.languages.map(l => l.code);
-
-      // Afegir idiomes verificats de Torrentio amb info de qualitat
-      torrentioAvailability.languages.forEach(torrentLang => {
-        const langInfo = LANGUAGE_INFO[torrentLang.code];
-        if (langInfo) {
-          verified.push({
-            code: torrentLang.code,
-            name: langInfo.name,
-            flag: langInfo.flag,
-            quality: torrentLang.quality,
-            size: torrentLang.size,
-            verified: torrentLang.verified,
-            isOriginal: mediaInfo?.original_language === torrentLang.code
-          });
-        } else {
-          // Idioma no conegut però disponible
-          verified.push({
-            code: torrentLang.code,
-            name: torrentLang.code.toUpperCase(),
-            flag: '🌐',
-            quality: torrentLang.quality,
-            size: torrentLang.size,
-            verified: torrentLang.verified,
-            isOriginal: false
-          });
-        }
-      });
-
-      return verified;
-    }
-
-    // Fallback: si no tenim Torrentio, usar lògica anterior
-    if (!mediaInfo) return PREFERRED_LANGUAGES;
-
-    const available = [];
-    const addedCodes = new Set();
-
-    // Afegir idioma original primer
-    const originalLang = mediaInfo.original_language;
-    if (originalLang && !addedCodes.has(originalLang)) {
-      const langInfo = LANGUAGE_INFO[originalLang];
-      if (langInfo) {
-        available.push({
-          code: originalLang,
-          name: `${langInfo.name} (Original)`,
-          flag: langInfo.flag,
-          isOriginal: true
-        });
-        addedCodes.add(originalLang);
-      }
-    }
-
-    // Afegir idiomes preferits
-    PREFERRED_LANGUAGES.forEach(lang => {
-      if (!addedCodes.has(lang.code)) {
-        available.push({ ...lang, isOriginal: false });
-        addedCodes.add(lang.code);
-      }
-    });
-
-    return available.length > 0 ? available : PREFERRED_LANGUAGES;
-  }, [mediaInfo, torrentioAvailability]);
-
-  const currentLang = availableLanguages.find(l => l.code === preferredLang) || availableLanguages[0];
-
-  // Obtenir el títol per fonts que ho necessiten (com animeonline.ninja)
-  const mediaTitle = mediaInfo?.title || mediaInfo?.name || '';
-
-  // Construir URL amb idioma i títol si la font ho suporta
+  // Construir URL per embed
   const embedUrl = React.useMemo(() => {
-    const title = currentSource.needsTitle ? mediaTitle : null;
-    if (currentSource.supportsLang) {
-      return currentSource.getUrl(mediaType, tmdbId, season, episode, preferredLang, null, title);
-    }
-    return currentSource.getUrl(mediaType, tmdbId, season, episode, null, null, title);
-  }, [currentSource, mediaType, tmdbId, season, episode, preferredLang, mediaTitle]);
+    return currentSource.getUrl(mediaType, tmdbId, season, episode);
+  }, [currentSource, mediaType, tmdbId, season, episode]);
 
   // Funcions per carregar dades
   const loadMediaInfo = useCallback(async () => {
@@ -759,40 +190,7 @@ function StreamPlayer() {
     }
   }, [tmdbId, season, type, loadSeasonEpisodes]);
 
-  // PRIMER: Comprovar disponibilitat de Torrentio quan canvia el contingut
-  useEffect(() => {
-    const checkTorrentioAvailability = async () => {
-      if (!tmdbId) return;
-
-      setCheckingAvailability(true);
-      try {
-        const params = new URLSearchParams();
-        if (season) params.set('season', season);
-        if (episode) params.set('episode', episode);
-
-        const response = await axios.get(
-          `${API_URL}/api/torrentio/check/${mediaType}/${tmdbId}?${params.toString()}`
-        );
-
-        if (response.data.available) {
-          setTorrentioAvailability(response.data);
-          console.log('Torrentio disponible:', response.data.languages);
-        } else {
-          setTorrentioAvailability(null);
-          console.log('Torrentio no disponible:', response.data.error);
-        }
-      } catch (error) {
-        console.error('Error comprovant Torrentio:', error);
-        setTorrentioAvailability(null);
-      } finally {
-        setCheckingAvailability(false);
-      }
-    };
-
-    checkTorrentioAvailability();
-  }, [tmdbId, season, episode, mediaType]);
-
-  // Carregar stream de Torrentio quan es selecciona (NOU: usa el nou endpoint verificat)
+  // Carregar stream de Torrentio quan es selecciona
   useEffect(() => {
     if (!currentSource?.isTorrentio) {
       setTorrentioStream(null);
@@ -805,11 +203,9 @@ function StreamPlayer() {
       setTorrentioError(null);
 
       try {
-        // Usar el nou endpoint que verifica els streams
         const params = new URLSearchParams();
         if (season) params.set('season', season);
         if (episode) params.set('episode', episode);
-        params.set('lang', preferredLang);
         params.set('quality', '1080p');
 
         const response = await axios.get(
@@ -819,48 +215,12 @@ function StreamPlayer() {
         if (response.data && response.data.stream_url) {
           setTorrentioStream(response.data);
           setLoading(false);
-          console.log('Stream Torrentio carregat:', response.data.quality, response.data.language);
         } else {
           throw new Error('No s\'ha trobat cap stream');
         }
       } catch (error) {
         console.error('Error carregant Torrentio:', error);
-        const errorMsg = error.response?.data?.detail || error.message;
-
-        // Comprovar si hi ha altres idiomes disponibles
-        if (torrentioAvailability?.languages?.length > 0) {
-          const availableLangs = torrentioAvailability.languages.map(l => l.code);
-          if (!availableLangs.includes(preferredLang)) {
-            // L'idioma no està disponible, suggerir els que sí
-            setTorrentioError(
-              `No hi ha streams en "${preferredLang}". Disponibles: ${availableLangs.join(', ')}`
-            );
-          } else {
-            setTorrentioError(errorMsg);
-          }
-        } else {
-          // No hi ha Torrentio disponible, canviar a altra font
-          const langServers = LANGUAGE_SERVER_MAP[preferredLang] || LANGUAGE_SERVER_MAP['en'];
-          let nextSourceIndex = -1;
-
-          for (let i = 1; i < langServers.length; i++) {
-            const nextServerId = langServers[i];
-            const idx = EMBED_SOURCES.findIndex(s => s.id === nextServerId);
-            if (idx !== -1 && !EMBED_SOURCES[idx].isTorrentio) {
-              nextSourceIndex = idx;
-              break;
-            }
-          }
-
-          if (nextSourceIndex !== -1) {
-            // Canviar automàticament a la següent font
-            console.log(`Torrentio no disponible, provant ${EMBED_SOURCES[nextSourceIndex].name}...`);
-            setCurrentSourceIndex(nextSourceIndex);
-            localStorage.setItem('hermes_stream_source', EMBED_SOURCES[nextSourceIndex].id);
-          } else {
-            setTorrentioError(errorMsg);
-          }
-        }
+        setTorrentioError(error.response?.data?.detail || error.message);
         setLoading(false);
       } finally {
         setTorrentioLoading(false);
@@ -868,66 +228,45 @@ function StreamPlayer() {
     };
 
     fetchTorrentioStream();
-  }, [currentSource, mediaType, tmdbId, season, episode, preferredLang, torrentioAvailability]);
+  }, [currentSource, mediaType, tmdbId, season, episode]);
 
-  // Mostrar tip d'idioma el primer cop
-  useEffect(() => {
-    const hasSeenTip = localStorage.getItem('hermes_lang_tip_seen');
-    if (!hasSeenTip) {
-      setTimeout(() => {
-        setShowLangTip(true);
-        setTimeout(() => {
-          setShowLangTip(false);
-          localStorage.setItem('hermes_lang_tip_seen', 'true');
-        }, 8000);
-      }, 3000);
-    }
-  }, []);
-
-  // Amagar controls després d'un temps (més ràpid en fullscreen)
+  // Amagar controls després d'un temps
   useEffect(() => {
     let timeout;
-    if (showControls && !showSourceMenu && !showEpisodesMenu && !showLangMenu) {
-      // Amagar més ràpid en fullscreen per no interferir amb el reproductor intern
+    if (showControls && !showSourceMenu && !showEpisodesMenu) {
       const delay = isFullscreen ? 2000 : 4000;
       timeout = setTimeout(() => {
         setShowControls(false);
       }, delay);
     }
     return () => clearTimeout(timeout);
-  }, [showControls, showSourceMenu, showEpisodesMenu, showLangMenu, isFullscreen]);
+  }, [showControls, showSourceMenu, showEpisodesMenu, isFullscreen]);
 
-  // Mostrar controls quan mous el ratolí (a qualsevol lloc de la pantalla)
-  const handleMouseMove = useCallback((e) => {
+  // Mostrar controls quan mous el ratolí
+  const handleMouseMove = useCallback(() => {
     setShowControls(true);
   }, []);
 
-  // Amagar controls quan es fa clic a l'iframe (l'usuari vol usar el reproductor intern)
+  // Amagar controls quan es fa clic
   const handleContainerClick = useCallback((e) => {
-    // Si el clic NO és en un botó de control, amaguem els controls
     const isControlClick = e.target.closest('.stream-btn') ||
                           e.target.closest('.stream-source-dropdown') ||
-                          e.target.closest('.stream-episodes-dropdown') ||
-                          e.target.closest('.stream-lang-dropdown');
+                          e.target.closest('.stream-episodes-dropdown');
     if (!isControlClick) {
       setShowControls(false);
     }
   }, []);
 
-  // Funció per entrar en mode immersiu (fullscreen + landscape)
+  // Funció per entrar en mode immersiu
   const enterImmersiveMode = useCallback(async () => {
     try {
-      // Entrar a pantalla completa
       if (containerRef.current && !document.fullscreenElement) {
         await containerRef.current.requestFullscreen();
       }
-
-      // Bloquejar orientació en horitzontal (només mòbil)
       if (window.screen.orientation && window.screen.orientation.lock) {
         try {
           await window.screen.orientation.lock('landscape');
         } catch (e) {
-          // Alguns navegadors no suporten lock d'orientació
           console.log('Orientation lock not supported');
         }
       }
@@ -939,7 +278,6 @@ function StreamPlayer() {
   // Quan l'iframe carrega
   const handleIframeLoad = useCallback(() => {
     setLoading(false);
-    // Entrar automàticament en mode immersiu
     enterImmersiveMode();
   }, [enterImmersiveMode]);
 
@@ -950,46 +288,6 @@ function StreamPlayer() {
     localStorage.setItem('hermes_stream_source', EMBED_SOURCES[index].id);
     setShowSourceMenu(false);
   }, []);
-
-  // Canviar d'idioma - canvi directe sense modal
-  const handleLanguageChange = useCallback((langCode) => {
-    // Si és el mateix idioma, no fer res
-    if (langCode === preferredLang) {
-      setShowLangMenu(false);
-      return;
-    }
-
-    const langInfo = availableLanguages.find(l => l.code === langCode);
-
-    // Trobar el millor servidor per aquest idioma
-    const bestServerIndex = getBestServerForLanguage(langCode);
-    const bestServer = EMBED_SOURCES[bestServerIndex];
-
-    // Actualitzar idioma i servidor directament
-    setPreferredLang(langCode);
-    localStorage.setItem('hermes_stream_lang', langCode);
-    setCurrentSourceIndex(bestServerIndex);
-    localStorage.setItem('hermes_stream_source', bestServer.id);
-
-    // Tancar menú i començar càrrega
-    setShowLangMenu(false);
-    setShowStartOverlay(false);
-    setLoading(true);
-
-    // Mostrar missatge breu
-    setLangChangeMessage({
-      lang: langInfo?.name || langCode,
-      flag: langInfo?.flag || '🌐',
-      server: bestServer.name,
-      time: null
-    });
-
-    setTimeout(() => {
-      setLangChangeMessage(null);
-    }, 4000);
-  }, [preferredLang, availableLanguages]);
-
-  // Funcions de modal de temps eliminades - ara el canvi és directe
 
   // Tornar enrere
   const handleBack = useCallback(() => {
@@ -1047,21 +345,17 @@ function StreamPlayer() {
     const handleFullscreenChange = () => {
       const isFs = !!document.fullscreenElement;
       setIsFullscreen(isFs);
-
-      // Desbloquejar orientació quan sortim de pantalla completa
       if (!isFs && window.screen.orientation && window.screen.orientation.unlock) {
         try {
           window.screen.orientation.unlock();
-        } catch (e) {
-          // Ignorar errors d'unlock
-        }
+        } catch (e) {}
       }
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
-  // Handler per iniciar la reproducció amb mode immersiu
+  // Handler per iniciar la reproducció
   const handleStartPlayback = useCallback(() => {
     setShowStartOverlay(false);
     enterImmersiveMode();
@@ -1075,8 +369,6 @@ function StreamPlayer() {
           setShowEpisodesMenu(false);
         } else if (showSourceMenu) {
           setShowSourceMenu(false);
-        } else if (showLangMenu) {
-          setShowLangMenu(false);
         } else if (isFullscreen) {
           document.exitFullscreen();
         } else {
@@ -1088,13 +380,13 @@ function StreamPlayer() {
         if (type !== 'movie') goToNextEpisode();
       } else if (e.key === 'p' || e.key === 'P') {
         if (type !== 'movie') goToPrevEpisode();
-      } else if (e.key === 'l' || e.key === 'L') {
-        setShowLangMenu(prev => !prev);
+      } else if (e.key === 's' || e.key === 'S') {
+        setShowSourceMenu(prev => !prev);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFullscreen, handleBack, toggleFullscreen, goToNextEpisode, goToPrevEpisode, type, showEpisodesMenu, showSourceMenu, showLangMenu]);
+  }, [isFullscreen, handleBack, toggleFullscreen, goToNextEpisode, goToPrevEpisode, type, showEpisodesMenu, showSourceMenu]);
 
   // Tancar menús quan es clica fora
   useEffect(() => {
@@ -1102,13 +394,10 @@ function StreamPlayer() {
       if (showEpisodesMenu && episodesMenuRef.current && !episodesMenuRef.current.contains(e.target)) {
         setShowEpisodesMenu(false);
       }
-      if (showLangMenu && langMenuRef.current && !langMenuRef.current.contains(e.target)) {
-        setShowLangMenu(false);
-      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showEpisodesMenu, showLangMenu]);
+  }, [showEpisodesMenu]);
 
   // Construir títol
   const getTitle = () => {
@@ -1151,17 +440,31 @@ function StreamPlayer() {
                 <span className="error-icon">⚠️</span>
                 <h3>Error carregant stream</h3>
                 <p>{torrentioError}</p>
-                <button onClick={() => {
-                  setTorrentioError(null);
-                  setLoading(true);
-                  // Retry
-                  const url = currentSource.getUrl(mediaType, tmdbId, season, episode, preferredLang, null, null);
-                  axios.get(url).then(r => {
-                    if (r.data?.stream_url) setTorrentioStream(r.data);
-                  }).catch(e => setTorrentioError(e.message));
-                }}>
-                  Reintentar
-                </button>
+                <div className="error-actions">
+                  <button onClick={() => {
+                    setTorrentioError(null);
+                    setTorrentioLoading(true);
+                    // Retry
+                    const params = new URLSearchParams();
+                    if (season) params.set('season', season);
+                    if (episode) params.set('episode', episode);
+                    params.set('quality', '1080p');
+                    axios.get(`${API_URL}/api/torrentio/stream/${mediaType}/${tmdbId}?${params.toString()}`)
+                      .then(r => {
+                        if (r.data?.stream_url) setTorrentioStream(r.data);
+                        setTorrentioLoading(false);
+                      })
+                      .catch(e => {
+                        setTorrentioError(e.response?.data?.detail || e.message);
+                        setTorrentioLoading(false);
+                      });
+                  }}>
+                    Reintentar
+                  </button>
+                  <button onClick={() => handleSourceChange(0)}>
+                    Canviar a VidSrc
+                  </button>
+                </div>
               </div>
             </div>
           ) : null}
@@ -1194,14 +497,11 @@ function StreamPlayer() {
           <div className="stream-loading-spinner">
             <div className="spinner"></div>
             <p>Carregant {currentSource.name}...</p>
-            {currentSource?.isTorrentio && (
-              <p className="loading-hint">Cercant millor qualitat en {preferredLang === 'es' ? 'castellà' : preferredLang === 'es-419' ? 'llatí' : preferredLang}...</p>
-            )}
           </div>
         </div>
       )}
 
-      {/* Start overlay - per activar mode immersiu amb interacció d'usuari */}
+      {/* Start overlay */}
       {showStartOverlay && !loading && (
         <div className="stream-start-overlay" onClick={handleStartPlayback}>
           <div className="stream-start-content">
@@ -1209,41 +509,10 @@ function StreamPlayer() {
               <PlayCircleIcon />
             </div>
             <p className="stream-start-text">Toca per reproduir</p>
-            <p className="stream-start-hint">Pantalla completa i horitzontal</p>
+            <p className="stream-start-hint">Pantalla completa</p>
           </div>
         </div>
       )}
-
-      {/* Tip d'idioma */}
-      {showLangTip && (
-        <div className="stream-lang-tip">
-          <InfoIcon />
-          <div>
-            <strong>Consell:</strong> Per canviar l'idioma d'àudio, fes clic a la icona d'engranatge o àudio dins del reproductor.
-            Els subtítols es poden seleccionar amb el botó d'idioma ({currentLang.flag}).
-          </div>
-          <button onClick={() => setShowLangTip(false)}>×</button>
-        </div>
-      )}
-
-      {/* Missatge de canvi d'idioma */}
-      {langChangeMessage && (
-        <div className="stream-lang-change-message">
-          <span className="lang-flag">{langChangeMessage.flag}</span>
-          <div className="message-content">
-            <strong>Canviant a: {langChangeMessage.lang}</strong>
-            {langChangeMessage.server && (
-              <p>Servidor: {langChangeMessage.server}</p>
-            )}
-            {langChangeMessage.time && (
-              <p>Continuant des de {langChangeMessage.time}</p>
-            )}
-          </div>
-          <button onClick={() => setLangChangeMessage(null)}>×</button>
-        </div>
-      )}
-
-      {/* Modal de temps eliminat - canvi d'idioma automàtic */}
 
       {/* Barra de controls superior */}
       <div className={`stream-controls-bar ${showControls ? 'visible' : ''}`}>
@@ -1322,69 +591,34 @@ function StreamPlayer() {
           </div>
         )}
 
-        {/* Selector d'idioma i servidor (combinat) */}
-        <div className="stream-settings-selector" ref={langMenuRef}>
+        {/* Selector de servidor */}
+        <div className="stream-source-selector">
           <button
-            className={`stream-btn stream-settings-btn ${showLangMenu ? 'active' : ''}`}
-            onClick={() => setShowLangMenu(!showLangMenu)}
-            title="Idioma i servidor (L)"
+            className={`stream-btn stream-source-btn ${showSourceMenu ? 'active' : ''}`}
+            onClick={() => setShowSourceMenu(!showSourceMenu)}
+            title="Canviar servidor (S)"
           >
-            <span className="lang-flag">{currentLang.flag}</span>
-            <LanguageIcon />
+            <ServerIcon />
+            <span className="source-name-short">{currentSource.name}</span>
           </button>
 
-          {showLangMenu && (
-            <div className="stream-settings-dropdown">
-              {/* Secció d'idioma */}
-              <div className="stream-settings-section">
-                <div className="stream-settings-header">
-                  <LanguageIcon />
-                  <span>Idioma preferit</span>
-                </div>
-                <div className="stream-lang-list">
-                  {checkingAvailability && (
-                    <div className="stream-lang-loading">Comprovant idiomes...</div>
-                  )}
-                  {availableLanguages.map((lang) => (
-                    <button
-                      key={lang.code}
-                      className={`stream-lang-option ${lang.code === preferredLang ? 'active' : ''} ${lang.isOriginal ? 'original' : ''} ${lang.verified ? 'verified' : ''}`}
-                      onClick={() => handleLanguageChange(lang.code)}
-                    >
-                      <span className="lang-flag">{lang.flag}</span>
-                      <span className="lang-name">{lang.name}</span>
-                      {lang.quality && <span className="lang-quality">{lang.quality}</span>}
-                      {lang.verified && <span className="lang-verified">✓</span>}
-                      {lang.code === preferredLang && <span className="check">●</span>}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Secció de servidor */}
-              <div className="stream-settings-section">
-                <div className="stream-settings-header">
-                  <ServerIcon />
-                  <span>Servidor: {currentSource.name}</span>
-                </div>
-                <div className="stream-source-list">
-                  {EMBED_SOURCES.map((source, index) => (
-                    <button
-                      key={source.id}
-                      className={`stream-source-option ${index === currentSourceIndex ? 'active' : ''}`}
-                      onClick={() => handleSourceChange(index)}
-                    >
-                      <div className="source-info">
-                        <span className="source-name">{source.name}</span>
-                        {source.description && (
-                          <span className="source-desc">{source.description}</span>
-                        )}
-                      </div>
-                      {source.supportsLang && <span className="lang-support" title="Suporta idioma">🌐</span>}
-                      {index === currentSourceIndex && <span className="check">✓</span>}
-                    </button>
-                  ))}
-                </div>
+          {showSourceMenu && (
+            <div className="stream-source-dropdown">
+              <div className="stream-source-header">Servidor</div>
+              <div className="stream-source-list">
+                {EMBED_SOURCES.map((source, index) => (
+                  <button
+                    key={source.id}
+                    className={`stream-source-option ${index === currentSourceIndex ? 'active' : ''}`}
+                    onClick={() => handleSourceChange(index)}
+                  >
+                    <div className="source-info">
+                      <span className="source-name">{source.name}</span>
+                      <span className="source-desc">{source.description}</span>
+                    </div>
+                    {index === currentSourceIndex && <span className="check">✓</span>}
+                  </button>
+                ))}
               </div>
             </div>
           )}
