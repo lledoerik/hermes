@@ -559,6 +559,16 @@
   font-weight: bold;
 }
 
+/* Idioma original destacat */
+.stream-lang-option.original {
+  border-left: 3px solid var(--color-primary, #328492);
+  background: rgba(50, 132, 146, 0.1);
+}
+
+.stream-lang-option.original:hover {
+  background: rgba(50, 132, 146, 0.2);
+}
+
 /* Indicador de suport d'idioma a les fonts */
 .stream-source-option .lang-support {
   font-size: 14px;
