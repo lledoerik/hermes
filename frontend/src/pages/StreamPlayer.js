@@ -759,8 +759,34 @@ function StreamPlayer() {
         }
       } catch (error) {
         console.error('Error carregant Torrentio:', error);
-        setTorrentioError(error.response?.data?.detail || error.message || 'Error carregant stream');
-        setLoading(false);
+
+        // Si Torrentio falla (404 = no hi ha l'idioma), provar la següent font automàticament
+        const langServers = LANGUAGE_SERVER_MAP[preferredLang] || LANGUAGE_SERVER_MAP['en'];
+        const currentServerId = currentSource.id;
+        const currentServerIdx = langServers.indexOf(currentServerId);
+
+        // Buscar la següent font que no sigui Torrentio
+        let nextSourceIndex = -1;
+        for (let i = currentServerIdx + 1; i < langServers.length; i++) {
+          const nextServerId = langServers[i];
+          const idx = EMBED_SOURCES.findIndex(s => s.id === nextServerId);
+          if (idx !== -1 && !EMBED_SOURCES[idx].isTorrentio) {
+            nextSourceIndex = idx;
+            break;
+          }
+        }
+
+        if (nextSourceIndex !== -1) {
+          // Canviar automàticament a la següent font
+          console.log(`Torrentio no té ${preferredLang}, provant ${EMBED_SOURCES[nextSourceIndex].name}...`);
+          setCurrentSourceIndex(nextSourceIndex);
+          localStorage.setItem('hermes_stream_source', EMBED_SOURCES[nextSourceIndex].id);
+          // No mostrar error, deixar que carregui la nova font
+        } else {
+          // No hi ha més fonts, mostrar error
+          setTorrentioError(error.response?.data?.detail || error.message || 'Error carregant stream');
+          setLoading(false);
+        }
       } finally {
         setTorrentioLoading(false);
       }
