@@ -301,35 +301,8 @@ function StreamPlayer() {
     ? currentSource.getUrl(mediaType, tmdbId, season, episode, preferredLang)
     : currentSource.getUrl(mediaType, tmdbId, season, episode);
 
-  // Carregar info del media si no s'ha passat per state
-  useEffect(() => {
-    if (!mediaInfo && tmdbId) {
-      loadMediaInfo();
-    }
-  }, [tmdbId, type]);
-
-  // Carregar episodis de la temporada actual
-  useEffect(() => {
-    if (type !== 'movie' && tmdbId && season) {
-      loadSeasonEpisodes();
-    }
-  }, [tmdbId, season, type]);
-
-  // Mostrar tip d'idioma el primer cop
-  useEffect(() => {
-    const hasSeenTip = localStorage.getItem('hermes_lang_tip_seen');
-    if (!hasSeenTip) {
-      setTimeout(() => {
-        setShowLangTip(true);
-        setTimeout(() => {
-          setShowLangTip(false);
-          localStorage.setItem('hermes_lang_tip_seen', 'true');
-        }, 8000);
-      }, 3000);
-    }
-  }, []);
-
-  const loadMediaInfo = async () => {
+  // Funcions per carregar dades
+  const loadMediaInfo = useCallback(async () => {
     try {
       const endpoint = type === 'movie'
         ? `/api/tmdb/movie/${tmdbId}`
@@ -344,9 +317,9 @@ function StreamPlayer() {
     } catch (error) {
       console.error('Error carregant info:', error);
     }
-  };
+  }, [type, tmdbId]);
 
-  const loadSeasonEpisodes = async () => {
+  const loadSeasonEpisodes = useCallback(async () => {
     try {
       const response = await axios.get(`${API_URL}/api/tmdb/tv/${tmdbId}/season/${season}`);
       if (response.data && response.data.episodes) {
@@ -355,7 +328,35 @@ function StreamPlayer() {
     } catch (error) {
       console.error('Error carregant episodis:', error);
     }
-  };
+  }, [tmdbId, season]);
+
+  // Carregar info del media si no s'ha passat per state
+  useEffect(() => {
+    if (!mediaInfo && tmdbId) {
+      loadMediaInfo();
+    }
+  }, [tmdbId, mediaInfo, loadMediaInfo]);
+
+  // Carregar episodis de la temporada actual
+  useEffect(() => {
+    if (type !== 'movie' && tmdbId && season) {
+      loadSeasonEpisodes();
+    }
+  }, [tmdbId, season, type, loadSeasonEpisodes]);
+
+  // Mostrar tip d'idioma el primer cop
+  useEffect(() => {
+    const hasSeenTip = localStorage.getItem('hermes_lang_tip_seen');
+    if (!hasSeenTip) {
+      setTimeout(() => {
+        setShowLangTip(true);
+        setTimeout(() => {
+          setShowLangTip(false);
+          localStorage.setItem('hermes_lang_tip_seen', 'true');
+        }, 8000);
+      }, 3000);
+    }
+  }, []);
 
   // Amagar controls després d'un temps
   useEffect(() => {
