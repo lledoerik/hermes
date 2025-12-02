@@ -683,15 +683,14 @@ function StreamPlayer() {
   // Obtenir el títol per fonts que ho necessiten (com animeonline.ninja)
   const mediaTitle = mediaInfo?.title || mediaInfo?.name || '';
 
-  // Construir URL amb idioma, temps i títol si la font ho suporta
+  // Construir URL amb idioma i títol si la font ho suporta
   const embedUrl = React.useMemo(() => {
-    const time = currentTime > 0 && currentSource.supportsTime ? currentTime : null;
     const title = currentSource.needsTitle ? mediaTitle : null;
     if (currentSource.supportsLang) {
-      return currentSource.getUrl(mediaType, tmdbId, season, episode, preferredLang, time, title);
+      return currentSource.getUrl(mediaType, tmdbId, season, episode, preferredLang, null, title);
     }
-    return currentSource.getUrl(mediaType, tmdbId, season, episode, null, time, title);
-  }, [currentSource, mediaType, tmdbId, season, episode, preferredLang, currentTime, mediaTitle]);
+    return currentSource.getUrl(mediaType, tmdbId, season, episode, null, null, title);
+  }, [currentSource, mediaType, tmdbId, season, episode, preferredLang, mediaTitle]);
 
   // Funcions per carregar dades
   const loadMediaInfo = useCallback(async () => {
@@ -749,7 +748,7 @@ function StreamPlayer() {
       setTorrentioError(null);
 
       try {
-        const url = currentSource.getUrl(mediaType, tmdbId, season, episode, preferredLang, currentTime, null);
+        const url = currentSource.getUrl(mediaType, tmdbId, season, episode, preferredLang, null, null);
         const response = await axios.get(url);
 
         if (response.data && response.data.stream_url) {
@@ -768,7 +767,7 @@ function StreamPlayer() {
     };
 
     fetchTorrentioStream();
-  }, [currentSource, mediaType, tmdbId, season, episode, preferredLang, currentTime]);
+  }, [currentSource, mediaType, tmdbId, season, episode, preferredLang]);
 
   // Mostrar tip d'idioma el primer cop
   useEffect(() => {
@@ -844,8 +843,6 @@ function StreamPlayer() {
   // Quan l'iframe carrega
   const handleIframeLoad = useCallback(() => {
     setLoading(false);
-    // Reset del temps després de carregar (ja s'ha passat a la URL)
-    setCurrentTime(0);
     // Entrar automàticament en mode immersiu
     enterImmersiveMode();
   }, [enterImmersiveMode]);
@@ -1062,7 +1059,7 @@ function StreamPlayer() {
                   setTorrentioError(null);
                   setLoading(true);
                   // Retry
-                  const url = currentSource.getUrl(mediaType, tmdbId, season, episode, preferredLang, currentTime, null);
+                  const url = currentSource.getUrl(mediaType, tmdbId, season, episode, preferredLang, null, null);
                   axios.get(url).then(r => {
                     if (r.data?.stream_url) setTorrentioStream(r.data);
                   }).catch(e => setTorrentioError(e.message));
