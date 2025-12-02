@@ -179,11 +179,11 @@ function Details() {
     }
   }, [type, id]);
 
-  const loadEpisodes = useCallback(async (seasonNum) => {
+  const loadEpisodes = useCallback(async (seasonNum, isTmdb = false, tmdbId = null) => {
     try {
       // Si estem usant TMDB per temporades, carregar episodis de TMDB
-      if (usingTmdbSeasons && item?.tmdb_id) {
-        const tmdbRes = await axios.get(`/api/tmdb/tv/${item.tmdb_id}/season/${seasonNum}`);
+      if (isTmdb && tmdbId) {
+        const tmdbRes = await axios.get(`/api/tmdb/tv/${tmdbId}/season/${seasonNum}`);
         if (tmdbRes.data.episodes) {
           setEpisodes(tmdbRes.data.episodes);
         }
@@ -194,8 +194,9 @@ function Details() {
       }
     } catch (error) {
       console.error('Error carregant episodis:', error);
+      setEpisodes([]);
     }
-  }, [id, usingTmdbSeasons, item?.tmdb_id]);
+  }, [id]);
 
   useEffect(() => {
     loadDetails();
@@ -234,9 +235,9 @@ function Details() {
 
   useEffect(() => {
     if (type === 'series' && seasons.length > 0) {
-      loadEpisodes(selectedSeason);
+      loadEpisodes(selectedSeason, usingTmdbSeasons, item?.tmdb_id);
     }
-  }, [type, selectedSeason, seasons, loadEpisodes]);
+  }, [type, selectedSeason, seasons, loadEpisodes, usingTmdbSeasons, item?.tmdb_id]);
 
   const handlePlay = (episodeId = null) => {
     if (type === 'movies') {
@@ -684,7 +685,7 @@ function Details() {
                   <div className="seasons-list">
                     {seasons.map((season) => (
                       <button
-                        key={season.id}
+                        key={season.id || `tmdb-season-${season.season_number}`}
                         className={`season-btn ${selectedSeason === season.season_number ? 'active' : ''}`}
                         onClick={() => setSelectedSeason(season.season_number)}
                       >
