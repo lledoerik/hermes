@@ -6,6 +6,7 @@ Hermes Media Server - API Principal
 import os
 import sys
 import json
+import re
 import sqlite3
 import logging
 import asyncio
