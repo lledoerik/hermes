@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { LibraryProvider, useLibrary } from './context/LibraryContext';
 import Navbar from './components/Navbar';
@@ -8,7 +8,7 @@ import Home from './pages/Home';
 import Movies from './pages/Movies';
 import Series from './pages/Series';
 import Details from './pages/Details';
-import Player from './pages/Player';
+// import Player from './pages/Player'; // Desactivat - ara s'utilitza streaming extern
 import StreamPlayer from './pages/StreamPlayer';
 import Search from './pages/Search';
 import Admin from './pages/Admin';
@@ -46,8 +46,8 @@ function AppContent() {
         </div>
 
         <Routes>
-          {/* Player route without Navbar */}
-          <Route path="/play/:type/:id" element={<Player />} />
+          {/* Player local desactivat - redirigir a home */}
+          <Route path="/play/:type/:id" element={<Navigate to="/" replace />} />
 
           {/* Stream Player for external sources */}
           <Route path="/stream/:type/:tmdbId" element={<StreamPlayer />} />
