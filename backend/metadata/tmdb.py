@@ -216,6 +216,55 @@ class TMDBClient:
             return data["results"].get(country)
         return None
 
+    async def get_tv_seasons(self, tv_id: int) -> List[Dict[str, Any]]:
+        """Get all seasons for a TV series from TMDB."""
+        # First get TV details which includes seasons list
+        result = []
+        for lang in LANGUAGE_FALLBACK:
+            data = await self._request(f"/tv/{tv_id}", {"language": lang})
+            if data and data.get("seasons"):
+                for season in data["seasons"]:
+                    result.append({
+                        "season_number": season.get("season_number"),
+                        "name": season.get("name"),
+                        "episode_count": season.get("episode_count"),
+                        "air_date": season.get("air_date"),
+                        "overview": season.get("overview", ""),
+                        "poster_path": season.get("poster_path")
+                    })
+                break
+        return result
+
+    async def get_tv_season_details(self, tv_id: int, season_number: int) -> Optional[Dict[str, Any]]:
+        """Get detailed information about a specific season including all episodes."""
+        result = None
+        used_language = None
+
+        for lang in LANGUAGE_FALLBACK:
+            data = await self._request(f"/tv/{tv_id}/season/{season_number}", {"language": lang})
+            if data:
+                if not result or (data.get("overview") and not result.get("overview")):
+                    result = data
+                    used_language = lang
+                    if data.get("overview"):
+                        break
+
+        # Translate overview if not in Catalan
+        if result and used_language and used_language != "ca-ES":
+            if result.get("overview"):
+                result["overview"] = await asyncio.to_thread(
+                    translate_to_catalan, result["overview"], used_language
+                )
+            # Also translate episode overviews
+            if result.get("episodes"):
+                for episode in result["episodes"]:
+                    if episode.get("overview"):
+                        episode["overview"] = await asyncio.to_thread(
+                            translate_to_catalan, episode["overview"], used_language
+                        )
+
+        return result
+
     def _detect_content_type(self, media_type: str, genre_ids: List[int],
                              original_language: str, origin_countries: List[str]) -> str:
         """
