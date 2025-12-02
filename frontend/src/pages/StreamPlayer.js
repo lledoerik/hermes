@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import axios from 'axios';
 import './StreamPlayer.css';
+
+const API_URL = window.location.hostname === 'localhost'
+  ? 'http://localhost:8000'
+  : '';
 
 // SVG Icons
 const BackIcon = () => (
@@ -21,9 +26,33 @@ const FullscreenIcon = () => (
   </svg>
 );
 
+const FullscreenExitIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
+  </svg>
+);
+
 const ChevronDownIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor">
     <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+  </svg>
+);
+
+const PrevIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
+  </svg>
+);
+
+const NextIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
+  </svg>
+);
+
+const EpisodesIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2z"/>
   </svg>
 );
 
@@ -96,33 +125,91 @@ function StreamPlayer() {
   const location = useLocation();
   const navigate = useNavigate();
   const containerRef = useRef(null);
-  const iframeRef = useRef(null);
+  const episodesMenuRef = useRef(null);
 
   // Parsejar paràmetres de la URL (season, episode)
   const searchParams = new URLSearchParams(location.search);
   const season = searchParams.get('s') ? parseInt(searchParams.get('s')) : null;
   const episode = searchParams.get('e') ? parseInt(searchParams.get('e')) : null;
 
-  const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
+  // Info del contingut (passada per state o carregada)
+  const [mediaInfo, setMediaInfo] = useState(location.state?.mediaInfo || null);
+  const [episodes, setEpisodes] = useState([]);
+  const [seasons, setSeasons] = useState([]);
+
+  // Carregar font preferida de localStorage
+  const getInitialSource = () => {
+    const saved = localStorage.getItem('hermes_stream_source');
+    if (saved) {
+      const index = EMBED_SOURCES.findIndex(s => s.id === saved);
+      if (index >= 0) return index;
+    }
+    return 0;
+  };
+
+  const [currentSourceIndex, setCurrentSourceIndex] = useState(getInitialSource);
   const [loading, setLoading] = useState(true);
   const [showControls, setShowControls] = useState(true);
   const [showSourceMenu, setShowSourceMenu] = useState(false);
+  const [showEpisodesMenu, setShowEpisodesMenu] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const currentSource = EMBED_SOURCES[currentSourceIndex];
   const mediaType = type === 'movie' ? 'movie' : 'tv';
   const embedUrl = currentSource.getUrl(mediaType, tmdbId, season, episode);
 
+  // Carregar info del media si no s'ha passat per state
+  useEffect(() => {
+    if (!mediaInfo && tmdbId) {
+      loadMediaInfo();
+    }
+  }, [tmdbId, type]);
+
+  // Carregar episodis de la temporada actual
+  useEffect(() => {
+    if (type !== 'movie' && tmdbId && season) {
+      loadSeasonEpisodes();
+    }
+  }, [tmdbId, season, type]);
+
+  const loadMediaInfo = async () => {
+    try {
+      const endpoint = type === 'movie'
+        ? `/api/tmdb/movie/${tmdbId}`
+        : `/api/tmdb/tv/${tmdbId}`;
+      const response = await axios.get(`${API_URL}${endpoint}`);
+      setMediaInfo(response.data);
+
+      // Per sèries, carregar temporades
+      if (type !== 'movie' && response.data.seasons) {
+        setSeasons(response.data.seasons.filter(s => s.season_number > 0));
+      }
+    } catch (error) {
+      console.error('Error carregant info:', error);
+    }
+  };
+
+  const loadSeasonEpisodes = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/tmdb/tv/${tmdbId}/season/${season}`);
+      if (response.data && response.data.episodes) {
+        setEpisodes(response.data.episodes);
+      }
+    } catch (error) {
+      console.error('Error carregant episodis:', error);
+    }
+  };
+
   // Amagar controls després d'un temps
   useEffect(() => {
     let timeout;
-    if (showControls && !showSourceMenu) {
+    if (showControls && !showSourceMenu && !showEpisodesMenu) {
       timeout = setTimeout(() => {
         setShowControls(false);
       }, 4000);
     }
     return () => clearTimeout(timeout);
-  }, [showControls, showSourceMenu]);
+  }, [showControls, showSourceMenu, showEpisodesMenu]);
 
   // Mostrar controls amb moviment del ratolí
   const handleMouseMove = useCallback(() => {
@@ -138,13 +225,20 @@ function StreamPlayer() {
   const handleSourceChange = useCallback((index) => {
     setLoading(true);
     setCurrentSourceIndex(index);
+    // Guardar preferència
+    localStorage.setItem('hermes_stream_source', EMBED_SOURCES[index].id);
     setShowSourceMenu(false);
   }, []);
 
   // Tornar enrere
   const handleBack = useCallback(() => {
-    navigate(-1);
-  }, [navigate]);
+    // Tornar a la pàgina de detalls
+    if (type === 'movie') {
+      navigate(`/movies/${tmdbId}`);
+    } else {
+      navigate(`/series/${tmdbId}`);
+    }
+  }, [navigate, type, tmdbId]);
 
   // Toggle fullscreen
   const toggleFullscreen = useCallback(() => {
@@ -154,6 +248,42 @@ function StreamPlayer() {
       document.exitFullscreen();
     }
   }, []);
+
+  // Navegació d'episodis
+  const goToPrevEpisode = useCallback(() => {
+    if (!episode || episode <= 1) {
+      // Si estem al primer episodi, anar a la temporada anterior
+      if (season && season > 1) {
+        // TODO: Podríem carregar l'últim episodi de la temporada anterior
+        navigate(`/stream/tv/${tmdbId}?s=${season - 1}&e=1`);
+      }
+      return;
+    }
+    navigate(`/stream/tv/${tmdbId}?s=${season}&e=${episode - 1}`);
+    setLoading(true);
+  }, [navigate, tmdbId, season, episode]);
+
+  const goToNextEpisode = useCallback(() => {
+    if (!episode) return;
+    const maxEpisode = episodes.length > 0 ? episodes.length : 999;
+    if (episode >= maxEpisode) {
+      // Anar a la següent temporada
+      const maxSeason = seasons.length > 0 ? Math.max(...seasons.map(s => s.season_number)) : 999;
+      if (season && season < maxSeason) {
+        navigate(`/stream/tv/${tmdbId}?s=${season + 1}&e=1`);
+        setLoading(true);
+      }
+      return;
+    }
+    navigate(`/stream/tv/${tmdbId}?s=${season}&e=${episode + 1}`);
+    setLoading(true);
+  }, [navigate, tmdbId, season, episode, episodes.length, seasons]);
+
+  const goToEpisode = useCallback((ep) => {
+    navigate(`/stream/tv/${tmdbId}?s=${season}&e=${ep.episode_number}`);
+    setLoading(true);
+    setShowEpisodesMenu(false);
+  }, [navigate, tmdbId, season]);
 
   // Escoltar canvis de fullscreen
   useEffect(() => {
@@ -168,18 +298,49 @@ function StreamPlayer() {
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        if (isFullscreen) {
+        if (showEpisodesMenu) {
+          setShowEpisodesMenu(false);
+        } else if (showSourceMenu) {
+          setShowSourceMenu(false);
+        } else if (isFullscreen) {
           document.exitFullscreen();
         } else {
           handleBack();
         }
       } else if (e.key === 'f' || e.key === 'F') {
         toggleFullscreen();
+      } else if (e.key === 'n' || e.key === 'N') {
+        if (type !== 'movie') goToNextEpisode();
+      } else if (e.key === 'p' || e.key === 'P') {
+        if (type !== 'movie') goToPrevEpisode();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFullscreen, handleBack, toggleFullscreen]);
+  }, [isFullscreen, handleBack, toggleFullscreen, goToNextEpisode, goToPrevEpisode, type, showEpisodesMenu, showSourceMenu]);
+
+  // Tancar menús quan es clica fora
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (showEpisodesMenu && episodesMenuRef.current && !episodesMenuRef.current.contains(e.target)) {
+        setShowEpisodesMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showEpisodesMenu]);
+
+  // Construir títol
+  const getTitle = () => {
+    if (!mediaInfo) return '';
+    return mediaInfo.title || mediaInfo.name || '';
+  };
+
+  const getEpisodeTitle = () => {
+    if (!episode || !episodes.length) return '';
+    const ep = episodes.find(e => e.episode_number === episode);
+    return ep?.name || '';
+  };
 
   return (
     <div
@@ -189,7 +350,6 @@ function StreamPlayer() {
     >
       {/* Iframe del reproductor embed */}
       <iframe
-        ref={iframeRef}
         key={embedUrl}
         src={embedUrl}
         className="stream-iframe"
@@ -216,15 +376,75 @@ function StreamPlayer() {
           <BackIcon />
         </button>
 
-        {/* Info temporada/episodi */}
-        {season && episode && (
-          <div className="stream-episode-info">
-            T{season} E{episode}
-          </div>
-        )}
+        {/* Títol i info */}
+        <div className="stream-title-section">
+          <h2 className="stream-title">{getTitle()}</h2>
+          {season && episode && (
+            <div className="stream-episode-info">
+              <span className="stream-se">T{season} E{episode}</span>
+              {getEpisodeTitle() && (
+                <span className="stream-ep-title">{getEpisodeTitle()}</span>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Espai flexible */}
         <div className="stream-spacer" />
+
+        {/* Controls de navegació d'episodis */}
+        {type !== 'movie' && season && episode && (
+          <div className="stream-episode-nav">
+            <button
+              className="stream-btn stream-nav-btn"
+              onClick={goToPrevEpisode}
+              disabled={episode <= 1 && season <= 1}
+              title="Episodi anterior (P)"
+            >
+              <PrevIcon />
+            </button>
+
+            {/* Menú d'episodis */}
+            <div className="stream-episodes-wrapper" ref={episodesMenuRef}>
+              <button
+                className={`stream-btn stream-episodes-btn ${showEpisodesMenu ? 'active' : ''}`}
+                onClick={() => setShowEpisodesMenu(!showEpisodesMenu)}
+                title="Episodis"
+              >
+                <EpisodesIcon />
+              </button>
+
+              {showEpisodesMenu && (
+                <div className="stream-episodes-dropdown">
+                  <div className="stream-episodes-header">
+                    Temporada {season}
+                  </div>
+                  <div className="stream-episodes-list">
+                    {episodes.map((ep) => (
+                      <button
+                        key={ep.episode_number}
+                        className={`stream-episode-option ${ep.episode_number === episode ? 'active' : ''}`}
+                        onClick={() => goToEpisode(ep)}
+                      >
+                        <span className="ep-number">{ep.episode_number}</span>
+                        <span className="ep-title">{ep.name || `Episodi ${ep.episode_number}`}</span>
+                        {ep.episode_number === episode && <span className="ep-playing">&#9654;</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button
+              className="stream-btn stream-nav-btn"
+              onClick={goToNextEpisode}
+              title="Episodi següent (N)"
+            >
+              <NextIcon />
+            </button>
+          </div>
+        )}
 
         {/* Selector de font */}
         <div className="stream-source-selector">
@@ -255,7 +475,7 @@ function StreamPlayer() {
 
         {/* Botó fullscreen */}
         <button className="stream-btn" onClick={toggleFullscreen} title="Pantalla completa (F)">
-          <FullscreenIcon />
+          {isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
         </button>
       </div>
     </div>
