@@ -169,19 +169,28 @@ const styles = {
   },
 };
 
-function MediaCard({ item, type = 'series', width = 180 }) {
+function MediaCard({ item, type = 'series', width = 180, isTmdb = false }) {
   const [isHovered, setIsHovered] = useState(false);
   const [imageError, setImageError] = useState(false);
   const navigate = useNavigate();
 
+  // Determinar si és contingut només de streaming (TMDB sense fitxers locals)
+  const isStreamingOnly = isTmdb || item.is_tmdb;
+
   const handleClick = () => {
-    navigate(`/${type}/${item.id}`);
+    if (isStreamingOnly && item.tmdb_id) {
+      // Navegar a la pàgina de streaming per contingut TMDB
+      navigate(`/stream/${type === 'movies' ? 'movie' : 'tv'}/${item.tmdb_id}`);
+    } else {
+      navigate(`/${type}/${item.id}`);
+    }
   };
 
   const handlePlay = (e) => {
     e.stopPropagation();
-    if (type === 'movies') {
-      // Only navigate to play if movie has a file
+    if (isStreamingOnly && item.tmdb_id) {
+      navigate(`/stream/${type === 'movies' ? 'movie' : 'tv'}/${item.tmdb_id}`);
+    } else if (type === 'movies') {
       if (item.has_file === false) {
         navigate(`/movies/${item.id}`);
       } else {
@@ -193,6 +202,9 @@ function MediaCard({ item, type = 'series', width = 180 }) {
   };
 
   const getMeta = () => {
+    if (isStreamingOnly) {
+      return 'Streaming';
+    }
     if (type === 'movies') {
       if (item.has_file === false) {
         return 'Només metadades';
@@ -203,9 +215,14 @@ function MediaCard({ item, type = 'series', width = 180 }) {
     return `${item.season_count || 0} temp. · ${item.episode_count || 0} ep.`;
   };
 
-  const hasFile = type !== 'movies' || item.has_file !== false;
+  const hasFile = isStreamingOnly || type !== 'movies' || item.has_file !== false;
 
   const progress = item.watch_progress || 0;
+
+  // URL del poster (TMDB directe o local)
+  const posterUrl = isStreamingOnly && item.poster
+    ? item.poster
+    : item.poster ? `${API_URL}/api/image/poster/${item.id}` : null;
 
   return (
     <div
@@ -219,9 +236,9 @@ function MediaCard({ item, type = 'series', width = 180 }) {
       onClick={handleClick}
     >
       <div style={styles.poster}>
-        {item.poster && !imageError ? (
+        {posterUrl && !imageError ? (
           <img
-            src={`${API_URL}/api/image/poster/${item.id}`}
+            src={posterUrl}
             alt={item.name}
             style={styles.image}
             loading="lazy"
@@ -255,6 +272,24 @@ function MediaCard({ item, type = 'series', width = 180 }) {
 
         {item.year && (
           <div style={styles.badge}>{item.year}</div>
+        )}
+
+        {isStreamingOnly && (
+          <div style={{
+            ...styles.badge,
+            top: 'auto',
+            bottom: '10px',
+            left: '10px',
+            background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>
+            </svg>
+            Streaming
+          </div>
         )}
 
         {progress > 0 && (
