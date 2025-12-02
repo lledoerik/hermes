@@ -74,8 +74,8 @@ const PlayCircleIcon = () => (
   </svg>
 );
 
-// Idiomes disponibles
-const LANGUAGES = [
+// Idiomes disponibles (preferits)
+const PREFERRED_LANGUAGES = [
   { code: 'ca', name: 'Català', flag: '🇦🇩' },
   { code: 'en', name: 'Anglès', flag: '🇬🇧' },
   { code: 'es', name: 'Castellà', flag: '🇪🇸' },
@@ -83,6 +83,42 @@ const LANGUAGES = [
   { code: 'fr', name: 'Francès', flag: '🇫🇷' },
   { code: 'it', name: 'Italià', flag: '🇮🇹' },
 ];
+
+// Mapa de codis d'idioma a noms i banderes
+const LANGUAGE_INFO = {
+  'ca': { name: 'Català', flag: '🇦🇩' },
+  'en': { name: 'Anglès', flag: '🇬🇧' },
+  'es': { name: 'Castellà', flag: '🇪🇸' },
+  'es-419': { name: 'Espanyol (Llatí)', flag: '🇲🇽' },
+  'fr': { name: 'Francès', flag: '🇫🇷' },
+  'it': { name: 'Italià', flag: '🇮🇹' },
+  'de': { name: 'Alemany', flag: '🇩🇪' },
+  'pt': { name: 'Portuguès', flag: '🇵🇹' },
+  'ja': { name: 'Japonès', flag: '🇯🇵' },
+  'ko': { name: 'Coreà', flag: '🇰🇷' },
+  'zh': { name: 'Xinès', flag: '🇨🇳' },
+  'ru': { name: 'Rus', flag: '🇷🇺' },
+  'ar': { name: 'Àrab', flag: '🇸🇦' },
+  'hi': { name: 'Hindi', flag: '🇮🇳' },
+  'nl': { name: 'Neerlandès', flag: '🇳🇱' },
+  'pl': { name: 'Polonès', flag: '🇵🇱' },
+  'sv': { name: 'Suec', flag: '🇸🇪' },
+  'da': { name: 'Danès', flag: '🇩🇰' },
+  'no': { name: 'Noruec', flag: '🇳🇴' },
+  'fi': { name: 'Finès', flag: '🇫🇮' },
+  'tr': { name: 'Turc', flag: '🇹🇷' },
+  'el': { name: 'Grec', flag: '🇬🇷' },
+  'he': { name: 'Hebreu', flag: '🇮🇱' },
+  'th': { name: 'Tailandès', flag: '🇹🇭' },
+  'vi': { name: 'Vietnamita', flag: '🇻🇳' },
+  'id': { name: 'Indonesi', flag: '🇮🇩' },
+  'ms': { name: 'Malai', flag: '🇲🇾' },
+  'tl': { name: 'Tagal', flag: '🇵🇭' },
+  'uk': { name: 'Ucraïnès', flag: '🇺🇦' },
+  'cs': { name: 'Txec', flag: '🇨🇿' },
+  'hu': { name: 'Hongarès', flag: '🇭🇺' },
+  'ro': { name: 'Romanès', flag: '🇷🇴' },
+};
 
 // Helper per afegir paràmetres a URL
 const addParams = (url, params) => {
@@ -209,8 +245,56 @@ function StreamPlayer() {
   const [showStartOverlay, setShowStartOverlay] = useState(true);
 
   const currentSource = EMBED_SOURCES[currentSourceIndex];
-  const currentLang = LANGUAGES.find(l => l.code === preferredLang) || LANGUAGES[0];
   const mediaType = type === 'movie' ? 'movie' : 'tv';
+
+  // Calcular idiomes disponibles basant-se en la info del media
+  const availableLanguages = React.useMemo(() => {
+    if (!mediaInfo) return PREFERRED_LANGUAGES;
+
+    // Obtenir idiomes del contingut (spoken_languages per películes, languages per TV)
+    const mediaLangs = mediaInfo.spoken_languages || mediaInfo.languages || [];
+    const originalLang = mediaInfo.original_language;
+
+    // Crear llista d'idiomes disponibles
+    const available = [];
+    const addedCodes = new Set();
+
+    // Afegir idioma original primer si existeix
+    if (originalLang && !addedCodes.has(originalLang)) {
+      const langInfo = LANGUAGE_INFO[originalLang];
+      if (langInfo) {
+        available.push({
+          code: originalLang,
+          name: `${langInfo.name} (Original)`,
+          flag: langInfo.flag,
+          isOriginal: true
+        });
+        addedCodes.add(originalLang);
+      }
+    }
+
+    // Afegir idiomes preferits que estiguin disponibles al contingut
+    const mediaLangCodes = mediaLangs.map(l => l.iso_639_1);
+
+    PREFERRED_LANGUAGES.forEach(lang => {
+      if (!addedCodes.has(lang.code)) {
+        // Afegir si està a la llista de spoken_languages o si és un idioma comú de doblatge
+        const isInMedia = mediaLangCodes.includes(lang.code);
+        // Sempre afegir anglès, castellà i els preferits principals (normalment tenen doblatge)
+        const isCommonDub = ['en', 'es', 'fr', 'it', 'de'].includes(lang.code);
+
+        if (isInMedia || isCommonDub) {
+          available.push({ ...lang, isOriginal: false });
+          addedCodes.add(lang.code);
+        }
+      }
+    });
+
+    // Si no hi ha cap idioma, retornar els preferits per defecte
+    return available.length > 0 ? available : PREFERRED_LANGUAGES;
+  }, [mediaInfo]);
+
+  const currentLang = availableLanguages.find(l => l.code === preferredLang) || availableLanguages[0];
 
   // Construir URL amb idioma si la font ho suporta
   const embedUrl = currentSource.supportsLang
@@ -615,13 +699,13 @@ function StreamPlayer() {
                 <span>Idioma preferit</span>
               </div>
               <div className="stream-lang-note">
-                Per canviar l'àudio, usa els controls del reproductor (icona d'engranatge)
+                Idiomes disponibles segons TMDB. L'àudio real depèn del servidor.
               </div>
               <div className="stream-lang-list">
-                {LANGUAGES.map((lang) => (
+                {availableLanguages.map((lang) => (
                   <button
                     key={lang.code}
-                    className={`stream-lang-option ${lang.code === preferredLang ? 'active' : ''}`}
+                    className={`stream-lang-option ${lang.code === preferredLang ? 'active' : ''} ${lang.isOriginal ? 'original' : ''}`}
                     onClick={() => handleLanguageChange(lang.code)}
                   >
                     <span className="lang-flag">{lang.flag}</span>
