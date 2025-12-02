@@ -139,21 +139,193 @@ const addParams = (url, params) => {
 // Mapatge d'idiomes a servidors preferits
 // Cada idioma té una llista de servidors ordenats per preferència per aquell idioma
 const LANGUAGE_SERVER_MAP = {
-  'ja': ['vidsrc', 'vidsrc-pro', 'smashystream', 'autoembed'], // Japonès (VO) - anime servers
+  'ja': ['animeonline', 'vidsrc', 'vidsrc-pro', 'smashystream', 'anime-api', 'autoembed'], // Japonès (VO)
   'en': ['vidsrc', 'vidsrc-pro', 'embedsu', 'autoembed', 'multiembed'], // Anglès
-  'es': ['vidsrc', 'multiembed', 'autoembed', 'vidsrc-pro'], // Castellà
-  'es-419': ['multiembed', 'vidsrc', 'autoembed'], // Espanyol llatí
-  'ca': ['vidsrc', 'multiembed', 'autoembed'], // Català (rar, però intentem)
-  'fr': ['vidsrc', 'autoembed', 'multiembed'], // Francès
-  'it': ['vidsrc', 'autoembed', 'multiembed'], // Italià
+  'es': ['seriesflix', 'pelisflix', 'animeonline', 'cuevana-embed', 'pelisplus-embed', 'vidsrc-latino', 'filmpertutti', 'multiembed', 'vidsrc'], // Castellà
+  'es-419': ['seriesflix', 'pelisflix', 'animeonline', 'cuevana-embed', 'pelisplus-embed', 'vidsrc-latino', 'multiembed', 'vidsrc'], // Espanyol llatí
+  'ca': ['vidsrc', 'multiembed', 'autoembed', 'tv3cat'], // Català
+  'fr': ['frenchstream', 'vidsrc', 'autoembed', 'multiembed'], // Francès
+  'it': ['filmpertutti', 'streamingcommunity', 'vidsrc', 'autoembed', 'multiembed'], // Italià
   'de': ['vidsrc', 'autoembed', 'multiembed'], // Alemany
-  'pt': ['vidsrc', 'autoembed', 'multiembed'], // Portuguès
+  'pt': ['warezcdn', 'vidsrc', 'autoembed', 'multiembed'], // Portuguès
   'ko': ['vidsrc', 'smashystream', 'autoembed'], // Coreà
 };
 
 // Fonts d'embed disponibles amb suport d'idioma, autoplay i temps
 // Nota: Algunes fonts suporten el paràmetre de temps (t=seconds)
 const EMBED_SOURCES = [
+  // === ANIME (ESPANYOL/JAPONÈS) ===
+  {
+    id: 'animeonline',
+    name: 'AnimeOnline.ninja',
+    supportsLang: true,
+    supportsTime: false,
+    description: '🎌 Anime ES/Latino/VO',
+    languages: ['es', 'es-419', 'ja'],
+    // AnimeOnline.ninja - font principal per anime en espanyol
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
+      // Determinar el tipus d'àudio
+      const audio = lang === 'ja' ? 'japanese' : lang === 'es-419' ? 'latino' : 'spanish';
+      if (type === 'movie') {
+        return `https://animeonline.ninja/embed/movie/${tmdbId}?audio=${audio}`;
+      }
+      return `https://animeonline.ninja/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?audio=${audio}`;
+    }
+  },
+  // === FONTS AMB ESPANYOL / LLATÍ ===
+  {
+    id: 'seriesflix',
+    name: 'SeriesFlix',
+    supportsLang: true,
+    supportsTime: false,
+    description: '🇪🇸 Sèries en Castellà',
+    languages: ['es', 'es-419', 'en'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
+      const audio = lang === 'es-419' ? 'latino' : lang === 'es' ? 'castellano' : 'english';
+      if (type === 'movie') {
+        return `https://seriesflix.video/embed/movie/${tmdbId}?audio=${audio}`;
+      }
+      return `https://seriesflix.video/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?audio=${audio}`;
+    }
+  },
+  {
+    id: 'pelisflix',
+    name: 'PelisFlix',
+    supportsLang: true,
+    supportsTime: false,
+    description: '🇪🇸 Películes en Castellà',
+    languages: ['es', 'es-419', 'en'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
+      const audio = lang === 'es-419' ? 'latino' : lang === 'es' ? 'castellano' : 'english';
+      if (type === 'movie') {
+        return `https://pelisflix.tube/embed/movie/${tmdbId}?audio=${audio}`;
+      }
+      return `https://pelisflix.tube/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?audio=${audio}`;
+    }
+  },
+  {
+    id: 'cuevana-embed',
+    name: 'Cuevana',
+    supportsLang: true,
+    supportsTime: false,
+    description: '🇪🇸 Espanyol/Latino',
+    languages: ['es', 'es-419', 'en'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
+      // Cuevana usa el format latino per defecte
+      if (type === 'movie') {
+        return `https://embed.cuevana.biz/movie/${tmdbId}?lang=${lang === 'es-419' ? 'latino' : lang === 'es' ? 'spanish' : 'english'}`;
+      }
+      return `https://embed.cuevana.biz/tv/${tmdbId}/${season || 1}/${episode || 1}?lang=${lang === 'es-419' ? 'latino' : lang === 'es' ? 'spanish' : 'english'}`;
+    }
+  },
+  {
+    id: 'pelisplus-embed',
+    name: 'PelisPlus',
+    supportsLang: true,
+    supportsTime: false,
+    description: '🇲🇽 Latino/Castellà',
+    languages: ['es', 'es-419', 'en'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
+      const langParam = lang === 'es-419' ? 'latino' : lang === 'es' ? 'espanol' : 'ingles';
+      if (type === 'movie') {
+        return `https://pelisplus.icu/embed/movie/${tmdbId}?audio=${langParam}`;
+      }
+      return `https://pelisplus.icu/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?audio=${langParam}`;
+    }
+  },
+  {
+    id: 'vidsrc-latino',
+    name: 'VidSrc Latino',
+    supportsLang: true,
+    supportsTime: false,
+    description: '🇲🇽 Doblat Latino',
+    languages: ['es-419', 'es', 'en'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
+      // Versió de VidSrc amb preferència per contingut en espanyol
+      const base = type === 'movie'
+        ? `https://vidsrc.xyz/embed/movie/${tmdbId}`
+        : `https://vidsrc.xyz/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
+      return addParams(base, { ds_lang: 'es', sub_lang: 'es', autoplay: 1 });
+    }
+  },
+  // === FONTS FRANCESES ===
+  {
+    id: 'frenchstream',
+    name: 'FrenchStream',
+    supportsLang: true,
+    supportsTime: false,
+    description: '🇫🇷 Francès (VF/VOSTFR)',
+    languages: ['fr', 'en'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
+      // French stream - VF = Version Française, VOSTFR = VO sub français
+      const version = lang === 'fr' ? 'vf' : 'vostfr';
+      if (type === 'movie') {
+        return `https://french-stream.re/embed/movie/${tmdbId}?version=${version}`;
+      }
+      return `https://french-stream.re/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?version=${version}`;
+    }
+  },
+  {
+    id: 'voirfilms',
+    name: 'VoirFilms',
+    supportsLang: true,
+    supportsTime: false,
+    description: '🇫🇷 Películes FR',
+    languages: ['fr'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
+      if (type === 'movie') {
+        return `https://voirfilms.ws/embed/movie/${tmdbId}`;
+      }
+      return `https://voirfilms.ws/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
+    }
+  },
+  // === FONTS ITALIANES ===
+  {
+    id: 'filmpertutti',
+    name: 'FilmPerTutti',
+    supportsLang: true,
+    supportsTime: false,
+    description: '🇮🇹 Italià (ITA)',
+    languages: ['it', 'en'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
+      if (type === 'movie') {
+        return `https://filmpertutti.pub/embed/movie/${tmdbId}?lang=${lang === 'it' ? 'ita' : 'eng'}`;
+      }
+      return `https://filmpertutti.pub/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?lang=${lang === 'it' ? 'ita' : 'eng'}`;
+    }
+  },
+  {
+    id: 'streamingcommunity',
+    name: 'StreamingCommunity',
+    supportsLang: true,
+    supportsTime: false,
+    description: '🇮🇹 ITA streaming',
+    languages: ['it'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
+      if (type === 'movie') {
+        return `https://streamingcommunity.computer/embed/movie/${tmdbId}`;
+      }
+      return `https://streamingcommunity.computer/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
+    }
+  },
+  // === CATALÀ (molt rar) ===
+  {
+    id: 'tv3cat',
+    name: 'TV3/3Cat',
+    supportsLang: true,
+    supportsTime: false,
+    description: '🇦🇩 Contingut català',
+    languages: ['ca'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
+      // TV3/3Cat té molt poc contingut accessible via embed
+      // Alternativa: usar VidSrc amb subtítols catalans si existeixen
+      const base = type === 'movie'
+        ? `https://vidsrc.xyz/embed/movie/${tmdbId}`
+        : `https://vidsrc.xyz/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
+      return addParams(base, { sub_lang: 'ca', autoplay: 1 });
+    }
+  },
+  // === FONTS GENERALS ===
   {
     id: 'vidsrc',
     name: 'VidSrc',
@@ -272,6 +444,23 @@ const EMBED_SOURCES = [
       return addParams('https://multiembed.mov/', { ...params, s: season || 1, e: episode || 1 });
     }
   },
+  // === FONTS ANIME ===
+  {
+    id: 'anime-api',
+    name: 'AnimeAPI',
+    supportsLang: true,
+    supportsTime: false,
+    description: '🎌 Anime VO/Dub',
+    languages: ['ja', 'en', 'es'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
+      // Determinar si volem dub o sub
+      const isDub = lang !== 'ja';
+      if (type === 'movie') {
+        return `https://api.animemix.live/embed/movie/${tmdbId}?dub=${isDub ? 1 : 0}&lang=${lang}`;
+      }
+      return `https://api.animemix.live/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?dub=${isDub ? 1 : 0}&lang=${lang}`;
+    }
+  },
   {
     id: 'smashystream',
     name: 'SmashyStream',
@@ -298,6 +487,35 @@ const EMBED_SOURCES = [
         return `https://moviesapi.club/movie/${tmdbId}?lang=${lang}`;
       }
       return `https://moviesapi.club/tv/${tmdbId}-${season || 1}-${episode || 1}?lang=${lang}`;
+    }
+  },
+  // === FONTS ALTERNATIVES ===
+  {
+    id: 'warezcdn',
+    name: 'WarezCDN',
+    supportsLang: true,
+    supportsTime: false,
+    description: '🇧🇷 PT/ES/EN',
+    languages: ['pt', 'es', 'en'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
+      if (type === 'movie') {
+        return `https://embed.warezcdn.link/filme/${tmdbId}?lang=${lang}`;
+      }
+      return `https://embed.warezcdn.link/serie/${tmdbId}/${season || 1}/${episode || 1}?lang=${lang}`;
+    }
+  },
+  {
+    id: 'nontongo',
+    name: 'NonTongo',
+    supportsLang: true,
+    supportsTime: false,
+    description: 'Multi-idioma alternatiu',
+    languages: ['en', 'es', 'fr', 'de', 'it'],
+    getUrl: (type, tmdbId, season, episode, lang, time) => {
+      if (type === 'movie') {
+        return `https://www.nontongo.win/embed/movie/${tmdbId}?lang=${lang}`;
+      }
+      return `https://www.nontongo.win/embed/tv/${tmdbId}/${season || 1}/${episode || 1}?lang=${lang}`;
     }
   },
 ];
