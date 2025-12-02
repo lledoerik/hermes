@@ -96,6 +96,7 @@ function Details() {
   const [tmdbLoading, setTmdbLoading] = useState(false);
   const [tmdbMessage, setTmdbMessage] = useState(null);
   const [imageCacheBust, setImageCacheBust] = useState('');
+  const [usingTmdbSeasons, setUsingTmdbSeasons] = useState(false);
 
   // Watch providers state
   const [watchProviders, setWatchProviders] = useState(null);
@@ -145,10 +146,27 @@ function Details() {
           axios.get(`/api/library/series/${id}`),
           axios.get(`/api/library/series/${id}/seasons`)
         ]);
-        setItem(seriesRes.data);
-        setSeasons(seasonsRes.data);
+        const seriesData = seriesRes.data;
+        setItem(seriesData);
+
+        // Si hi ha temporades locals, usar-les
         if (seasonsRes.data.length > 0) {
+          setSeasons(seasonsRes.data);
           setSelectedSeason(seasonsRes.data[0].season_number);
+          setUsingTmdbSeasons(false);
+        }
+        // Si no hi ha temporades locals però tenim tmdb_id, buscar a TMDB
+        else if (seriesData.tmdb_id) {
+          try {
+            const tmdbSeasonsRes = await axios.get(`/api/tmdb/tv/${seriesData.tmdb_id}/seasons`);
+            if (tmdbSeasonsRes.data.seasons && tmdbSeasonsRes.data.seasons.length > 0) {
+              setSeasons(tmdbSeasonsRes.data.seasons);
+              setSelectedSeason(tmdbSeasonsRes.data.seasons[0].season_number);
+              setUsingTmdbSeasons(true);
+            }
+          } catch (tmdbErr) {
+            console.error('Error carregant temporades TMDB:', tmdbErr);
+          }
         }
       } else {
         const response = await axios.get(`/api/library/movies/${id}`);
@@ -163,12 +181,21 @@ function Details() {
 
   const loadEpisodes = useCallback(async (seasonNum) => {
     try {
-      const response = await axios.get(`/api/library/series/${id}/seasons/${seasonNum}/episodes`);
-      setEpisodes(response.data);
+      // Si estem usant TMDB per temporades, carregar episodis de TMDB
+      if (usingTmdbSeasons && item?.tmdb_id) {
+        const tmdbRes = await axios.get(`/api/tmdb/tv/${item.tmdb_id}/season/${seasonNum}`);
+        if (tmdbRes.data.episodes) {
+          setEpisodes(tmdbRes.data.episodes);
+        }
+      } else {
+        // Si no, carregar episodis locals
+        const response = await axios.get(`/api/library/series/${id}/seasons/${seasonNum}/episodes`);
+        setEpisodes(response.data);
+      }
     } catch (error) {
       console.error('Error carregant episodis:', error);
     }
-  }, [id]);
+  }, [id, usingTmdbSeasons, item?.tmdb_id]);
 
   useEffect(() => {
     loadDetails();
@@ -683,21 +710,42 @@ function Details() {
           <div className="episodes-grid">
             {episodes.map((episode) => (
               <div
-                key={episode.id}
+                key={episode.id || episode.episode_number}
                 className="episode-card"
               >
-                <div className="episode-thumbnail" onClick={() => handlePlay(episode.id)}>
-                  <img
-                    src={`${API_URL}/api/media/${episode.id}/thumbnail`}
-                    alt={episode.name}
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                      e.target.nextSibling.style.display = 'flex';
-                    }}
-                  />
-                  <span className="episode-number" style={{ display: 'none' }}>{episode.episode_number}</span>
+                <div
+                  className="episode-thumbnail"
+                  onClick={() => {
+                    if (usingTmdbSeasons) {
+                      // Si és TMDB, anar directament al streaming
+                      navigate(`/stream/series/${item.tmdb_id}?s=${selectedSeason}&e=${episode.episode_number}`);
+                    } else {
+                      handlePlay(episode.id);
+                    }
+                  }}
+                >
+                  {usingTmdbSeasons && episode.still_path ? (
+                    <img
+                      src={episode.still_path}
+                      alt={episode.name}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'flex';
+                      }}
+                    />
+                  ) : !usingTmdbSeasons ? (
+                    <img
+                      src={`${API_URL}/api/media/${episode.id}/thumbnail`}
+                      alt={episode.name}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'flex';
+                      }}
+                    />
+                  ) : null}
+                  <span className="episode-number" style={{ display: usingTmdbSeasons && !episode.still_path ? 'flex' : 'none' }}>{episode.episode_number}</span>
                   <div className="episode-play-icon"><PlayIcon size={20} /></div>
-                  {episode.watch_progress > 0 && (
+                  {!usingTmdbSeasons && episode.watch_progress > 0 && (
                     <div className="episode-progress">
                       <div
                         className="episode-progress-bar"
@@ -712,19 +760,30 @@ function Details() {
                     {episode.episode_number}. {episode.name || `Episodi ${episode.episode_number}`}
                   </div>
                   <div className="episode-meta">
-                    {episode.duration && (
-                      <span>{formatDuration(episode.duration)}</span>
+                    {(episode.duration || episode.runtime) && (
+                      <span>{formatDuration((episode.runtime || 0) * 60 || episode.duration)}</span>
+                    )}
+                    {usingTmdbSeasons && episode.air_date && (
+                      <span>{new Date(episode.air_date).toLocaleDateString('ca-ES')}</span>
+                    )}
+                    {usingTmdbSeasons && episode.vote_average > 0 && (
+                      <span className="meta-item rating"><StarIcon /> {episode.vote_average.toFixed(1)}</span>
                     )}
                   </div>
+                  {usingTmdbSeasons && episode.overview && (
+                    <div className="episode-overview">{episode.overview.slice(0, 120)}{episode.overview.length > 120 ? '...' : ''}</div>
+                  )}
                   <div className="episode-actions">
-                    <div className="audio-badges">
-                      {getAudioLanguages(episode).slice(0, 3).map((lang, i) => (
-                        <span key={i} className="badge audio">{getLanguageCode(lang)}</span>
-                      ))}
-                      {getSubtitleLanguages(episode).slice(0, 2).map((lang, i) => (
-                        <span key={i} className="badge sub">{getLanguageCode(lang)}</span>
-                      ))}
-                    </div>
+                    {!usingTmdbSeasons && (
+                      <div className="audio-badges">
+                        {getAudioLanguages(episode).slice(0, 3).map((lang, i) => (
+                          <span key={i} className="badge audio">{getLanguageCode(lang)}</span>
+                        ))}
+                        {getSubtitleLanguages(episode).slice(0, 2).map((lang, i) => (
+                          <span key={i} className="badge sub">{getLanguageCode(lang)}</span>
+                        ))}
+                      </div>
+                    )}
                     {/* Botó streaming online per episodi */}
                     {item?.tmdb_id && (
                       <button
