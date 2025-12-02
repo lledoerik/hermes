@@ -53,6 +53,12 @@ const StarIcon = () => (
   </svg>
 );
 
+const PlayIcon = ({ size = 18 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+  </svg>
+);
+
 const EditIcon = ({ size = 18 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -76,7 +82,7 @@ function Details() {
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, isPremium } = useAuth();
   // Determinar el tipus segons la ruta
   const type = location.pathname.startsWith('/movies') ? 'movies' : 'series';
   const [item, setItem] = useState(null);
@@ -311,6 +317,20 @@ function Details() {
       loadEpisodes(selectedSeason, usingTmdbSeasons, item?.tmdb_id);
     }
   }, [type, selectedSeason, seasons, loadEpisodes, usingTmdbSeasons, item?.tmdb_id]);
+
+  const handlePlay = () => {
+    if (type === 'movies') {
+      if (item?.tmdb_id) {
+        navigate(`/stream/movie/${item.tmdb_id}`);
+      }
+    } else {
+      if (item?.tmdb_id) {
+        const firstSeason = seasons[0]?.season_number || 1;
+        const firstEpisode = episodes[0]?.episode_number || 1;
+        navigate(`/stream/series/${item.tmdb_id}?s=${firstSeason}&e=${firstEpisode}`);
+      }
+    }
+  };
 
   const handleUpdateByTmdbId = async () => {
     if (!tmdbId.trim()) {
@@ -572,9 +592,12 @@ function Details() {
             )}
 
             <div className="details-actions">
-              <button className="secondary-btn">
-                + La meva llista
-              </button>
+              {/* Botó de reproducció només visible per usuaris premium */}
+              {isPremium && item?.tmdb_id && (
+                <button className="play-btn" onClick={handlePlay}>
+                  <PlayIcon /> Reproduir
+                </button>
+              )}
               {isAdmin && (
                 <>
                   <button
@@ -718,7 +741,15 @@ function Details() {
                 key={episode.id || episode.episode_number}
                 className="episode-card"
               >
-                <div className="episode-thumbnail">
+                <div
+                  className="episode-thumbnail"
+                  style={{ cursor: isPremium && item?.tmdb_id ? 'pointer' : 'default' }}
+                  onClick={() => {
+                    if (isPremium && item?.tmdb_id) {
+                      navigate(`/stream/series/${item.tmdb_id}?s=${selectedSeason}&e=${episode.episode_number}`);
+                    }
+                  }}
+                >
                   {episode.still_path ? (
                     <img
                       src={episode.still_path}
@@ -730,6 +761,9 @@ function Details() {
                     />
                   ) : null}
                   <span className="episode-number" style={{ display: !episode.still_path ? 'flex' : 'none' }}>{episode.episode_number}</span>
+                  {isPremium && item?.tmdb_id && (
+                    <div className="episode-play-icon"><PlayIcon size={20} /></div>
+                  )}
                   {episode.watch_progress > 0 && (
                     <div className="episode-progress">
                       <div
