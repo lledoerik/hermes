@@ -1767,7 +1767,7 @@ async def get_watch_providers(media_type: str, tmdb_id: int, country: str = "ES"
                             movie_details = await client.get_movie_details(tmdb_id)
                             search_title = movie_details.get("title", "") if movie_details else ""
                         else:
-                            tv_details = await client.get_series_details(tmdb_id)
+                            tv_details = await client.get_tv_details(tmdb_id)
                             search_title = tv_details.get("name", "") if tv_details else ""
 
                         if search_title:
