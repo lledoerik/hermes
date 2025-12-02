@@ -1,10 +1,29 @@
 /* Search Page Styles */
 
-/* Search Form - usa estils de Library.css per search-box */
+/* Search Form */
 .search-form {
   display: flex;
   gap: 12px;
   align-items: center;
+}
+
+/* Botó de cerca */
+.search-form .filter-btn {
+  padding: 10px 24px;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+.search-form .filter-btn:hover,
+.search-form .filter-btn.primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
 }
 
 /* Search Sections */
