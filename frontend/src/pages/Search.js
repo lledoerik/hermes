@@ -39,25 +39,12 @@ const MovieIcon = () => (
   </svg>
 );
 
-const CloudIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>
-  </svg>
-);
-
-const FolderIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-  </svg>
-);
-
 function Search() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const query = searchParams.get('q') || '';
 
-  const [localResults, setLocalResults] = useState({ series: [], movies: [] });
-  const [tmdbResults, setTmdbResults] = useState({ series: [], movies: [] });
+  const [results, setResults] = useState({ series: [], movies: [] });
   const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState(query);
 
@@ -73,48 +60,16 @@ function Search() {
     setLoading(true);
 
     try {
-      // 1. Cercar a la biblioteca local (amb paràmetre search i límit alt)
-      const [seriesRes, moviesRes] = await Promise.all([
-        axios.get(`/api/library/series?search=${encodeURIComponent(searchQuery)}&limit=500`),
-        axios.get(`/api/library/movies?search=${encodeURIComponent(searchQuery)}&limit=500`)
-      ]);
+      // Cercar a TMDB - mostrar tot el que estigui disponible
+      const tmdbRes = await axios.get(`/api/tmdb/search?q=${encodeURIComponent(searchQuery)}`);
 
-      const localSeries = seriesRes.data?.items || seriesRes.data || [];
-      const localMovies = moviesRes.data?.items || moviesRes.data || [];
-
-      setLocalResults({
-        series: localSeries,
-        movies: localMovies
+      setResults({
+        series: tmdbRes.data.series || [],
+        movies: tmdbRes.data.movies || []
       });
-
-      // 2. Després cercar a TMDB (per resultats addicionals)
-      try {
-        const tmdbRes = await axios.get(`/api/tmdb/search?q=${encodeURIComponent(searchQuery)}`);
-
-        // Filtrar resultats TMDB que ja tenim a local (per tmdb_id o nom similar)
-        const localSeriesNames = new Set(localSeries.map(s => s.name.toLowerCase()));
-        const localMovieNames = new Set(localMovies.map(m => m.name.toLowerCase()));
-        const localSeriesTmdbIds = new Set(localSeries.filter(s => s.tmdb_id).map(s => s.tmdb_id));
-        const localMovieTmdbIds = new Set(localMovies.filter(m => m.tmdb_id).map(m => m.tmdb_id));
-
-        const uniqueTmdbSeries = (tmdbRes.data.series || []).filter(s =>
-          !localSeriesTmdbIds.has(s.tmdb_id) && !localSeriesNames.has(s.name.toLowerCase())
-        );
-
-        const uniqueTmdbMovies = (tmdbRes.data.movies || []).filter(m =>
-          !localMovieTmdbIds.has(m.tmdb_id) && !localMovieNames.has(m.name.toLowerCase())
-        );
-
-        setTmdbResults({
-          series: uniqueTmdbSeries,
-          movies: uniqueTmdbMovies
-        });
-      } catch (tmdbError) {
-        console.error('Error cercant a TMDB:', tmdbError);
-        setTmdbResults({ series: [], movies: [] });
-      }
     } catch (error) {
       console.error('Error cercant:', error);
+      setResults({ series: [], movies: [] });
     } finally {
       setLoading(false);
     }
@@ -127,9 +82,7 @@ function Search() {
     }
   };
 
-  const totalLocal = localResults.series.length + localResults.movies.length;
-  const totalTmdb = tmdbResults.series.length + tmdbResults.movies.length;
-  const totalResults = totalLocal + totalTmdb;
+  const totalResults = results.series.length + results.movies.length;
 
   if (loading) {
     return (
@@ -185,56 +138,16 @@ function Search() {
         </div>
       ) : (
         <>
-          {/* Resultats locals (biblioteca) */}
-          {localResults.series.length > 0 && (
+          {/* Sèries */}
+          {results.series.length > 0 && (
             <div className="search-section">
               <h2 className="section-title">
-                <FolderIcon />
-                <TvIcon /> Sèries a la biblioteca ({localResults.series.length})
+                <TvIcon /> Sèries ({results.series.length})
               </h2>
               <div className="library-grid">
-                {localResults.series.map((show) => (
+                {results.series.map((show) => (
                   <MediaCard
-                    key={`local-series-${show.id}`}
-                    item={show}
-                    type="series"
-                    width="100%"
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {localResults.movies.length > 0 && (
-            <div className="search-section">
-              <h2 className="section-title">
-                <FolderIcon />
-                <MovieIcon /> Pel·lícules a la biblioteca ({localResults.movies.length})
-              </h2>
-              <div className="library-grid">
-                {localResults.movies.map((movie) => (
-                  <MediaCard
-                    key={`local-movie-${movie.id}`}
-                    item={movie}
-                    type="movies"
-                    width="100%"
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Resultats de TMDB (streaming) */}
-          {tmdbResults.series.length > 0 && (
-            <div className="search-section tmdb-section">
-              <h2 className="section-title">
-                <CloudIcon />
-                <TvIcon /> Sèries disponibles per streaming ({tmdbResults.series.length})
-              </h2>
-              <div className="library-grid">
-                {tmdbResults.series.map((show) => (
-                  <MediaCard
-                    key={`tmdb-series-${show.tmdb_id}`}
+                    key={`series-${show.tmdb_id}`}
                     item={{
                       id: `tmdb-${show.tmdb_id}`,
                       tmdb_id: show.tmdb_id,
@@ -253,16 +166,16 @@ function Search() {
             </div>
           )}
 
-          {tmdbResults.movies.length > 0 && (
-            <div className="search-section tmdb-section">
+          {/* Pel·lícules */}
+          {results.movies.length > 0 && (
+            <div className="search-section">
               <h2 className="section-title">
-                <CloudIcon />
-                <MovieIcon /> Pel·lícules disponibles per streaming ({tmdbResults.movies.length})
+                <MovieIcon /> Pel·lícules ({results.movies.length})
               </h2>
               <div className="library-grid">
-                {tmdbResults.movies.map((movie) => (
+                {results.movies.map((movie) => (
                   <MediaCard
-                    key={`tmdb-movie-${movie.tmdb_id}`}
+                    key={`movie-${movie.tmdb_id}`}
                     item={{
                       id: `tmdb-${movie.tmdb_id}`,
                       tmdb_id: movie.tmdb_id,
