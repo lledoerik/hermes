@@ -131,11 +131,13 @@ const addParams = (url, params) => {
 };
 
 // Fonts d'embed disponibles amb suport d'idioma i autoplay
+// Nota: Algunes fonts tenen millor disponibilitat d'idiomes que d'altres
 const EMBED_SOURCES = [
   {
     id: 'vidsrc',
     name: 'VidSrc',
     supportsLang: true,
+    description: 'Multi-idioma',
     getUrl: (type, tmdbId, season, episode, lang) => {
       const base = type === 'movie'
         ? `https://vidsrc.cc/v2/embed/movie/${tmdbId}`
@@ -144,9 +146,22 @@ const EMBED_SOURCES = [
     }
   },
   {
+    id: 'vidsrc-pro',
+    name: 'VidSrc Pro',
+    supportsLang: true,
+    description: 'Multi-servidor',
+    getUrl: (type, tmdbId, season, episode, lang) => {
+      const base = type === 'movie'
+        ? `https://vidsrc.pro/embed/movie/${tmdbId}`
+        : `https://vidsrc.pro/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
+      return addParams(base, { ds_lang: lang });
+    }
+  },
+  {
     id: 'vidsrc2',
     name: 'VidSrc 2',
     supportsLang: true,
+    description: 'Alternatiu',
     getUrl: (type, tmdbId, season, episode, lang) => {
       const base = type === 'movie'
         ? `https://vidsrc.xyz/embed/movie/${tmdbId}`
@@ -155,31 +170,23 @@ const EMBED_SOURCES = [
     }
   },
   {
-    id: '2embed',
-    name: '2Embed',
-    supportsLang: false,
-    getUrl: (type, tmdbId, season, episode) => {
+    id: 'superembed',
+    name: 'SuperEmbed',
+    supportsLang: true,
+    description: 'Multi-idioma + subtítols',
+    getUrl: (type, tmdbId, season, episode, lang) => {
+      // SuperEmbed utilitza IMDb ID o TMDB ID
       if (type === 'movie') {
-        return addParams(`https://www.2embed.cc/embed/${tmdbId}`, { autoplay: 1 });
+        return `https://multiembed.mov/directstream.php?video_id=${tmdbId}&tmdb=1&lang=${lang}`;
       }
-      return `https://www.2embed.cc/embedtv/${tmdbId}&s=${season || 1}&e=${episode || 1}&autoplay=1`;
-    }
-  },
-  {
-    id: 'multiembed',
-    name: 'MultiEmbed',
-    supportsLang: false,
-    getUrl: (type, tmdbId, season, episode) => {
-      if (type === 'movie') {
-        return `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1&autoplay=1`;
-      }
-      return `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1&s=${season || 1}&e=${episode || 1}&autoplay=1`;
+      return `https://multiembed.mov/directstream.php?video_id=${tmdbId}&tmdb=1&s=${season || 1}&e=${episode || 1}&lang=${lang}`;
     }
   },
   {
     id: 'autoembed',
     name: 'AutoEmbed',
     supportsLang: true,
+    description: 'Auto-detecció',
     getUrl: (type, tmdbId, season, episode, lang) => {
       const base = type === 'movie'
         ? `https://player.autoembed.cc/embed/movie/${tmdbId}`
@@ -190,12 +197,61 @@ const EMBED_SOURCES = [
   {
     id: 'embedsu',
     name: 'Embed.su',
+    supportsLang: true,
+    description: 'Alta qualitat',
+    getUrl: (type, tmdbId, season, episode, lang) => {
+      if (type === 'movie') {
+        return addParams(`https://embed.su/embed/movie/${tmdbId}`, { autoplay: 1, lang });
+      }
+      return addParams(`https://embed.su/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`, { autoplay: 1, lang });
+    }
+  },
+  {
+    id: '2embed',
+    name: '2Embed',
     supportsLang: false,
+    description: 'Bàsic',
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
-        return addParams(`https://embed.su/embed/movie/${tmdbId}`, { autoplay: 1 });
+        return addParams(`https://www.2embed.cc/embed/${tmdbId}`, { autoplay: 1 });
       }
-      return addParams(`https://embed.su/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`, { autoplay: 1 });
+      return `https://www.2embed.cc/embedtv/${tmdbId}&s=${season || 1}&e=${episode || 1}&autoplay=1`;
+    }
+  },
+  {
+    id: 'multiembed',
+    name: 'MultiEmbed',
+    supportsLang: true,
+    description: 'Multi-servidor',
+    getUrl: (type, tmdbId, season, episode, lang) => {
+      if (type === 'movie') {
+        return `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1&autoplay=1&lang=${lang}`;
+      }
+      return `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1&s=${season || 1}&e=${episode || 1}&autoplay=1&lang=${lang}`;
+    }
+  },
+  {
+    id: 'smashystream',
+    name: 'SmashyStream',
+    supportsLang: true,
+    description: 'Anime + Sèries',
+    getUrl: (type, tmdbId, season, episode, lang) => {
+      if (type === 'movie') {
+        return `https://player.smashy.stream/movie/${tmdbId}?lang=${lang}`;
+      }
+      return `https://player.smashy.stream/tv/${tmdbId}?s=${season || 1}&e=${episode || 1}&lang=${lang}`;
+    }
+  },
+  {
+    id: 'moviesapi',
+    name: 'MoviesAPI',
+    supportsLang: true,
+    description: 'Multi-qualitat',
+    getUrl: (type, tmdbId, season, episode, lang) => {
+      if (type === 'movie') {
+        return `https://moviesapi.club/movie/${tmdbId}?lang=${lang}`;
+      }
+      return `https://moviesapi.club/tv/${tmdbId}-${season || 1}-${episode || 1}?lang=${lang}`;
     }
   },
 ];
@@ -358,20 +414,39 @@ function StreamPlayer() {
     }
   }, []);
 
-  // Amagar controls després d'un temps
+  // Amagar controls després d'un temps (més ràpid en fullscreen)
   useEffect(() => {
     let timeout;
     if (showControls && !showSourceMenu && !showEpisodesMenu && !showLangMenu) {
+      // Amagar més ràpid en fullscreen per no interferir amb el reproductor intern
+      const delay = isFullscreen ? 2000 : 4000;
       timeout = setTimeout(() => {
         setShowControls(false);
-      }, 4000);
+      }, delay);
     }
     return () => clearTimeout(timeout);
-  }, [showControls, showSourceMenu, showEpisodesMenu, showLangMenu]);
+  }, [showControls, showSourceMenu, showEpisodesMenu, showLangMenu, isFullscreen]);
 
-  // Mostrar controls amb moviment del ratolí
-  const handleMouseMove = useCallback(() => {
-    setShowControls(true);
+  // Mostrar controls només quan el ratolí està a la part superior (60px)
+  const handleMouseMove = useCallback((e) => {
+    // Només mostrar controls si el ratolí està a la part superior de la pantalla
+    // Això evita interferir amb els controls del reproductor intern de l'iframe
+    const isNearTop = e.clientY < 80;
+    if (isNearTop) {
+      setShowControls(true);
+    }
+  }, []);
+
+  // Amagar controls quan es fa clic a l'iframe (l'usuari vol usar el reproductor intern)
+  const handleContainerClick = useCallback((e) => {
+    // Si el clic NO és en un botó de control, amaguem els controls
+    const isControlClick = e.target.closest('.stream-btn') ||
+                          e.target.closest('.stream-source-dropdown') ||
+                          e.target.closest('.stream-episodes-dropdown') ||
+                          e.target.closest('.stream-lang-dropdown');
+    if (!isControlClick) {
+      setShowControls(false);
+    }
   }, []);
 
   // Funció per entrar en mode immersiu (fullscreen + landscape)
@@ -555,9 +630,10 @@ function StreamPlayer() {
 
   return (
     <div
-      className="stream-player-container"
+      className={`stream-player-container ${isFullscreen ? 'is-fullscreen' : ''}`}
       ref={containerRef}
       onMouseMove={handleMouseMove}
+      onClick={handleContainerClick}
     >
       {/* Iframe del reproductor embed */}
       <iframe
@@ -682,67 +758,65 @@ function StreamPlayer() {
           </div>
         )}
 
-        {/* Selector d'idioma */}
-        <div className="stream-lang-selector" ref={langMenuRef}>
+        {/* Selector d'idioma i servidor (combinat) */}
+        <div className="stream-settings-selector" ref={langMenuRef}>
           <button
-            className={`stream-btn stream-lang-btn ${showLangMenu ? 'active' : ''}`}
+            className={`stream-btn stream-settings-btn ${showLangMenu ? 'active' : ''}`}
             onClick={() => setShowLangMenu(!showLangMenu)}
-            title="Idioma preferit (L)"
+            title="Idioma i servidor (L)"
           >
             <span className="lang-flag">{currentLang.flag}</span>
-            <ChevronDownIcon />
+            <LanguageIcon />
           </button>
 
           {showLangMenu && (
-            <div className="stream-lang-dropdown">
-              <div className="stream-lang-header">
-                <LanguageIcon />
-                <span>Idioma preferit</span>
+            <div className="stream-settings-dropdown">
+              {/* Secció d'idioma */}
+              <div className="stream-settings-section">
+                <div className="stream-settings-header">
+                  <LanguageIcon />
+                  <span>Idioma preferit</span>
+                </div>
+                <div className="stream-lang-list">
+                  {availableLanguages.map((lang) => (
+                    <button
+                      key={lang.code}
+                      className={`stream-lang-option ${lang.code === preferredLang ? 'active' : ''} ${lang.isOriginal ? 'original' : ''}`}
+                      onClick={() => handleLanguageChange(lang.code)}
+                    >
+                      <span className="lang-flag">{lang.flag}</span>
+                      <span className="lang-name">{lang.name}</span>
+                      {lang.code === preferredLang && <span className="check">✓</span>}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="stream-lang-note">
-                Idiomes disponibles segons TMDB. L'àudio real depèn del servidor.
-              </div>
-              <div className="stream-lang-list">
-                {availableLanguages.map((lang) => (
-                  <button
-                    key={lang.code}
-                    className={`stream-lang-option ${lang.code === preferredLang ? 'active' : ''} ${lang.isOriginal ? 'original' : ''}`}
-                    onClick={() => handleLanguageChange(lang.code)}
-                  >
-                    <span className="lang-flag">{lang.flag}</span>
-                    <span className="lang-name">{lang.name}</span>
-                    {lang.code === preferredLang && <span className="check">✓</span>}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
 
-        {/* Selector de font */}
-        <div className="stream-source-selector">
-          <button
-            className="stream-btn stream-source-btn"
-            onClick={() => setShowSourceMenu(!showSourceMenu)}
-          >
-            <ServerIcon />
-            <span>{currentSource.name}</span>
-            <ChevronDownIcon />
-          </button>
-
-          {showSourceMenu && (
-            <div className="stream-source-dropdown">
-              {EMBED_SOURCES.map((source, index) => (
-                <button
-                  key={source.id}
-                  className={`stream-source-option ${index === currentSourceIndex ? 'active' : ''}`}
-                  onClick={() => handleSourceChange(index)}
-                >
-                  <span>{source.name}</span>
-                  {source.supportsLang && <span className="lang-support" title="Suporta idioma">🌐</span>}
-                  {index === currentSourceIndex && <span className="check">✓</span>}
-                </button>
-              ))}
+              {/* Secció de servidor */}
+              <div className="stream-settings-section">
+                <div className="stream-settings-header">
+                  <ServerIcon />
+                  <span>Servidor: {currentSource.name}</span>
+                </div>
+                <div className="stream-source-list">
+                  {EMBED_SOURCES.map((source, index) => (
+                    <button
+                      key={source.id}
+                      className={`stream-source-option ${index === currentSourceIndex ? 'active' : ''}`}
+                      onClick={() => handleSourceChange(index)}
+                    >
+                      <div className="source-info">
+                        <span className="source-name">{source.name}</span>
+                        {source.description && (
+                          <span className="source-desc">{source.description}</span>
+                        )}
+                      </div>
+                      {source.supportsLang && <span className="lang-support" title="Suporta idioma">🌐</span>}
+                      {index === currentSourceIndex && <span className="check">✓</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>

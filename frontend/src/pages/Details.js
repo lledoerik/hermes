@@ -97,6 +97,8 @@ function Details() {
   const [tmdbMessage, setTmdbMessage] = useState(null);
   const [imageCacheBust, setImageCacheBust] = useState('');
   const [usingTmdbSeasons, setUsingTmdbSeasons] = useState(false);
+  const [localSeasonNumbers, setLocalSeasonNumbers] = useState(new Set());
+  const [localEpisodeMap, setLocalEpisodeMap] = useState({}); // { seasonNum: { epNum: episodeData } }
 
   // Watch providers state
   const [watchProviders, setWatchProviders] = useState(null);
@@ -149,24 +151,62 @@ function Details() {
         const seriesData = seriesRes.data;
         setItem(seriesData);
 
-        // Si hi ha temporades locals, usar-les
-        if (seasonsRes.data.length > 0) {
-          setSeasons(seasonsRes.data);
-          setSelectedSeason(seasonsRes.data[0].season_number);
-          setUsingTmdbSeasons(false);
-        }
-        // Si no hi ha temporades locals però tenim tmdb_id, buscar a TMDB
-        else if (seriesData.tmdb_id) {
+        const localSeasons = seasonsRes.data || [];
+        const localSeasonNums = new Set(localSeasons.map(s => s.season_number));
+        setLocalSeasonNumbers(localSeasonNums);
+
+        // Sempre intentem carregar temporades TMDB si tenim tmdb_id
+        // per permetre veure episodis via streaming de temporades que no tenim locals
+        if (seriesData.tmdb_id) {
           try {
             const tmdbSeasonsRes = await axios.get(`/api/tmdb/tv/${seriesData.tmdb_id}/seasons`);
             if (tmdbSeasonsRes.data.seasons && tmdbSeasonsRes.data.seasons.length > 0) {
-              setSeasons(tmdbSeasonsRes.data.seasons);
-              setSelectedSeason(tmdbSeasonsRes.data.seasons[0].season_number);
+              // Combinar temporades locals i TMDB (unió)
+              const tmdbSeasons = tmdbSeasonsRes.data.seasons.filter(s => s.season_number > 0);
+              const allSeasonNumbers = new Set([
+                ...localSeasons.map(s => s.season_number),
+                ...tmdbSeasons.map(s => s.season_number)
+              ]);
+
+              // Crear llista combinada, preferint dades TMDB per la info però marcant si és local
+              const combinedSeasons = Array.from(allSeasonNumbers)
+                .sort((a, b) => a - b)
+                .map(num => {
+                  const tmdbSeason = tmdbSeasons.find(s => s.season_number === num);
+                  const localSeason = localSeasons.find(s => s.season_number === num);
+                  return {
+                    ...tmdbSeason,
+                    ...localSeason,
+                    season_number: num,
+                    hasLocalEpisodes: localSeasonNums.has(num)
+                  };
+                });
+
+              setSeasons(combinedSeasons);
+              // Seleccionar la primera temporada que tingui episodis locals, o la primera disponible
+              const firstLocalSeason = combinedSeasons.find(s => s.hasLocalEpisodes);
+              setSelectedSeason(firstLocalSeason ? firstLocalSeason.season_number : combinedSeasons[0].season_number);
               setUsingTmdbSeasons(true);
+            } else if (localSeasons.length > 0) {
+              // No hi ha TMDB, només locals
+              setSeasons(localSeasons.map(s => ({ ...s, hasLocalEpisodes: true })));
+              setSelectedSeason(localSeasons[0].season_number);
+              setUsingTmdbSeasons(false);
             }
           } catch (tmdbErr) {
             console.error('Error carregant temporades TMDB:', tmdbErr);
+            // Si falla TMDB, usar només locals
+            if (localSeasons.length > 0) {
+              setSeasons(localSeasons.map(s => ({ ...s, hasLocalEpisodes: true })));
+              setSelectedSeason(localSeasons[0].season_number);
+              setUsingTmdbSeasons(false);
+            }
           }
+        } else if (localSeasons.length > 0) {
+          // No hi ha tmdb_id, només locals
+          setSeasons(localSeasons.map(s => ({ ...s, hasLocalEpisodes: true })));
+          setSelectedSeason(localSeasons[0].season_number);
+          setUsingTmdbSeasons(false);
         }
       } else {
         const response = await axios.get(`/api/library/movies/${id}`);
@@ -181,17 +221,58 @@ function Details() {
 
   const loadEpisodes = useCallback(async (seasonNum, isTmdb = false, tmdbId = null) => {
     try {
-      // Si estem usant TMDB per temporades, carregar episodis de TMDB
-      if (isTmdb && tmdbId) {
-        const tmdbRes = await axios.get(`/api/tmdb/tv/${tmdbId}/season/${seasonNum}`);
-        if (tmdbRes.data.episodes) {
-          setEpisodes(tmdbRes.data.episodes);
-        }
-      } else {
-        // Si no, carregar episodis locals
+      // Carregar episodis locals per aquesta temporada
+      let localEpisodes = [];
+      try {
         const response = await axios.get(`/api/library/series/${id}/seasons/${seasonNum}/episodes`);
-        setEpisodes(response.data);
+        localEpisodes = response.data || [];
+      } catch (e) {
+        // No hi ha episodis locals per aquesta temporada
+        localEpisodes = [];
       }
+
+      // Crear mapa d'episodis locals per número d'episodi
+      const localEpMap = {};
+      localEpisodes.forEach(ep => {
+        localEpMap[ep.episode_number] = ep;
+      });
+      setLocalEpisodeMap(prev => ({ ...prev, [seasonNum]: localEpMap }));
+
+      // Si tenim TMDB, carregar episodis de TMDB i combinar
+      if (tmdbId) {
+        try {
+          const tmdbRes = await axios.get(`/api/tmdb/tv/${tmdbId}/season/${seasonNum}`);
+          if (tmdbRes.data.episodes) {
+            // Combinar: episodis TMDB amb informació de si són locals
+            const combinedEpisodes = tmdbRes.data.episodes.map(tmdbEp => {
+              const localEp = localEpMap[tmdbEp.episode_number];
+              return {
+                ...tmdbEp,
+                isLocal: !!localEp,
+                localId: localEp?.id,
+                localData: localEp,
+                // Mantenir audio_tracks i subtitles del local si existeix
+                audio_tracks: localEp?.audio_tracks,
+                subtitles: localEp?.subtitles || localEp?.subtitle_tracks,
+                duration: localEp?.duration || (tmdbEp.runtime ? tmdbEp.runtime * 60 : null),
+                watch_progress: localEp?.watch_progress || 0
+              };
+            });
+            setEpisodes(combinedEpisodes);
+            return;
+          }
+        } catch (e) {
+          console.error('Error carregant episodis TMDB:', e);
+        }
+      }
+
+      // Si no hi ha TMDB o ha fallat, mostrar només locals (marcats com a locals)
+      setEpisodes(localEpisodes.map(ep => ({
+        ...ep,
+        isLocal: true,
+        localId: ep.id,
+        localData: ep
+      })));
     } catch (error) {
       console.error('Error carregant episodis:', error);
       setEpisodes([]);
@@ -712,41 +793,46 @@ function Details() {
             {episodes.map((episode) => (
               <div
                 key={episode.id || episode.episode_number}
-                className="episode-card"
+                className={`episode-card ${episode.isLocal ? 'has-local' : 'online-only'}`}
               >
                 <div
                   className="episode-thumbnail"
                   onClick={() => {
-                    if (usingTmdbSeasons) {
-                      // Si és TMDB, anar directament al streaming
+                    // Si té fitxer local, reproduir localment
+                    if (episode.isLocal && episode.localId) {
+                      handlePlay(episode.localId);
+                    } else if (item?.tmdb_id) {
+                      // Si no té local, anar a streaming
                       navigate(`/stream/series/${item.tmdb_id}?s=${selectedSeason}&e=${episode.episode_number}`);
-                    } else {
-                      handlePlay(episode.id);
                     }
                   }}
                 >
-                  {usingTmdbSeasons && episode.still_path ? (
+                  {episode.still_path ? (
                     <img
                       src={episode.still_path}
                       alt={episode.name}
                       onError={(e) => {
                         e.target.style.display = 'none';
-                        e.target.nextSibling.style.display = 'flex';
+                        if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
                       }}
                     />
-                  ) : !usingTmdbSeasons ? (
+                  ) : episode.isLocal && episode.localId ? (
                     <img
-                      src={`${API_URL}/api/media/${episode.id}/thumbnail`}
+                      src={`${API_URL}/api/media/${episode.localId}/thumbnail`}
                       alt={episode.name}
                       onError={(e) => {
                         e.target.style.display = 'none';
-                        e.target.nextSibling.style.display = 'flex';
+                        if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
                       }}
                     />
                   ) : null}
-                  <span className="episode-number" style={{ display: usingTmdbSeasons && !episode.still_path ? 'flex' : 'none' }}>{episode.episode_number}</span>
+                  <span className="episode-number" style={{ display: !episode.still_path && !(episode.isLocal && episode.localId) ? 'flex' : 'none' }}>{episode.episode_number}</span>
                   <div className="episode-play-icon"><PlayIcon size={20} /></div>
-                  {!usingTmdbSeasons && episode.watch_progress > 0 && (
+                  {/* Badge de tipus */}
+                  <span className={`episode-type-badge ${episode.isLocal ? 'local' : 'online'}`}>
+                    {episode.isLocal ? 'Local' : 'Online'}
+                  </span>
+                  {episode.watch_progress > 0 && (
                     <div className="episode-progress">
                       <div
                         className="episode-progress-bar"
@@ -764,18 +850,19 @@ function Details() {
                     {(episode.duration || episode.runtime) && (
                       <span>{formatDuration((episode.runtime || 0) * 60 || episode.duration)}</span>
                     )}
-                    {usingTmdbSeasons && episode.air_date && (
+                    {episode.air_date && (
                       <span>{new Date(episode.air_date).toLocaleDateString('ca-ES')}</span>
                     )}
-                    {usingTmdbSeasons && episode.vote_average > 0 && (
+                    {episode.vote_average > 0 && (
                       <span className="meta-item rating"><StarIcon /> {episode.vote_average.toFixed(1)}</span>
                     )}
                   </div>
-                  {usingTmdbSeasons && episode.overview && (
+                  {episode.overview && (
                     <div className="episode-overview">{episode.overview.slice(0, 120)}{episode.overview.length > 120 ? '...' : ''}</div>
                   )}
                   <div className="episode-actions">
-                    {!usingTmdbSeasons && (
+                    {/* Mostrar idiomes si és local */}
+                    {episode.isLocal && (
                       <div className="audio-badges">
                         {getAudioLanguages(episode).slice(0, 3).map((lang, i) => (
                           <span key={i} className="badge audio">{getLanguageCode(lang)}</span>
@@ -785,22 +872,41 @@ function Details() {
                         ))}
                       </div>
                     )}
-                    {/* Botó streaming online per episodi */}
-                    {item?.tmdb_id && (
-                      <button
-                        className="episode-stream-btn"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/stream/series/${item.tmdb_id}?s=${selectedSeason}&e=${episode.episode_number}`);
-                        }}
-                        title="Veure online"
-                      >
-                        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
-                        </svg>
-                        Online
-                      </button>
-                    )}
+                    {/* Botons de reproducció */}
+                    <div className="episode-play-buttons">
+                      {/* Botó local si té fitxer */}
+                      {episode.isLocal && episode.localId && (
+                        <button
+                          className="episode-local-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePlay(episode.localId);
+                          }}
+                          title="Reproduir fitxer local"
+                        >
+                          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                            <path d="M8 5v14l11-7z"/>
+                          </svg>
+                          Local
+                        </button>
+                      )}
+                      {/* Botó streaming si hi ha TMDB */}
+                      {item?.tmdb_id && (
+                        <button
+                          className="episode-stream-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/stream/series/${item.tmdb_id}?s=${selectedSeason}&e=${episode.episode_number}`);
+                          }}
+                          title="Veure online (amb selecció d'idioma)"
+                        >
+                          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+                          </svg>
+                          Online
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
