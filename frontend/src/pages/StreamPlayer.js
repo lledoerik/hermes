@@ -70,28 +70,39 @@ const CheckCircleIcon = () => (
   </svg>
 );
 
-// Fonts d'embed - VidSrc.cc principal amb fallback a vidsrc-embed.ru
+// Fonts d'embed - Múltiples servidors amb fallback automàtic
 const EMBED_SOURCES = [
   {
-    id: 'vidsrc-cc',
+    id: 'vidsrc-to',
     name: 'VidSrc',
     description: 'Servidor principal',
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
-        return `https://vidsrc.cc/embed/movie?tmdb=${tmdbId}`;
+        return `https://vidsrc.to/embed/movie/${tmdbId}`;
       }
-      return `https://vidsrc.cc/embed/tv?tmdb=${tmdbId}&season=${season || 1}&episode=${episode || 1}`;
+      return `https://vidsrc.to/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
     }
   },
   {
-    id: 'vidsrc-embed',
-    name: 'VidSrc Alt',
+    id: 'vidsrc-me',
+    name: 'VidSrc 2',
     description: 'Servidor alternatiu',
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
-        return `https://vidsrc-embed.ru/embed/movie?tmdb=${tmdbId}`;
+        return `https://vidsrc.me/embed/movie?tmdb=${tmdbId}`;
       }
-      return `https://vidsrc-embed.ru/embed/tv?tmdb=${tmdbId}&season=${season || 1}&episode=${episode || 1}`;
+      return `https://vidsrc.me/embed/tv?tmdb=${tmdbId}&season=${season || 1}&episode=${episode || 1}`;
+    }
+  },
+  {
+    id: 'vidsrc-xyz',
+    name: 'VidSrc 3',
+    description: 'Servidor de reserva',
+    getUrl: (type, tmdbId, season, episode) => {
+      if (type === 'movie') {
+        return `https://vidsrc.xyz/embed/movie?tmdb=${tmdbId}`;
+      }
+      return `https://vidsrc.xyz/embed/tv?tmdb=${tmdbId}&season=${season || 1}&episode=${episode || 1}`;
     }
   }
 ];
