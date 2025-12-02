@@ -71,26 +71,20 @@ function Search() {
 
   const performSearch = async (searchQuery) => {
     setLoading(true);
-    const searchLower = searchQuery.toLowerCase();
 
     try {
-      // 1. Primer cercar a la biblioteca local
+      // 1. Cercar a la biblioteca local (amb paràmetre search i límit alt)
       const [seriesRes, moviesRes] = await Promise.all([
-        axios.get('/api/library/series'),
-        axios.get('/api/library/movies')
+        axios.get(`/api/library/series?search=${encodeURIComponent(searchQuery)}&limit=500`),
+        axios.get(`/api/library/movies?search=${encodeURIComponent(searchQuery)}&limit=500`)
       ]);
 
-      const filteredSeries = (seriesRes.data || []).filter(item =>
-        item.name.toLowerCase().includes(searchLower)
-      );
-
-      const filteredMovies = (moviesRes.data || []).filter(item =>
-        item.name.toLowerCase().includes(searchLower)
-      );
+      const localSeries = seriesRes.data?.items || seriesRes.data || [];
+      const localMovies = moviesRes.data?.items || moviesRes.data || [];
 
       setLocalResults({
-        series: filteredSeries,
-        movies: filteredMovies
+        series: localSeries,
+        movies: localMovies
       });
 
       // 2. Després cercar a TMDB (per resultats addicionals)
@@ -98,10 +92,10 @@ function Search() {
         const tmdbRes = await axios.get(`/api/tmdb/search?q=${encodeURIComponent(searchQuery)}`);
 
         // Filtrar resultats TMDB que ja tenim a local (per tmdb_id o nom similar)
-        const localSeriesNames = new Set(filteredSeries.map(s => s.name.toLowerCase()));
-        const localMovieNames = new Set(filteredMovies.map(m => m.name.toLowerCase()));
-        const localSeriesTmdbIds = new Set(filteredSeries.filter(s => s.tmdb_id).map(s => s.tmdb_id));
-        const localMovieTmdbIds = new Set(filteredMovies.filter(m => m.tmdb_id).map(m => m.tmdb_id));
+        const localSeriesNames = new Set(localSeries.map(s => s.name.toLowerCase()));
+        const localMovieNames = new Set(localMovies.map(m => m.name.toLowerCase()));
+        const localSeriesTmdbIds = new Set(localSeries.filter(s => s.tmdb_id).map(s => s.tmdb_id));
+        const localMovieTmdbIds = new Set(localMovies.filter(m => m.tmdb_id).map(m => m.tmdb_id));
 
         const uniqueTmdbSeries = (tmdbRes.data.series || []).filter(s =>
           !localSeriesTmdbIds.has(s.tmdb_id) && !localSeriesNames.has(s.name.toLowerCase())

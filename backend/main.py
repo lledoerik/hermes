@@ -933,7 +933,7 @@ async def get_stats():
         }
 
 @app.get("/api/library/series")
-async def get_series(content_type: str = None, page: int = 1, limit: int = 50, sort_by: str = "name"):
+async def get_series(content_type: str = None, page: int = 1, limit: int = 50, sort_by: str = "name", search: str = None):
     """Retorna les sèries amb paginació. Filtre opcional: series, anime, toons (comma-separated for multiple)"""
     with get_db() as conn:
         cursor = conn.cursor()
@@ -941,20 +941,32 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
         # Parse content types (can be comma-separated)
         content_types = [ct.strip() for ct in content_type.split(',')] if content_type else None
 
-        # Count total - sense filtre de content_type per mostrar totes les sèries
-        count_query = "SELECT COUNT(*) FROM series WHERE media_type = 'series'"
-        cursor.execute(count_query)
+        # Build WHERE clause
+        where_conditions = ["s.media_type = 'series'"]
+        count_params = []
+
+        # Search filter
+        if search:
+            where_conditions.append("(s.name LIKE ? OR s.title LIKE ?)")
+            search_pattern = f"%{search}%"
+            count_params.extend([search_pattern, search_pattern])
+
+        where_clause = " AND ".join(where_conditions)
+
+        # Count total
+        count_query = f"SELECT COUNT(*) FROM series s WHERE {where_clause}"
+        cursor.execute(count_query, count_params)
         total = cursor.fetchone()[0]
 
-        # Main query - sense filtre de content_type
-        query = """
+        # Main query
+        query = f"""
             SELECT s.*, COUNT(DISTINCT m.season_number) as season_count,
                        COUNT(m.id) as episode_count, s.content_type
             FROM series s
             LEFT JOIN media_files m ON s.id = m.series_id
-            WHERE s.media_type = 'series'
+            WHERE {where_clause}
         """
-        params = []
+        params = count_params.copy()
 
         query += " GROUP BY s.id"
 
@@ -1012,7 +1024,7 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
         }
 
 @app.get("/api/library/movies")
-async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, sort_by: str = "name"):
+async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, sort_by: str = "name", search: str = None):
     """Retorna les pel·lícules amb paginació. Filtre opcional: movie, anime_movie, animated (comma-separated for multiple)"""
     with get_db() as conn:
         cursor = conn.cursor()
@@ -1020,20 +1032,32 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
         # Parse content types (can be comma-separated)
         content_types = [ct.strip() for ct in content_type.split(',')] if content_type else None
 
-        # Count total - sense filtre de content_type per mostrar totes les pel·lícules
-        count_query = "SELECT COUNT(*) FROM series WHERE media_type = 'movie'"
-        cursor.execute(count_query)
+        # Build WHERE clause
+        where_conditions = ["s.media_type = 'movie'"]
+        count_params = []
+
+        # Search filter
+        if search:
+            where_conditions.append("(s.name LIKE ? OR s.title LIKE ?)")
+            search_pattern = f"%{search}%"
+            count_params.extend([search_pattern, search_pattern])
+
+        where_clause = " AND ".join(where_conditions)
+
+        # Count total
+        count_query = f"SELECT COUNT(*) FROM series s WHERE {where_clause}"
+        cursor.execute(count_query, count_params)
         total = cursor.fetchone()[0]
 
-        # Main query - sense filtre de content_type
-        query = """
+        # Main query
+        query = f"""
             SELECT s.*, m.duration, m.file_size, m.id as media_id,
                    s.is_imported, s.year, s.rating, s.content_type
             FROM series s
             LEFT JOIN media_files m ON s.id = m.series_id
-            WHERE s.media_type = 'movie'
+            WHERE {where_clause}
         """
-        params = []
+        params = count_params.copy()
 
         # Sorting
         if sort_by == "year":
