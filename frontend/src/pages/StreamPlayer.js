@@ -299,6 +299,7 @@ function StreamPlayer() {
   const [showLangTip, setShowLangTip] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showStartOverlay, setShowStartOverlay] = useState(true);
+  const [langChangeMessage, setLangChangeMessage] = useState(null);
 
   const currentSource = EMBED_SOURCES[currentSourceIndex];
   const mediaType = type === 'movie' ? 'movie' : 'tv';
@@ -488,14 +489,27 @@ function StreamPlayer() {
 
   // Canviar d'idioma
   const handleLanguageChange = useCallback((langCode) => {
+    const langInfo = availableLanguages.find(l => l.code === langCode);
     setPreferredLang(langCode);
     localStorage.setItem('hermes_stream_lang', langCode);
     setShowLangMenu(false);
-    // Recarregar el reproductor amb el nou idioma
+
+    // Mostrar missatge indicant que cal seleccionar l'idioma dins del reproductor
+    setLangChangeMessage({
+      lang: langInfo?.name || langCode,
+      flag: langInfo?.flag || '🌐'
+    });
+
+    // Amagar el missatge després de 5 segons
+    setTimeout(() => {
+      setLangChangeMessage(null);
+    }, 5000);
+
+    // Recarregar el reproductor amb el nou idioma (si la font ho suporta)
     if (currentSource.supportsLang) {
       setLoading(true);
     }
-  }, [currentSource.supportsLang]);
+  }, [currentSource.supportsLang, availableLanguages]);
 
   // Tornar enrere
   const handleBack = useCallback(() => {
@@ -678,6 +692,18 @@ function StreamPlayer() {
             Els subtítols es poden seleccionar amb el botó d'idioma ({currentLang.flag}).
           </div>
           <button onClick={() => setShowLangTip(false)}>×</button>
+        </div>
+      )}
+
+      {/* Missatge de canvi d'idioma */}
+      {langChangeMessage && (
+        <div className="stream-lang-change-message">
+          <span className="lang-flag">{langChangeMessage.flag}</span>
+          <div className="message-content">
+            <strong>Idioma preferit: {langChangeMessage.lang}</strong>
+            <p>Busca l'idioma dins del reproductor (icona ⚙️ o 🔊)</p>
+          </div>
+          <button onClick={() => setLangChangeMessage(null)}>×</button>
         </div>
       )}
 
