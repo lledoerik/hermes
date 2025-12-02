@@ -147,6 +147,9 @@ def init_all_tables():
             ("content_type", "TEXT"),  # movie, anime_movie, animated, series, anime, toons
             ("origin_country", "TEXT"),
             ("original_language", "TEXT"),
+            # Camps per metadades TMDB (temporades/episodis totals)
+            ("tmdb_seasons", "INTEGER"),
+            ("tmdb_episodes", "INTEGER"),
         ]
         for col_name, col_type in series_columns:
             try:
@@ -974,14 +977,29 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
 
         series = []
         for row in cursor.fetchall():
+            # Usar TMDB metadata si no hi ha fitxers locals
+            local_seasons = row["season_count"]
+            local_episodes = row["episode_count"]
+            tmdb_seasons = row["tmdb_seasons"] if "tmdb_seasons" in row.keys() else None
+            tmdb_episodes = row["tmdb_episodes"] if "tmdb_episodes" in row.keys() else None
+
+            # Prioritzar: si hi ha locals, usar-los; si no, usar TMDB
+            final_seasons = local_seasons if local_seasons > 0 else (tmdb_seasons or 0)
+            final_episodes = local_episodes if local_episodes > 0 else (tmdb_episodes or 0)
+
             series.append({
                 "id": row["id"],
                 "name": row["name"],
                 "path": row["path"],
                 "poster": row["poster"],
                 "backdrop": row["backdrop"],
-                "season_count": row["season_count"],
-                "episode_count": row["episode_count"],
+                "season_count": final_seasons,
+                "episode_count": final_episodes,
+                "local_season_count": local_seasons,
+                "local_episode_count": local_episodes,
+                "tmdb_id": row["tmdb_id"] if "tmdb_id" in row.keys() else None,
+                "year": row["year"] if "year" in row.keys() else None,
+                "rating": row["rating"] if "rating" in row.keys() else None,
                 "content_type": row["content_type"] or "series"
             })
 
@@ -3892,6 +3910,8 @@ async def fetch_all_metadata(request: MetadataRequest):
                                         rating = ?,
                                         genres = ?,
                                         runtime = ?,
+                                        tmdb_seasons = ?,
+                                        tmdb_episodes = ?,
                                         poster = CASE WHEN ? = 1 THEN ? ELSE poster END,
                                         backdrop = CASE WHEN ? = 1 THEN ? ELSE backdrop END,
                                         updated_date = CURRENT_TIMESTAMP
@@ -3904,6 +3924,8 @@ async def fetch_all_metadata(request: MetadataRequest):
                                     metadata.get("rating"),
                                     genres_json,
                                     metadata.get("runtime"),
+                                    metadata.get("seasons"),
+                                    metadata.get("episodes"),
                                     1 if metadata.get("poster_downloaded") else 0,
                                     str(poster_path) if metadata.get("poster_downloaded") else None,
                                     1 if metadata.get("backdrop_downloaded") else 0,
@@ -4328,6 +4350,8 @@ async def auto_fetch_all_metadata():
                             rating = ?,
                             genres = ?,
                             runtime = ?,
+                            tmdb_seasons = ?,
+                            tmdb_episodes = ?,
                             poster = CASE WHEN ? = 1 THEN ? ELSE poster END,
                             backdrop = CASE WHEN ? = 1 THEN ? ELSE backdrop END,
                             updated_date = CURRENT_TIMESTAMP
@@ -4340,6 +4364,8 @@ async def auto_fetch_all_metadata():
                         result.get("rating"),
                         genres_json,
                         result.get("runtime"),
+                        result.get("seasons"),
+                        result.get("episodes"),
                         1 if result.get("poster_downloaded") else 0,
                         str(poster_path) if result.get("poster_downloaded") else None,
                         1 if result.get("backdrop_downloaded") else 0,
@@ -4442,6 +4468,8 @@ async def refresh_all_metadata(background_tasks: BackgroundTasks):
                                 rating = ?,
                                 genres = ?,
                                 runtime = ?,
+                                tmdb_seasons = ?,
+                                tmdb_episodes = ?,
                                 poster = CASE WHEN ? = 1 THEN ? ELSE poster END,
                                 backdrop = CASE WHEN ? = 1 THEN ? ELSE backdrop END,
                                 updated_date = CURRENT_TIMESTAMP
@@ -4454,6 +4482,8 @@ async def refresh_all_metadata(background_tasks: BackgroundTasks):
                             result.get("rating"),
                             genres_json,
                             result.get("runtime"),
+                            result.get("seasons"),
+                            result.get("episodes"),
                             1 if result.get("poster_downloaded") else 0,
                             str(poster_path) if result.get("poster_downloaded") else None,
                             1 if result.get("backdrop_downloaded") else 0,
@@ -5563,8 +5593,9 @@ async def import_from_tmdb(data: ImportTMDBRequest):
                     name, path, media_type, tmdb_id, title, year, overview, rating, genres, runtime,
                     poster, backdrop, director, creators, cast_members,
                     is_imported, source_type, external_url, added_date,
-                    content_type, origin_country, original_language
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'tmdb', ?, datetime('now'), ?, ?, ?)
+                    content_type, origin_country, original_language,
+                    tmdb_seasons, tmdb_episodes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'tmdb', ?, datetime('now'), ?, ?, ?, ?, ?)
             """, (
                 metadata.get("title"),
                 virtual_path,
@@ -5584,7 +5615,9 @@ async def import_from_tmdb(data: ImportTMDBRequest):
                 f"https://www.themoviedb.org/{data.media_type}/{data.tmdb_id}",
                 metadata.get("content_type"),
                 json.dumps(metadata.get("origin_country", [])) if metadata.get("origin_country") else None,
-                metadata.get("original_language")
+                metadata.get("original_language"),
+                metadata.get("seasons"),
+                metadata.get("episodes")
             ))
 
             series_id = cursor.lastrowid
