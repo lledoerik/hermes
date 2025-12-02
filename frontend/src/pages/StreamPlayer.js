@@ -108,13 +108,6 @@ const EMBED_SOURCES = [
   }
 ];
 
-// Icona candau per no-premium
-const LockIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor" width="80" height="80">
-    <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
-  </svg>
-);
-
 function StreamPlayer() {
   const { type, tmdbId } = useParams();
   const location = useLocation();
@@ -518,38 +511,10 @@ function StreamPlayer() {
     return null;
   };
 
-  // Si l'usuari no és premium, mostrar missatge de restricció
+  // Si l'usuari no té accés, redirigir silenciosament
   if (!isPremium) {
-    return (
-      <div className="stream-player-container premium-required">
-        <div
-          className="premium-overlay"
-          style={{
-            backgroundImage: getBackdropUrl() ? `url(${getBackdropUrl()})` : 'none'
-          }}
-        >
-          <div className="premium-content">
-            <div className="premium-icon">
-              <LockIcon />
-            </div>
-            <h2 className="premium-title">Contingut Premium</h2>
-            <p className="premium-description">
-              La reproducció de contingut està reservada per a usuaris premium.
-            </p>
-            <p className="premium-hint">
-              Consulta on pots veure aquest contingut legalment a la pàgina de detalls.
-            </p>
-            <button
-              className="premium-back-btn"
-              onClick={() => navigate(-1)}
-            >
-              <BackIcon />
-              Tornar enrere
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+    navigate('/', { replace: true });
+    return null;
   }
 
   return (

@@ -3,7 +3,6 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import TitleAudioPlayer from '../components/TitleAudioPlayer';
-import ExternalPlayer from '../components/ExternalPlayer';
 import './Details.css';
 
 const API_URL = window.location.hostname === 'localhost'
@@ -54,12 +53,6 @@ const StarIcon = () => (
   </svg>
 );
 
-const PlayIcon = ({ size = 18 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-    <polygon points="5 3 19 12 5 21 5 3"></polygon>
-  </svg>
-);
-
 const EditIcon = ({ size = 18 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -79,18 +72,11 @@ const ChevronRightIcon = () => (
   </svg>
 );
 
-// Icona candau per premium
-const LockIcon = ({ size = 16 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
-  </svg>
-);
-
 function Details() {
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { isAdmin, isPremium } = useAuth();
+  const { isAdmin } = useAuth();
   // Determinar el tipus segons la ruta
   const type = location.pathname.startsWith('/movies') ? 'movies' : 'series';
   const [item, setItem] = useState(null);
@@ -110,11 +96,10 @@ function Details() {
   // Watch providers state
   const [watchProviders, setWatchProviders] = useState(null);
 
-  // External URL state
+  // External URL state (per admins)
   const [showExternalUrlInput, setShowExternalUrlInput] = useState(false);
   const [externalUrl, setExternalUrl] = useState('');
   const [externalUrlLoading, setExternalUrlLoading] = useState(false);
-  const [showExternalPlayer, setShowExternalPlayer] = useState(false);
 
   // Scroll de temporades
   const seasonsScrollRef = useRef(null);
@@ -327,22 +312,6 @@ function Details() {
     }
   }, [type, selectedSeason, seasons, loadEpisodes, usingTmdbSeasons, item?.tmdb_id]);
 
-  const handlePlay = () => {
-    // Sempre anar a streaming (ja no utilitzem fitxers locals)
-    if (type === 'movies') {
-      if (item?.tmdb_id) {
-        navigate(`/stream/movie/${item.tmdb_id}`);
-      }
-    } else {
-      // Per sèries, anar al primer episodi disponible
-      if (item?.tmdb_id) {
-        const firstSeason = seasons[0]?.season_number || 1;
-        const firstEpisode = episodes[0]?.episode_number || 1;
-        navigate(`/stream/series/${item.tmdb_id}?s=${firstSeason}&e=${firstEpisode}`);
-      }
-    }
-  };
-
   const handleUpdateByTmdbId = async () => {
     if (!tmdbId.trim()) {
       setTmdbMessage({ type: 'error', text: 'Introdueix un ID de TMDB' });
@@ -550,12 +519,9 @@ function Details() {
               )}
             </div>
 
-            {/* Watch Providers - On veure en streaming (més prominent per no-premium) */}
+            {/* Watch Providers - On veure en streaming */}
             {watchProviders && watchProviders.available && (
-              <div className={`watch-providers-section ${!isPremium ? 'prominent' : ''}`}>
-                {!isPremium && (
-                  <div className="providers-title">On veure aquest contingut legalment:</div>
-                )}
+              <div className="watch-providers-section">
                 {watchProviders.flatrate && watchProviders.flatrate.length > 0 && (
                   <div className="providers-row">
                     <span className="providers-label">Disponible a:</span>
@@ -606,34 +572,6 @@ function Details() {
             )}
 
             <div className="details-actions">
-              {/* Botó principal de reproducció - només per usuaris premium */}
-              {isPremium ? (
-                item?.tmdb_id ? (
-                  <button className="play-btn" onClick={handlePlay}>
-                    <PlayIcon /> Reproduir
-                  </button>
-                ) : (
-                  <button className="play-btn disabled" disabled title="Cal associar un TMDB ID per reproduir">
-                    <PlayIcon /> Reproduir
-                  </button>
-                )
-              ) : (
-                <button className="play-btn premium-locked" disabled title="Només per a usuaris premium">
-                  <LockIcon size={18} /> Premium
-                </button>
-              )}
-              {/* Botó per reproduir contingut extern (URL manual) */}
-              {item?.external_url && (
-                <button
-                  className="play-btn external-play-btn"
-                  onClick={() => setShowExternalPlayer(!showExternalPlayer)}
-                >
-                  <PlayIcon /> {showExternalPlayer ? 'Amagar' : 'Font externa'}
-                  {item?.external_source && (
-                    <span className="external-source-badge">{item.external_source}</span>
-                  )}
-                </button>
-              )}
               <button className="secondary-btn">
                 + La meva llista
               </button>
@@ -687,17 +625,6 @@ function Details() {
                     Font detectada: <strong>{detectExternalSource(externalUrl)}</strong>
                   </div>
                 )}
-              </div>
-            )}
-
-            {/* External Player (URL manual) */}
-            {showExternalPlayer && item?.external_url && (
-              <div className="external-player-section">
-                <ExternalPlayer
-                  url={item.external_url}
-                  title={item.title || item.name}
-                  autoplay={true}
-                />
               </div>
             )}
 
@@ -791,15 +718,7 @@ function Details() {
                 key={episode.id || episode.episode_number}
                 className="episode-card"
               >
-                <div
-                  className={`episode-thumbnail ${!isPremium ? 'premium-locked' : ''}`}
-                  onClick={() => {
-                    // Només premium pot reproduir
-                    if (isPremium && item?.tmdb_id) {
-                      navigate(`/stream/series/${item.tmdb_id}?s=${selectedSeason}&e=${episode.episode_number}`);
-                    }
-                  }}
-                >
+                <div className="episode-thumbnail">
                   {episode.still_path ? (
                     <img
                       src={episode.still_path}
@@ -811,7 +730,6 @@ function Details() {
                     />
                   ) : null}
                   <span className="episode-number" style={{ display: !episode.still_path ? 'flex' : 'none' }}>{episode.episode_number}</span>
-                  <div className="episode-play-icon"><PlayIcon size={20} /></div>
                   {episode.watch_progress > 0 && (
                     <div className="episode-progress">
                       <div
