@@ -942,7 +942,11 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
         count_params = []
         if content_types:
             placeholders = ','.join(['?' for _ in content_types])
-            count_query += f" AND content_type IN ({placeholders})"
+            # Tractar NULL com a 'series' per defecte
+            if 'series' in content_types:
+                count_query += f" AND (content_type IN ({placeholders}) OR content_type IS NULL)"
+            else:
+                count_query += f" AND content_type IN ({placeholders})"
             count_params.extend(content_types)
         cursor.execute(count_query, count_params)
         total = cursor.fetchone()[0]
@@ -959,7 +963,11 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
 
         if content_types:
             placeholders = ','.join(['?' for _ in content_types])
-            query += f" AND s.content_type IN ({placeholders})"
+            # Tractar NULL com a 'series' per defecte
+            if 'series' in content_types:
+                query += f" AND (s.content_type IN ({placeholders}) OR s.content_type IS NULL)"
+            else:
+                query += f" AND s.content_type IN ({placeholders})"
             params.extend(content_types)
 
         query += " GROUP BY s.id"
@@ -1016,7 +1024,11 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
         count_params = []
         if content_types:
             placeholders = ','.join(['?' for _ in content_types])
-            count_query += f" AND content_type IN ({placeholders})"
+            # Tractar NULL com a 'movie' per defecte
+            if 'movie' in content_types:
+                count_query += f" AND (content_type IN ({placeholders}) OR content_type IS NULL)"
+            else:
+                count_query += f" AND content_type IN ({placeholders})"
             count_params.extend(content_types)
         cursor.execute(count_query, count_params)
         total = cursor.fetchone()[0]
@@ -1033,7 +1045,11 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
 
         if content_types:
             placeholders = ','.join(['?' for _ in content_types])
-            query += f" AND s.content_type IN ({placeholders})"
+            # Tractar NULL com a 'movie' per defecte
+            if 'movie' in content_types:
+                query += f" AND (s.content_type IN ({placeholders}) OR s.content_type IS NULL)"
+            else:
+                query += f" AND s.content_type IN ({placeholders})"
             params.extend(content_types)
 
         # Sorting
