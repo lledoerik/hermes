@@ -704,6 +704,33 @@
   background: rgba(50, 132, 146, 0.2);
 }
 
+/* Idioma verificat de Torrentio */
+.stream-lang-option.verified {
+  border-left: 3px solid #4CAF50;
+}
+
+.stream-lang-option .lang-quality {
+  font-size: 11px;
+  padding: 2px 6px;
+  background: rgba(76, 175, 80, 0.3);
+  border-radius: 4px;
+  color: #4CAF50;
+  font-weight: 600;
+}
+
+.stream-lang-option .lang-verified {
+  color: #4CAF50;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.stream-lang-loading {
+  padding: 12px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+}
+
 /* Indicador de suport d'idioma a les fonts */
 .stream-source-option .lang-support {
   font-size: 14px;
