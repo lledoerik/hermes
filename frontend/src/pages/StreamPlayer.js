@@ -141,6 +141,9 @@ function StreamPlayer() {
   const [isWatched, setIsWatched] = useState(false);
   const [watchStartTime, setWatchStartTime] = useState(Date.now()); // Iniciar temps de visualització
 
+  // Timeout per amagar controls
+  const controlsTimeoutRef = useRef(null);
+
   const currentSource = EMBED_SOURCES[currentSourceIndex];
   const mediaType = type === 'movie' ? 'movie' : 'tv';
 
@@ -310,19 +313,42 @@ function StreamPlayer() {
     return () => clearTimeout(timeout);
   }, [showControls, showSourceMenu, showEpisodesMenu, hasStartedPlaying, loading]);
 
-  // Mostrar controls quan mous el ratolí
+  // Mostrar controls quan mous el ratolí (amb timeout per amagar-los)
   const handleMouseMove = useCallback(() => {
     setShowControls(true);
-  }, []);
 
-  // Amagar controls quan es fa clic
+    // Netejar timeout anterior
+    if (controlsTimeoutRef.current) {
+      clearTimeout(controlsTimeoutRef.current);
+    }
+
+    // Amagar controls després de 3 segons d'inactivitat
+    controlsTimeoutRef.current = setTimeout(() => {
+      // No amagar si hi ha un menú obert
+      if (!showSourceMenu && !showEpisodesMenu) {
+        setShowControls(false);
+      }
+    }, 3000);
+  }, [showSourceMenu, showEpisodesMenu]);
+
+  // Toggle controls quan es fa clic
   const handleContainerClick = useCallback((e) => {
     const isControlClick = e.target.closest('.stream-btn') ||
                           e.target.closest('.stream-source-dropdown') ||
-                          e.target.closest('.stream-episodes-dropdown');
+                          e.target.closest('.stream-episodes-dropdown') ||
+                          e.target.closest('.stream-next-episode-btn');
     if (!isControlClick) {
-      setShowControls(false);
+      setShowControls(prev => !prev);
     }
+  }, []);
+
+  // Netejar timeout quan es desmunta
+  useEffect(() => {
+    return () => {
+      if (controlsTimeoutRef.current) {
+        clearTimeout(controlsTimeoutRef.current);
+      }
+    };
   }, []);
 
   // Quan l'iframe carrega correctament
@@ -694,6 +720,18 @@ function StreamPlayer() {
           {isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
         </button>
       </div>
+
+      {/* Botó flotant per passar al següent capítol */}
+      {type !== 'movie' && season && episode && episodes.length > 0 && (
+        <button
+          className={`stream-next-episode-btn ${showControls ? 'visible' : ''}`}
+          onClick={goToNextEpisode}
+          title="Següent capítol (N)"
+        >
+          <span className="next-episode-text">Següent capítol</span>
+          <NextIcon />
+        </button>
+      )}
     </div>
   );
 }
