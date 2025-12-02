@@ -937,21 +937,12 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
         # Parse content types (can be comma-separated)
         content_types = [ct.strip() for ct in content_type.split(',')] if content_type else None
 
-        # Count total
+        # Count total - sense filtre de content_type per mostrar totes les sèries
         count_query = "SELECT COUNT(*) FROM series WHERE media_type = 'series'"
-        count_params = []
-        if content_types:
-            placeholders = ','.join(['?' for _ in content_types])
-            # Tractar NULL com a 'series' per defecte
-            if 'series' in content_types:
-                count_query += f" AND (content_type IN ({placeholders}) OR content_type IS NULL)"
-            else:
-                count_query += f" AND content_type IN ({placeholders})"
-            count_params.extend(content_types)
-        cursor.execute(count_query, count_params)
+        cursor.execute(count_query)
         total = cursor.fetchone()[0]
 
-        # Main query
+        # Main query - sense filtre de content_type
         query = """
             SELECT s.*, COUNT(DISTINCT m.season_number) as season_count,
                        COUNT(m.id) as episode_count, s.content_type
@@ -960,15 +951,6 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
             WHERE s.media_type = 'series'
         """
         params = []
-
-        if content_types:
-            placeholders = ','.join(['?' for _ in content_types])
-            # Tractar NULL com a 'series' per defecte
-            if 'series' in content_types:
-                query += f" AND (s.content_type IN ({placeholders}) OR s.content_type IS NULL)"
-            else:
-                query += f" AND s.content_type IN ({placeholders})"
-            params.extend(content_types)
 
         query += " GROUP BY s.id"
 
@@ -1019,21 +1001,12 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
         # Parse content types (can be comma-separated)
         content_types = [ct.strip() for ct in content_type.split(',')] if content_type else None
 
-        # Count total
+        # Count total - sense filtre de content_type per mostrar totes les pel·lícules
         count_query = "SELECT COUNT(*) FROM series WHERE media_type = 'movie'"
-        count_params = []
-        if content_types:
-            placeholders = ','.join(['?' for _ in content_types])
-            # Tractar NULL com a 'movie' per defecte
-            if 'movie' in content_types:
-                count_query += f" AND (content_type IN ({placeholders}) OR content_type IS NULL)"
-            else:
-                count_query += f" AND content_type IN ({placeholders})"
-            count_params.extend(content_types)
-        cursor.execute(count_query, count_params)
+        cursor.execute(count_query)
         total = cursor.fetchone()[0]
 
-        # Main query
+        # Main query - sense filtre de content_type
         query = """
             SELECT s.*, m.duration, m.file_size, m.id as media_id,
                    s.is_imported, s.year, s.rating, s.content_type
@@ -1042,15 +1015,6 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
             WHERE s.media_type = 'movie'
         """
         params = []
-
-        if content_types:
-            placeholders = ','.join(['?' for _ in content_types])
-            # Tractar NULL com a 'movie' per defecte
-            if 'movie' in content_types:
-                query += f" AND (s.content_type IN ({placeholders}) OR s.content_type IS NULL)"
-            else:
-                query += f" AND s.content_type IN ({placeholders})"
-            params.extend(content_types)
 
         # Sorting
         if sort_by == "year":
