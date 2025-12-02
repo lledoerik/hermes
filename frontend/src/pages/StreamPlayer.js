@@ -74,36 +74,58 @@ const CheckCircleIcon = () => (
 // Fonts d'embed - Múltiples servidors amb fallback automàtic
 const EMBED_SOURCES = [
   {
-    id: 'vidsrc-to',
-    name: 'VidSrc',
-    description: 'Servidor principal',
-    getUrl: (type, tmdbId, season, episode) => {
-      if (type === 'movie') {
-        return `https://vidsrc.to/embed/movie/${tmdbId}`;
-      }
-      return `https://vidsrc.to/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
-    }
-  },
-  {
-    id: 'vidsrc-me',
-    name: 'VidSrc 2',
-    description: 'Servidor alternatiu',
-    getUrl: (type, tmdbId, season, episode) => {
-      if (type === 'movie') {
-        return `https://vidsrc.me/embed/movie?tmdb=${tmdbId}`;
-      }
-      return `https://vidsrc.me/embed/tv?tmdb=${tmdbId}&season=${season || 1}&episode=${episode || 1}`;
-    }
-  },
-  {
     id: 'vidsrc-xyz',
-    name: 'VidSrc 3',
-    description: 'Servidor de reserva',
+    name: 'VidSrc',
+    description: 'API pública',
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
         return `https://vidsrc.xyz/embed/movie?tmdb=${tmdbId}`;
       }
       return `https://vidsrc.xyz/embed/tv?tmdb=${tmdbId}&season=${season || 1}&episode=${episode || 1}`;
+    }
+  },
+  {
+    id: '2embed',
+    name: '2Embed',
+    description: 'Segueix iframes interns',
+    getUrl: (type, tmdbId, season, episode) => {
+      if (type === 'movie') {
+        return `https://www.2embed.cc/embed/${tmdbId}`;
+      }
+      return `https://www.2embed.cc/embedtv/${tmdbId}&s=${season || 1}&e=${episode || 1}`;
+    }
+  },
+  {
+    id: 'embed-su',
+    name: 'Embed.su',
+    description: 'Altra alternativa',
+    getUrl: (type, tmdbId, season, episode) => {
+      if (type === 'movie') {
+        return `https://embed.su/embed/movie/${tmdbId}`;
+      }
+      return `https://embed.su/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
+    }
+  },
+  {
+    id: 'autoembed',
+    name: 'AutoEmbed',
+    description: 'Estructura simple',
+    getUrl: (type, tmdbId, season, episode) => {
+      if (type === 'movie') {
+        return `https://autoembed.cc/embed/movie/${tmdbId}`;
+      }
+      return `https://autoembed.cc/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
+    }
+  },
+  {
+    id: 'superembed',
+    name: 'SuperEmbed',
+    description: 'Mantingut',
+    getUrl: (type, tmdbId, season, episode) => {
+      if (type === 'movie') {
+        return `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1`;
+      }
+      return `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1&s=${season || 1}&e=${episode || 1}`;
     }
   }
 ];
