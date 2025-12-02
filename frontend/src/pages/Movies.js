@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import MediaCard from '../components/MediaCard';
 import { useAuth } from '../context/AuthContext';
@@ -32,29 +32,10 @@ const SearchIcon = () => (
   </svg>
 );
 
-const PlusIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-    <line x1="12" y1="5" x2="12" y2="19"></line>
-    <line x1="5" y1="12" x2="19" y2="12"></line>
-  </svg>
-);
-
-const CheckIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-    <polyline points="20 6 9 17 4 12"></polyline>
-  </svg>
-);
-
 const ClearIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <line x1="18" y1="6" x2="6" y2="18"></line>
     <line x1="6" y1="6" x2="18" y2="18"></line>
-  </svg>
-);
-
-const StarIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
   </svg>
 );
 
@@ -94,13 +75,9 @@ function Movies() {
   // Content type filter state (array for multi-select, default to 'movie')
   const [selectedContentTypes, setSelectedContentTypes] = useState(['movie']);
 
-  // Search state (només admin)
+  // Search state
   const [searchQuery, setSearchQuery] = useState('');
-  const [externalResults, setExternalResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [importing, setImporting] = useState({});
-  const [imported, setImported] = useState({});
-  const [importingAll, setImportingAll] = useState(false);
   const [localSearchResults, setLocalSearchResults] = useState(null); // Resultats de cerca a la BD
 
   // Discover state (només admin)
@@ -264,88 +241,8 @@ function Movies() {
     }
   };
 
-  const searchExternal = useCallback(async (query) => {
-    if (!query.trim()) return;
-
-    setSearchLoading(true);
-    try {
-      const response = await axios.post('/api/import/search', {
-        query: query.trim(),
-        media_type: 'movie'
-      });
-      const existingTmdbIds = movies.filter(m => m.tmdb_id).map(m => m.tmdb_id);
-      const filtered = response.data.results.filter(r => !existingTmdbIds.includes(r.id));
-      setExternalResults(filtered);
-    } catch (err) {
-      console.error('Error cercant externament:', err);
-      setExternalResults([]);
-    } finally {
-      setSearchLoading(false);
-    }
-  }, [movies]);
-
-  // Debounced external search
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      setExternalResults([]);
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      searchExternal(searchQuery);
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery, searchExternal]);
-
-  const handleImport = async (item, e) => {
-    e?.stopPropagation();
-    setImporting(prev => ({ ...prev, [item.id]: true }));
-    try {
-      await axios.post('/api/import/tmdb', {
-        tmdb_id: item.id,
-        media_type: 'movie'
-      });
-      setImported(prev => ({ ...prev, [item.id]: true }));
-      setExternalResults(prev => prev.filter(r => r.id !== item.id));
-      invalidateCache('movies');
-      loadMovies();
-    } catch (err) {
-      console.error('Error important:', err);
-    } finally {
-      setImporting(prev => ({ ...prev, [item.id]: false }));
-    }
-  };
-
-  const handleImportAll = async (items) => {
-    if (items.length === 0) return;
-
-    setImportingAll(true);
-
-    for (const item of items) {
-      setImporting(prev => ({ ...prev, [item.id]: true }));
-      try {
-        await axios.post('/api/import/tmdb', {
-          tmdb_id: item.id,
-          media_type: 'movie'
-        });
-        setImported(prev => ({ ...prev, [item.id]: true }));
-        setExternalResults(prev => prev.filter(r => r.id !== item.id));
-      } catch (err) {
-        console.error(`Error important ${item.title}:`, err);
-      } finally {
-        setImporting(prev => ({ ...prev, [item.id]: false }));
-      }
-    }
-
-    invalidateCache('movies');
-    loadMovies();
-    setImportingAll(false);
-  };
-
   const clearSearch = () => {
     setSearchQuery('');
-    setExternalResults([]);
   };
 
   // Use API search results if searching, otherwise use paginated movies
@@ -367,7 +264,6 @@ function Movies() {
 
   const isSearching = searchQuery.trim().length > 0;
   const hasLocalResults = sortedMovies.length > 0;
-  const hasExternalResults = externalResults.length > 0;
 
   const categoryLabels = {
     popular: 'Populars',
@@ -452,32 +348,7 @@ function Movies() {
       {/* Search results */}
       {isSearching ? (
         <>
-          {/* External results - només admin */}
-          {isAdmin && hasExternalResults && (
-            <div className="add-all-bar">
-              <span>{externalResults.length} resultats de TMDB</span>
-              <button
-                className="add-all-btn"
-                onClick={() => handleImportAll(externalResults)}
-                disabled={importingAll}
-              >
-                {importingAll ? (
-                  <>
-                    <div className="btn-spinner"></div>
-                    Important...
-                  </>
-                ) : (
-                  <>
-                    <PlusIcon />
-                    Afegir tots
-                  </>
-                )}
-              </button>
-            </div>
-          )}
-
           <div className="library-grid">
-            {/* Local matches */}
             {sortedMovies.map((movie) => (
               <MediaCard
                 key={`local-${movie.id}`}
@@ -486,54 +357,9 @@ function Movies() {
                 width="100%"
               />
             ))}
-
-            {/* External search results - només admin */}
-            {isAdmin && externalResults.map((item) => (
-              <div
-                key={`tmdb-${item.id}`}
-                className="media-card external-card"
-                onClick={() => window.open(`https://www.themoviedb.org/movie/${item.id}`, '_blank')}
-              >
-                <div className="media-poster">
-                  {item.poster ? (
-                    <img src={item.poster} alt={item.title} />
-                  ) : (
-                    <div className="no-poster-placeholder">
-                      <MovieIcon />
-                    </div>
-                  )}
-                  <div className="external-badge">TMDB</div>
-                  <button
-                    className={`add-btn ${imported[item.id] ? 'added' : ''}`}
-                    onClick={(e) => handleImport(item, e)}
-                    disabled={importing[item.id] || imported[item.id]}
-                    title="Afegir a la biblioteca"
-                  >
-                    {importing[item.id] ? (
-                      <div className="btn-spinner"></div>
-                    ) : imported[item.id] ? (
-                      <CheckIcon />
-                    ) : (
-                      <PlusIcon />
-                    )}
-                  </button>
-                </div>
-                <div className="media-info">
-                  <h3 className="media-title">{item.title}</h3>
-                  <div className="media-meta">
-                    {item.year && <span>{item.year}</span>}
-                    {item.rating > 0 && (
-                      <span className="rating">
-                        <StarIcon /> {item.rating.toFixed(1)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
           </div>
 
-          {!hasLocalResults && !hasExternalResults && (
+          {!hasLocalResults && (
             <div className="empty-state">
               <div className="empty-icon"><SearchIcon /></div>
               <h2>Sense resultats</h2>
