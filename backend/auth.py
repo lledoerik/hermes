@@ -353,7 +353,8 @@ class AuthManager:
                 "display_name": user["display_name"],
                 "email": user["email"],
                 "avatar": user["avatar"],
-                "is_admin": bool(user["is_admin"])
+                "is_admin": bool(user["is_admin"]),
+                "is_premium": bool(user["is_premium"]) if user["is_premium"] is not None else False
             },
             "token": token
         }
