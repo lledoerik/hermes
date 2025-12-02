@@ -68,6 +68,12 @@ const InfoIcon = () => (
   </svg>
 );
 
+const PlayCircleIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+  </svg>
+);
+
 // Idiomes disponibles
 const LANGUAGES = [
   { code: 'ca', name: 'Català', flag: '🇦🇩' },
@@ -78,7 +84,17 @@ const LANGUAGES = [
   { code: 'it', name: 'Italià', flag: '🇮🇹' },
 ];
 
-// Fonts d'embed disponibles amb suport d'idioma
+// Helper per afegir paràmetres a URL
+const addParams = (url, params) => {
+  const separator = url.includes('?') ? '&' : '?';
+  const paramStr = Object.entries(params)
+    .filter(([_, v]) => v !== undefined && v !== null)
+    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+    .join('&');
+  return paramStr ? `${url}${separator}${paramStr}` : url;
+};
+
+// Fonts d'embed disponibles amb suport d'idioma i autoplay
 const EMBED_SOURCES = [
   {
     id: 'vidsrc',
@@ -88,8 +104,7 @@ const EMBED_SOURCES = [
       const base = type === 'movie'
         ? `https://vidsrc.cc/v2/embed/movie/${tmdbId}`
         : `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
-      // VidSrc suporta ds_lang per subtítols per defecte
-      return lang ? `${base}?ds_lang=${lang}` : base;
+      return addParams(base, { ds_lang: lang, autoplay: 1 });
     }
   },
   {
@@ -100,7 +115,7 @@ const EMBED_SOURCES = [
       const base = type === 'movie'
         ? `https://vidsrc.xyz/embed/movie/${tmdbId}`
         : `https://vidsrc.xyz/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
-      return lang ? `${base}?ds_lang=${lang}` : base;
+      return addParams(base, { ds_lang: lang, autoplay: 1 });
     }
   },
   {
@@ -109,9 +124,9 @@ const EMBED_SOURCES = [
     supportsLang: false,
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
-        return `https://www.2embed.cc/embed/${tmdbId}`;
+        return addParams(`https://www.2embed.cc/embed/${tmdbId}`, { autoplay: 1 });
       }
-      return `https://www.2embed.cc/embedtv/${tmdbId}&s=${season || 1}&e=${episode || 1}`;
+      return `https://www.2embed.cc/embedtv/${tmdbId}&s=${season || 1}&e=${episode || 1}&autoplay=1`;
     }
   },
   {
@@ -120,9 +135,9 @@ const EMBED_SOURCES = [
     supportsLang: false,
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
-        return `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1`;
+        return `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1&autoplay=1`;
       }
-      return `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1&s=${season || 1}&e=${episode || 1}`;
+      return `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1&s=${season || 1}&e=${episode || 1}&autoplay=1`;
     }
   },
   {
@@ -133,7 +148,7 @@ const EMBED_SOURCES = [
       const base = type === 'movie'
         ? `https://player.autoembed.cc/embed/movie/${tmdbId}`
         : `https://player.autoembed.cc/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
-      return lang ? `${base}?lang=${lang}` : base;
+      return addParams(base, { lang, autoplay: 1 });
     }
   },
   {
@@ -142,9 +157,9 @@ const EMBED_SOURCES = [
     supportsLang: false,
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
-        return `https://embed.su/embed/movie/${tmdbId}`;
+        return addParams(`https://embed.su/embed/movie/${tmdbId}`, { autoplay: 1 });
       }
-      return `https://embed.su/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
+      return addParams(`https://embed.su/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`, { autoplay: 1 });
     }
   },
 ];
@@ -191,6 +206,7 @@ function StreamPlayer() {
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [showLangTip, setShowLangTip] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showStartOverlay, setShowStartOverlay] = useState(true);
 
   const currentSource = EMBED_SOURCES[currentSourceIndex];
   const currentLang = LANGUAGES.find(l => l.code === preferredLang) || LANGUAGES[0];
@@ -273,10 +289,34 @@ function StreamPlayer() {
     setShowControls(true);
   }, []);
 
+  // Funció per entrar en mode immersiu (fullscreen + landscape)
+  const enterImmersiveMode = useCallback(async () => {
+    try {
+      // Entrar a pantalla completa
+      if (containerRef.current && !document.fullscreenElement) {
+        await containerRef.current.requestFullscreen();
+      }
+
+      // Bloquejar orientació en horitzontal (només mòbil)
+      if (screen.orientation && screen.orientation.lock) {
+        try {
+          await screen.orientation.lock('landscape');
+        } catch (e) {
+          // Alguns navegadors no suporten lock d'orientació
+          console.log('Orientation lock not supported');
+        }
+      }
+    } catch (e) {
+      console.log('Fullscreen request failed:', e);
+    }
+  }, []);
+
   // Quan l'iframe carrega
   const handleIframeLoad = useCallback(() => {
     setLoading(false);
-  }, []);
+    // Entrar automàticament en mode immersiu
+    enterImmersiveMode();
+  }, [enterImmersiveMode]);
 
   // Canviar de font
   const handleSourceChange = useCallback((index) => {
@@ -351,11 +391,27 @@ function StreamPlayer() {
   // Escoltar canvis de fullscreen
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      const isFs = !!document.fullscreenElement;
+      setIsFullscreen(isFs);
+
+      // Desbloquejar orientació quan sortim de pantalla completa
+      if (!isFs && screen.orientation && screen.orientation.unlock) {
+        try {
+          screen.orientation.unlock();
+        } catch (e) {
+          // Ignorar errors d'unlock
+        }
+      }
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
+
+  // Handler per iniciar la reproducció amb mode immersiu
+  const handleStartPlayback = useCallback(() => {
+    setShowStartOverlay(false);
+    enterImmersiveMode();
+  }, [enterImmersiveMode]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -435,6 +491,19 @@ function StreamPlayer() {
           <div className="stream-loading-spinner">
             <div className="spinner"></div>
             <p>Carregant {currentSource.name}...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Start overlay - per activar mode immersiu amb interacció d'usuari */}
+      {showStartOverlay && !loading && (
+        <div className="stream-start-overlay" onClick={handleStartPlayback}>
+          <div className="stream-start-content">
+            <div className="stream-start-icon">
+              <PlayCircleIcon />
+            </div>
+            <p className="stream-start-text">Toca per reproduir</p>
+            <p className="stream-start-hint">Pantalla completa i horitzontal</p>
           </div>
         </div>
       )}
