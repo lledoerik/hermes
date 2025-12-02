@@ -132,6 +132,27 @@
   background: var(--color-primary, #328492);
 }
 
+/* Botó marcar com vist */
+.stream-watched-btn {
+  padding: 10px 14px;
+  transition: all 0.3s ease;
+}
+
+.stream-watched-btn.watched {
+  background: rgba(76, 175, 80, 0.3);
+  border: 1px solid rgba(76, 175, 80, 0.5);
+  color: #4CAF50;
+}
+
+.stream-watched-btn.watched:hover {
+  background: rgba(76, 175, 80, 0.4);
+}
+
+.stream-watched-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
 .stream-btn svg {
   width: 20px;
   height: 20px;

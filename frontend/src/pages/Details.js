@@ -320,13 +320,19 @@ function Details() {
     }
   }, [type, selectedSeason, seasons, loadEpisodes, usingTmdbSeasons, item?.tmdb_id]);
 
-  const handlePlay = (episodeId = null) => {
+  const handlePlay = () => {
+    // Sempre anar a streaming (ja no utilitzem fitxers locals)
     if (type === 'movies') {
-      navigate(`/play/movie/${id}`);
-    } else if (episodeId) {
-      navigate(`/play/episode/${episodeId}`);
-    } else if (episodes.length > 0) {
-      navigate(`/play/episode/${episodes[0].id}`);
+      if (item?.tmdb_id) {
+        navigate(`/stream/movie/${item.tmdb_id}`);
+      }
+    } else {
+      // Per sèries, anar al primer episodi disponible
+      if (item?.tmdb_id) {
+        const firstSeason = seasons[0]?.season_number || 1;
+        const firstEpisode = episodes[0]?.episode_number || 1;
+        navigate(`/stream/series/${item.tmdb_id}?s=${firstSeason}&e=${firstEpisode}`);
+      }
     }
   };
 
@@ -432,26 +438,6 @@ function Details() {
       return `${hours}h ${minutes}min`;
     }
     return `${minutes} min`;
-  };
-
-  const getAudioLanguages = (episode) => {
-    if (!episode.audio_tracks) return [];
-    try {
-      const tracks = JSON.parse(episode.audio_tracks);
-      return tracks.map(t => t.language || 'Unknown');
-    } catch {
-      return [];
-    }
-  };
-
-  const getSubtitleLanguages = (episode) => {
-    if (!episode.subtitles) return [];
-    try {
-      const subs = JSON.parse(episode.subtitles);
-      return subs.map(s => s.language || 'Unknown');
-    } catch {
-      return [];
-    }
   };
 
   if (loading) {
@@ -610,32 +596,26 @@ function Details() {
             )}
 
             <div className="details-actions">
-              <button className="play-btn" onClick={() => handlePlay()}>
-                <PlayIcon /> Reproduir
-              </button>
+              {/* Botó principal de reproducció - sempre va a streaming */}
+              {item?.tmdb_id ? (
+                <button className="play-btn" onClick={handlePlay}>
+                  <PlayIcon /> Reproduir
+                </button>
+              ) : (
+                <button className="play-btn disabled" disabled title="Cal associar un TMDB ID per reproduir">
+                  <PlayIcon /> Reproduir
+                </button>
+              )}
               {/* Botó per reproduir contingut extern (URL manual) */}
               {item?.external_url && (
                 <button
                   className="play-btn external-play-btn"
                   onClick={() => setShowExternalPlayer(!showExternalPlayer)}
                 >
-                  <PlayIcon /> {showExternalPlayer ? 'Amagar' : 'Veure online'}
+                  <PlayIcon /> {showExternalPlayer ? 'Amagar' : 'Font externa'}
                   {item?.external_source && (
                     <span className="external-source-badge">{item.external_source}</span>
                   )}
-                </button>
-              )}
-              {/* Botó per reproduir amb embed automàtic (TMDB ID) - Obre StreamPlayer */}
-              {item?.tmdb_id && (
-                <button
-                  className="play-btn embed-play-btn"
-                  onClick={() => {
-                    const mediaType = type === 'movies' ? 'movie' : 'series';
-                    navigate(`/stream/${mediaType}/${item.tmdb_id}`);
-                  }}
-                >
-                  <PlayIcon /> Veure online
-                  <span className="external-source-badge">Streaming</span>
                 </button>
               )}
               <button className="secondary-btn">
@@ -793,16 +773,13 @@ function Details() {
             {episodes.map((episode) => (
               <div
                 key={episode.id || episode.episode_number}
-                className={`episode-card ${episode.isLocal ? 'has-local' : 'online-only'}`}
+                className="episode-card"
               >
                 <div
                   className="episode-thumbnail"
                   onClick={() => {
-                    // Si té fitxer local, reproduir localment
-                    if (episode.isLocal && episode.localId) {
-                      handlePlay(episode.localId);
-                    } else if (item?.tmdb_id) {
-                      // Si no té local, anar a streaming
+                    // Sempre anar a streaming
+                    if (item?.tmdb_id) {
                       navigate(`/stream/series/${item.tmdb_id}?s=${selectedSeason}&e=${episode.episode_number}`);
                     }
                   }}
@@ -816,22 +793,9 @@ function Details() {
                         if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
                       }}
                     />
-                  ) : episode.isLocal && episode.localId ? (
-                    <img
-                      src={`${API_URL}/api/media/${episode.localId}/thumbnail`}
-                      alt={episode.name}
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                        if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
-                      }}
-                    />
                   ) : null}
-                  <span className="episode-number" style={{ display: !episode.still_path && !(episode.isLocal && episode.localId) ? 'flex' : 'none' }}>{episode.episode_number}</span>
+                  <span className="episode-number" style={{ display: !episode.still_path ? 'flex' : 'none' }}>{episode.episode_number}</span>
                   <div className="episode-play-icon"><PlayIcon size={20} /></div>
-                  {/* Badge de tipus */}
-                  <span className={`episode-type-badge ${episode.isLocal ? 'local' : 'online'}`}>
-                    {episode.isLocal ? 'Local' : 'Online'}
-                  </span>
                   {episode.watch_progress > 0 && (
                     <div className="episode-progress">
                       <div
@@ -860,54 +824,6 @@ function Details() {
                   {episode.overview && (
                     <div className="episode-overview">{episode.overview.slice(0, 120)}{episode.overview.length > 120 ? '...' : ''}</div>
                   )}
-                  <div className="episode-actions">
-                    {/* Mostrar idiomes si és local */}
-                    {episode.isLocal && (
-                      <div className="audio-badges">
-                        {getAudioLanguages(episode).slice(0, 3).map((lang, i) => (
-                          <span key={i} className="badge audio">{getLanguageCode(lang)}</span>
-                        ))}
-                        {getSubtitleLanguages(episode).slice(0, 2).map((lang, i) => (
-                          <span key={i} className="badge sub">{getLanguageCode(lang)}</span>
-                        ))}
-                      </div>
-                    )}
-                    {/* Botons de reproducció */}
-                    <div className="episode-play-buttons">
-                      {/* Botó local si té fitxer */}
-                      {episode.isLocal && episode.localId && (
-                        <button
-                          className="episode-local-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handlePlay(episode.localId);
-                          }}
-                          title="Reproduir fitxer local"
-                        >
-                          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                            <path d="M8 5v14l11-7z"/>
-                          </svg>
-                          Local
-                        </button>
-                      )}
-                      {/* Botó streaming si hi ha TMDB */}
-                      {item?.tmdb_id && (
-                        <button
-                          className="episode-stream-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/stream/series/${item.tmdb_id}?s=${selectedSeason}&e=${episode.episode_number}`);
-                          }}
-                          title="Veure online (amb selecció d'idioma)"
-                        >
-                          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
-                          </svg>
-                          Online
-                        </button>
-                      )}
-                    </div>
-                  </div>
                 </div>
               </div>
             ))}

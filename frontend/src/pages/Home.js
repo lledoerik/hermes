@@ -298,11 +298,18 @@ function Home() {
               Continuar veient pel·lícules
             </h2>
             <div className="content-scroll">
-              {continueWatchingMovies.map((item) => (
+              {continueWatchingMovies.map((item, index) => (
                 <div
-                  key={item.id}
+                  key={item.source === 'streaming' ? `stream-${item.tmdb_id}` : `local-${item.id}-${index}`}
                   className="continue-card"
-                  onClick={() => navigate(`/play/movie/${item.series_id || item.id}`)}
+                  onClick={() => {
+                    // Sempre navegar a streaming
+                    if (item.tmdb_id) {
+                      navigate(`/stream/movie/${item.tmdb_id}`);
+                    } else {
+                      navigate(`/movies/${item.series_id || item.id}`);
+                    }
+                  }}
                 >
                   <div className="continue-thumbnail">
                     {item.backdrop || item.poster ? (
@@ -347,11 +354,18 @@ function Home() {
               Continuar veient sèries
             </h2>
             <div className="content-scroll">
-              {continueWatchingSeries.map((item) => (
+              {continueWatchingSeries.map((item, index) => (
                 <div
-                  key={item.id}
+                  key={item.source === 'streaming' ? `stream-${item.tmdb_id}-${item.season_number}-${item.episode_number}` : `local-${item.id}-${index}`}
                   className="continue-card"
-                  onClick={() => navigate(`/play/episode/${item.id}`)}
+                  onClick={() => {
+                    // Sempre navegar a streaming
+                    if (item.tmdb_id) {
+                      navigate(`/stream/series/${item.tmdb_id}?s=${item.season_number || 1}&e=${item.episode_number || 1}`);
+                    } else {
+                      navigate(`/series/${item.series_id}`);
+                    }
+                  }}
                 >
                   <div className="continue-thumbnail">
                     {item.backdrop || item.poster ? (
