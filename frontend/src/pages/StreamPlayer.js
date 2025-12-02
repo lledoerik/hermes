@@ -312,29 +312,49 @@ function StreamPlayer() {
     }
   }, []);
 
-  // Quan l'iframe carrega
+  // Quan l'iframe carrega correctament
   const handleIframeLoad = useCallback(() => {
     setLoading(false);
+    setHasTriedFallback(false); // Reset per futures càrregues
     if (!showStartOverlay) {
       enterImmersiveMode();
     }
   }, [enterImmersiveMode, showStartOverlay]);
 
-  // Fallback automàtic a VidSrc Pro després de 15 segons si no carrega
+  // Quan l'iframe falla - passar al següent servidor
+  const handleIframeError = useCallback(() => {
+    console.log(`Error amb ${EMBED_SOURCES[currentSourceIndex].name}, provant següent...`);
+    const nextIndex = currentSourceIndex + 1;
+    if (nextIndex < EMBED_SOURCES.length) {
+      setCurrentSourceIndex(nextIndex);
+      setLoading(true);
+    } else {
+      // Hem provat tots els servidors
+      setLoading(false);
+      console.log('Tots els servidors han fallat');
+    }
+  }, [currentSourceIndex]);
+
+  // Fallback automàtic després de 8 segons si encara carrega
   useEffect(() => {
-    if (!hasStartedPlaying || !loading || hasTriedFallback) return;
+    if (!hasStartedPlaying || !loading) return;
 
     const fallbackTimer = setTimeout(() => {
-      // Si encara està carregant després de 15s, provar VidSrc Pro
-      if (loading && currentSourceIndex === 0) {
-        console.log('Fallback a VidSrc Pro');
-        setCurrentSourceIndex(1);
-        setHasTriedFallback(true);
+      // Si encara està carregant després de 8s, provar el següent servidor
+      if (loading) {
+        const nextIndex = currentSourceIndex + 1;
+        if (nextIndex < EMBED_SOURCES.length) {
+          console.log(`Timeout - passant de ${EMBED_SOURCES[currentSourceIndex].name} a ${EMBED_SOURCES[nextIndex].name}`);
+          setCurrentSourceIndex(nextIndex);
+        } else {
+          // Hem provat tots, deixar el loading
+          setLoading(false);
+        }
       }
-    }, 15000);
+    }, 8000);
 
     return () => clearTimeout(fallbackTimer);
-  }, [hasStartedPlaying, loading, hasTriedFallback, currentSourceIndex]);
+  }, [hasStartedPlaying, loading, currentSourceIndex]);
 
   // Canviar de font
   const handleSourceChange = useCallback((index) => {
@@ -494,6 +514,7 @@ function StreamPlayer() {
           allowFullScreen
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           onLoad={handleIframeLoad}
+          onError={handleIframeError}
           title="Video Player"
         />
       )}
