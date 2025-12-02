@@ -2202,6 +2202,221 @@ async def extract_stream_url(media_type: str, tmdb_id: int, season: int = None, 
     )
 
 
+# === TORRENTIO INTEGRATION ===
+# Token de Real-Debrid per streaming de torrents
+REALDEBRID_TOKEN = os.environ.get("REALDEBRID_TOKEN", "MSHHVZNZEM26KBTF6MUWHNPP7B6JUTPUWGA7YOJDOVF3OY6UJ6XA")
+
+@app.get("/api/torrentio/streams/{media_type}/{tmdb_id}")
+async def get_torrentio_streams(
+    media_type: str,
+    tmdb_id: int,
+    season: int = None,
+    episode: int = None,
+    lang: str = None
+):
+    """
+    Obtenir streams disponibles de Torrentio per un contingut.
+    Retorna una llista de streams ordenats per qualitat i idioma.
+    """
+    import httpx
+    import re
+
+    # Obtenir IMDB ID des de TMDB
+    api_key = get_tmdb_api_key()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
+
+    from backend.metadata.tmdb import TMDBClient
+    client = TMDBClient(api_key)
+
+    tmdb_type = "movie" if media_type == "movie" else "tv"
+    imdb_id = await client.get_imdb_id(tmdb_type, tmdb_id)
+
+    if not imdb_id:
+        raise HTTPException(status_code=404, detail="No s'ha trobat l'IMDB ID per aquest contingut")
+
+    # Construir URL de Torrentio
+    # Format: https://torrentio.strem.fun/realdebrid={token}/stream/{type}/{id}.json
+    # Per series: {imdb_id}:{season}:{episode}
+    if media_type == "movie":
+        stremio_id = imdb_id
+        stremio_type = "movie"
+    else:
+        s = season or 1
+        e = episode or 1
+        stremio_id = f"{imdb_id}:{s}:{e}"
+        stremio_type = "series"
+
+    # URL base de Torrentio amb Real-Debrid
+    torrentio_url = f"https://torrentio.strem.fun/realdebrid={REALDEBRID_TOKEN}/stream/{stremio_type}/{stremio_id}.json"
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as http_client:
+            resp = await http_client.get(torrentio_url)
+            if resp.status_code != 200:
+                raise HTTPException(status_code=resp.status_code, detail="Error obtenint streams de Torrentio")
+
+            data = resp.json()
+            streams = data.get("streams", [])
+
+            if not streams:
+                raise HTTPException(status_code=404, detail="No s'han trobat streams disponibles")
+
+            # Processar i ordenar streams
+            processed_streams = []
+            for stream in streams:
+                title = stream.get("title", "")
+                name = stream.get("name", "")
+
+                # Detectar qualitat
+                quality = "SD"
+                if "2160" in title or "4K" in title.upper() or "UHD" in title.upper():
+                    quality = "4K"
+                elif "1080" in title:
+                    quality = "1080p"
+                elif "720" in title:
+                    quality = "720p"
+                elif "480" in title:
+                    quality = "480p"
+
+                # Detectar idioma
+                detected_lang = "en"  # Default
+                title_lower = title.lower()
+                if "castellano" in title_lower or "spanish" in title_lower or "español" in title_lower or "spa" in title_lower:
+                    detected_lang = "es"
+                elif "latino" in title_lower or "lat" in title_lower:
+                    detected_lang = "es-419"
+                elif "catalan" in title_lower or "català" in title_lower or "cat" in title_lower:
+                    detected_lang = "ca"
+                elif "french" in title_lower or "français" in title_lower or "fra" in title_lower or "vff" in title_lower:
+                    detected_lang = "fr"
+                elif "italian" in title_lower or "italiano" in title_lower or "ita" in title_lower:
+                    detected_lang = "it"
+                elif "japanese" in title_lower or "jap" in title_lower:
+                    detected_lang = "ja"
+                elif "multi" in title_lower:
+                    detected_lang = "multi"
+
+                # Detectar font (TPB, 1337x, etc.)
+                source = "Unknown"
+                if "TPB" in name or "ThePirateBay" in name:
+                    source = "TPB"
+                elif "1337x" in name:
+                    source = "1337x"
+                elif "RARBG" in name:
+                    source = "RARBG"
+                elif "YTS" in name:
+                    source = "YTS"
+                elif "EZTV" in name:
+                    source = "EZTV"
+                elif "Torrent" in name:
+                    source = name.split("[")[0].strip() if "[" in name else "Torrent"
+
+                # Extreure mida si està disponible
+                size_match = re.search(r'(\d+(?:\.\d+)?)\s*(GB|MB|TB)', title, re.IGNORECASE)
+                size = size_match.group(0) if size_match else None
+
+                processed_streams.append({
+                    "title": title,
+                    "name": name,
+                    "quality": quality,
+                    "language": detected_lang,
+                    "source": source,
+                    "size": size,
+                    "url": stream.get("url"),
+                    "infoHash": stream.get("infoHash"),
+                    "fileIdx": stream.get("fileIdx"),
+                    # Scoring per ordenar
+                    "_quality_score": {"4K": 4, "1080p": 3, "720p": 2, "480p": 1, "SD": 0}.get(quality, 0),
+                    "_lang_match": 1 if lang and detected_lang == lang else 0
+                })
+
+            # Ordenar per idioma preferit primer, després per qualitat
+            processed_streams.sort(key=lambda x: (x["_lang_match"], x["_quality_score"]), reverse=True)
+
+            # Netejar camps interns
+            for s in processed_streams:
+                del s["_quality_score"]
+                del s["_lang_match"]
+
+            return {
+                "imdb_id": imdb_id,
+                "tmdb_id": tmdb_id,
+                "type": media_type,
+                "season": season,
+                "episode": episode,
+                "streams": processed_streams
+            }
+
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Timeout connectant amb Torrentio")
+    except Exception as e:
+        logging.error(f"Error Torrentio: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/torrentio/resolve/{media_type}/{tmdb_id}")
+async def resolve_torrentio_stream(
+    media_type: str,
+    tmdb_id: int,
+    season: int = None,
+    episode: int = None,
+    lang: str = "es",
+    quality: str = "1080p"
+):
+    """
+    Resol automàticament el millor stream de Torrentio i retorna la URL directa.
+    Selecciona automàticament el millor stream segons idioma i qualitat preferits.
+    """
+    # Obtenir tots els streams
+    streams_data = await get_torrentio_streams(media_type, tmdb_id, season, episode, lang)
+    streams = streams_data.get("streams", [])
+
+    if not streams:
+        raise HTTPException(status_code=404, detail="No s'han trobat streams")
+
+    # Buscar el millor stream per idioma i qualitat
+    best_stream = None
+
+    # Primer: buscar idioma exacte amb qualitat
+    for stream in streams:
+        if stream["language"] == lang and stream["quality"] == quality:
+            best_stream = stream
+            break
+
+    # Segon: buscar idioma exacte amb qualsevol qualitat
+    if not best_stream:
+        for stream in streams:
+            if stream["language"] == lang:
+                best_stream = stream
+                break
+
+    # Tercer: buscar qualitat exacta amb qualsevol idioma
+    if not best_stream:
+        for stream in streams:
+            if stream["quality"] == quality:
+                best_stream = stream
+                break
+
+    # Últim: agafar el primer
+    if not best_stream:
+        best_stream = streams[0]
+
+    # Retornar URL directa per reproduir
+    if best_stream.get("url"):
+        return {
+            "stream_url": best_stream["url"],
+            "title": best_stream["title"],
+            "quality": best_stream["quality"],
+            "language": best_stream["language"],
+            "source": best_stream["source"],
+            "size": best_stream["size"],
+            "type": "direct"  # URL directa de Real-Debrid
+        }
+    else:
+        raise HTTPException(status_code=404, detail="No s'ha pogut resoldre l'stream")
+
+
 @app.get("/api/library/episodes/{episode_id}")
 async def get_episode_detail(episode_id: int):
     """Detalls d'un episodi individual"""
