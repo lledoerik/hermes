@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 import './StreamPlayer.css';
 
 const API_URL = window.location.hostname === 'localhost'
@@ -70,36 +71,55 @@ const CheckCircleIcon = () => (
   </svg>
 );
 
-// Fonts d'embed - VidSrc.cc principal amb fallback a vidsrc-embed.ru
+// Fonts d'embed - Múltiples servidors amb fallback automàtic
 const EMBED_SOURCES = [
   {
-    id: 'vidsrc-cc',
+    id: 'vidsrc-to',
     name: 'VidSrc',
     description: 'Servidor principal',
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
-        return `https://vidsrc.cc/embed/movie?tmdb=${tmdbId}`;
+        return `https://vidsrc.to/embed/movie/${tmdbId}`;
       }
-      return `https://vidsrc.cc/embed/tv?tmdb=${tmdbId}&season=${season || 1}&episode=${episode || 1}`;
+      return `https://vidsrc.to/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
     }
   },
   {
-    id: 'vidsrc-embed',
-    name: 'VidSrc Alt',
+    id: 'vidsrc-me',
+    name: 'VidSrc 2',
     description: 'Servidor alternatiu',
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
-        return `https://vidsrc-embed.ru/embed/movie?tmdb=${tmdbId}`;
+        return `https://vidsrc.me/embed/movie?tmdb=${tmdbId}`;
       }
-      return `https://vidsrc-embed.ru/embed/tv?tmdb=${tmdbId}&season=${season || 1}&episode=${episode || 1}`;
+      return `https://vidsrc.me/embed/tv?tmdb=${tmdbId}&season=${season || 1}&episode=${episode || 1}`;
+    }
+  },
+  {
+    id: 'vidsrc-xyz',
+    name: 'VidSrc 3',
+    description: 'Servidor de reserva',
+    getUrl: (type, tmdbId, season, episode) => {
+      if (type === 'movie') {
+        return `https://vidsrc.xyz/embed/movie?tmdb=${tmdbId}`;
+      }
+      return `https://vidsrc.xyz/embed/tv?tmdb=${tmdbId}&season=${season || 1}&episode=${episode || 1}`;
     }
   }
 ];
+
+// Icona candau per no-premium
+const LockIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" width="80" height="80">
+    <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+  </svg>
+);
 
 function StreamPlayer() {
   const { type, tmdbId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const { isPremium, isAuthenticated } = useAuth();
   const containerRef = useRef(null);
   const episodesMenuRef = useRef(null);
 
@@ -312,29 +332,49 @@ function StreamPlayer() {
     }
   }, []);
 
-  // Quan l'iframe carrega
+  // Quan l'iframe carrega correctament
   const handleIframeLoad = useCallback(() => {
     setLoading(false);
+    setHasTriedFallback(false); // Reset per futures càrregues
     if (!showStartOverlay) {
       enterImmersiveMode();
     }
   }, [enterImmersiveMode, showStartOverlay]);
 
-  // Fallback automàtic a VidSrc Pro després de 15 segons si no carrega
+  // Quan l'iframe falla - passar al següent servidor
+  const handleIframeError = useCallback(() => {
+    console.log(`Error amb ${EMBED_SOURCES[currentSourceIndex].name}, provant següent...`);
+    const nextIndex = currentSourceIndex + 1;
+    if (nextIndex < EMBED_SOURCES.length) {
+      setCurrentSourceIndex(nextIndex);
+      setLoading(true);
+    } else {
+      // Hem provat tots els servidors
+      setLoading(false);
+      console.log('Tots els servidors han fallat');
+    }
+  }, [currentSourceIndex]);
+
+  // Fallback automàtic després de 8 segons si encara carrega
   useEffect(() => {
-    if (!hasStartedPlaying || !loading || hasTriedFallback) return;
+    if (!hasStartedPlaying || !loading) return;
 
     const fallbackTimer = setTimeout(() => {
-      // Si encara està carregant després de 15s, provar VidSrc Pro
-      if (loading && currentSourceIndex === 0) {
-        console.log('Fallback a VidSrc Pro');
-        setCurrentSourceIndex(1);
-        setHasTriedFallback(true);
+      // Si encara està carregant després de 8s, provar el següent servidor
+      if (loading) {
+        const nextIndex = currentSourceIndex + 1;
+        if (nextIndex < EMBED_SOURCES.length) {
+          console.log(`Timeout - passant de ${EMBED_SOURCES[currentSourceIndex].name} a ${EMBED_SOURCES[nextIndex].name}`);
+          setCurrentSourceIndex(nextIndex);
+        } else {
+          // Hem provat tots, deixar el loading
+          setLoading(false);
+        }
       }
-    }, 15000);
+    }, 8000);
 
     return () => clearTimeout(fallbackTimer);
-  }, [hasStartedPlaying, loading, hasTriedFallback, currentSourceIndex]);
+  }, [hasStartedPlaying, loading, currentSourceIndex]);
 
   // Canviar de font
   const handleSourceChange = useCallback((index) => {
@@ -478,6 +518,40 @@ function StreamPlayer() {
     return null;
   };
 
+  // Si l'usuari no és premium, mostrar missatge de restricció
+  if (!isPremium) {
+    return (
+      <div className="stream-player-container premium-required">
+        <div
+          className="premium-overlay"
+          style={{
+            backgroundImage: getBackdropUrl() ? `url(${getBackdropUrl()})` : 'none'
+          }}
+        >
+          <div className="premium-content">
+            <div className="premium-icon">
+              <LockIcon />
+            </div>
+            <h2 className="premium-title">Contingut Premium</h2>
+            <p className="premium-description">
+              La reproducció de contingut està reservada per a usuaris premium.
+            </p>
+            <p className="premium-hint">
+              Consulta on pots veure aquest contingut legalment a la pàgina de detalls.
+            </p>
+            <button
+              className="premium-back-btn"
+              onClick={() => navigate(-1)}
+            >
+              <BackIcon />
+              Tornar enrere
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`stream-player-container ${isFullscreen ? 'is-fullscreen' : ''}`}
@@ -494,6 +568,7 @@ function StreamPlayer() {
           allowFullScreen
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           onLoad={handleIframeLoad}
+          onError={handleIframeError}
           title="Video Player"
         />
       )}

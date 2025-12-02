@@ -79,11 +79,18 @@ const ChevronRightIcon = () => (
   </svg>
 );
 
+// Icona candau per premium
+const LockIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+  </svg>
+);
+
 function Details() {
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, isPremium } = useAuth();
   // Determinar el tipus segons la ruta
   const type = location.pathname.startsWith('/movies') ? 'movies' : 'series';
   const [item, setItem] = useState(null);
@@ -543,9 +550,12 @@ function Details() {
               )}
             </div>
 
-            {/* Watch Providers - On veure en streaming */}
+            {/* Watch Providers - On veure en streaming (més prominent per no-premium) */}
             {watchProviders && watchProviders.available && (
-              <div className="watch-providers-section">
+              <div className={`watch-providers-section ${!isPremium ? 'prominent' : ''}`}>
+                {!isPremium && (
+                  <div className="providers-title">On veure aquest contingut legalment:</div>
+                )}
                 {watchProviders.flatrate && watchProviders.flatrate.length > 0 && (
                   <div className="providers-row">
                     <span className="providers-label">Disponible a:</span>
@@ -596,14 +606,20 @@ function Details() {
             )}
 
             <div className="details-actions">
-              {/* Botó principal de reproducció - sempre va a streaming */}
-              {item?.tmdb_id ? (
-                <button className="play-btn" onClick={handlePlay}>
-                  <PlayIcon /> Reproduir
-                </button>
+              {/* Botó principal de reproducció - només per usuaris premium */}
+              {isPremium ? (
+                item?.tmdb_id ? (
+                  <button className="play-btn" onClick={handlePlay}>
+                    <PlayIcon /> Reproduir
+                  </button>
+                ) : (
+                  <button className="play-btn disabled" disabled title="Cal associar un TMDB ID per reproduir">
+                    <PlayIcon /> Reproduir
+                  </button>
+                )
               ) : (
-                <button className="play-btn disabled" disabled title="Cal associar un TMDB ID per reproduir">
-                  <PlayIcon /> Reproduir
+                <button className="play-btn premium-locked" disabled title="Només per a usuaris premium">
+                  <LockIcon size={18} /> Premium
                 </button>
               )}
               {/* Botó per reproduir contingut extern (URL manual) */}
@@ -776,10 +792,10 @@ function Details() {
                 className="episode-card"
               >
                 <div
-                  className="episode-thumbnail"
+                  className={`episode-thumbnail ${!isPremium ? 'premium-locked' : ''}`}
                   onClick={() => {
-                    // Sempre anar a streaming
-                    if (item?.tmdb_id) {
+                    // Només premium pot reproduir
+                    if (isPremium && item?.tmdb_id) {
                       navigate(`/stream/series/${item.tmdb_id}?s=${selectedSeason}&e=${episode.episode_number}`);
                     }
                   }}

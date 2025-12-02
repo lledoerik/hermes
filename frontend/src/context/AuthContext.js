@@ -114,6 +114,7 @@ export function AuthProvider({ children }) {
     loading,
     isAuthenticated: !!user,
     isAdmin: user?.is_admin || false,
+    isPremium: user?.is_premium || user?.is_admin || false, // Admins sempre són premium
     login,
     register,
     logout,
