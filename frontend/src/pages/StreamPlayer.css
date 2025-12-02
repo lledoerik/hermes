@@ -712,6 +712,81 @@
   opacity: 0.7;
 }
 
+/* Missatge de canvi d'idioma */
+.stream-lang-change-message {
+  position: absolute;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 400px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, rgba(50, 132, 146, 0.95) 0%, rgba(30, 100, 120, 0.95) 100%);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  color: white;
+  font-size: 14px;
+  line-height: 1.4;
+  z-index: 160;
+  animation: langMessageFadeIn 0.3s ease;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.stream-lang-change-message .lang-flag {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.stream-lang-change-message .message-content {
+  flex: 1;
+}
+
+.stream-lang-change-message .message-content strong {
+  display: block;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.stream-lang-change-message .message-content p {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.stream-lang-change-message button {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.stream-lang-change-message button:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+@keyframes langMessageFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
 /* Tip d'idioma */
 .stream-lang-tip {
   position: absolute;
