@@ -298,9 +298,9 @@ function StreamPlayer() {
       }
 
       // Bloquejar orientació en horitzontal (només mòbil)
-      if (screen.orientation && screen.orientation.lock) {
+      if (window.screen.orientation && window.screen.orientation.lock) {
         try {
-          await screen.orientation.lock('landscape');
+          await window.screen.orientation.lock('landscape');
         } catch (e) {
           // Alguns navegadors no suporten lock d'orientació
           console.log('Orientation lock not supported');
@@ -395,9 +395,9 @@ function StreamPlayer() {
       setIsFullscreen(isFs);
 
       // Desbloquejar orientació quan sortim de pantalla completa
-      if (!isFs && screen.orientation && screen.orientation.unlock) {
+      if (!isFs && window.screen.orientation && window.screen.orientation.unlock) {
         try {
-          screen.orientation.unlock();
+          window.screen.orientation.unlock();
         } catch (e) {
           // Ignorar errors d'unlock
         }
