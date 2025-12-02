@@ -101,6 +101,7 @@ function Movies() {
   const [importing, setImporting] = useState({});
   const [imported, setImported] = useState({});
   const [importingAll, setImportingAll] = useState(false);
+  const [localSearchResults, setLocalSearchResults] = useState(null); // Resultats de cerca a la BD
 
   // Discover state (només admin)
   const [discoverCategory, setDiscoverCategory] = useState('popular');
@@ -132,6 +133,30 @@ function Movies() {
   useEffect(() => {
     loadMovies();
   }, [currentPage, sortBy]);
+
+  // Search in database when searchQuery changes
+  useEffect(() => {
+    const searchInDatabase = async () => {
+      if (!searchQuery.trim()) {
+        setLocalSearchResults(null);
+        return;
+      }
+
+      setSearchLoading(true);
+      try {
+        const response = await axios.get(`/api/library/movies?search=${encodeURIComponent(searchQuery)}&limit=500`);
+        setLocalSearchResults(response.data?.items || []);
+      } catch (error) {
+        console.error('Error cercant a la BD:', error);
+        setLocalSearchResults([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    };
+
+    const timer = setTimeout(searchInDatabase, 300); // Debounce
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Toggle content type selection
   const toggleContentType = (type) => {
@@ -323,12 +348,9 @@ function Movies() {
     setExternalResults([]);
   };
 
-  // Filter local movies by search (client-side for search only)
+  // Use API search results if searching, otherwise use paginated movies
   const filteredMovies = searchQuery.trim()
-    ? movies.filter(m =>
-        m.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        m.title?.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+    ? (localSearchResults || [])
     : movies;
 
   // No need to sort client-side anymore - backend handles it
