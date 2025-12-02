@@ -861,6 +861,76 @@
   color: #c4b5fd;
 }
 
+/* Badge de tipus d'episodi (Local/Online) */
+.episode-type-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  z-index: 5;
+}
+
+.episode-type-badge.local {
+  background: rgba(16, 185, 129, 0.9);
+  color: white;
+}
+
+.episode-type-badge.online {
+  background: rgba(99, 102, 241, 0.9);
+  color: white;
+}
+
+/* Card amb fitxer local */
+.episode-card.has-local {
+  border-left: 3px solid var(--color-success, #10b981);
+}
+
+/* Card només online */
+.episode-card.online-only {
+  border-left: 3px solid rgba(99, 102, 241, 0.7);
+}
+
+/* Contenidor de botons de reproducció */
+.episode-play-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+/* Botó per reproduir fitxer local */
+.episode-local-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--color-success, #10b981);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.episode-local-btn:hover {
+  background: #059669;
+  transform: scale(1.05);
+}
+
+.episode-local-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
 .episodes-empty {
   text-align: center;
   padding: 60px 20px;
