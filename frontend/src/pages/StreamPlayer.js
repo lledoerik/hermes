@@ -7,6 +7,8 @@ const API_URL = window.location.hostname === 'localhost'
   ? 'http://localhost:8000'
   : '';
 
+axios.defaults.baseURL = API_URL;
+
 // SVG Icons
 const BackIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor">
@@ -59,6 +61,18 @@ const PlayCircleIcon = () => (
 const LanguageIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor">
     <path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/>
+  </svg>
+);
+
+const CheckIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+  </svg>
+);
+
+const CheckCircleIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
   </svg>
 );
 
@@ -159,6 +173,10 @@ function StreamPlayer() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showStartOverlay, setShowStartOverlay] = useState(true);
 
+  // Estat de progrés de visualització
+  const [isWatched, setIsWatched] = useState(false);
+  const [watchStartTime, setWatchStartTime] = useState(null);
+
   const currentSource = EMBED_SOURCES[currentSourceIndex];
   const mediaType = type === 'movie' ? 'movie' : 'tv';
 
@@ -196,6 +214,51 @@ function StreamPlayer() {
     }
   }, [tmdbId, season]);
 
+  // Guardar progrés de streaming
+  const saveStreamingProgress = useCallback(async (progressPercent = 50, completed = false) => {
+    try {
+      await axios.post('/api/streaming/progress', {
+        tmdb_id: parseInt(tmdbId),
+        media_type: type === 'movie' ? 'movie' : 'series',
+        season_number: type !== 'movie' ? (season || 1) : null,
+        episode_number: type !== 'movie' ? (episode || 1) : null,
+        progress_percent: progressPercent,
+        completed: completed,
+        title: mediaInfo?.title || mediaInfo?.name || ''
+      });
+      if (completed) {
+        setIsWatched(true);
+      }
+    } catch (error) {
+      console.error('Error guardant progrés:', error);
+    }
+  }, [tmdbId, type, season, episode, mediaInfo]);
+
+  // Marcar com a vist (100%)
+  const markAsWatched = useCallback(async () => {
+    await saveStreamingProgress(100, true);
+  }, [saveStreamingProgress]);
+
+  // Carregar estat de progrés actual
+  const loadWatchStatus = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({
+        tmdb_id: tmdbId,
+        media_type: type === 'movie' ? 'movie' : 'series'
+      });
+      if (type !== 'movie') {
+        params.append('season', season || 1);
+        params.append('episode', episode || 1);
+      }
+      const response = await axios.get(`/api/streaming/progress?${params}`);
+      if (response.data && response.data.completed) {
+        setIsWatched(true);
+      }
+    } catch (error) {
+      // Sense progrés guardat - normal per contingut nou
+    }
+  }, [tmdbId, type, season, episode]);
+
   // Funció per entrar en mode immersiu (definida aquí per evitar errors de referència)
   const enterImmersiveMode = useCallback(async () => {
     try {
@@ -227,6 +290,50 @@ function StreamPlayer() {
       loadSeasonEpisodes();
     }
   }, [tmdbId, season, type, loadSeasonEpisodes]);
+
+  // Carregar estat de progrés i iniciar timer
+  useEffect(() => {
+    if (tmdbId) {
+      loadWatchStatus();
+      setWatchStartTime(Date.now());
+      setIsWatched(false); // Reset per nou contingut
+    }
+  }, [tmdbId, season, episode, loadWatchStatus]);
+
+  // Auto-guardar progrés després de 30 segons de visualització
+  useEffect(() => {
+    if (!watchStartTime || showStartOverlay || loading) return;
+
+    const timer = setTimeout(() => {
+      // Després de 30 segons, marcar com "en progrés" (50%)
+      saveStreamingProgress(50, false);
+    }, 30000);
+
+    return () => clearTimeout(timer);
+  }, [watchStartTime, showStartOverlay, loading, saveStreamingProgress]);
+
+  // Guardar progrés quan l'usuari surt o canvia d'episodi
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Guardar progrés abans de sortir (50% si no està marcat com vist)
+      if (!isWatched && !showStartOverlay) {
+        // Usem navigator.sendBeacon per assegurar que s'envia
+        const data = JSON.stringify({
+          tmdb_id: parseInt(tmdbId),
+          media_type: type === 'movie' ? 'movie' : 'series',
+          season_number: type !== 'movie' ? (season || 1) : null,
+          episode_number: type !== 'movie' ? (episode || 1) : null,
+          progress_percent: 50,
+          completed: false,
+          title: mediaInfo?.title || mediaInfo?.name || ''
+        });
+        navigator.sendBeacon(`${API_URL}/api/streaming/progress`, data);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [tmdbId, type, season, episode, mediaInfo, isWatched, showStartOverlay]);
 
   // Amagar controls després d'un temps
   useEffect(() => {
@@ -362,11 +469,13 @@ function StreamPlayer() {
         if (type !== 'movie') goToPrevEpisode();
       } else if (e.key === 's' || e.key === 'S') {
         setShowSourceMenu(prev => !prev);
+      } else if (e.key === 'm' || e.key === 'M') {
+        markAsWatched();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFullscreen, handleBack, toggleFullscreen, goToNextEpisode, goToPrevEpisode, type, showEpisodesMenu, showSourceMenu]);
+  }, [isFullscreen, handleBack, toggleFullscreen, goToNextEpisode, goToPrevEpisode, type, showEpisodesMenu, showSourceMenu, markAsWatched]);
 
   // Tancar menús quan es clica fora
   useEffect(() => {
@@ -508,6 +617,15 @@ function StreamPlayer() {
             </button>
           </div>
         )}
+
+        {/* Botó marcar com vist */}
+        <button
+          className={`stream-btn stream-watched-btn ${isWatched ? 'watched' : ''}`}
+          onClick={markAsWatched}
+          title={isWatched ? 'Ja vist' : 'Marcar com a vist (M)'}
+        >
+          {isWatched ? <CheckCircleIcon /> : <CheckIcon />}
+        </button>
 
         {/* Selector de servidor */}
         <div className="stream-source-selector">

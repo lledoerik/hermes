@@ -20,8 +20,10 @@ METADATA_DIR = BASE_DIR / "storage" / "metadata"
 PRODUCTION = os.environ.get("HERMES_PRODUCTION", "false").lower() in ("true", "1", "yes")
 
 # === BIBLIOTECA ===
-# Les biblioteques es poden configurar via variable d'entorn HERMES_MEDIA_LIBRARIES (JSON)
-# o utilitzant els valors per defecte
+# NOTA: El sistema ara funciona principalment amb streaming extern (embeds).
+# La reproducció de fitxers locals està desactivada.
+# Les biblioteques es mantenen per compatibilitat i gestió de metadades.
+
 def _load_libraries_from_env(env_var: str, default: list) -> list:
     """Carrega biblioteques des de variable d'entorn o usa valors per defecte"""
     env_value = os.environ.get(env_var)
@@ -32,47 +34,18 @@ def _load_libraries_from_env(env_var: str, default: list) -> list:
             logger.warning(f"Error parsing {env_var}, using defaults")
     return default
 
-# Valors per defecte (modifica segons el teu sistema)
-_DEFAULT_MEDIA_LIBRARIES = [
-    {
-        "name": "Anime Movies",
-        "path": "D:\\Anime Movies",
-        "type": "movies"
-    },
-    {
-        "name": "Pel·lícules",
-        "path": "D:\\Pel·lícules",
-        "type": "movies"
-    },
-    {
-        "name": "Anime",
-        "path": "D:\\Anime",
-        "type": "series"
-    }
-]
+# Biblioteques (desactivades per streaming extern)
+# Es mantenen per gestió de metadades i compatibilitat futura
+_DEFAULT_MEDIA_LIBRARIES = []
+_DEFAULT_BOOKS_LIBRARIES = []
+_DEFAULT_AUDIOBOOKS_LIBRARIES = []
 
-_DEFAULT_BOOKS_LIBRARIES = [
-    {
-        "name": "Llibres",
-        "path": "D:\\Llibres\\Llibres",
-        "type": "books"
-    }
-]
-
-_DEFAULT_AUDIOBOOKS_LIBRARIES = [
-    {
-        "name": "Audiollibres",
-        "path": "D:\\Llibres\\Audiollibres",
-        "type": "audiobooks"
-    }
-]
-
-# Carregar biblioteques (amb suport per variable d'entorn)
+# Carregar biblioteques (buit per defecte - streaming extern)
 MEDIA_LIBRARIES = _load_libraries_from_env("HERMES_MEDIA_LIBRARIES", _DEFAULT_MEDIA_LIBRARIES)
 BOOKS_LIBRARIES = _load_libraries_from_env("HERMES_BOOKS_LIBRARIES", _DEFAULT_BOOKS_LIBRARIES)
 AUDIOBOOKS_LIBRARIES = _load_libraries_from_env("HERMES_AUDIOBOOKS_LIBRARIES", _DEFAULT_AUDIOBOOKS_LIBRARIES)
 
-# Formats de llibres suportats
+# Formats de llibres suportats (per futures funcionalitats)
 BOOK_FORMATS = ['.epub', '.pdf', '.mobi', '.azw', '.azw3']
 AUDIOBOOK_FORMATS = ['.mp3', '.m4a', '.m4b', '.ogg', '.flac']
 

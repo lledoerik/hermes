@@ -293,6 +293,25 @@ def init_all_tables():
             )
         """)
 
+        # Taula streaming_progress (progrés de streaming extern via TMDB ID)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS streaming_progress (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER DEFAULT 1,
+                tmdb_id INTEGER NOT NULL,
+                media_type TEXT NOT NULL,
+                season_number INTEGER,
+                episode_number INTEGER,
+                progress_percent REAL DEFAULT 0,
+                completed INTEGER DEFAULT 0,
+                title TEXT,
+                poster_path TEXT,
+                backdrop_path TEXT,
+                updated_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, tmdb_id, media_type, season_number, episode_number)
+            )
+        """)
+
         # Migració: Crear índex UNIQUE per watch_progress si no existeix
         # (per bases de dades existents que no tenen la constraint)
         try:
@@ -356,6 +375,17 @@ class WatchProgressRequest(BaseModel):
     """Per guardar el progrés de visualització"""
     progress_seconds: float
     total_seconds: float
+
+
+class StreamingProgressRequest(BaseModel):
+    """Per guardar el progrés de visualització de streaming extern"""
+    tmdb_id: int
+    media_type: str  # 'movie' o 'series'
+    season_number: Optional[int] = None
+    episode_number: Optional[int] = None
+    progress_percent: float = 50.0
+    completed: bool = False
+    title: Optional[str] = None
 
 
 # === STREAMING AMB RANGE SUPPORT ===
@@ -731,10 +761,12 @@ async def get_continue_watching(request: Request):
     user = get_current_user(request)
     user_id = user["id"] if user else 1  # Default user_id 1 si no autenticat
 
+    watching = []
+
     with get_db() as conn:
         cursor = conn.cursor()
 
-        # Obtenir contingut en progrés (no acabat) - sèries i pel·lícules
+        # 1. Obtenir contingut local en progrés (no acabat) - sèries i pel·lícules
         cursor.execute("""
             SELECT
                 wp.media_id,
@@ -749,7 +781,8 @@ async def get_continue_watching(request: Request):
                 s.name as series_name,
                 s.media_type,
                 s.poster,
-                s.backdrop
+                s.backdrop,
+                s.tmdb_id
             FROM watch_progress wp
             JOIN media_files mf ON wp.media_id = mf.id
             LEFT JOIN series s ON mf.series_id = s.id
@@ -760,7 +793,6 @@ async def get_continue_watching(request: Request):
             LIMIT 20
         """, (user_id,))
 
-        watching = []
         for row in cursor.fetchall():
             progress_pct = 0
             if row["total_seconds"] and row["total_seconds"] > 0:
@@ -786,10 +818,60 @@ async def get_continue_watching(request: Request):
                 "progress_seconds": row["progress_seconds"],
                 "total_seconds": row["total_seconds"],
                 "progress_percentage": round(progress_pct, 1),
-                "last_watched": row["updated_date"]
+                "last_watched": row["updated_date"],
+                "tmdb_id": row["tmdb_id"],
+                "source": "local"
             })
 
-        return watching
+        # 2. Obtenir contingut de streaming en progrés (no acabat)
+        cursor.execute("""
+            SELECT
+                sp.id,
+                sp.tmdb_id,
+                sp.media_type,
+                sp.season_number,
+                sp.episode_number,
+                sp.progress_percent,
+                sp.completed,
+                sp.title,
+                sp.poster_path,
+                sp.backdrop_path,
+                sp.updated_date
+            FROM streaming_progress sp
+            WHERE sp.user_id = ?
+            AND sp.completed = 0
+            AND sp.progress_percent > 0
+            ORDER BY sp.updated_date DESC
+            LIMIT 20
+        """, (user_id,))
+
+        for row in cursor.fetchall():
+            # Determinar el tipus
+            if row["media_type"] == "movie":
+                item_type = "movie"
+            else:
+                item_type = "series"
+
+            watching.append({
+                "id": row["id"],
+                "type": item_type,
+                "tmdb_id": row["tmdb_id"],
+                "series_name": row["title"],
+                "title": row["title"],
+                "season_number": row["season_number"],
+                "episode_number": row["episode_number"],
+                "poster": row["poster_path"],
+                "backdrop": row["backdrop_path"],
+                "progress_seconds": row["progress_percent"] * 60,  # Simular segons per compatibilitat
+                "total_seconds": 6000,  # Valor estimat (100 min)
+                "progress_percentage": row["progress_percent"],
+                "last_watched": row["updated_date"],
+                "source": "streaming"
+            })
+
+        # Ordenar tot per data i limitar
+        watching.sort(key=lambda x: x.get("last_watched", ""), reverse=True)
+        return watching[:20]
 
 
 @app.get("/api/user/recently-watched")
@@ -884,6 +966,91 @@ async def get_watch_progress(media_id: int, request: Request):
             "total_seconds": row["total_seconds"],
             "progress_percentage": round(progress_pct, 1),
             "last_watched": row["updated_date"]
+        }
+
+
+# === STREAMING PROGRESS (EXTERN) ===
+
+@app.post("/api/streaming/progress")
+async def save_streaming_progress(data: StreamingProgressRequest, request: Request):
+    """Guarda el progrés de visualització de streaming extern (via TMDB ID)"""
+    user = get_current_user(request)
+    user_id = user["id"] if user else 1
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Normalitzar season_number i episode_number per pel·lícules
+        season = data.season_number if data.media_type == "series" else None
+        episode = data.episode_number if data.media_type == "series" else None
+
+        # Usar UPSERT per insertar o actualitzar
+        cursor.execute("""
+            INSERT INTO streaming_progress (
+                user_id, tmdb_id, media_type, season_number, episode_number,
+                progress_percent, completed, title, updated_date
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            ON CONFLICT(user_id, tmdb_id, media_type, season_number, episode_number) DO UPDATE SET
+                progress_percent = excluded.progress_percent,
+                completed = excluded.completed,
+                title = COALESCE(excluded.title, streaming_progress.title),
+                updated_date = datetime('now')
+        """, (user_id, data.tmdb_id, data.media_type, season, episode,
+              data.progress_percent, 1 if data.completed else 0, data.title))
+
+        conn.commit()
+
+        return {
+            "status": "success",
+            "message": "Progrés de streaming guardat",
+            "progress_percent": data.progress_percent,
+            "completed": data.completed
+        }
+
+
+@app.get("/api/streaming/progress")
+async def get_streaming_progress(
+    request: Request,
+    tmdb_id: int = Query(...),
+    media_type: str = Query(...),
+    season: Optional[int] = Query(None),
+    episode: Optional[int] = Query(None)
+):
+    """Obté el progrés de visualització de streaming extern"""
+    user = get_current_user(request)
+    user_id = user["id"] if user else 1
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Normalitzar per pel·lícules
+        if media_type == "movie":
+            season = None
+            episode = None
+
+        cursor.execute("""
+            SELECT progress_percent, completed, title, updated_date
+            FROM streaming_progress
+            WHERE user_id = ? AND tmdb_id = ? AND media_type = ?
+            AND (season_number IS ? OR season_number = ?)
+            AND (episode_number IS ? OR episode_number = ?)
+        """, (user_id, tmdb_id, media_type, season, season, episode, episode))
+
+        row = cursor.fetchone()
+        if not row:
+            return {
+                "progress_percent": 0,
+                "completed": False,
+                "exists": False
+            }
+
+        return {
+            "progress_percent": row["progress_percent"],
+            "completed": bool(row["completed"]),
+            "title": row["title"],
+            "last_watched": row["updated_date"],
+            "exists": True
         }
 
 
@@ -1230,71 +1397,75 @@ async def get_season_episodes(series_id: int, season_number: int):
         
         return episodes
 
-@app.get("/api/stream/{media_id}/direct")
-async def stream_direct(media_id: int, request: Request):
-    """Streaming directe del fitxer amb suport Range"""
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT file_path FROM media_files WHERE id = ?", (media_id,))
-        result = cursor.fetchone()
+# === ENDPOINTS DE STREAMING LOCAL (DESACTIVATS) ===
+# Aquests endpoints estan desactivats perquè ara s'utilitza streaming extern (embeds).
+# Es mantenen comentats per si es vol recuperar la funcionalitat de fitxers locals.
 
-        if not result:
-            raise HTTPException(status_code=404, detail="Arxiu no trobat")
-
-        file_path = Path(result["file_path"])
-        if not file_path.exists():
-            raise HTTPException(status_code=404, detail="Arxiu no existeix")
-
-        return await stream_video_with_range(file_path, request)
-
-@app.post("/api/stream/{media_id}/hls")
-async def stream_hls(media_id: int, request: StreamRequest):
-    """Inicia streaming HLS amb selecció de pistes"""
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM media_files WHERE id = ?", (media_id,))
-        media = cursor.fetchone()
-
-        if not media:
-            raise HTTPException(status_code=404, detail="Media no trobat")
-
-        streamer = HermesStreamer()
-        playlist_url = streamer.start_stream(
-            media_id=media_id,
-            file_path=media["file_path"],
-            audio_index=request.audio_index,
-            subtitle_index=request.subtitle_index,
-            quality=request.quality
-        )
-
-        return {"playlist_url": playlist_url}
-
-@app.get("/api/stream/hls/{stream_id}/playlist.m3u8")
-async def get_hls_playlist(stream_id: str):
-    """Serveix la playlist HLS"""
-    playlist_path = Path(f"storage/cache/hls/{stream_id}/playlist.m3u8")
-
-    if not playlist_path.exists():
-        raise HTTPException(status_code=404, detail="Playlist no trobada")
-
-    return FileResponse(
-        path=playlist_path,
-        media_type="application/vnd.apple.mpegurl",
-        headers={"Cache-Control": "no-cache"}
-    )
-
-@app.get("/api/stream/hls/{stream_id}/{segment}")
-async def get_hls_segment(stream_id: str, segment: str):
-    """Serveix segments HLS (.ts)"""
-    segment_path = Path(f"storage/cache/hls/{stream_id}/{segment}")
-
-    if not segment_path.exists():
-        raise HTTPException(status_code=404, detail="Segment no trobat")
-
-    return FileResponse(
-        path=segment_path,
-        media_type="video/mp2t"
-    )
+# @app.get("/api/stream/{media_id}/direct")
+# async def stream_direct(media_id: int, request: Request):
+#     """Streaming directe del fitxer amb suport Range"""
+#     with get_db() as conn:
+#         cursor = conn.cursor()
+#         cursor.execute("SELECT file_path FROM media_files WHERE id = ?", (media_id,))
+#         result = cursor.fetchone()
+#
+#         if not result:
+#             raise HTTPException(status_code=404, detail="Arxiu no trobat")
+#
+#         file_path = Path(result["file_path"])
+#         if not file_path.exists():
+#             raise HTTPException(status_code=404, detail="Arxiu no existeix")
+#
+#         return await stream_video_with_range(file_path, request)
+#
+# @app.post("/api/stream/{media_id}/hls")
+# async def stream_hls(media_id: int, request: StreamRequest):
+#     """Inicia streaming HLS amb selecció de pistes"""
+#     with get_db() as conn:
+#         cursor = conn.cursor()
+#         cursor.execute("SELECT * FROM media_files WHERE id = ?", (media_id,))
+#         media = cursor.fetchone()
+#
+#         if not media:
+#             raise HTTPException(status_code=404, detail="Media no trobat")
+#
+#         streamer = HermesStreamer()
+#         playlist_url = streamer.start_stream(
+#             media_id=media_id,
+#             file_path=media["file_path"],
+#             audio_index=request.audio_index,
+#             subtitle_index=request.subtitle_index,
+#             quality=request.quality
+#         )
+#
+#         return {"playlist_url": playlist_url}
+#
+# @app.get("/api/stream/hls/{stream_id}/playlist.m3u8")
+# async def get_hls_playlist(stream_id: str):
+#     """Serveix la playlist HLS"""
+#     playlist_path = Path(f"storage/cache/hls/{stream_id}/playlist.m3u8")
+#
+#     if not playlist_path.exists():
+#         raise HTTPException(status_code=404, detail="Playlist no trobada")
+#
+#     return FileResponse(
+#         path=playlist_path,
+#         media_type="application/vnd.apple.mpegurl",
+#         headers={"Cache-Control": "no-cache"}
+#     )
+#
+# @app.get("/api/stream/hls/{stream_id}/{segment}")
+# async def get_hls_segment(stream_id: str, segment: str):
+#     """Serveix segments HLS (.ts)"""
+#     segment_path = Path(f"storage/cache/hls/{stream_id}/{segment}")
+#
+#     if not segment_path.exists():
+#         raise HTTPException(status_code=404, detail="Segment no trobat")
+#
+#     return FileResponse(
+#         path=segment_path,
+#         media_type="video/mp2t"
+#     )
 
 @app.get("/api/media/{media_id}")
 async def get_media_detail(media_id: int):
@@ -2356,69 +2527,70 @@ async def get_episode_detail(episode_id: int):
         }
 
 
-@app.get("/api/stream/episode/{episode_id}")
-async def stream_episode(episode_id: int, request: Request):
-    """Streaming directe d'un episodi amb suport Range"""
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT file_path FROM media_files WHERE id = ?", (episode_id,))
-        result = cursor.fetchone()
-
-        if not result:
-            raise HTTPException(status_code=404, detail="Episodi no trobat")
-
-        file_path = Path(result["file_path"])
-        if not file_path.exists():
-            raise HTTPException(status_code=404, detail="Arxiu no existeix")
-
-        return await stream_video_with_range(file_path, request)
-
-
-@app.get("/api/stream/movie/{movie_id}")
-async def stream_movie(movie_id: int, request: Request):
-    """Streaming directe d'una pel·lícula amb suport Range"""
-    with get_db() as conn:
-        cursor = conn.cursor()
-
-        # Primer verificar si la pel·lícula existeix
-        cursor.execute("""
-            SELECT s.id, s.name, s.is_imported FROM series s
-            WHERE s.id = ? AND s.media_type = 'movie'
-        """, (movie_id,))
-        movie = cursor.fetchone()
-
-        if not movie:
-            raise HTTPException(status_code=404, detail="Pel·lícula no trobada")
-
-        # Buscar el fitxer associat
-        cursor.execute("""
-            SELECT m.file_path FROM media_files m
-            JOIN series s ON m.series_id = s.id
-            WHERE s.id = ? AND s.media_type = 'movie'
-        """, (movie_id,))
-        result = cursor.fetchone()
-
-        # Si no trobat, intentar amb media_files.id directament
-        if not result:
-            cursor.execute("""
-                SELECT m.file_path FROM media_files m
-                JOIN series s ON m.series_id = s.id
-                WHERE m.id = ? AND s.media_type = 'movie'
-            """, (movie_id,))
-            result = cursor.fetchone()
-
-        if not result:
-            # La pel·lícula existeix però no té fitxer (importada de TMDB)
-            raise HTTPException(
-                status_code=404,
-                detail="NO_FILE:Aquesta pel·lícula no té cap fitxer de vídeo associat. És només metadades importades de TMDB."
-            )
-
-        file_path = Path(result["file_path"])
-        if not file_path.exists():
-            raise HTTPException(status_code=404, detail="Arxiu no existeix")
-
-        return await stream_video_with_range(file_path, request)
+# === ENDPOINTS DE STREAMING LOCAL (DESACTIVATS) - Episodis i Pel·lícules ===
+# @app.get("/api/stream/episode/{episode_id}")
+# async def stream_episode(episode_id: int, request: Request):
+#     """Streaming directe d'un episodi amb suport Range"""
+#     with get_db() as conn:
+#         cursor = conn.cursor()
+#         cursor.execute("SELECT file_path FROM media_files WHERE id = ?", (episode_id,))
+#         result = cursor.fetchone()
+#
+#         if not result:
+#             raise HTTPException(status_code=404, detail="Episodi no trobat")
+#
+#         file_path = Path(result["file_path"])
+#         if not file_path.exists():
+#             raise HTTPException(status_code=404, detail="Arxiu no existeix")
+#
+#         return await stream_video_with_range(file_path, request)
+#
+#
+# @app.get("/api/stream/movie/{movie_id}")
+# async def stream_movie(movie_id: int, request: Request):
+#     """Streaming directe d'una pel·lícula amb suport Range"""
+#     with get_db() as conn:
+#         cursor = conn.cursor()
+#
+#         # Primer verificar si la pel·lícula existeix
+#         cursor.execute("""
+#             SELECT s.id, s.name, s.is_imported FROM series s
+#             WHERE s.id = ? AND s.media_type = 'movie'
+#         """, (movie_id,))
+#         movie = cursor.fetchone()
+#
+#         if not movie:
+#             raise HTTPException(status_code=404, detail="Pel·lícula no trobada")
+#
+#         # Buscar el fitxer associat
+#         cursor.execute("""
+#             SELECT m.file_path FROM media_files m
+#             JOIN series s ON m.series_id = s.id
+#             WHERE s.id = ? AND s.media_type = 'movie'
+#         """, (movie_id,))
+#         result = cursor.fetchone()
+#
+#         # Si no trobat, intentar amb media_files.id directament
+#         if not result:
+#             cursor.execute("""
+#                 SELECT m.file_path FROM media_files m
+#                 JOIN series s ON m.series_id = s.id
+#                 WHERE m.id = ? AND s.media_type = 'movie'
+#             """, (movie_id,))
+#             result = cursor.fetchone()
+#
+#         if not result:
+#             # La pel·lícula existeix però no té fitxer (importada de TMDB)
+#             raise HTTPException(
+#                 status_code=404,
+#                 detail="NO_FILE:Aquesta pel·lícula no té cap fitxer de vídeo associat. És només metadades importades de TMDB."
+#             )
+#
+#         file_path = Path(result["file_path"])
+#         if not file_path.exists():
+#             raise HTTPException(status_code=404, detail="Arxiu no existeix")
+#
+#         return await stream_video_with_range(file_path, request)
 
 
 # === SEGMENTS (INTRO/RECAP/OUTRO) ===
