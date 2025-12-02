@@ -73,9 +73,9 @@
   align-items: center;
   gap: 12px;
   padding: 16px 20px;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8) 0%, transparent 100%);
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.5) 50%, transparent 100%);
   opacity: 0;
-  transform: translateY(-10px);
+  transform: translateY(-100%);
   transition: all 0.3s ease;
   z-index: 100;
   pointer-events: none;
@@ -85,6 +85,20 @@
   opacity: 1;
   transform: translateY(0);
   pointer-events: auto;
+}
+
+/* En fullscreen, la barra es més subtil per no interferir amb el reproductor */
+.stream-player-container.is-fullscreen .stream-controls-bar {
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.6) 40%, transparent 100%);
+  padding: 12px 16px;
+}
+
+.stream-player-container.is-fullscreen .stream-controls-bar .stream-btn {
+  padding: 8px;
+}
+
+.stream-player-container.is-fullscreen .stream-title {
+  font-size: 14px;
 }
 
 /* Botons */
@@ -321,14 +335,52 @@
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  min-width: 180px;
+  min-width: 220px;
+  max-height: 400px;
   background: rgba(20, 20, 20, 0.98);
   backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
-  padding: 8px;
+  overflow: hidden;
   z-index: 200;
   animation: dropdownFadeIn 0.2s ease;
+}
+
+.stream-source-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+}
+
+.stream-source-header svg {
+  width: 18px;
+  height: 18px;
+  opacity: 0.8;
+}
+
+.stream-source-list {
+  padding: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.stream-source-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.stream-source-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.stream-source-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
 }
 
 @keyframes dropdownFadeIn {
@@ -371,6 +423,27 @@
 .stream-source-option .check {
   font-size: 14px;
   font-weight: bold;
+}
+
+.stream-source-option .source-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.stream-source-option .source-name {
+  font-weight: 600;
+}
+
+.stream-source-option .source-desc {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.stream-source-option.active .source-desc {
+  color: rgba(255, 255, 255, 0.7);
 }
 
 /* Responsive */
@@ -454,7 +527,69 @@
   }
 }
 
-/* Selector d'idioma */
+/* Selector combinat d'idioma i servidor */
+.stream-settings-selector {
+  position: relative;
+}
+
+.stream-settings-btn {
+  padding: 10px 12px;
+  gap: 6px;
+}
+
+.stream-settings-btn .lang-flag {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.stream-settings-btn svg {
+  width: 16px;
+  height: 16px;
+  opacity: 0.7;
+}
+
+/* Dropdown combinat de configuració */
+.stream-settings-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 280px;
+  max-height: 80vh;
+  background: rgba(20, 20, 20, 0.98);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  z-index: 200;
+  animation: dropdownFadeIn 0.2s ease;
+}
+
+.stream-settings-section {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.stream-settings-section:last-child {
+  border-bottom: none;
+}
+
+.stream-settings-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.stream-settings-header svg {
+  width: 16px;
+  height: 16px;
+  opacity: 0.7;
+}
+
+/* Selector d'idioma (compatible amb estils anteriors) */
 .stream-lang-selector {
   position: relative;
 }
@@ -474,7 +609,7 @@
   margin-left: -4px;
 }
 
-/* Dropdown d'idioma */
+/* Dropdown d'idioma (compatible) */
 .stream-lang-dropdown {
   position: absolute;
   top: calc(100% + 8px);
