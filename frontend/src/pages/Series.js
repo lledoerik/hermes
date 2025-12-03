@@ -127,7 +127,7 @@ const ChevronRightIcon = () => (
 
 function Series() {
   const { isAdmin } = useAuth();
-  const { getSeries, seriesCache, invalidateCache } = useLibrary();
+  const { getSeries, invalidateCache } = useLibrary();
   const [series, setSeries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('name');
@@ -164,6 +164,7 @@ function Series() {
     if (isAdmin) {
       loadAndImportDiscover('popular', 1);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
   // Search in database when searchQuery or filters change
