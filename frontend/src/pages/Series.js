@@ -56,13 +56,14 @@ const loadSavedFilters = () => {
   return ['series']; // Per defecte només sèries
 };
 
-// Funció per determinar el tipus d'un item (usa content_type del backend)
-const getItemType = (item) => {
-  // El backend ja calcula content_type: 'anime', 'toons', o 'series'
-  const contentType = item.content_type;
-  if (contentType === 'anime') return 'anime';
-  if (contentType === 'toons') return 'cartoons';
-  return 'series';
+// Convertir filtres del frontend a content_types del backend
+const filtersToContentTypes = (filters) => {
+  const mapping = {
+    series: 'series',
+    anime: 'anime',
+    cartoons: 'toons'
+  };
+  return filters.map(f => mapping[f]).filter(Boolean).join(',');
 };
 
 // Hook per detectar long-press
@@ -176,12 +177,12 @@ function Series() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(activeFilters));
   }, [activeFilters]);
 
-  // Reload series when pagination or sorting changes
+  // Reload series when pagination, sorting, or filters change
   useEffect(() => {
     loadSeries();
-  }, [currentPage, sortBy]);
+  }, [currentPage, sortBy, activeFilters]);
 
-  // Search in database when searchQuery changes
+  // Search in database when searchQuery or filters change
   useEffect(() => {
     const searchInDatabase = async () => {
       if (!searchQuery.trim()) {
@@ -191,7 +192,8 @@ function Series() {
 
       setSearchLoading(true);
       try {
-        const response = await axios.get(`/api/library/series?search=${encodeURIComponent(searchQuery)}&limit=500`);
+        const contentType = filtersToContentTypes(activeFilters);
+        const response = await axios.get(`/api/library/series?search=${encodeURIComponent(searchQuery)}&limit=500&content_type=${contentType}`);
         setLocalSearchResults(response.data?.items || []);
       } catch (error) {
         console.error('Error cercant a la BD:', error);
@@ -203,11 +205,12 @@ function Series() {
 
     const timer = setTimeout(searchInDatabase, 300); // Debounce
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, activeFilters]);
 
   // Click: selecció exclusiva (només aquest filtre)
   const handleFilterClick = useCallback((filterId) => {
     setActiveFilters([filterId]);
+    setCurrentPage(1); // Tornar a la primera pàgina
   }, []);
 
   // Long-press: afegir/treure filtre (multi-selecció)
@@ -221,13 +224,15 @@ function Series() {
         return [...prev, filterId];
       }
     });
+    setCurrentPage(1); // Tornar a la primera pàgina
   }, []);
 
   const loadSeries = async () => {
     try {
       setLoading(true);
-      // Carregar totes les sèries sense filtre de content_type
-      const data = await getSeries(currentPage, itemsPerPage, sortBy, null);
+      // Convertir filtres a content_types del backend
+      const contentType = filtersToContentTypes(activeFilters);
+      const data = await getSeries(currentPage, itemsPerPage, sortBy, contentType);
       setSeries(data.items || []);
       setTotalPages(data.total_pages || 1);
       setTotalItems(data.total || 0);
@@ -320,18 +325,10 @@ function Series() {
   };
 
   // Use API search results if searching, otherwise use paginated series
-  const baseSeries = searchQuery.trim()
+  // El filtratge per tipus ja es fa al backend
+  const sortedSeries = searchQuery.trim()
     ? (localSearchResults || [])
     : series;
-
-  // Aplicar filtres de tipus
-  const filteredSeries = baseSeries.filter(show => {
-    const itemType = getItemType(show);
-    return activeFilters.includes(itemType);
-  });
-
-  // No need to sort client-side anymore - backend handles it
-  const sortedSeries = filteredSeries;
 
   if (loading) {
     return (
