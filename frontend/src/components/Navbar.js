@@ -92,7 +92,7 @@ function Navbar() {
             <Link to="/series" className={`nav-link ${isActive('/series') ? 'active' : ''}`}>
               Sèries
             </Link>
-            {user?.is_admin && (
+            {user?.is_admin ? (
               <>
                 <Link to="/programs" className={`nav-link ${isActive('/programs') ? 'active' : ''}`}>
                   Programes
@@ -106,6 +106,13 @@ function Navbar() {
                 <Link to="/tv" className={`nav-link ${isActive('/tv') ? 'active' : ''}`}>
                   Televisió
                 </Link>
+              </>
+            ) : (
+              <>
+                <span className="nav-link disabled">Programes</span>
+                <span className="nav-link disabled">Llibres</span>
+                <span className="nav-link disabled">Audiollibres</span>
+                <span className="nav-link disabled">Televisió</span>
               </>
             )}
           </div>
