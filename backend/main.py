@@ -1325,8 +1325,8 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
         # Sorting
         if sort_by == "year":
             query += " ORDER BY s.year DESC, s.name"
-        elif sort_by == "rating":
-            query += " ORDER BY COALESCE(s.rating, 0) DESC, s.name"
+        elif sort_by == "popular":
+            query += " ORDER BY s.id DESC"
         elif sort_by == "episodes":
             query += " ORDER BY episode_count DESC, s.name"
         elif sort_by == "seasons":
@@ -1422,8 +1422,8 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
         # Sorting
         if sort_by == "year":
             query += " ORDER BY s.year DESC, s.name"
-        elif sort_by == "rating":
-            query += " ORDER BY COALESCE(s.rating, 0) DESC, s.name"
+        elif sort_by == "popular":
+            query += " ORDER BY s.id DESC"
         elif sort_by == "duration":
             query += " ORDER BY m.duration DESC, s.name"
         else:

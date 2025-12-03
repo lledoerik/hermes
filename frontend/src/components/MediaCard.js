@@ -207,20 +207,28 @@ function MediaCard({ item, type = 'series', width = 180, isTmdb = false }) {
 
   const getMeta = () => {
     if (type === 'movies') {
-      if (item.has_file === false && !isStreamingOnly) {
-        return 'Només metadades';
-      }
       const duration = item.duration ? Math.round(item.duration / 60) : 0;
+      const parts = [];
       if (duration > 0) {
-        return `${duration} min`;
+        parts.push(`${duration} min`);
       }
-      return item.year || '';
+      if (item.year) {
+        parts.push(item.year);
+      }
+      return parts.join(' · ') || '';
     }
     // Per sèries
-    if (item.season_count || item.episode_count) {
-      return `${item.season_count || 0} temp. · ${item.episode_count || 0} ep.`;
+    const parts = [];
+    if (item.season_count) {
+      parts.push(`${item.season_count} temp.`);
     }
-    return item.year || '';
+    if (item.episode_count) {
+      parts.push(`${item.episode_count} ep.`);
+    }
+    if (parts.length === 0 && item.year) {
+      return item.year;
+    }
+    return parts.join(' · ') || item.year || '';
   };
 
   const progress = item.watch_progress || 0;
