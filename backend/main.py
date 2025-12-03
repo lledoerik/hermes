@@ -2081,6 +2081,89 @@ async def search_tmdb(q: str, limit: int = 20):
         await client.close()
 
 
+@app.get("/api/tmdb/movie/{tmdb_id}")
+async def get_tmdb_movie_details(tmdb_id: int):
+    """
+    Obtenir detalls d'una pel·lícula des de TMDB.
+    """
+    api_key = get_tmdb_api_key()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
+
+    from backend.metadata.tmdb import TMDBClient
+
+    client = TMDBClient(api_key)
+    try:
+        data = await client._request(f"/movie/{tmdb_id}", {"language": "ca-ES"})
+        if not data:
+            raise HTTPException(status_code=404, detail="Pel·lícula no trobada")
+
+        year = None
+        if data.get("release_date"):
+            year = int(data["release_date"][:4])
+
+        return {
+            "id": f"tmdb-{tmdb_id}",
+            "tmdb_id": tmdb_id,
+            "name": data.get("title"),
+            "title": data.get("title"),
+            "original_name": data.get("original_title"),
+            "year": year,
+            "overview": data.get("overview"),
+            "rating": data.get("vote_average"),
+            "runtime": data.get("runtime"),
+            "poster": client.get_poster_url(data.get("poster_path")),
+            "backdrop": client.get_backdrop_url(data.get("backdrop_path")),
+            "genres": [g["name"] for g in data.get("genres", [])],
+            "is_tmdb": True,
+            "media_type": "movie"
+        }
+    finally:
+        await client.close()
+
+
+@app.get("/api/tmdb/tv/{tmdb_id}")
+async def get_tmdb_tv_details(tmdb_id: int):
+    """
+    Obtenir detalls d'una sèrie des de TMDB.
+    """
+    api_key = get_tmdb_api_key()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
+
+    from backend.metadata.tmdb import TMDBClient
+
+    client = TMDBClient(api_key)
+    try:
+        data = await client._request(f"/tv/{tmdb_id}", {"language": "ca-ES"})
+        if not data:
+            raise HTTPException(status_code=404, detail="Sèrie no trobada")
+
+        year = None
+        if data.get("first_air_date"):
+            year = int(data["first_air_date"][:4])
+
+        return {
+            "id": f"tmdb-{tmdb_id}",
+            "tmdb_id": tmdb_id,
+            "name": data.get("name"),
+            "title": data.get("name"),
+            "original_name": data.get("original_name"),
+            "year": year,
+            "overview": data.get("overview"),
+            "rating": data.get("vote_average"),
+            "poster": client.get_poster_url(data.get("poster_path")),
+            "backdrop": client.get_backdrop_url(data.get("backdrop_path")),
+            "genres": [g["name"] for g in data.get("genres", [])],
+            "season_count": data.get("number_of_seasons", 0),
+            "episode_count": data.get("number_of_episodes", 0),
+            "is_tmdb": True,
+            "media_type": "series"
+        }
+    finally:
+        await client.close()
+
+
 @app.get("/api/tmdb/tv/{tmdb_id}/seasons")
 async def get_tmdb_tv_seasons(tmdb_id: int):
     """

@@ -178,12 +178,8 @@ function MediaCard({ item, type = 'series', width = 180, isTmdb = false }) {
   const isStreamingOnly = isTmdb || item.is_tmdb;
 
   const handleClick = () => {
-    if (isStreamingOnly && item.tmdb_id) {
-      // Navegar a la pàgina de streaming per contingut TMDB
-      navigate(`/stream/${type === 'movies' ? 'movie' : 'tv'}/${item.tmdb_id}`);
-    } else {
-      navigate(`/${type}/${item.id}`);
-    }
+    // Sempre navegar a la pàgina de detalls (mai directament a stream)
+    navigate(`/${type}/${item.id}`);
   };
 
   const handlePlay = (e) => {
