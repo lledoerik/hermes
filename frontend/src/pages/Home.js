@@ -806,7 +806,7 @@ function Home() {
               <SeriesIcon />
               <span>Sèries</span>
             </Link>
-            {user?.is_admin && (
+            {user?.is_admin ? (
               <>
                 <Link to="/programs" className="quick-card">
                   <div className="quick-bubble gradient-programs"></div>
@@ -828,6 +828,33 @@ function Home() {
                   <TvIcon />
                   <span>TV en directe</span>
                 </Link>
+              </>
+            ) : (
+              <>
+                <div className="quick-card inactive">
+                  <div className="quick-bubble gradient-programs"></div>
+                  <ProgramsIcon />
+                  <span>Programes</span>
+                  <span className="coming-soon">Properament</span>
+                </div>
+                <div className="quick-card inactive">
+                  <div className="quick-bubble gradient-books"></div>
+                  <BookIcon />
+                  <span>Llibres</span>
+                  <span className="coming-soon">Properament</span>
+                </div>
+                <div className="quick-card inactive">
+                  <div className="quick-bubble gradient-audiobooks"></div>
+                  <AudiobookIcon />
+                  <span>Audiollibres</span>
+                  <span className="coming-soon">Properament</span>
+                </div>
+                <div className="quick-card inactive">
+                  <div className="quick-bubble gradient-tv"></div>
+                  <TvIcon />
+                  <span>TV en directe</span>
+                  <span className="coming-soon">Properament</span>
+                </div>
               </>
             )}
           </div>
