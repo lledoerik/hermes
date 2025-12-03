@@ -11,41 +11,6 @@ const API_URL = window.location.hostname === 'localhost'
 
 axios.defaults.baseURL = API_URL;
 
-// Mapa de codis d'idiomes
-const languageCodes = {
-  // Català
-  'cat': 'CAT', 'catalan': 'CAT', 'català': 'CAT', 'ca': 'CAT',
-  // Castellà
-  'spa': 'ESP', 'esp': 'ESP', 'spanish': 'ESP', 'español': 'ESP', 'castellano': 'ESP', 'es': 'ESP', 'cas': 'ESP',
-  // Hispanoamericà
-  'spa-la': 'HIS', 'es-la': 'HIS', 'es-419': 'HIS', 'spanish-latin': 'HIS', 'lat': 'HIS', 'latino': 'HIS',
-  // Anglès
-  'eng': 'ENG', 'english': 'ENG', 'en': 'ENG', 'en-us': 'ENG', 'en-gb': 'ENG', 'british': 'ENG',
-  // Japonès
-  'jap': 'JAP', 'jpn': 'JAP', 'japanese': 'JAP', 'ja': 'JAP',
-  // Francès
-  'fre': 'FRA', 'fra': 'FRA', 'french': 'FRA', 'fr': 'FRA',
-  // Alemany
-  'ger': 'ALE', 'deu': 'ALE', 'german': 'ALE', 'de': 'ALE',
-  // Italià
-  'ita': 'ITA', 'italian': 'ITA', 'it': 'ITA',
-  // Portuguès
-  'por': 'POR', 'portuguese': 'POR', 'pt': 'POR', 'pt-br': 'POR', 'brazilian': 'POR',
-  // Coreà
-  'kor': 'KOR', 'korean': 'KOR', 'ko': 'KOR',
-  // Xinès
-  'chi': 'XIN', 'zho': 'XIN', 'chinese': 'XIN', 'zh': 'XIN',
-  // Rus
-  'rus': 'RUS', 'russian': 'RUS', 'ru': 'RUS',
-};
-
-// Funció per obtenir el codi d'un idioma
-const getLanguageCode = (lang) => {
-  if (!lang) return '???';
-  const normalizedLang = lang.toLowerCase().trim();
-  return languageCodes[normalizedLang] || '???';
-};
-
 // SVG Icons
 const StarIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1">
@@ -96,8 +61,8 @@ function Details() {
   const [tmdbMessage, setTmdbMessage] = useState(null);
   const [imageCacheBust, setImageCacheBust] = useState('');
   const [usingTmdbSeasons, setUsingTmdbSeasons] = useState(false);
-  const [localSeasonNumbers, setLocalSeasonNumbers] = useState(new Set());
-  const [localEpisodeMap, setLocalEpisodeMap] = useState({}); // { seasonNum: { epNum: episodeData } }
+  const [, setLocalSeasonNumbers] = useState(new Set());
+  const [, setLocalEpisodeMap] = useState({}); // { seasonNum: { epNum: episodeData } }
 
   // Watch providers state
   const [watchProviders, setWatchProviders] = useState(null);
