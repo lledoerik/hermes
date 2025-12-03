@@ -614,8 +614,8 @@ function Home() {
           </section>
         )}
 
-        {/* Continua llegint - Llibres */}
-        {continueReadingBooks.length > 0 && (
+        {/* Continua llegint - Llibres (només admin) */}
+        {user?.is_admin && continueReadingBooks.length > 0 && (
           <section className="continue-watching-section">
             <h2 className="row-title">Continua llegint</h2>
             <div className="content-scroll">
@@ -662,8 +662,8 @@ function Home() {
           </section>
         )}
 
-        {/* Continua escoltant - Audiollibres */}
-        {continueListeningAudiobooks.length > 0 && (
+        {/* Continua escoltant - Audiollibres (només admin) */}
+        {user?.is_admin && continueListeningAudiobooks.length > 0 && (
           <section className="continue-watching-section">
             <h2 className="row-title">Continua escoltant</h2>
             <div className="content-scroll">
@@ -806,35 +806,30 @@ function Home() {
               <SeriesIcon />
               <span>Sèries</span>
             </Link>
-            {user?.is_admin ? (
-              <Link to="/programs" className="quick-card">
-                <div className="quick-bubble gradient-programs"></div>
-                <ProgramsIcon />
-                <span>Programes</span>
-              </Link>
-            ) : (
-              <div className="quick-card inactive">
-                <div className="quick-bubble gradient-programs"></div>
-                <ProgramsIcon />
-                <span>Programes</span>
-                <span className="coming-soon">Properament</span>
-              </div>
+            {user?.is_admin && (
+              <>
+                <Link to="/programs" className="quick-card">
+                  <div className="quick-bubble gradient-programs"></div>
+                  <ProgramsIcon />
+                  <span>Programes</span>
+                </Link>
+                <Link to="/books" className="quick-card">
+                  <div className="quick-bubble gradient-books"></div>
+                  <BookIcon />
+                  <span>Llibres</span>
+                </Link>
+                <Link to="/audiobooks" className="quick-card">
+                  <div className="quick-bubble gradient-audiobooks"></div>
+                  <AudiobookIcon />
+                  <span>Audiollibres</span>
+                </Link>
+                <Link to="/tv" className="quick-card">
+                  <div className="quick-bubble gradient-tv"></div>
+                  <TvIcon />
+                  <span>TV en directe</span>
+                </Link>
+              </>
             )}
-            <Link to="/books" className="quick-card">
-              <div className="quick-bubble gradient-books"></div>
-              <BookIcon />
-              <span>Llibres</span>
-            </Link>
-            <Link to="/audiobooks" className="quick-card">
-              <div className="quick-bubble gradient-audiobooks"></div>
-              <AudiobookIcon />
-              <span>Audiollibres</span>
-            </Link>
-            <Link to="/tv" className="quick-card">
-              <div className="quick-bubble gradient-tv"></div>
-              <TvIcon />
-              <span>TV en directe</span>
-            </Link>
           </div>
         </section>
       </div>
@@ -906,38 +901,41 @@ function Home() {
               <div className="hover-border"></div>
             </div>
 
-            {/* Llibres */}
-            <Link to="/books" className="category-card active">
+            {/* Llibres - Properament */}
+            <div className="category-card">
               <div className="card-glass"></div>
               <div className="category-bubble gradient-books"></div>
               <div className="card-content">
                 <BookIcon />
                 <h3 className="card-title">Llibres</h3>
+                <span className="coming-soon">Properament</span>
               </div>
               <div className="hover-border"></div>
-            </Link>
+            </div>
 
-            {/* Audiollibres */}
-            <Link to="/audiobooks" className="category-card active">
+            {/* Audiollibres - Properament */}
+            <div className="category-card">
               <div className="card-glass"></div>
               <div className="category-bubble gradient-audiobooks"></div>
               <div className="card-content">
                 <AudiobookIcon />
                 <h3 className="card-title">Audiollibres</h3>
+                <span className="coming-soon">Properament</span>
               </div>
               <div className="hover-border"></div>
-            </Link>
+            </div>
 
-            {/* Televisió */}
-            <Link to="/tv" className="category-card active">
+            {/* Televisió - Properament */}
+            <div className="category-card">
               <div className="card-glass"></div>
               <div className="category-bubble gradient-tv"></div>
               <div className="card-content">
                 <TvIcon />
                 <h3 className="card-title">Televisió</h3>
+                <span className="coming-soon">Properament</span>
               </div>
               <div className="hover-border"></div>
-            </Link>
+            </div>
           </div>
         </div>
       </section>
