@@ -50,6 +50,10 @@ function Details() {
   const { isAdmin, isPremium } = useAuth();
   // Determinar el tipus segons la ruta
   const type = location.pathname.startsWith('/movies') ? 'movies' : 'series';
+
+  // Detectar si és contingut només de TMDB (ID comença amb "tmdb-")
+  const isTmdbOnly = id.startsWith('tmdb-');
+  const realTmdbId = isTmdbOnly ? parseInt(id.replace('tmdb-', '')) : null;
   const [item, setItem] = useState(null);
   const [seasons, setSeasons] = useState([]);
   const [episodes, setEpisodes] = useState([]);
@@ -106,6 +110,36 @@ function Details() {
 
   const loadDetails = useCallback(async () => {
     try {
+      // Si és contingut només de TMDB, carregar directament des de TMDB
+      if (isTmdbOnly && realTmdbId) {
+        if (type === 'series') {
+          // Carregar detalls de sèrie i temporades des de TMDB
+          const [detailsRes, seasonsRes] = await Promise.all([
+            axios.get(`/api/tmdb/tv/${realTmdbId}`),
+            axios.get(`/api/tmdb/tv/${realTmdbId}/seasons`)
+          ]);
+
+          setItem(detailsRes.data);
+
+          const tmdbSeasons = (seasonsRes.data.seasons || [])
+            .filter(s => s.season_number > 0)
+            .map(s => ({ ...s, hasLocalEpisodes: false }));
+
+          setSeasons(tmdbSeasons);
+          if (tmdbSeasons.length > 0) {
+            setSelectedSeason(tmdbSeasons[0].season_number);
+          }
+          setUsingTmdbSeasons(true);
+        } else {
+          // Carregar detalls de pel·lícula des de TMDB
+          const response = await axios.get(`/api/tmdb/movie/${realTmdbId}`);
+          setItem(response.data);
+        }
+        setLoading(false);
+        return;
+      }
+
+      // Contingut local (amb possible enriquiment TMDB)
       if (type === 'series') {
         const [seriesRes, seasonsRes] = await Promise.all([
           axios.get(`/api/library/series/${id}`),
@@ -180,10 +214,27 @@ function Details() {
     } finally {
       setLoading(false);
     }
-  }, [type, id]);
+  }, [type, id, isTmdbOnly, realTmdbId]);
 
-  const loadEpisodes = useCallback(async (seasonNum, isTmdb = false, tmdbId = null) => {
+  const loadEpisodes = useCallback(async (seasonNum, isTmdb = false, tmdbIdParam = null) => {
     try {
+      // Per contingut TMDB-only, carregar directament des de TMDB
+      const effectiveTmdbId = isTmdbOnly ? realTmdbId : tmdbIdParam;
+
+      if (isTmdbOnly && realTmdbId) {
+        // Contingut només TMDB - carregar directament
+        const tmdbRes = await axios.get(`/api/tmdb/tv/${realTmdbId}/season/${seasonNum}`);
+        if (tmdbRes.data.episodes) {
+          const episodes = tmdbRes.data.episodes.map(ep => ({
+            ...ep,
+            isLocal: false,
+            duration: ep.runtime ? ep.runtime * 60 : null
+          }));
+          setEpisodes(episodes);
+        }
+        return;
+      }
+
       // Carregar episodis locals per aquesta temporada
       let localEpisodes = [];
       try {
@@ -202,9 +253,9 @@ function Details() {
       setLocalEpisodeMap(prev => ({ ...prev, [seasonNum]: localEpMap }));
 
       // Si tenim TMDB, carregar episodis de TMDB i combinar
-      if (tmdbId) {
+      if (effectiveTmdbId) {
         try {
-          const tmdbRes = await axios.get(`/api/tmdb/tv/${tmdbId}/season/${seasonNum}`);
+          const tmdbRes = await axios.get(`/api/tmdb/tv/${effectiveTmdbId}/season/${seasonNum}`);
           if (tmdbRes.data.episodes) {
             // Combinar: episodis TMDB amb informació de si són locals
             const combinedEpisodes = tmdbRes.data.episodes.map(tmdbEp => {
@@ -240,7 +291,7 @@ function Details() {
       console.error('Error carregant episodis:', error);
       setEpisodes([]);
     }
-  }, [id]);
+  }, [id, isTmdbOnly, realTmdbId]);
 
   useEffect(() => {
     loadDetails();
@@ -263,11 +314,13 @@ function Details() {
   // Carregar watch providers si tenim tmdb_id
   useEffect(() => {
     const loadWatchProviders = async () => {
-      if (!item?.tmdb_id) return;
+      // Usar realTmdbId per TMDB-only o item.tmdb_id per contingut local
+      const tmdbIdToUse = isTmdbOnly ? realTmdbId : item?.tmdb_id;
+      if (!tmdbIdToUse) return;
 
       try {
         const mediaType = type === 'movies' ? 'movie' : 'series';
-        const response = await axios.get(`/api/watch-providers/${mediaType}/${item.tmdb_id}`);
+        const response = await axios.get(`/api/watch-providers/${mediaType}/${tmdbIdToUse}`);
         setWatchProviders(response.data);
       } catch (err) {
         console.error('Error carregant proveïdors:', err);
@@ -275,7 +328,7 @@ function Details() {
     };
 
     loadWatchProviders();
-  }, [item?.tmdb_id, type]);
+  }, [item?.tmdb_id, type, isTmdbOnly, realTmdbId]);
 
   useEffect(() => {
     if (type === 'series' && seasons.length > 0) {
@@ -427,11 +480,13 @@ function Details() {
         <div
           className="hero-backdrop"
           style={{
-            backgroundImage: item.backdrop
-              ? `url(${API_URL}/api/image/backdrop/${item.id}${imageCacheBust})`
-              : item.poster
-              ? `url(${API_URL}/api/image/poster/${item.id}${imageCacheBust})`
-              : 'none'
+            backgroundImage: isTmdbOnly
+              ? (item.backdrop ? `url(${item.backdrop})` : item.poster ? `url(${item.poster})` : 'none')
+              : (item.backdrop
+                ? `url(${API_URL}/api/image/backdrop/${item.id}${imageCacheBust})`
+                : item.poster
+                ? `url(${API_URL}/api/image/poster/${item.id}${imageCacheBust})`
+                : 'none')
           }}
         />
         <div className="hero-gradient" />
