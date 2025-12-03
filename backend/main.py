@@ -838,7 +838,7 @@ async def get_continue_watching(request: Request):
 
             # Determinar el tipus basant-se en media_type de la taula series
             media_type = row["media_type"] if row["media_type"] else "series"
-            if media_type == "movies":
+            if media_type == "movie":
                 item_type = "movie"
             else:
                 item_type = "episode"

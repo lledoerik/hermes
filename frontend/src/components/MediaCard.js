@@ -245,7 +245,7 @@ function MediaCard({ item, type = 'series', width = 180, isTmdb = false }) {
         {posterUrl && !imageError ? (
           <img
             src={posterUrl}
-            alt={item.name}
+            alt={item.name || item.title}
             style={styles.image}
             loading="lazy"
             onError={() => setImageError(true)}
@@ -286,10 +286,10 @@ function MediaCard({ item, type = 'series', width = 180, isTmdb = false }) {
 
       <div style={styles.info}>
         <div style={styles.titleRow}>
-          <div style={styles.title}>{item.name}</div>
+          <div style={styles.title}>{item.name || item.title}</div>
           {isHovered && (
             <TitleAudioPlayer
-              title={item.name}
+              title={item.name || item.title}
               size="small"
               className="title-audio-player--inline"
             />
