@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import TitleAudioPlayer from './TitleAudioPlayer';
+import { useAuth } from '../context/AuthContext';
 
 const API_URL = window.location.hostname === 'localhost'
   ? 'http://localhost:8000'
@@ -173,6 +174,7 @@ function MediaCard({ item, type = 'series', width = 180, isTmdb = false }) {
   const [isHovered, setIsHovered] = useState(false);
   const [imageError, setImageError] = useState(false);
   const navigate = useNavigate();
+  const { isPremium } = useAuth();
 
   // Determinar si és contingut només de streaming (TMDB sense fitxers locals)
   const isStreamingOnly = isTmdb || item.is_tmdb;
@@ -184,6 +186,12 @@ function MediaCard({ item, type = 'series', width = 180, isTmdb = false }) {
 
   const handlePlay = (e) => {
     e.stopPropagation();
+    // Usuaris no premium sempre van a la pàgina de detalls
+    if (!isPremium) {
+      navigate(`/${type}/${item.id}`);
+      return;
+    }
+    // Usuaris premium poden reproduir
     if (isStreamingOnly && item.tmdb_id) {
       navigate(`/stream/${type === 'movies' ? 'movie' : 'tv'}/${item.tmdb_id}`);
     } else if (type === 'movies') {
@@ -214,8 +222,6 @@ function MediaCard({ item, type = 'series', width = 180, isTmdb = false }) {
     }
     return item.year || '';
   };
-
-  const hasFile = isStreamingOnly || type !== 'movies' || item.has_file !== false;
 
   const progress = item.watch_progress || 0;
 
@@ -265,9 +271,9 @@ function MediaCard({ item, type = 'series', width = 180, isTmdb = false }) {
             ...(isHovered ? styles.playButtonVisible : {})
           }}
           onClick={handlePlay}
-          title={hasFile ? 'Reproduir' : 'Veure detalls'}
+          title={isPremium ? 'Reproduir' : 'Veure detalls'}
         >
-          {hasFile ? <PlayIcon /> : <InfoIcon />}
+          {isPremium ? <PlayIcon /> : <InfoIcon />}
         </button>
 
 
