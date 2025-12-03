@@ -929,7 +929,7 @@ function Home() {
             </div>
 
             {/* Llibres - Properament */}
-            <div className="category-card">
+            <div className="category-card inactive">
               <div className="card-glass"></div>
               <div className="category-bubble gradient-books"></div>
               <div className="card-content">
@@ -941,7 +941,7 @@ function Home() {
             </div>
 
             {/* Audiollibres - Properament */}
-            <div className="category-card">
+            <div className="category-card inactive">
               <div className="card-glass"></div>
               <div className="category-bubble gradient-audiobooks"></div>
               <div className="card-content">
@@ -953,7 +953,7 @@ function Home() {
             </div>
 
             {/* Televisió - Properament */}
-            <div className="category-card">
+            <div className="category-card inactive">
               <div className="card-glass"></div>
               <div className="category-bubble gradient-tv"></div>
               <div className="card-content">
