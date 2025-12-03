@@ -62,29 +62,12 @@ const loadSavedFilters = () => {
   return ['movies']; // Per defecte només pel·lícules
 };
 
-// Funció per determinar el tipus d'un item
+// Funció per determinar el tipus d'un item (usa content_type del backend)
 const getItemType = (item) => {
-  // Comprovar si és animació (gènere 16 o nom 'Animation'/'Animació')
-  let isAnimation = false;
-  if (item.genres) {
-    if (Array.isArray(item.genres)) {
-      isAnimation = item.genres.some(g => {
-        if (typeof g === 'object') {
-          return g.id === 16 || g.name?.toLowerCase() === 'animation' || g.name?.toLowerCase() === 'animació';
-        }
-        return g === 16 || g === 'Animation' || g === 'Animació';
-      });
-    }
-  }
-  // També comprovar genre_ids (format TMDB directe)
-  if (!isAnimation && item.genre_ids) {
-    isAnimation = item.genre_ids.includes(16);
-  }
-
-  const isJapanese = item.original_language === 'ja';
-
-  if (isAnimation && isJapanese) return 'anime';
-  if (isAnimation) return 'animation';
+  // El backend ja calcula content_type: 'anime_movie', 'animated', o 'movie'
+  const contentType = item.content_type;
+  if (contentType === 'anime_movie') return 'anime';
+  if (contentType === 'animated') return 'animation';
   return 'movies';
 };
 
