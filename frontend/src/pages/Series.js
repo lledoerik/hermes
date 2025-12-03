@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import MediaCard from '../components/MediaCard';
 import { useAuth } from '../context/AuthContext';
@@ -66,46 +66,21 @@ const filtersToContentTypes = (filters) => {
   return filters.map(f => mapping[f]).filter(Boolean).join(',');
 };
 
-// Hook per detectar long-press
-const useLongPress = (onLongPress, onClick, { delay = 500 } = {}) => {
-  const timeoutRef = useRef(null);
-  const isLongPressRef = useRef(false);
-
-  const start = useCallback((e) => {
-    e.preventDefault();
-    isLongPressRef.current = false;
-    timeoutRef.current = setTimeout(() => {
-      isLongPressRef.current = true;
-      onLongPress(e);
-    }, delay);
-  }, [onLongPress, delay]);
-
-  const clear = useCallback((e, shouldTriggerClick = true) => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
+// Component FilterButton simple
+// Click = selecció exclusiva, Ctrl/Cmd+Click = multi-selecció
+const FilterButton = ({ filter, isActive, onClick, onMultiSelect }) => {
+  const handleClick = (e) => {
+    if (e.ctrlKey || e.metaKey) {
+      onMultiSelect();
+    } else {
+      onClick();
     }
-    if (shouldTriggerClick && !isLongPressRef.current) {
-      onClick(e);
-    }
-  }, [onClick]);
-
-  return {
-    onMouseDown: start,
-    onMouseUp: clear,
-    onMouseLeave: (e) => clear(e, false),
-    onTouchStart: start,
-    onTouchEnd: clear,
   };
-};
-
-// Component FilterButton amb long-press
-const FilterButton = ({ filter, isActive, onClick, onLongPress }) => {
-  const longPressProps = useLongPress(onLongPress, onClick, { delay: 500 });
 
   return (
     <button
       className={`content-type-btn ${isActive ? 'active' : ''}`}
-      {...longPressProps}
+      onClick={handleClick}
     >
       {filter.label}
     </button>
@@ -388,10 +363,10 @@ function Series() {
               filter={filter}
               isActive={activeFilters.includes(filter.id)}
               onClick={() => handleFilterClick(filter.id)}
-              onLongPress={() => handleFilterLongPress(filter.id)}
+              onMultiSelect={() => handleFilterLongPress(filter.id)}
             />
           ))}
-          <span className="filter-hint">Mantén premut per multi-selecció</span>
+          <span className="filter-hint">Ctrl+Click per multi-selecció</span>
         </div>
       </div>
 
