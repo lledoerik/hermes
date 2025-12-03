@@ -55,18 +55,6 @@
   filter: drop-shadow(0 0 30px rgba(167, 139, 250, 0.6));
 }
 
-.startup-loading-title {
-  font-size: 2.5rem;
-  font-weight: 700;
-  background: linear-gradient(135deg, #a78bfa, #818cf8, #c084fc);
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  margin: 0;
-}
-
 .startup-progress-container {
   width: 300px;
   display: flex;

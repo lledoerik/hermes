@@ -37,15 +37,11 @@
             pointer-events: none;
         }
         #initial-loader img {
-            max-width: 700px;
-            width: 80%;
-            height: auto;
+            width: 120px;
+            height: 120px;
+            object-fit: contain;
+            filter: drop-shadow(0 0 30px rgba(167, 139, 250, 0.6));
             animation: pulse 2s ease-in-out infinite;
-        }
-        #initial-loader p {
-            margin-top: 20px;
-            font-size: 16px;
-            color: rgba(255, 255, 255, 0.6);
         }
         @keyframes pulse {
             0%, 100% { transform: scale(1); opacity: 1; }

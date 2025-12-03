@@ -9,7 +9,6 @@ function LoadingScreen({ progress }) {
       <div className="startup-loading-content">
         <div className="startup-loading-logo">
           <img src="/img/hermes.png" alt="Hermes" className="startup-hermes-logo" />
-          <h1 className="startup-loading-title">Hermes</h1>
         </div>
 
         <div className="startup-progress-container">
