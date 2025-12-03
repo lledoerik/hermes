@@ -92,22 +92,22 @@ function Navbar() {
             <Link to="/series" className={`nav-link ${isActive('/series') ? 'active' : ''}`}>
               Sèries
             </Link>
-            {user?.is_admin ? (
-              <Link to="/programs" className={`nav-link ${isActive('/programs') ? 'active' : ''}`}>
-                Programes
-              </Link>
-            ) : (
-              <span className="nav-link disabled">Programes</span>
+            {user?.is_admin && (
+              <>
+                <Link to="/programs" className={`nav-link ${isActive('/programs') ? 'active' : ''}`}>
+                  Programes
+                </Link>
+                <Link to="/books" className={`nav-link ${isActive('/books') ? 'active' : ''}`}>
+                  Llibres
+                </Link>
+                <Link to="/audiobooks" className={`nav-link ${isActive('/audiobooks') ? 'active' : ''}`}>
+                  Audiollibres
+                </Link>
+                <Link to="/tv" className={`nav-link ${isActive('/tv') ? 'active' : ''}`}>
+                  Televisió
+                </Link>
+              </>
             )}
-            <Link to="/books" className={`nav-link ${isActive('/books') ? 'active' : ''}`}>
-              Llibres
-            </Link>
-            <Link to="/audiobooks" className={`nav-link ${isActive('/audiobooks') ? 'active' : ''}`}>
-              Audiollibres
-            </Link>
-            <Link to="/tv" className={`nav-link ${isActive('/tv') ? 'active' : ''}`}>
-              Televisió
-            </Link>
           </div>
         </div>
 

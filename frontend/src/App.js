@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { LibraryProvider, useLibrary } from './context/LibraryContext';
 import Navbar from './components/Navbar';
 import LoadingScreen from './components/LoadingScreen';
@@ -22,6 +22,15 @@ import Login from './pages/Login';
 import Profile from './pages/Profile';
 import Watchlist from './pages/Watchlist';
 import './App.css';
+
+// Component per protegir rutes només per admins
+function AdminRoute({ children }) {
+  const { user } = useAuth();
+  if (!user?.is_admin) {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+}
 
 // Main app content with loading screen
 function AppContent() {
@@ -53,11 +62,11 @@ function AppContent() {
           {/* Stream Player for external sources */}
           <Route path="/stream/:type/:tmdbId" element={<StreamPlayer />} />
 
-          {/* Book Reader without Navbar */}
-          <Route path="/read/:id" element={<BookReader />} />
+          {/* Book Reader without Navbar - només admin */}
+          <Route path="/read/:id" element={<AdminRoute><BookReader /></AdminRoute>} />
 
-          {/* Audiobook Player without Navbar */}
-          <Route path="/listen/:id" element={<AudiobookPlayer />} />
+          {/* Audiobook Player without Navbar - només admin */}
+          <Route path="/listen/:id" element={<AdminRoute><AudiobookPlayer /></AdminRoute>} />
 
           {/* Login without Navbar */}
           <Route path="/login" element={<Login />} />
@@ -73,10 +82,10 @@ function AppContent() {
                     <Route path="/" element={<Home />} />
                     <Route path="/movies" element={<Movies />} />
                     <Route path="/series" element={<Series />} />
-                    <Route path="/books" element={<Books />} />
-                    <Route path="/audiobooks" element={<Audiobooks />} />
-                    <Route path="/tv" element={<TV />} />
-                    <Route path="/programs" element={<Programs />} />
+                    <Route path="/books" element={<AdminRoute><Books /></AdminRoute>} />
+                    <Route path="/audiobooks" element={<AdminRoute><Audiobooks /></AdminRoute>} />
+                    <Route path="/tv" element={<AdminRoute><TV /></AdminRoute>} />
+                    <Route path="/programs" element={<AdminRoute><Programs /></AdminRoute>} />
                     <Route path="/movies/:id" element={<Details />} />
                     <Route path="/series/:id" element={<Details />} />
                     <Route path="/search" element={<Search />} />
