@@ -56,7 +56,7 @@ const SeriesIcon = () => (
 );
 
 function Watchlist() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [watchlist, setWatchlist] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all, movie, series
