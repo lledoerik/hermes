@@ -150,6 +150,44 @@ const EMBED_SOURCES = [
       }
       return `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1&s=${season || 1}&e=${episode || 1}`;
     }
+  },
+  // === FONTS D'ANIME (només sèries) ===
+  {
+    id: 'vidsrc-anime-sub',
+    name: 'Anime SUB',
+    description: 'Japonès + Subs',
+    getUrl: (type, tmdbId, season, episode) => {
+      // Només funciona per sèries (anime)
+      if (type === 'movie') return null;
+      // Format: https://vidsrc.cc/v2/embed/anime/{tmdb_id}/{episode}/sub
+      return `https://vidsrc.cc/v2/embed/anime/${tmdbId}/${episode || 1}/sub`;
+    }
+  },
+  {
+    id: 'vidsrc-anime-dub',
+    name: 'Anime DUB',
+    description: 'Anglès doblat',
+    getUrl: (type, tmdbId, season, episode) => {
+      // Només funciona per sèries (anime)
+      if (type === 'movie') return null;
+      // Format: https://vidsrc.cc/v2/embed/anime/{tmdb_id}/{episode}/dub
+      return `https://vidsrc.cc/v2/embed/anime/${tmdbId}/${episode || 1}/dub`;
+    }
+  },
+  {
+    id: 'autoembed-anime',
+    name: 'AutoEmbed Anime',
+    description: 'Anime alternatiu',
+    needsTitle: true, // Indica que necessita el títol
+    getUrl: (type, tmdbId, season, episode, title) => {
+      // Només funciona per sèries (anime) i necessita títol
+      if (type === 'movie') return null;
+      if (!title) return 'waiting'; // Espera el títol
+      const slug = createAnimeSlug(title);
+      if (!slug) return null;
+      // Format: https://anime.autoembed.cc/embed/{slug}-episode-{number}
+      return `https://anime.autoembed.cc/embed/${slug}-episode-${episode || 1}`;
+    }
   }
 ];
 
