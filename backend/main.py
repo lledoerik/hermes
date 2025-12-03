@@ -6731,6 +6731,117 @@ async def run_audiobook_bulk_import(search_terms: List[str], max_per_term: int):
         audiobook_bulk_import_status["current_genre"] = None
 
 
+# === ANIME SCRAPING ===
+from backend.anime.scraper import anime_manager
+
+
+@app.get("/api/anime/search")
+async def search_anime(q: str, source: str = None):
+    """
+    Cerca anime a les fonts disponibles.
+
+    Fonts:
+    - animeflv: AnimeFLV (espanyol subtitulat)
+    - henaojara: HenaoJara (espanyol latino)
+    - fansubscat: Fansubs.cat (català)
+
+    Si no s'especifica source, cerca a totes les fonts.
+    """
+    try:
+        if source:
+            results = await anime_manager.search(q, source)
+        else:
+            all_results = await anime_manager.search_all(q)
+            # Organitzar per font
+            return {
+                "query": q,
+                "results": all_results
+            }
+
+        return {
+            "query": q,
+            "source": source,
+            "results": results
+        }
+    except Exception as e:
+        logger.error(f"Error cercant anime: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/anime/sources")
+async def get_anime_sources():
+    """
+    Retorna les fonts d'anime disponibles amb informació sobre l'idioma.
+    """
+    return {
+        "sources": [
+            {
+                "id": "animeflv",
+                "name": "AnimeFLV",
+                "language": "es-sub",
+                "language_name": "Espanyol (subtítols)",
+                "description": "Anime amb subtítols en espanyol"
+            },
+            {
+                "id": "henaojara",
+                "name": "HenaoJara",
+                "language": "es-lat",
+                "language_name": "Espanyol Latino",
+                "description": "Anime doblat a espanyol latino"
+            },
+            {
+                "id": "fansubscat",
+                "name": "Fansubs.cat",
+                "language": "ca",
+                "language_name": "Català",
+                "description": "Anime amb subtítols en català"
+            }
+        ]
+    }
+
+
+@app.get("/api/anime/{source}/{anime_id}")
+async def get_anime_info(source: str, anime_id: str):
+    """
+    Obté la informació detallada d'un anime incloent la llista d'episodis.
+    """
+    try:
+        info = await anime_manager.get_anime_info(source, anime_id)
+        if not info:
+            raise HTTPException(status_code=404, detail="Anime no trobat")
+        return info
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error obtenint info d'anime: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/anime/{source}/{anime_id}/episode/{episode}")
+async def get_anime_episode_sources(source: str, anime_id: str, episode: int):
+    """
+    Obté els servidors/fonts disponibles per reproduir un episodi específic.
+
+    Retorna una llista d'URLs d'embed que es poden utilitzar directament en un iframe.
+    """
+    try:
+        sources = await anime_manager.get_episode_sources(source, anime_id, episode)
+        if not sources:
+            raise HTTPException(status_code=404, detail="No s'han trobat fonts per aquest episodi")
+
+        return {
+            "source": source,
+            "anime_id": anime_id,
+            "episode": episode,
+            "servers": sources
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error obtenint fonts d'episodi: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(

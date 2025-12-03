@@ -1476,3 +1476,302 @@
     font-size: 14px;
   }
 }
+
+/* === ANIME SEARCH MODAL === */
+
+.stream-anime-search-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.95);
+  z-index: 200;
+  animation: fadeIn 0.3s ease;
+}
+
+.stream-anime-search-modal {
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  background: linear-gradient(180deg, rgba(35, 35, 40, 0.98) 0%, rgba(25, 25, 30, 0.98) 100%);
+  backdrop-filter: blur(30px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: modalSlideIn 0.3s ease;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.anime-search-header {
+  position: relative;
+  padding: 20px 24px;
+  background: rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.anime-search-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: white;
+}
+
+.anime-search-header .anime-search-lang {
+  margin: 4px 0 0 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.anime-search-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.anime-search-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.anime-search-input-wrapper {
+  display: flex;
+  gap: 10px;
+  padding: 16px 24px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.anime-search-input {
+  flex: 1;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  color: white;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.anime-search-input:focus {
+  border-color: var(--color-primary, #328492);
+  background: rgba(50, 132, 146, 0.1);
+}
+
+.anime-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.anime-search-btn {
+  padding: 12px 20px;
+  background: var(--color-primary, #328492);
+  border: none;
+  border-radius: 10px;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.anime-search-btn:hover {
+  background: var(--color-primary-dark, #276a75);
+}
+
+.anime-search-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 40px;
+}
+
+.anime-search-loading .spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--color-primary, #328492);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.anime-search-loading p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+}
+
+.anime-search-results {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  max-height: 300px;
+}
+
+.anime-search-results::-webkit-scrollbar {
+  width: 6px;
+}
+
+.anime-search-results::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.anime-search-results::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.anime-no-results {
+  text-align: center;
+  padding: 30px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+}
+
+.anime-search-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px;
+  background: transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.anime-search-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.anime-search-cover {
+  width: 50px;
+  height: 70px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.anime-search-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.anime-search-title {
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.anime-search-source {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+}
+
+/* Anime servers section */
+.anime-servers-section {
+  padding: 16px 24px;
+  background: rgba(0, 0, 0, 0.3);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.anime-servers-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.anime-servers-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.anime-server-btn {
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.anime-server-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.anime-server-btn.active {
+  background: var(--color-primary, #328492);
+  border-color: var(--color-primary, #328492);
+}
+
+/* Responsive anime search */
+@media (max-width: 600px) {
+  .stream-anime-search-modal {
+    width: 95%;
+    max-height: 90vh;
+    border-radius: 12px;
+  }
+
+  .anime-search-header {
+    padding: 16px 20px;
+  }
+
+  .anime-search-header h3 {
+    font-size: 16px;
+  }
+
+  .anime-search-input-wrapper {
+    padding: 12px 20px;
+    flex-direction: column;
+  }
+
+  .anime-search-btn {
+    width: 100%;
+  }
+
+  .anime-search-item {
+    padding: 10px;
+  }
+
+  .anime-search-cover {
+    width: 40px;
+    height: 56px;
+  }
+
+  .anime-servers-section {
+    padding: 14px 20px;
+  }
+
+  .anime-server-btn {
+    padding: 8px 14px;
+    font-size: 12px;
+  }
+}
