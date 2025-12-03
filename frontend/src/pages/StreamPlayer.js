@@ -223,6 +223,7 @@ function StreamPlayer() {
   const { isPremium, isAuthenticated } = useAuth();
   const containerRef = useRef(null);
   const episodesMenuRef = useRef(null);
+  const controlsTimeoutRef = useRef(null);
 
   // Parsejar paràmetres de la URL (season, episode)
   const searchParams = new URLSearchParams(location.search);
