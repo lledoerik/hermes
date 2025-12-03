@@ -56,29 +56,12 @@ const loadSavedFilters = () => {
   return ['series']; // Per defecte només sèries
 };
 
-// Funció per determinar el tipus d'un item
+// Funció per determinar el tipus d'un item (usa content_type del backend)
 const getItemType = (item) => {
-  // Comprovar si és animació (gènere 16 o nom 'Animation'/'Animació')
-  let isAnimation = false;
-  if (item.genres) {
-    if (Array.isArray(item.genres)) {
-      isAnimation = item.genres.some(g => {
-        if (typeof g === 'object') {
-          return g.id === 16 || g.name?.toLowerCase() === 'animation' || g.name?.toLowerCase() === 'animació';
-        }
-        return g === 16 || g === 'Animation' || g === 'Animació';
-      });
-    }
-  }
-  // També comprovar genre_ids (format TMDB directe)
-  if (!isAnimation && item.genre_ids) {
-    isAnimation = item.genre_ids.includes(16);
-  }
-
-  const isJapanese = item.original_language === 'ja';
-
-  if (isAnimation && isJapanese) return 'anime';
-  if (isAnimation) return 'cartoons';
+  // El backend ja calcula content_type: 'anime', 'toons', o 'series'
+  const contentType = item.content_type;
+  if (contentType === 'anime') return 'anime';
+  if (contentType === 'toons') return 'cartoons';
   return 'series';
 };
 
