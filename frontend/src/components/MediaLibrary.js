@@ -29,13 +29,12 @@ const LIBRARY_CONFIG = {
     sortOptions: [
       { value: 'name', label: 'Ordenar per nom' },
       { value: 'year', label: 'Ordenar per any' },
-      { value: 'duration', label: 'Ordenar per duració' },
-      { value: 'rating', label: 'Ordenar per valoració' }
+      { value: 'duration', label: 'Ordenar per duració' }
     ],
-    discoverCategories: {
+    categories: {
       popular: 'Populars',
-      trending: 'En tendència',
-      top_rated: 'Millor valorades',
+      name: 'Per nom',
+      year: 'Per any',
       now_playing: 'En cartellera',
       upcoming: 'Pròximament'
     },
@@ -58,14 +57,13 @@ const LIBRARY_CONFIG = {
     sortOptions: [
       { value: 'name', label: 'Ordenar per nom' },
       { value: 'year', label: 'Ordenar per any' },
-      { value: 'rating', label: 'Ordenar per valoració' },
       { value: 'episodes', label: 'Ordenar per episodis' },
       { value: 'seasons', label: 'Ordenar per temporades' }
     ],
-    discoverCategories: {
+    categories: {
       popular: 'Populars',
-      trending: 'En tendència',
-      top_rated: 'Millor valorades',
+      name: 'Per nom',
+      year: 'Per any',
       on_the_air: 'En emissió',
       airing_today: 'Avui'
     },
@@ -102,7 +100,8 @@ function MediaLibrary({ type = 'series' }) {
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sortBy, setSortBy] = useState('name');
+  const [sortBy, setSortBy] = useState('popular');
+  const [activeCategory, setActiveCategory] = useState('popular');
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -131,8 +130,7 @@ function MediaLibrary({ type = 'series' }) {
   const [searchLoading, setSearchLoading] = useState(false);
   const [localSearchResults, setLocalSearchResults] = useState(null);
 
-  // Discover (només admin)
-  const [discoverCategory, setDiscoverCategory] = useState('popular');
+  // Discover (només admin per importar)
   const [discoverPage, setDiscoverPage] = useState(1);
   const [discoverTotalPages, setDiscoverTotalPages] = useState(1);
   const [discoverLoading, setDiscoverLoading] = useState(false);
@@ -199,7 +197,9 @@ function MediaLibrary({ type = 'series' }) {
     try {
       setLoading(true);
       const contentType = filtersToContentTypes(activeFilters);
-      const data = await getItems(currentPage, itemsPerPage, sortBy, contentType);
+      // Convertir categoria a sortBy per l'API
+      const apiSortBy = ['name', 'year'].includes(activeCategory) ? activeCategory : 'popular';
+      const data = await getItems(currentPage, itemsPerPage, apiSortBy, contentType);
       setItems(data.items || []);
       setTotalPages(data.total_pages || 1);
       setTotalItems(data.total || 0);
@@ -208,19 +208,19 @@ function MediaLibrary({ type = 'series' }) {
     } finally {
       setLoading(false);
     }
-  }, [activeFilters, currentPage, sortBy, getItems, filtersToContentTypes, config.emptyText]);
+  }, [activeFilters, currentPage, activeCategory, getItems, filtersToContentTypes, config.emptyText]);
 
   useEffect(() => {
     loadItems();
   }, [loadItems]);
 
-  // Auto-import discover si és admin
+  // Auto-import discover si és admin (només per categories TMDB)
   useEffect(() => {
-    if (isAdmin) {
-      loadAndImportDiscover('popular', 1);
+    if (isAdmin && !['name', 'year'].includes(activeCategory)) {
+      loadAndImportDiscover(activeCategory, 1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin]);
+  }, [isAdmin, activeCategory]);
 
   // Paginació
   const handlePageChange = (newPage) => {
@@ -246,8 +246,10 @@ function MediaLibrary({ type = 'series' }) {
     return pages;
   };
 
-  // Discover i import
+  // Discover i import (només admin)
   const loadAndImportDiscover = async (category, page) => {
+    if (!isAdmin || ['name', 'year'].includes(category)) return;
+
     setDiscoverLoading(true);
     try {
       const response = await axios.get(`${config.discoverEndpoint}?category=${category}&page=${page}`);
@@ -255,7 +257,6 @@ function MediaLibrary({ type = 'series' }) {
 
       setDiscoverTotalPages(response.data.total_pages);
       setDiscoverPage(page);
-      setDiscoverCategory(category);
 
       const toImport = results.filter(item => !item.in_library);
 
@@ -288,14 +289,19 @@ function MediaLibrary({ type = 'series' }) {
   };
 
   const handleCategoryChange = (category) => {
-    if (category !== discoverCategory && !autoImporting) {
-      loadAndImportDiscover(category, 1);
+    if (category !== activeCategory && !autoImporting) {
+      setActiveCategory(category);
+      setCurrentPage(1);
+      // Si és admin i és una categoria TMDB, importar
+      if (isAdmin && !['name', 'year'].includes(category)) {
+        loadAndImportDiscover(category, 1);
+      }
     }
   };
 
   const handleLoadMore = () => {
-    if (discoverPage < discoverTotalPages && !autoImporting) {
-      loadAndImportDiscover(discoverCategory, discoverPage + 1);
+    if (discoverPage < discoverTotalPages && !autoImporting && !['name', 'year'].includes(activeCategory)) {
+      loadAndImportDiscover(activeCategory, discoverPage + 1);
     }
   };
 
@@ -348,15 +354,6 @@ function MediaLibrary({ type = 'series' }) {
             )}
             {searchLoading && <div className="search-spinner"></div>}
           </div>
-          <select
-            className="sort-select"
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-          >
-            {config.sortOptions.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
         </div>
 
         {/* Filtres de tipus */}
@@ -373,13 +370,13 @@ function MediaLibrary({ type = 'series' }) {
         </div>
       </div>
 
-      {/* Category tabs - només admin */}
-      {isAdmin && !isSearching && (
+      {/* Category tabs - per tothom */}
+      {!isSearching && (
         <div className="category-tabs">
-          {Object.entries(config.discoverCategories).map(([key, label]) => (
+          {Object.entries(config.categories).map(([key, label]) => (
             <button
               key={key}
-              className={`category-tab ${discoverCategory === key ? 'active' : ''}`}
+              className={`category-tab ${activeCategory === key ? 'active' : ''}`}
               onClick={() => handleCategoryChange(key)}
               disabled={autoImporting}
             >
@@ -500,7 +497,7 @@ function MediaLibrary({ type = 'series' }) {
               <div className="spinner"></div>
               <span>
                 {autoImporting
-                  ? `Important ${config.emptyText} ${config.discoverCategories[discoverCategory]?.toLowerCase() || ''}...`
+                  ? `Important ${config.emptyText} ${config.categories[activeCategory]?.toLowerCase() || ''}...`
                   : `Carregant ${config.emptyText}...`}
               </span>
             </div>
@@ -512,15 +509,15 @@ function MediaLibrary({ type = 'series' }) {
             </div>
           )}
 
-          {/* Load more - només admin */}
-          {isAdmin && hasResults && discoverPage < discoverTotalPages && !autoImporting && (
+          {/* Load more - només admin per categories TMDB */}
+          {isAdmin && hasResults && discoverPage < discoverTotalPages && !autoImporting && !['name', 'year'].includes(activeCategory) && (
             <div className="load-more-container">
               <button
                 className="load-more-btn"
                 onClick={handleLoadMore}
                 disabled={discoverLoading}
               >
-                {discoverLoading ? 'Carregant...' : `Carregar més ${config.discoverCategories[discoverCategory]?.toLowerCase() || ''}`}
+                {discoverLoading ? 'Carregant...' : `Carregar més ${config.categories[activeCategory]?.toLowerCase() || ''}`}
               </button>
             </div>
           )}
