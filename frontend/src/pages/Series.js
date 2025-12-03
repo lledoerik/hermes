@@ -154,24 +154,17 @@ function Series() {
   const [autoImporting, setAutoImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
 
-  // Initial load - sempre carrega amb els filtres actuals
-  useEffect(() => {
-    loadSeries();
-    // Només auto-importar si és admin
-    if (isAdmin) {
-      loadAndImportDiscover('popular', 1);
-    }
-  }, [isAdmin]);
-
   // Guardar filtres a localStorage quan canvien
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(activeFilters));
   }, [activeFilters]);
 
-  // Reload series when pagination, sorting, or filters change
+  // Auto-importar discover si és admin (només un cop)
   useEffect(() => {
-    loadSeries();
-  }, [currentPage, sortBy, activeFilters]);
+    if (isAdmin) {
+      loadAndImportDiscover('popular', 1);
+    }
+  }, [isAdmin]);
 
   // Search in database when searchQuery or filters change
   useEffect(() => {
@@ -218,7 +211,7 @@ function Series() {
     setCurrentPage(1); // Tornar a la primera pàgina
   }, []);
 
-  const loadSeries = async () => {
+  const loadSeries = useCallback(async () => {
     try {
       setLoading(true);
       // Convertir filtres a content_types del backend
@@ -232,7 +225,12 @@ function Series() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeFilters, currentPage, sortBy, getSeries]);
+
+  // Carregar sèries quan canvien paginació, ordenació o filtres
+  useEffect(() => {
+    loadSeries();
+  }, [loadSeries]);
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages) {
