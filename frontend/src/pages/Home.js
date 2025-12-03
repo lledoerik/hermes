@@ -113,6 +113,80 @@ const PosterImage = ({ src, alt, type }) => {
   );
 };
 
+// Component per mostrar thumbnail de "Continuar veient" amb càrrega dinàmica de TMDB
+const ContinueThumbnail = ({ item, imageUrl, type }) => {
+  const [dynamicUrl, setDynamicUrl] = useState(imageUrl);
+  const [hasError, setHasError] = useState(false);
+  const [isLoading, setIsLoading] = useState(!imageUrl && item.tmdb_id);
+
+  useEffect(() => {
+    // Si ja tenim imageUrl, no cal fer res
+    if (imageUrl) {
+      setDynamicUrl(imageUrl);
+      setIsLoading(false);
+      return;
+    }
+
+    // Si tenim tmdb_id però no imageUrl, carregar de TMDB
+    if (item.tmdb_id && !imageUrl) {
+      const fetchTmdbImage = async () => {
+        try {
+          const mediaType = type === 'movie' ? 'movie' : 'tv';
+          // Primer intentem obtenir la imatge de l'episodi si és una sèrie
+          if (type === 'series' && item.season_number && item.episode_number) {
+            const seasonRes = await axios.get(`/api/tmdb/tv/${item.tmdb_id}/season/${item.season_number}`);
+            const episode = seasonRes.data?.episodes?.find(ep => ep.episode_number === item.episode_number);
+            if (episode?.still_path) {
+              // still_path ja ve com URL completa des de l'API
+              setDynamicUrl(episode.still_path);
+              setIsLoading(false);
+              return;
+            }
+          }
+          // Si no, obtenim el backdrop/poster de la sèrie/pel·lícula
+          const res = await axios.get(`/api/tmdb/${mediaType}/${item.tmdb_id}`);
+          if (res.data?.backdrop_path) {
+            setDynamicUrl(`https://image.tmdb.org/t/p/w780${res.data.backdrop_path}`);
+          } else if (res.data?.poster_path) {
+            setDynamicUrl(`https://image.tmdb.org/t/p/w500${res.data.poster_path}`);
+          }
+        } catch (e) {
+          console.debug('Error fetching TMDB image:', e);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      fetchTmdbImage();
+    } else {
+      setIsLoading(false);
+    }
+  }, [item.tmdb_id, item.season_number, item.episode_number, imageUrl, type]);
+
+  if (isLoading) {
+    return (
+      <div className="thumbnail-placeholder loading">
+        {type === 'series' ? <SeriesIcon /> : <MovieIcon />}
+      </div>
+    );
+  }
+
+  if (!dynamicUrl || hasError) {
+    return (
+      <div className="thumbnail-placeholder">
+        {type === 'series' ? <SeriesIcon /> : <MovieIcon />}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={dynamicUrl}
+      alt={item.series_name || item.title}
+      onError={() => setHasError(true)}
+    />
+  );
+};
+
 function Home() {
   const { isAuthenticated, user } = useAuth();
   const [continueWatchingMovies, setContinueWatchingMovies] = useState([]);
@@ -316,10 +390,7 @@ function Home() {
         {/* Continue Watching - Pel·lícules */}
         {continueWatchingMovies.length > 0 && (
           <section className="continue-watching-section">
-            <h2 className="row-title">
-              <span className="title-icon"><MovieIcon /></span>
-              Continuar veient pel·lícules
-            </h2>
+            <h2 className="row-title">Continuar veient pel·lícules</h2>
             <div className="content-scroll">
               {continueWatchingMovies.map((item, index) => {
                 // Determinar URL de la imatge segons la font
@@ -352,16 +423,11 @@ function Home() {
                     }}
                   >
                     <div className="continue-thumbnail">
-                      {imageUrl ? (
-                        <img
-                          src={imageUrl}
-                          alt={item.series_name || item.title}
-                        />
-                      ) : (
-                        <div className="thumbnail-placeholder">
-                          <MovieIcon />
-                        </div>
-                      )}
+                      <ContinueThumbnail
+                        item={item}
+                        imageUrl={imageUrl}
+                        type="movie"
+                      />
                       <div className="continue-overlay">
                         <button className="play-btn">
                           <PlayIcon />
@@ -390,10 +456,7 @@ function Home() {
         {/* Continue Watching - Sèries */}
         {continueWatchingSeries.length > 0 && (
           <section className="continue-watching-section">
-            <h2 className="row-title">
-              <span className="title-icon"><SeriesIcon /></span>
-              Continuar veient sèries
-            </h2>
+            <h2 className="row-title">Continuar veient sèries</h2>
             <div className="content-scroll">
               {continueWatchingSeries.map((item, index) => {
                 // Determinar URL de la imatge segons la font
@@ -402,11 +465,18 @@ function Home() {
                 if (item.source === 'streaming') {
                   // Per streaming, prioritzar still_path (miniatura de l'episodi)
                   if (item.still_path) {
-                    imageUrl = `https://image.tmdb.org/t/p/w500${item.still_path}`;
+                    // still_path pot venir com URL completa o només el path
+                    imageUrl = item.still_path.startsWith('http')
+                      ? item.still_path
+                      : `https://image.tmdb.org/t/p/w500${item.still_path}`;
                   } else if (item.backdrop) {
-                    imageUrl = `https://image.tmdb.org/t/p/w780${item.backdrop}`;
+                    imageUrl = item.backdrop.startsWith('http')
+                      ? item.backdrop
+                      : `https://image.tmdb.org/t/p/w780${item.backdrop}`;
                   } else if (item.poster) {
-                    imageUrl = `https://image.tmdb.org/t/p/w500${item.poster}`;
+                    imageUrl = item.poster.startsWith('http')
+                      ? item.poster
+                      : `https://image.tmdb.org/t/p/w500${item.poster}`;
                   }
                 } else {
                   // Per contingut local
@@ -420,7 +490,6 @@ function Home() {
                     key={item.source === 'streaming' ? `stream-${item.tmdb_id}-${item.season_number}-${item.episode_number}` : `local-${item.id}-${index}`}
                     className="continue-card"
                     onClick={() => {
-                      // Sempre navegar a streaming
                       if (item.tmdb_id) {
                         navigate(`/stream/tv/${item.tmdb_id}?s=${item.season_number || 1}&e=${item.episode_number || 1}`);
                       } else {
@@ -429,16 +498,11 @@ function Home() {
                     }}
                   >
                     <div className="continue-thumbnail">
-                      {imageUrl ? (
-                        <img
-                          src={imageUrl}
-                          alt={item.series_name}
-                        />
-                      ) : (
-                        <div className="thumbnail-placeholder">
-                          <SeriesIcon />
-                        </div>
-                      )}
+                      <ContinueThumbnail
+                        item={item}
+                        imageUrl={imageUrl}
+                        type="series"
+                      />
                       <div className="continue-overlay">
                         <button className="play-btn">
                           <PlayIcon />
@@ -470,10 +534,7 @@ function Home() {
         {/* Continue Watching - Programes */}
         {continueWatchingPrograms.length > 0 && (
           <section className="continue-watching-section">
-            <h2 className="row-title">
-              <span className="title-icon"><ProgramsIcon /></span>
-              Continuar veient programes
-            </h2>
+            <h2 className="row-title">Continuar veient programes</h2>
             <div className="content-scroll">
               {continueWatchingPrograms.map((item) => (
                 <div
@@ -519,10 +580,7 @@ function Home() {
         {/* Continua llegint - Llibres */}
         {continueReadingBooks.length > 0 && (
           <section className="continue-watching-section">
-            <h2 className="row-title">
-              <span className="title-icon"><BookIcon /></span>
-              Continua llegint
-            </h2>
+            <h2 className="row-title">Continua llegint</h2>
             <div className="content-scroll">
               {continueReadingBooks.map((item) => (
                 <div
@@ -570,10 +628,7 @@ function Home() {
         {/* Continua escoltant - Audiollibres */}
         {continueListeningAudiobooks.length > 0 && (
           <section className="continue-watching-section">
-            <h2 className="row-title">
-              <span className="title-icon"><AudiobookIcon /></span>
-              Continua escoltant
-            </h2>
+            <h2 className="row-title">Continua escoltant</h2>
             <div className="content-scroll">
               {continueListeningAudiobooks.map((item) => (
                 <div
@@ -626,7 +681,6 @@ function Home() {
         {watchlist.length > 0 && (
           <section className="content-row">
             <h2 className="row-title">
-              <span className="title-icon"><WatchlistIcon /></span>
               La meva llista
               <Link to="/watchlist" className="see-all-link">Veure tot</Link>
             </h2>
