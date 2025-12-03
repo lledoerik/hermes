@@ -65,10 +65,22 @@ const CheckCircleIcon = () => (
   </svg>
 );
 
+// Detectar si és anime (Animation + Japonès)
+const isAnimeContent = (mediaInfo) => {
+  if (!mediaInfo) return false;
+  const isAnimation = mediaInfo.genres?.some(g => g.id === 16 || g.name?.toLowerCase() === 'animation');
+  const isJapanese = mediaInfo.original_language === 'ja';
+  return isAnimation && isJapanese;
+};
+
 // Construir URL per VidSrc.cc
-const getEmbedUrl = (type, tmdbId, season, episode) => {
+const getEmbedUrl = (type, tmdbId, season, episode, isAnime = false) => {
   if (type === 'movie') {
     return `https://vidsrc.cc/v2/embed/movie/${tmdbId}`;
+  }
+  // Per anime, usar endpoint específic
+  if (isAnime) {
+    return `https://vidsrc.cc/v2/embed/anime/${tmdbId}/${episode || 1}/sub`;
   }
   return `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
 };
@@ -105,10 +117,15 @@ function StreamPlayer() {
 
   const mediaType = type === 'movie' ? 'movie' : 'tv';
 
-  // URL d'embed (només VidSrc.cc)
+  // Detectar si és anime
+  const isAnime = React.useMemo(() => {
+    return isAnimeContent(mediaInfo);
+  }, [mediaInfo]);
+
+  // URL d'embed (VidSrc.cc amb detecció d'anime)
   const embedUrl = React.useMemo(() => {
-    return getEmbedUrl(mediaType, tmdbId, season, episode);
-  }, [mediaType, tmdbId, season, episode]);
+    return getEmbedUrl(mediaType, tmdbId, season, episode, isAnime);
+  }, [mediaType, tmdbId, season, episode, isAnime]);
 
   // Funcions per carregar dades
   const loadMediaInfo = useCallback(async () => {
