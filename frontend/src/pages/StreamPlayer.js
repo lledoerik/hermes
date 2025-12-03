@@ -220,7 +220,7 @@ function StreamPlayer() {
   const { type, tmdbId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { isPremium, isAuthenticated } = useAuth();
+  const { isPremium } = useAuth();
   const containerRef = useRef(null);
   const episodesMenuRef = useRef(null);
   const controlsTimeoutRef = useRef(null);
@@ -244,7 +244,7 @@ function StreamPlayer() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showStartOverlay, setShowStartOverlay] = useState(false); // Sense overlay
   const [hasStartedPlaying, setHasStartedPlaying] = useState(true); // Reproduir directament
-  const [hasTriedFallback, setHasTriedFallback] = useState(false);
+  const [, setHasTriedFallback] = useState(false);
   const [manualSourceChange, setManualSourceChange] = useState(false); // Canvi manual de servidor
 
   // Estat de progrés de visualització
