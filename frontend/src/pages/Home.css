@@ -558,28 +558,33 @@
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--color-primary);
   border: none;
-  color: #000;
+  outline: none;
+  color: white;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
 }
 
 .continue-overlay .play-btn svg {
-  color: #000;
-  fill: #000;
+  color: white;
+  fill: white;
   width: 24px;
   height: 24px;
 }
 
 .continue-overlay .play-btn:hover {
   transform: scale(1.1);
-  background: #e5e5e5;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  background: var(--color-primary-light);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+
+.continue-overlay .play-btn:focus {
+  outline: none;
 }
 
 .continue-thumbnail .progress-bar {
@@ -903,12 +908,18 @@
   border-radius: 50%;
   background: var(--color-primary);
   border: none;
+  outline: none;
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: transform var(--transition-fast);
+}
+
+.quick-play-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(50, 132, 146, 0.4);
 }
 
 .quick-play-btn:hover {
