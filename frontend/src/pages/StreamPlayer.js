@@ -213,7 +213,9 @@ function StreamPlayer() {
         episode_number: type !== 'movie' ? (episode || 1) : null,
         progress_percent: progressPercent,
         completed: completed,
-        title: mediaInfo?.title || mediaInfo?.name || ''
+        title: mediaInfo?.title || mediaInfo?.name || '',
+        poster_path: mediaInfo?.poster_path || null,
+        backdrop_path: mediaInfo?.backdrop_path || null
       });
       if (completed) {
         setIsWatched(true);
@@ -314,7 +316,9 @@ function StreamPlayer() {
           episode_number: type !== 'movie' ? (episode || 1) : null,
           progress_percent: 50,
           completed: false,
-          title: mediaInfo?.title || mediaInfo?.name || ''
+          title: mediaInfo?.title || mediaInfo?.name || '',
+          poster_path: mediaInfo?.poster_path || null,
+          backdrop_path: mediaInfo?.backdrop_path || null
         });
         navigator.sendBeacon(`${API_URL}/api/streaming/progress`, data);
       }
