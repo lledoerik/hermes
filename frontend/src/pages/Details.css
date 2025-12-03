@@ -276,6 +276,55 @@
   background: rgba(255, 255, 255, 0.2);
 }
 
+/* Watchlist Button */
+.watchlist-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 24px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.watchlist-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-2px);
+}
+
+.watchlist-btn:active {
+  transform: translateY(0);
+}
+
+.watchlist-btn.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+}
+
+.watchlist-btn.active:hover {
+  background: var(--color-primary-dark);
+  border-color: var(--color-primary-dark);
+}
+
+.watchlist-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.watchlist-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
 /* ========================================
    POSTER (opcional, menys prominent)
    ======================================== */

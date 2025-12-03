@@ -80,6 +80,18 @@ const PlayIcon = () => (
   </svg>
 );
 
+const WatchlistIcon = () => (
+  <svg className="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+  </svg>
+);
+
+const StarIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+  </svg>
+);
+
 // Component per mostrar imatge amb fallback a placeholder
 const PosterImage = ({ src, alt, type }) => {
   const [hasError, setHasError] = useState(false);
@@ -111,6 +123,7 @@ function Home() {
   const [recentlyAdded, setRecentlyAdded] = useState([]);
   const [recentSeries, setRecentSeries] = useState([]);
   const [recentMovies, setRecentMovies] = useState([]);
+  const [watchlist, setWatchlist] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
@@ -185,6 +198,14 @@ function Home() {
           setRecentlyAdded(mixed);
         } catch (e) {
           console.error('Error carregant contingut recent:', e);
+        }
+
+        // Watchlist (llista de l'usuari)
+        try {
+          const watchlistRes = await axios.get('/api/user/watchlist?limit=10');
+          setWatchlist(watchlistRes.data || []);
+        } catch (e) {
+          console.debug('Watchlist no disponible');
         }
       }
     } catch (error) {
@@ -600,6 +621,67 @@ function Home() {
           title="Per a tu"
           items={recentlyAdded}
         />
+
+        {/* La meva llista (Watchlist) */}
+        {watchlist.length > 0 && (
+          <section className="content-row">
+            <h2 className="row-title">
+              <span className="title-icon"><WatchlistIcon /></span>
+              La meva llista
+              <Link to="/watchlist" className="see-all-link">Veure tot</Link>
+            </h2>
+            <div className="content-scroll">
+              {watchlist.map((item) => {
+                const itemType = item.media_type === 'movie' ? 'movies' : 'series';
+                const link = `/${itemType}/tmdb-${item.tmdb_id}`;
+                const image = item.poster_path
+                  ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+                  : null;
+
+                return (
+                  <div
+                    key={`watchlist-${item.id}`}
+                    className="content-card"
+                    onClick={() => navigate(link)}
+                  >
+                    <div className="content-poster">
+                      {image ? (
+                        <img src={image} alt={item.title} />
+                      ) : (
+                        <div className="poster-placeholder">
+                          {item.media_type === 'movie' ? <MovieIcon /> : <SeriesIcon />}
+                        </div>
+                      )}
+                      <div className="content-hover">
+                        <button className="quick-play-btn" onClick={(e) => {
+                          e.stopPropagation();
+                          if (item.media_type === 'movie') {
+                            navigate(`/stream/movie/${item.tmdb_id}`);
+                          } else {
+                            navigate(`/stream/tv/${item.tmdb_id}?s=1&e=1`);
+                          }
+                        }}>
+                          <PlayIcon />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="content-meta">
+                      <h4>{item.title}</h4>
+                      <div className="content-meta-row">
+                        {item.year && <span className="content-year">{item.year}</span>}
+                        {item.rating && (
+                          <span className="content-rating">
+                            <StarIcon /> {item.rating.toFixed(1)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {/* Sèries */}
         <ContentRow

@@ -20,6 +20,7 @@ import TV from './pages/TV';
 import Programs from './pages/Programs';
 import Login from './pages/Login';
 import Profile from './pages/Profile';
+import Watchlist from './pages/Watchlist';
 import './App.css';
 
 // Main app content with loading screen
@@ -81,6 +82,7 @@ function AppContent() {
                     <Route path="/search" element={<Search />} />
                     <Route path="/admin" element={<Admin />} />
                     <Route path="/profile" element={<Profile />} />
+                    <Route path="/watchlist" element={<Watchlist />} />
                   </Routes>
                 </main>
               </>

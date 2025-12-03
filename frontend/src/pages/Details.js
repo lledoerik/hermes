@@ -43,11 +43,17 @@ const ChevronRightIcon = () => (
   </svg>
 );
 
+const BookmarkIcon = ({ filled = false }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+  </svg>
+);
+
 function Details() {
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { isAdmin, isPremium } = useAuth();
+  const { isAdmin, isPremium, isAuthenticated } = useAuth();
   // Determinar el tipus segons la ruta
   const type = location.pathname.startsWith('/movies') ? 'movies' : 'series';
 
@@ -80,6 +86,10 @@ function Details() {
   const seasonsScrollRef = useRef(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+
+  // Watchlist state
+  const [isInWatchlist, setIsInWatchlist] = useState(false);
+  const [watchlistLoading, setWatchlistLoading] = useState(false);
 
   const checkScrollButtons = useCallback(() => {
     const container = seasonsScrollRef.current;
@@ -350,6 +360,64 @@ function Details() {
     }
   };
 
+  // Watchlist functions
+  const checkWatchlist = useCallback(async () => {
+    if (!isAuthenticated || !item) return;
+
+    const tmdbIdToCheck = isTmdbOnly ? realTmdbId : item.tmdb_id;
+    if (!tmdbIdToCheck) return;
+
+    try {
+      const mediaType = type === 'movies' ? 'movie' : 'series';
+      const response = await axios.get(`/api/user/watchlist/check/${tmdbIdToCheck}?media_type=${mediaType}`);
+      setIsInWatchlist(response.data.in_watchlist);
+    } catch (error) {
+      console.error('Error checking watchlist:', error);
+    }
+  }, [isAuthenticated, item, isTmdbOnly, realTmdbId, type]);
+
+  const toggleWatchlist = async () => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+
+    const tmdbIdToUse = isTmdbOnly ? realTmdbId : item?.tmdb_id;
+    if (!tmdbIdToUse) return;
+
+    setWatchlistLoading(true);
+    const mediaType = type === 'movies' ? 'movie' : 'series';
+
+    try {
+      if (isInWatchlist) {
+        await axios.delete(`/api/user/watchlist/${tmdbIdToUse}?media_type=${mediaType}`);
+        setIsInWatchlist(false);
+      } else {
+        await axios.post('/api/user/watchlist', {
+          tmdb_id: tmdbIdToUse,
+          media_type: mediaType,
+          title: item?.title || item?.name,
+          poster_path: item?.poster || item?.poster_path,
+          backdrop_path: item?.backdrop || item?.backdrop_path,
+          year: item?.year,
+          rating: item?.rating
+        });
+        setIsInWatchlist(true);
+      }
+    } catch (error) {
+      console.error('Error toggling watchlist:', error);
+    } finally {
+      setWatchlistLoading(false);
+    }
+  };
+
+  // Check watchlist when item loads
+  useEffect(() => {
+    if (item) {
+      checkWatchlist();
+    }
+  }, [item, checkWatchlist]);
+
   const handleUpdateByTmdbId = async () => {
     if (!tmdbId.trim()) {
       setTmdbMessage({ type: 'error', text: 'Introdueix un ID de TMDB' });
@@ -618,6 +686,16 @@ function Details() {
                   <PlayIcon /> Reproduir
                 </button>
               )}
+              {/* Botó de watchlist */}
+              <button
+                className={`watchlist-btn ${isInWatchlist ? 'active' : ''}`}
+                onClick={toggleWatchlist}
+                disabled={watchlistLoading}
+                title={isInWatchlist ? 'Eliminar de la llista' : 'Afegir a la llista'}
+              >
+                <BookmarkIcon filled={isInWatchlist} />
+                {isInWatchlist ? 'A la llista' : 'Afegir a la llista'}
+              </button>
               {isAdmin && (
                 <>
                   <button
