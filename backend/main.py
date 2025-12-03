@@ -307,10 +307,17 @@ def init_all_tables():
                 title TEXT,
                 poster_path TEXT,
                 backdrop_path TEXT,
+                still_path TEXT,
                 updated_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(user_id, tmdb_id, media_type, season_number, episode_number)
             )
         """)
+
+        # Migració: Afegir columna still_path si no existeix
+        try:
+            cursor.execute("ALTER TABLE streaming_progress ADD COLUMN still_path TEXT")
+        except:
+            pass  # La columna ja existeix
 
         # Migració: Crear índex UNIQUE per watch_progress si no existeix
         # (per bases de dades existents que no tenen la constraint)
@@ -388,6 +395,7 @@ class StreamingProgressRequest(BaseModel):
     title: Optional[str] = None
     poster_path: Optional[str] = None
     backdrop_path: Optional[str] = None
+    still_path: Optional[str] = None  # Miniatura de l'episodi
 
 
 # === STREAMING AMB RANGE SUPPORT ===
@@ -838,6 +846,7 @@ async def get_continue_watching(request: Request):
                 sp.title,
                 sp.poster_path,
                 sp.backdrop_path,
+                sp.still_path,
                 sp.updated_date
             FROM streaming_progress sp
             WHERE sp.user_id = ?
@@ -864,6 +873,7 @@ async def get_continue_watching(request: Request):
                 "episode_number": row["episode_number"],
                 "poster": row["poster_path"],
                 "backdrop": row["backdrop_path"],
+                "still_path": row["still_path"],
                 "progress_seconds": row["progress_percent"] * 60,  # Simular segons per compatibilitat
                 "total_seconds": 6000,  # Valor estimat (100 min)
                 "progress_percentage": row["progress_percent"],
@@ -990,19 +1000,20 @@ async def save_streaming_progress(data: StreamingProgressRequest, request: Reque
         cursor.execute("""
             INSERT INTO streaming_progress (
                 user_id, tmdb_id, media_type, season_number, episode_number,
-                progress_percent, completed, title, poster_path, backdrop_path, updated_date
+                progress_percent, completed, title, poster_path, backdrop_path, still_path, updated_date
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
             ON CONFLICT(user_id, tmdb_id, media_type, season_number, episode_number) DO UPDATE SET
                 progress_percent = excluded.progress_percent,
                 completed = excluded.completed,
                 title = COALESCE(excluded.title, streaming_progress.title),
                 poster_path = COALESCE(excluded.poster_path, streaming_progress.poster_path),
                 backdrop_path = COALESCE(excluded.backdrop_path, streaming_progress.backdrop_path),
+                still_path = COALESCE(excluded.still_path, streaming_progress.still_path),
                 updated_date = datetime('now')
         """, (user_id, data.tmdb_id, data.media_type, season, episode,
               data.progress_percent, 1 if data.completed else 0, data.title,
-              data.poster_path, data.backdrop_path))
+              data.poster_path, data.backdrop_path, data.still_path))
 
         conn.commit()
 

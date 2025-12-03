@@ -652,7 +652,8 @@
    ============================================ */
 
 .home-container.authenticated {
-  --content-padding: clamp(16px, 4vw, 60px);
+  --content-padding: clamp(24px, 5vw, 80px);
+  --max-content-width: 1600px;
   padding-top: 20px;
   padding-bottom: 40px;
 }
@@ -689,8 +690,11 @@
 /* Content Rows (Netflix style) */
 .content-row,
 .continue-watching-section {
-  padding: 0 var(--content-padding);
+  max-width: var(--max-content-width);
+  margin-left: auto;
+  margin-right: auto;
   margin-bottom: var(--space-lg);
+  padding: 0 var(--content-padding);
 }
 
 .row-title {
@@ -709,6 +713,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  max-width: var(--max-content-width);
+  margin-left: auto;
+  margin-right: auto;
   padding: var(--space-lg) var(--content-padding);
   margin-bottom: var(--space-md);
 }
@@ -942,6 +949,9 @@
 
 /* Quick Access Grid */
 .quick-access {
+  max-width: var(--max-content-width);
+  margin-left: auto;
+  margin-right: auto;
   padding: var(--space-xl) var(--content-padding);
   margin-top: var(--space-md);
 }
