@@ -160,24 +160,22 @@ function Movies() {
   const [autoImporting, setAutoImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
 
-  // Initial load - sempre carrega amb els filtres actuals
-  useEffect(() => {
-    loadMovies();
-    // Només auto-importar si és admin
-    if (isAdmin) {
-      loadAndImportDiscover('popular', 1);
-    }
-  }, [isAdmin]);
-
   // Guardar filtres a localStorage quan canvien
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(activeFilters));
   }, [activeFilters]);
 
-  // Reload movies when pagination, sorting, or filters change
+  // Carregar pel·lícules quan canvien paginació, ordenació o filtres
   useEffect(() => {
     loadMovies();
-  }, [currentPage, sortBy, activeFilters]);
+  }, [loadMovies]);
+
+  // Auto-importar discover si és admin (només un cop)
+  useEffect(() => {
+    if (isAdmin) {
+      loadAndImportDiscover('popular', 1);
+    }
+  }, [isAdmin]);
 
   // Search in database when searchQuery or filters change
   useEffect(() => {
@@ -224,7 +222,7 @@ function Movies() {
     setCurrentPage(1); // Tornar a la primera pàgina
   }, []);
 
-  const loadMovies = async () => {
+  const loadMovies = useCallback(async () => {
     try {
       setLoading(true);
       // Convertir filtres a content_types del backend
@@ -238,7 +236,7 @@ function Movies() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeFilters, currentPage, sortBy, getMovies]);
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages) {
