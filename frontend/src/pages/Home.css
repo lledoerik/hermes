@@ -951,6 +951,39 @@
   color: var(--text-muted);
 }
 
+.content-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.content-rating {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.content-rating svg {
+  color: #f59e0b;
+}
+
+/* See All Link */
+.see-all-link {
+  margin-left: auto;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.see-all-link:hover {
+  color: var(--color-primary-light);
+  text-decoration: underline;
+}
+
 /* Continue watching in scroll */
 .continue-watching-section .content-scroll .continue-card {
   flex: 0 0 auto;
