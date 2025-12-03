@@ -151,15 +151,14 @@ const EMBED_SOURCES = [
       return `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1&s=${season || 1}&e=${episode || 1}`;
     }
   },
-  // === FONTS D'ANIME (només sèries) ===
+  // === FONTS D'ANIME INTERNACIONALS ===
   {
     id: 'vidsrc-anime-sub',
     name: 'Anime SUB',
     description: 'Japonès + Subs',
+    category: 'anime',
     getUrl: (type, tmdbId, season, episode) => {
-      // Només funciona per sèries (anime)
       if (type === 'movie') return null;
-      // Format: https://vidsrc.cc/v2/embed/anime/{tmdb_id}/{episode}/sub
       return `https://vidsrc.cc/v2/embed/anime/${tmdbId}/${episode || 1}/sub`;
     }
   },
@@ -167,10 +166,9 @@ const EMBED_SOURCES = [
     id: 'vidsrc-anime-dub',
     name: 'Anime DUB',
     description: 'Anglès doblat',
+    category: 'anime',
     getUrl: (type, tmdbId, season, episode) => {
-      // Només funciona per sèries (anime)
       if (type === 'movie') return null;
-      // Format: https://vidsrc.cc/v2/embed/anime/{tmdb_id}/{episode}/dub
       return `https://vidsrc.cc/v2/embed/anime/${tmdbId}/${episode || 1}/dub`;
     }
   },
@@ -178,16 +176,43 @@ const EMBED_SOURCES = [
     id: 'autoembed-anime',
     name: 'AutoEmbed Anime',
     description: 'Anime alternatiu',
-    needsTitle: true, // Indica que necessita el títol
+    category: 'anime',
+    needsTitle: true,
     getUrl: (type, tmdbId, season, episode, title) => {
-      // Només funciona per sèries (anime) i necessita títol
       if (type === 'movie') return null;
-      if (!title) return 'waiting'; // Espera el títol
+      if (!title) return 'waiting';
       const slug = createAnimeSlug(title);
       if (!slug) return null;
-      // Format: https://anime.autoembed.cc/embed/{slug}-episode-{number}
       return `https://anime.autoembed.cc/embed/${slug}-episode-${episode || 1}`;
     }
+  },
+  // === FONTS D'ANIME EN ESPANYOL/CATALÀ (requereixen cerca per títol) ===
+  {
+    id: 'animeflv',
+    name: 'AnimeFLV',
+    description: 'Espanyol SUB',
+    category: 'anime-es',
+    isDynamic: true,  // Indica que requereix cerca al backend
+    language: 'es-sub',
+    getUrl: () => 'dynamic'  // Placeholder, la URL real s'obté del backend
+  },
+  {
+    id: 'henaojara',
+    name: 'HenaoJara',
+    description: 'Espanyol Latino',
+    category: 'anime-es',
+    isDynamic: true,
+    language: 'es-lat',
+    getUrl: () => 'dynamic'
+  },
+  {
+    id: 'fansubscat',
+    name: 'Fansubs.cat',
+    description: 'Català',
+    category: 'anime-ca',
+    isDynamic: true,
+    language: 'ca',
+    getUrl: () => 'dynamic'
   }
 ];
 
@@ -225,8 +250,14 @@ function StreamPlayer() {
   const [isWatched, setIsWatched] = useState(false);
   const [watchStartTime, setWatchStartTime] = useState(Date.now()); // Iniciar temps de visualització
 
-  // Timeout per amagar controls
-  const controlsTimeoutRef = useRef(null);
+  // Estat per fonts dinàmiques d'anime (AnimeFLV, HenaoJara, Fansubs.cat)
+  const [showAnimeSearch, setShowAnimeSearch] = useState(false);
+  const [animeSearchResults, setAnimeSearchResults] = useState([]);
+  const [animeSearchLoading, setAnimeSearchLoading] = useState(false);
+  const [selectedAnime, setSelectedAnime] = useState(null); // { source, id, title }
+  const [animeServers, setAnimeServers] = useState([]);
+  const [selectedAnimeServer, setSelectedAnimeServer] = useState(null);
+  const [dynamicEmbedUrl, setDynamicEmbedUrl] = useState(null);
 
   const currentSource = EMBED_SOURCES[currentSourceIndex];
   const mediaType = type === 'movie' ? 'movie' : 'tv';
@@ -236,6 +267,15 @@ function StreamPlayer() {
 
   // Construir URL per embed
   const embedUrl = React.useMemo(() => {
+    // Si és una font dinàmica i tenim URL dinàmica, usar-la
+    if (currentSource.isDynamic && dynamicEmbedUrl) {
+      return dynamicEmbedUrl;
+    }
+    // Si és font dinàmica sense URL, retornar null (mostrarà cerca)
+    if (currentSource.isDynamic) {
+      return null;
+    }
+
     const url = currentSource.getUrl(mediaType, tmdbId, season, episode, mediaTitle);
     // 'waiting' significa que espera el títol (per fonts d'anime)
     if (url === 'waiting') {
@@ -243,7 +283,7 @@ function StreamPlayer() {
     }
     // null significa que no és compatible (ex: anime-only per pel·lícules)
     return url;
-  }, [currentSource, mediaType, tmdbId, season, episode, mediaTitle]);
+  }, [currentSource, mediaType, tmdbId, season, episode, mediaTitle, dynamicEmbedUrl]);
 
   // Funcions per carregar dades
   const loadMediaInfo = useCallback(async () => {
@@ -338,6 +378,78 @@ function StreamPlayer() {
       console.log('Fullscreen request failed:', e);
     }
   }, []);
+
+  // === FUNCIONS PER FONTS DINÀMIQUES D'ANIME ===
+
+  // Cercar anime pel títol a la font seleccionada
+  const searchAnime = useCallback(async (source, query) => {
+    setAnimeSearchLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/api/anime/search`, {
+        params: { q: query, source }
+      });
+      setAnimeSearchResults(response.data.results || []);
+    } catch (error) {
+      console.error('Error cercant anime:', error);
+      setAnimeSearchResults([]);
+    } finally {
+      setAnimeSearchLoading(false);
+    }
+  }, []);
+
+  // Obtenir servidors per un episodi d'anime
+  const loadAnimeServers = useCallback(async (source, animeId, episodeNum) => {
+    setLoading(true);
+    try {
+      const response = await axios.get(
+        `${API_URL}/api/anime/${source}/${animeId}/episode/${episodeNum}`
+      );
+      const servers = response.data.servers || [];
+      setAnimeServers(servers);
+
+      // Si hi ha servidors, seleccionar el primer automàticament
+      if (servers.length > 0) {
+        setSelectedAnimeServer(servers[0]);
+        setDynamicEmbedUrl(servers[0].url);
+        setShowAnimeSearch(false);
+      }
+    } catch (error) {
+      console.error('Error obtenint servidors:', error);
+      setAnimeServers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Quan es selecciona un anime dels resultats de cerca
+  const handleSelectAnime = useCallback(async (anime) => {
+    setSelectedAnime(anime);
+    // Carregar servidors per l'episodi actual
+    await loadAnimeServers(anime.source, anime.id, episode || 1);
+  }, [episode, loadAnimeServers]);
+
+  // Quan es selecciona un servidor d'anime
+  const handleSelectAnimeServer = useCallback((server) => {
+    setSelectedAnimeServer(server);
+    setDynamicEmbedUrl(server.url);
+    setShowSourceMenu(false);
+  }, []);
+
+  // Iniciar cerca quan es selecciona una font dinàmica
+  useEffect(() => {
+    if (currentSource.isDynamic && mediaTitle && !selectedAnime) {
+      setShowAnimeSearch(true);
+      searchAnime(currentSource.id, mediaTitle);
+    }
+  }, [currentSource, mediaTitle, selectedAnime, searchAnime]);
+
+  // Reset quan canvia l'episodi
+  useEffect(() => {
+    if (selectedAnime && currentSource.isDynamic) {
+      // Tornar a carregar servidors pel nou episodi
+      loadAnimeServers(selectedAnime.source, selectedAnime.id, episode || 1);
+    }
+  }, [episode, selectedAnime, currentSource, loadAnimeServers]);
 
   // Carregar info del media si no s'ha passat per state
   useEffect(() => {
@@ -518,6 +630,22 @@ function StreamPlayer() {
     setLoading(true);
     setCurrentSourceIndex(index);
     setShowSourceMenu(false);
+
+    // Reset estat d'anime quan canvia la font
+    const newSource = EMBED_SOURCES[index];
+    if (!newSource.isDynamic) {
+      // Si la nova font no és dinàmica, reset tot
+      setSelectedAnime(null);
+      setAnimeServers([]);
+      setSelectedAnimeServer(null);
+      setDynamicEmbedUrl(null);
+      setShowAnimeSearch(false);
+    } else {
+      // Si és dinàmica, reset la URL i mostrar cerca
+      setDynamicEmbedUrl(null);
+      setSelectedAnime(null);
+      setShowAnimeSearch(true);
+    }
   }, []);
 
   // Tornar enrere - usar historial del navegador per anar a la pàgina correcta
@@ -683,11 +811,99 @@ function StreamPlayer() {
       )}
 
       {/* Loading overlay */}
-      {loading && hasStartedPlaying && (
+      {loading && hasStartedPlaying && !showAnimeSearch && (
         <div className="stream-loading-overlay">
           <div className="stream-loading-spinner">
             <div className="spinner"></div>
             <p>Carregant {currentSource.name}...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de cerca d'anime per fonts dinàmiques */}
+      {showAnimeSearch && currentSource.isDynamic && (
+        <div className="stream-anime-search-overlay">
+          <div className="stream-anime-search-modal">
+            <div className="anime-search-header">
+              <h3>Cercar a {currentSource.name}</h3>
+              <p className="anime-search-lang">{currentSource.description}</p>
+              <button
+                className="anime-search-close"
+                onClick={() => setShowAnimeSearch(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="anime-search-input-wrapper">
+              <input
+                type="text"
+                className="anime-search-input"
+                placeholder="Cerca anime..."
+                defaultValue={mediaTitle}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    searchAnime(currentSource.id, e.target.value);
+                  }
+                }}
+              />
+              <button
+                className="anime-search-btn"
+                onClick={(e) => {
+                  const input = e.target.parentElement.querySelector('input');
+                  searchAnime(currentSource.id, input.value);
+                }}
+              >
+                Cercar
+              </button>
+            </div>
+
+            {animeSearchLoading ? (
+              <div className="anime-search-loading">
+                <div className="spinner"></div>
+                <p>Cercant...</p>
+              </div>
+            ) : (
+              <div className="anime-search-results">
+                {animeSearchResults.length === 0 ? (
+                  <p className="anime-no-results">No s'han trobat resultats. Prova amb un altre nom.</p>
+                ) : (
+                  animeSearchResults.map((anime, index) => (
+                    <div
+                      key={`${anime.source}-${anime.id}-${index}`}
+                      className="anime-search-item"
+                      onClick={() => handleSelectAnime(anime)}
+                    >
+                      {anime.cover && (
+                        <img src={anime.cover} alt={anime.title} className="anime-search-cover" />
+                      )}
+                      <div className="anime-search-info">
+                        <span className="anime-search-title">{anime.title}</span>
+                        <span className="anime-search-source">{anime.source}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* Llista de servidors si hi ha anime seleccionat */}
+            {selectedAnime && animeServers.length > 0 && (
+              <div className="anime-servers-section">
+                <h4>Servidors disponibles:</h4>
+                <div className="anime-servers-list">
+                  {animeServers.map((server, index) => (
+                    <button
+                      key={index}
+                      className={`anime-server-btn ${selectedAnimeServer?.url === server.url ? 'active' : ''}`}
+                      onClick={() => handleSelectAnimeServer(server)}
+                    >
+                      {server.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
