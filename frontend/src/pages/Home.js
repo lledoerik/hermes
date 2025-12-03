@@ -156,16 +156,16 @@ function Home() {
 
         // Sèries recents
         try {
-          const seriesRes = await axios.get('/api/series?limit=10');
-          setRecentSeries(seriesRes.data || []);
+          const seriesRes = await axios.get('/api/library/series?limit=10');
+          setRecentSeries(seriesRes.data?.items || seriesRes.data || []);
         } catch (e) {
           console.error('Error carregant sèries:', e);
         }
 
         // Pel·lícules recents
         try {
-          const moviesRes = await axios.get('/api/movies?limit=10');
-          setRecentMovies(moviesRes.data || []);
+          const moviesRes = await axios.get('/api/library/movies?limit=10');
+          setRecentMovies(moviesRes.data?.items || moviesRes.data || []);
         } catch (e) {
           console.error('Error carregant pel·lícules:', e);
         }
@@ -173,12 +173,14 @@ function Home() {
         // Mix de contingut recent
         try {
           const [series, movies] = await Promise.all([
-            axios.get('/api/series?limit=5'),
-            axios.get('/api/movies?limit=5')
+            axios.get('/api/library/series?limit=5'),
+            axios.get('/api/library/movies?limit=5')
           ]);
+          const seriesItems = series.data?.items || series.data || [];
+          const moviesItems = movies.data?.items || movies.data || [];
           const mixed = [
-            ...(series.data || []).map(s => ({ ...s, type: 'series' })),
-            ...(movies.data || []).map(m => ({ ...m, type: 'movie' }))
+            ...seriesItems.map(s => ({ ...s, type: 'series' })),
+            ...moviesItems.map(m => ({ ...m, type: 'movie' }))
           ].sort(() => Math.random() - 0.5).slice(0, 8);
           setRecentlyAdded(mixed);
         } catch (e) {
@@ -298,50 +300,68 @@ function Home() {
               Continuar veient pel·lícules
             </h2>
             <div className="content-scroll">
-              {continueWatchingMovies.map((item, index) => (
-                <div
-                  key={item.source === 'streaming' ? `stream-${item.tmdb_id}` : `local-${item.id}-${index}`}
-                  className="continue-card"
-                  onClick={() => {
-                    // Sempre navegar a streaming
-                    if (item.tmdb_id) {
-                      navigate(`/stream/movie/${item.tmdb_id}`);
-                    } else {
-                      navigate(`/movies/${item.series_id || item.id}`);
-                    }
-                  }}
-                >
-                  <div className="continue-thumbnail">
-                    {item.backdrop || item.poster ? (
-                      <img
-                        src={`${API_URL}/api/image/${item.backdrop ? 'backdrop' : 'poster'}/${item.series_id || item.id}`}
-                        alt={item.series_name || item.title}
-                      />
-                    ) : (
-                      <div className="thumbnail-placeholder">
-                        <MovieIcon />
+              {continueWatchingMovies.map((item, index) => {
+                // Determinar URL de la imatge segons la font
+                let imageUrl = null;
+                if (item.source === 'streaming') {
+                  // Per streaming, usar TMDB directament
+                  if (item.backdrop) {
+                    imageUrl = `https://image.tmdb.org/t/p/w780${item.backdrop}`;
+                  } else if (item.poster) {
+                    imageUrl = `https://image.tmdb.org/t/p/w500${item.poster}`;
+                  }
+                } else {
+                  // Per contingut local
+                  if (item.backdrop || item.poster) {
+                    imageUrl = `${API_URL}/api/image/${item.backdrop ? 'backdrop' : 'poster'}/${item.series_id || item.id}`;
+                  }
+                }
+
+                return (
+                  <div
+                    key={item.source === 'streaming' ? `stream-${item.tmdb_id}` : `local-${item.id}-${index}`}
+                    className="continue-card"
+                    onClick={() => {
+                      // Sempre navegar a streaming
+                      if (item.tmdb_id) {
+                        navigate(`/stream/movie/${item.tmdb_id}`);
+                      } else {
+                        navigate(`/movies/${item.series_id || item.id}`);
+                      }
+                    }}
+                  >
+                    <div className="continue-thumbnail">
+                      {imageUrl ? (
+                        <img
+                          src={imageUrl}
+                          alt={item.series_name || item.title}
+                        />
+                      ) : (
+                        <div className="thumbnail-placeholder">
+                          <MovieIcon />
+                        </div>
+                      )}
+                      <div className="continue-overlay">
+                        <button className="play-btn">
+                          <PlayIcon />
+                        </button>
                       </div>
-                    )}
-                    <div className="continue-overlay">
-                      <button className="play-btn">
-                        <PlayIcon />
-                      </button>
+                      <div className="progress-bar">
+                        <div
+                          className="progress-fill"
+                          style={{ width: `${item.progress_percentage}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="progress-bar">
-                      <div
-                        className="progress-fill"
-                        style={{ width: `${item.progress_percentage}%` }}
-                      />
+                    <div className="continue-info">
+                      <h3 className="continue-title">{item.series_name || item.title}</h3>
+                      <span className="continue-time">
+                        {formatTime(item.total_seconds - item.progress_seconds)} restants
+                      </span>
                     </div>
                   </div>
-                  <div className="continue-info">
-                    <h3 className="continue-title">{item.series_name || item.title}</h3>
-                    <span className="continue-time">
-                      {formatTime(item.total_seconds - item.progress_seconds)} restants
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         )}
@@ -354,53 +374,71 @@ function Home() {
               Continuar veient sèries
             </h2>
             <div className="content-scroll">
-              {continueWatchingSeries.map((item, index) => (
-                <div
-                  key={item.source === 'streaming' ? `stream-${item.tmdb_id}-${item.season_number}-${item.episode_number}` : `local-${item.id}-${index}`}
-                  className="continue-card"
-                  onClick={() => {
-                    // Sempre navegar a streaming
-                    if (item.tmdb_id) {
-                      navigate(`/stream/series/${item.tmdb_id}?s=${item.season_number || 1}&e=${item.episode_number || 1}`);
-                    } else {
-                      navigate(`/series/${item.series_id}`);
-                    }
-                  }}
-                >
-                  <div className="continue-thumbnail">
-                    {item.backdrop || item.poster ? (
-                      <img
-                        src={`${API_URL}/api/image/${item.backdrop ? 'backdrop' : 'poster'}/${item.series_id}`}
-                        alt={item.series_name}
-                      />
-                    ) : (
-                      <div className="thumbnail-placeholder">
-                        <SeriesIcon />
+              {continueWatchingSeries.map((item, index) => {
+                // Determinar URL de la imatge segons la font
+                let imageUrl = null;
+                if (item.source === 'streaming') {
+                  // Per streaming, usar TMDB directament
+                  if (item.backdrop) {
+                    imageUrl = `https://image.tmdb.org/t/p/w780${item.backdrop}`;
+                  } else if (item.poster) {
+                    imageUrl = `https://image.tmdb.org/t/p/w500${item.poster}`;
+                  }
+                } else {
+                  // Per contingut local
+                  if (item.backdrop || item.poster) {
+                    imageUrl = `${API_URL}/api/image/${item.backdrop ? 'backdrop' : 'poster'}/${item.series_id}`;
+                  }
+                }
+
+                return (
+                  <div
+                    key={item.source === 'streaming' ? `stream-${item.tmdb_id}-${item.season_number}-${item.episode_number}` : `local-${item.id}-${index}`}
+                    className="continue-card"
+                    onClick={() => {
+                      // Sempre navegar a streaming
+                      if (item.tmdb_id) {
+                        navigate(`/stream/tv/${item.tmdb_id}?s=${item.season_number || 1}&e=${item.episode_number || 1}`);
+                      } else {
+                        navigate(`/series/${item.series_id}`);
+                      }
+                    }}
+                  >
+                    <div className="continue-thumbnail">
+                      {imageUrl ? (
+                        <img
+                          src={imageUrl}
+                          alt={item.series_name}
+                        />
+                      ) : (
+                        <div className="thumbnail-placeholder">
+                          <SeriesIcon />
+                        </div>
+                      )}
+                      <div className="continue-overlay">
+                        <button className="play-btn">
+                          <PlayIcon />
+                        </button>
                       </div>
-                    )}
-                    <div className="continue-overlay">
-                      <button className="play-btn">
-                        <PlayIcon />
-                      </button>
+                      <div className="progress-bar">
+                        <div
+                          className="progress-fill"
+                          style={{ width: `${item.progress_percentage}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="progress-bar">
-                      <div
-                        className="progress-fill"
-                        style={{ width: `${item.progress_percentage}%` }}
-                      />
+                    <div className="continue-info">
+                      <h3 className="continue-title">{item.series_name}</h3>
+                      <p className="continue-episode">
+                        T{item.season_number} E{item.episode_number}
+                      </p>
+                      <span className="continue-time">
+                        {formatTime(item.total_seconds - item.progress_seconds)} restants
+                      </span>
                     </div>
                   </div>
-                  <div className="continue-info">
-                    <h3 className="continue-title">{item.series_name}</h3>
-                    <p className="continue-episode">
-                      T{item.season_number} E{item.episode_number}
-                    </p>
-                    <span className="continue-time">
-                      {formatTime(item.total_seconds - item.progress_seconds)} restants
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         )}
