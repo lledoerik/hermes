@@ -30,8 +30,7 @@ const LIBRARY_CONFIG = {
       { value: 'name', label: 'Ordenar per nom' },
       { value: 'year', label: 'Ordenar per any' },
       { value: 'duration', label: 'Ordenar per duració' },
-      { value: 'rating', label: 'Ordenar per valoració' },
-      { value: 'recent', label: 'Afegides recentment' }
+      { value: 'rating', label: 'Ordenar per valoració' }
     ],
     discoverCategories: {
       popular: 'Populars',
@@ -61,8 +60,7 @@ const LIBRARY_CONFIG = {
       { value: 'year', label: 'Ordenar per any' },
       { value: 'rating', label: 'Ordenar per valoració' },
       { value: 'episodes', label: 'Ordenar per episodis' },
-      { value: 'seasons', label: 'Ordenar per temporades' },
-      { value: 'recent', label: 'Afegides recentment' }
+      { value: 'seasons', label: 'Ordenar per temporades' }
     ],
     discoverCategories: {
       popular: 'Populars',
@@ -372,7 +370,6 @@ function MediaLibrary({ type = 'series' }) {
               onMultiSelect={() => handleFilterLongPress(filter.id)}
             />
           ))}
-          <span className="filter-hint">Ctrl+Click per multi-selecció</span>
         </div>
       </div>
 
