@@ -80,6 +80,14 @@ const PlayIcon = () => (
   </svg>
 );
 
+const InfoIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" fill="currentColor" opacity="0.15"/>
+    <line x1="12" y1="16" x2="12" y2="12" stroke="currentColor" strokeWidth="2"/>
+    <circle cx="12" cy="8" r="1" fill="currentColor"/>
+  </svg>
+);
+
 const StarIcon = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
@@ -220,7 +228,7 @@ const ContinueThumbnail = ({ item, imageUrl, type }) => {
 };
 
 function Home() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, isPremium } = useAuth();
   const [continueWatchingMovies, setContinueWatchingMovies] = useState([]);
   const [continueWatchingSeries, setContinueWatchingSeries] = useState([]);
   const [continueWatchingPrograms, setContinueWatchingPrograms] = useState([]);
@@ -369,7 +377,7 @@ function Home() {
                   />
                   <div className="content-hover">
                     <button className="quick-play-btn">
-                      <PlayIcon />
+                      {isPremium ? <PlayIcon /> : <InfoIcon />}
                     </button>
                   </div>
                 </div>
@@ -741,13 +749,18 @@ function Home() {
                       <div className="content-hover">
                         <button className="quick-play-btn" onClick={(e) => {
                           e.stopPropagation();
-                          if (item.media_type === 'movie') {
-                            navigate(`/stream/movie/${item.tmdb_id}`);
+                          if (isPremium) {
+                            if (item.media_type === 'movie') {
+                              navigate(`/stream/movie/${item.tmdb_id}`);
+                            } else {
+                              navigate(`/stream/tv/${item.tmdb_id}?s=1&e=1`);
+                            }
                           } else {
-                            navigate(`/stream/tv/${item.tmdb_id}?s=1&e=1`);
+                            // Per no premium, anar a la pàgina de detalls
+                            navigate(link);
                           }
                         }}>
-                          <PlayIcon />
+                          {isPremium ? <PlayIcon /> : <InfoIcon />}
                         </button>
                       </div>
                     </div>
