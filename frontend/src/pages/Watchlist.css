@@ -1,0 +1,334 @@
+/* Watchlist Page Styles */
+.watchlist-container {
+  min-height: 100vh;
+  padding: 100px var(--content-padding, 60px) 40px;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.watchlist-header {
+  margin-bottom: 30px;
+}
+
+.watchlist-header h1 {
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 8px 0;
+}
+
+.watchlist-header h1 svg {
+  width: 32px;
+  height: 32px;
+  color: var(--color-primary);
+}
+
+.watchlist-subtitle {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  margin: 0;
+}
+
+/* Filters */
+.watchlist-filters {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+}
+
+.filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  background: var(--bg-glass);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filter-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.filter-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--text-primary);
+}
+
+.filter-btn.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+}
+
+/* Grid */
+.watchlist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 24px;
+}
+
+/* Card */
+.watchlist-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.watchlist-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.watchlist-poster {
+  position: relative;
+  aspect-ratio: 2/3;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.watchlist-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.watchlist-card:hover .watchlist-poster img {
+  transform: scale(1.05);
+}
+
+.watchlist-poster .poster-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1e3a8a 0%, #328492 100%);
+}
+
+.watchlist-poster .poster-placeholder svg {
+  width: 48px;
+  height: 48px;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.card-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.watchlist-card:hover .card-overlay {
+  opacity: 1;
+}
+
+.card-overlay .play-btn {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  border: none;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.card-overlay .play-btn svg {
+  width: 24px;
+  height: 24px;
+  margin-left: 4px;
+}
+
+.card-overlay .play-btn:hover {
+  transform: scale(1.1);
+}
+
+.media-type-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
+  color: white;
+  backdrop-filter: blur(4px);
+}
+
+/* Info */
+.watchlist-info {
+  padding: 15px;
+}
+
+.watchlist-info h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 8px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.watchlist-info h3:hover {
+  color: var(--color-primary);
+}
+
+.watchlist-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.watchlist-meta .rating {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.watchlist-meta .rating svg {
+  color: #f59e0b;
+}
+
+.remove-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.remove-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.remove-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+/* Empty State */
+.watchlist-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 60px 20px;
+  min-height: 50vh;
+}
+
+.watchlist-empty svg {
+  width: 80px;
+  height: 80px;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  opacity: 0.5;
+}
+
+.watchlist-empty h2 {
+  font-size: 1.5rem;
+  color: var(--text-primary);
+  margin: 0 0 10px 0;
+}
+
+.watchlist-empty p {
+  color: var(--text-secondary);
+  margin: 0 0 24px 0;
+}
+
+.watchlist-empty .login-btn,
+.watchlist-empty .browse-btn {
+  padding: 12px 30px;
+  background: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-lg);
+  color: white;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.watchlist-empty .login-btn:hover,
+.watchlist-empty .browse-btn:hover {
+  background: var(--color-primary-light);
+}
+
+/* Loading */
+.watchlist-container .loading-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+}
+
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 3px solid var(--border-subtle);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .watchlist-container {
+    padding: 80px 16px 30px;
+  }
+
+  .watchlist-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .watchlist-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 16px;
+  }
+
+  .watchlist-filters {
+    gap: 8px;
+  }
+
+  .filter-btn {
+    padding: 8px 14px;
+    font-size: 0.85rem;
+  }
+}
