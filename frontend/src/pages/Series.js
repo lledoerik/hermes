@@ -35,16 +35,46 @@ const ClearIcon = () => (
 
 // Tipus de contingut per filtrar
 const FILTER_TYPES = {
-  series: { id: 'series', label: 'Sèries', icon: '📺' },
-  anime: { id: 'anime', label: 'Anime', icon: '🎌' },
-  cartoons: { id: 'cartoons', label: 'Dibuixos', icon: '🎨' }
+  series: { id: 'series', label: 'Sèries' },
+  anime: { id: 'anime', label: 'Anime' },
+  cartoons: { id: 'cartoons', label: 'Dibuixos' }
+};
+
+const STORAGE_KEY = 'hermes_series_filters';
+
+// Carregar filtres guardats o usar valor per defecte
+const loadSavedFilters = () => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {}
+  return ['series']; // Per defecte només sèries
 };
 
 // Funció per determinar el tipus d'un item
 const getItemType = (item) => {
-  const isAnimation = item.genres?.some(g =>
-    g.id === 16 || g.name?.toLowerCase() === 'animation' || g.name?.toLowerCase() === 'animació'
-  );
+  // Comprovar si és animació (gènere 16 o nom 'Animation'/'Animació')
+  let isAnimation = false;
+  if (item.genres) {
+    if (Array.isArray(item.genres)) {
+      isAnimation = item.genres.some(g => {
+        if (typeof g === 'object') {
+          return g.id === 16 || g.name?.toLowerCase() === 'animation' || g.name?.toLowerCase() === 'animació';
+        }
+        return g === 16 || g === 'Animation' || g === 'Animació';
+      });
+    }
+  }
+  // També comprovar genre_ids (format TMDB directe)
+  if (!isAnimation && item.genre_ids) {
+    isAnimation = item.genre_ids.includes(16);
+  }
+
   const isJapanese = item.original_language === 'ja';
 
   if (isAnimation && isJapanese) return 'anime';
@@ -93,8 +123,7 @@ const FilterButton = ({ filter, isActive, onClick, onLongPress }) => {
       className={`content-type-btn ${isActive ? 'active' : ''}`}
       {...longPressProps}
     >
-      <span className="filter-icon">{filter.icon}</span>
-      <span className="filter-label">{filter.label}</span>
+      {filter.label}
     </button>
   );
 };
@@ -125,8 +154,8 @@ function Series() {
   const [totalItems, setTotalItems] = useState(0);
   const itemsPerPage = 50;
 
-  // Filtres actius (per defecte tots)
-  const [activeFilters, setActiveFilters] = useState(['series', 'anime', 'cartoons']);
+  // Filtres actius (carrega de localStorage o per defecte només sèries)
+  const [activeFilters, setActiveFilters] = useState(loadSavedFilters);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -158,6 +187,11 @@ function Series() {
       loadAndImportDiscover('popular', 1);
     }
   }, [isAdmin]);
+
+  // Guardar filtres a localStorage quan canvien
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(activeFilters));
+  }, [activeFilters]);
 
   // Reload series when pagination or sorting changes
   useEffect(() => {
@@ -387,7 +421,7 @@ function Series() {
               onLongPress={() => handleFilterLongPress(filter.id)}
             />
           ))}
-          <span className="filter-hint">💡 Mantén premut per multi-selecció</span>
+          <span className="filter-hint">Mantén premut per multi-selecció</span>
         </div>
       </div>
 
