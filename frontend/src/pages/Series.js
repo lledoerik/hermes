@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import MediaCard from '../components/MediaCard';
 import { useAuth } from '../context/AuthContext';
@@ -33,11 +33,70 @@ const ClearIcon = () => (
   </svg>
 );
 
-// Content type filter labels (toggle buttons)
-const contentTypeLabels = {
-  series: 'Sèries',
-  anime: 'Anime',
-  toons: 'Dibuixos'
+// Tipus de contingut per filtrar
+const FILTER_TYPES = {
+  series: { id: 'series', label: 'Sèries', icon: '📺' },
+  anime: { id: 'anime', label: 'Anime', icon: '🎌' },
+  cartoons: { id: 'cartoons', label: 'Dibuixos', icon: '🎨' }
+};
+
+// Funció per determinar el tipus d'un item
+const getItemType = (item) => {
+  const isAnimation = item.genres?.some(g =>
+    g.id === 16 || g.name?.toLowerCase() === 'animation' || g.name?.toLowerCase() === 'animació'
+  );
+  const isJapanese = item.original_language === 'ja';
+
+  if (isAnimation && isJapanese) return 'anime';
+  if (isAnimation) return 'cartoons';
+  return 'series';
+};
+
+// Hook per detectar long-press
+const useLongPress = (onLongPress, onClick, { delay = 500 } = {}) => {
+  const timeoutRef = useRef(null);
+  const isLongPressRef = useRef(false);
+
+  const start = useCallback((e) => {
+    e.preventDefault();
+    isLongPressRef.current = false;
+    timeoutRef.current = setTimeout(() => {
+      isLongPressRef.current = true;
+      onLongPress(e);
+    }, delay);
+  }, [onLongPress, delay]);
+
+  const clear = useCallback((e, shouldTriggerClick = true) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    if (shouldTriggerClick && !isLongPressRef.current) {
+      onClick(e);
+    }
+  }, [onClick]);
+
+  return {
+    onMouseDown: start,
+    onMouseUp: clear,
+    onMouseLeave: (e) => clear(e, false),
+    onTouchStart: start,
+    onTouchEnd: clear,
+  };
+};
+
+// Component FilterButton amb long-press
+const FilterButton = ({ filter, isActive, onClick, onLongPress }) => {
+  const longPressProps = useLongPress(onLongPress, onClick, { delay: 500 });
+
+  return (
+    <button
+      className={`content-type-btn ${isActive ? 'active' : ''}`}
+      {...longPressProps}
+    >
+      <span className="filter-icon">{filter.icon}</span>
+      <span className="filter-label">{filter.label}</span>
+    </button>
+  );
 };
 
 // Pagination icons
@@ -66,8 +125,8 @@ function Series() {
   const [totalItems, setTotalItems] = useState(0);
   const itemsPerPage = 50;
 
-  // Content type filter state (array for multi-select, default to 'series')
-  const [selectedContentTypes, setSelectedContentTypes] = useState(['series']);
+  // Filtres actius (per defecte tots)
+  const [activeFilters, setActiveFilters] = useState(['series', 'anime', 'cartoons']);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -129,18 +188,23 @@ function Series() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Toggle content type selection
-  const toggleContentType = (type) => {
-    setSelectedContentTypes(prev => {
-      if (prev.includes(type)) {
-        // Don't allow deselecting if it's the only one selected
+  // Click: selecció exclusiva (només aquest filtre)
+  const handleFilterClick = useCallback((filterId) => {
+    setActiveFilters([filterId]);
+  }, []);
+
+  // Long-press: afegir/treure filtre (multi-selecció)
+  const handleFilterLongPress = useCallback((filterId) => {
+    setActiveFilters(prev => {
+      if (prev.includes(filterId)) {
+        // No permetre treure l'últim filtre
         if (prev.length === 1) return prev;
-        return prev.filter(t => t !== type);
+        return prev.filter(f => f !== filterId);
       } else {
-        return [...prev, type];
+        return [...prev, filterId];
       }
     });
-  };
+  }, []);
 
   const loadSeries = async () => {
     try {
@@ -239,9 +303,15 @@ function Series() {
   };
 
   // Use API search results if searching, otherwise use paginated series
-  const filteredSeries = searchQuery.trim()
+  const baseSeries = searchQuery.trim()
     ? (localSearchResults || [])
     : series;
+
+  // Aplicar filtres de tipus
+  const filteredSeries = baseSeries.filter(show => {
+    const itemType = getItemType(show);
+    return activeFilters.includes(itemType);
+  });
 
   // No need to sort client-side anymore - backend handles it
   const sortedSeries = filteredSeries;
@@ -304,6 +374,20 @@ function Series() {
             <option value="seasons">Ordenar per temporades</option>
             <option value="recent">Afegides recentment</option>
           </select>
+        </div>
+
+        {/* Filtres de tipus */}
+        <div className="content-type-filters">
+          {Object.values(FILTER_TYPES).map(filter => (
+            <FilterButton
+              key={filter.id}
+              filter={filter}
+              isActive={activeFilters.includes(filter.id)}
+              onClick={() => handleFilterClick(filter.id)}
+              onLongPress={() => handleFilterLongPress(filter.id)}
+            />
+          ))}
+          <span className="filter-hint">💡 Mantén premut per multi-selecció</span>
         </div>
       </div>
 
