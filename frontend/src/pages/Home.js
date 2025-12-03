@@ -130,31 +130,40 @@ const ContinueThumbnail = ({ item, imageUrl, type }) => {
     // Si tenim tmdb_id però no imageUrl, carregar de TMDB
     if (item.tmdb_id && !imageUrl) {
       const fetchTmdbImage = async () => {
-        try {
-          const mediaType = type === 'movie' ? 'movie' : 'tv';
-          // Primer intentem obtenir la imatge de l'episodi si és una sèrie
-          if (type === 'series' && item.season_number && item.episode_number) {
+        let foundImage = false;
+        const mediaType = type === 'movie' ? 'movie' : 'tv';
+
+        // Primer intentem obtenir la imatge de l'episodi si és una sèrie
+        if (type === 'series' && item.season_number && item.episode_number) {
+          try {
             const seasonRes = await axios.get(`/api/tmdb/tv/${item.tmdb_id}/season/${item.season_number}`);
             const episode = seasonRes.data?.episodes?.find(ep => ep.episode_number === item.episode_number);
             if (episode?.still_path) {
-              // still_path ja ve com URL completa des de l'API
               setDynamicUrl(episode.still_path);
-              setIsLoading(false);
-              return;
+              foundImage = true;
             }
+          } catch (e) {
+            console.debug('Error fetching season data, trying series info:', e.message);
           }
-          // Si no, obtenim el backdrop/poster de la sèrie/pel·lícula
-          const res = await axios.get(`/api/tmdb/${mediaType}/${item.tmdb_id}`);
-          if (res.data?.backdrop_path) {
-            setDynamicUrl(`https://image.tmdb.org/t/p/w780${res.data.backdrop_path}`);
-          } else if (res.data?.poster_path) {
-            setDynamicUrl(`https://image.tmdb.org/t/p/w500${res.data.poster_path}`);
-          }
-        } catch (e) {
-          console.debug('Error fetching TMDB image:', e);
-        } finally {
-          setIsLoading(false);
         }
+
+        // Si no hem trobat imatge de l'episodi, intentem el backdrop/poster de la sèrie
+        if (!foundImage) {
+          try {
+            const res = await axios.get(`/api/tmdb/${mediaType}/${item.tmdb_id}`);
+            if (res.data?.backdrop_path) {
+              setDynamicUrl(`https://image.tmdb.org/t/p/w780${res.data.backdrop_path}`);
+              foundImage = true;
+            } else if (res.data?.poster_path) {
+              setDynamicUrl(`https://image.tmdb.org/t/p/w500${res.data.poster_path}`);
+              foundImage = true;
+            }
+          } catch (e) {
+            console.debug('Error fetching series/movie info:', e.message);
+          }
+        }
+
+        setIsLoading(false);
       };
       fetchTmdbImage();
     } else {
