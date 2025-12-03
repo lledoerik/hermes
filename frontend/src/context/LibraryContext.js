@@ -121,11 +121,9 @@ export function LibraryProvider({ children }) {
   // Get movies with caching
   const getMovies = useCallback(async (page = 1, limit = 50, sortBy = 'name', contentType = null, forceRefresh = false) => {
     const cacheKey = `${page}-${limit}-${sortBy}-${contentType || 'all'}`;
-    console.log('📦 getMovies called - contentType:', contentType, 'cacheKey:', cacheKey);
 
     // Check page cache first
     if (!forceRefresh && moviesCache.pages[cacheKey] && isCacheValid({ data: true, timestamp: moviesCache.pages[cacheKey].timestamp })) {
-      console.log('📦 getMovies - returning cached data');
       return moviesCache.pages[cacheKey].data;
     }
 
@@ -134,7 +132,6 @@ export function LibraryProvider({ children }) {
       if (contentType && contentType !== 'all') {
         params.content_type = contentType;
       }
-      console.log('📦 getMovies - fetching from API with params:', params);
       const response = await axios.get(`${API_URL}/api/library/movies`, { params });
 
       // Update cache
