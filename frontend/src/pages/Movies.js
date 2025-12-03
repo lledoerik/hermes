@@ -133,7 +133,7 @@ const ChevronRightIcon = () => (
 
 function Movies() {
   const { isAdmin } = useAuth();
-  const { getMovies, moviesCache, invalidateCache } = useLibrary();
+  const { getMovies, invalidateCache } = useLibrary();
   const [movies, setMovies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('name');
@@ -164,18 +164,6 @@ function Movies() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(activeFilters));
   }, [activeFilters]);
-
-  // Carregar pel·lícules quan canvien paginació, ordenació o filtres
-  useEffect(() => {
-    loadMovies();
-  }, [loadMovies]);
-
-  // Auto-importar discover si és admin (només un cop)
-  useEffect(() => {
-    if (isAdmin) {
-      loadAndImportDiscover('popular', 1);
-    }
-  }, [isAdmin]);
 
   // Search in database when searchQuery or filters change
   useEffect(() => {
@@ -237,6 +225,19 @@ function Movies() {
       setLoading(false);
     }
   }, [activeFilters, currentPage, sortBy, getMovies]);
+
+  // Carregar pel·lícules quan canvien paginació, ordenació o filtres
+  useEffect(() => {
+    loadMovies();
+  }, [loadMovies]);
+
+  // Auto-importar discover si és admin (només un cop)
+  useEffect(() => {
+    if (isAdmin) {
+      loadAndImportDiscover('popular', 1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages) {
