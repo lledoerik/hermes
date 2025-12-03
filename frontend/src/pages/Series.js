@@ -154,18 +154,9 @@ function Series() {
   const [autoImporting, setAutoImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
 
-  // Initial load from cache
+  // Initial load - sempre carrega amb els filtres actuals
   useEffect(() => {
-    const cacheKey = `1-50-name-all`;
-    if (seriesCache.pages[cacheKey]?.data) {
-      const cached = seriesCache.pages[cacheKey].data;
-      setSeries(cached.items || []);
-      setTotalPages(cached.total_pages || 1);
-      setTotalItems(cached.total || 0);
-      setLoading(false);
-    } else {
-      loadSeries();
-    }
+    loadSeries();
     // Només auto-importar si és admin
     if (isAdmin) {
       loadAndImportDiscover('popular', 1);
