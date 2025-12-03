@@ -1117,6 +1117,12 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
         where_conditions = ["s.media_type = 'series'"]
         count_params = []
 
+        # Content type filter
+        if content_types:
+            placeholders = ','.join(['?' for _ in content_types])
+            where_conditions.append(f"s.content_type IN ({placeholders})")
+            count_params.extend(content_types)
+
         # Search filter
         if search:
             where_conditions.append("(s.name LIKE ? OR s.title LIKE ?)")
@@ -1207,6 +1213,12 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
         # Build WHERE clause
         where_conditions = ["s.media_type = 'movie'"]
         count_params = []
+
+        # Content type filter
+        if content_types:
+            placeholders = ','.join(['?' for _ in content_types])
+            where_conditions.append(f"s.content_type IN ({placeholders})")
+            count_params.extend(content_types)
 
         # Search filter
         if search:
