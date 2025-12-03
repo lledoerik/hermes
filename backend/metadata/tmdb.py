@@ -402,6 +402,7 @@ class TMDBClient:
         release_date = movie.get("release_date", "")
         if release_date:
             result["year"] = int(release_date[:4])
+            result["release_date"] = release_date
 
         # Extract genres and genre IDs for content type detection
         genre_ids = []
@@ -490,6 +491,7 @@ class TMDBClient:
         first_air_date = tv.get("first_air_date", "")
         if first_air_date:
             result["year"] = int(first_air_date[:4])
+            result["release_date"] = first_air_date
 
         # Extract genres and genre IDs for content type detection
         genre_ids = []
@@ -597,6 +599,7 @@ async def fetch_movie_by_tmdb_id(api_key: str, tmdb_id: int,
         release_date = movie.get("release_date", "")
         if release_date:
             result["year"] = int(release_date[:4])
+            result["release_date"] = release_date
 
         genre_ids = []
         if movie.get("genres"):
@@ -677,6 +680,7 @@ async def fetch_tv_by_tmdb_id(api_key: str, tmdb_id: int,
         first_air_date = tv.get("first_air_date", "")
         if first_air_date:
             result["year"] = int(first_air_date[:4])
+            result["release_date"] = first_air_date
 
         genre_ids = []
         if tv.get("genres"):

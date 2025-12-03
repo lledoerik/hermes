@@ -150,6 +150,8 @@ def init_all_tables():
             # Camps per metadades TMDB (temporades/episodis totals)
             ("tmdb_seasons", "INTEGER"),
             ("tmdb_episodes", "INTEGER"),
+            # Data d'estrena completa per filtrar 'en cartellera' i 'pròximament'
+            ("release_date", "TEXT"),
         ]
         for col_name, col_type in series_columns:
             try:
@@ -1279,8 +1281,11 @@ async def get_stats():
         }
 
 @app.get("/api/library/series")
-async def get_series(content_type: str = None, page: int = 1, limit: int = 50, sort_by: str = "name", search: str = None):
-    """Retorna les sèries amb paginació. Filtre opcional: series, anime, toons (comma-separated for multiple)"""
+async def get_series(content_type: str = None, page: int = 1, limit: int = 50, sort_by: str = "name", search: str = None, category: str = None):
+    """Retorna les sèries amb paginació. Filtre opcional: series, anime, toons (comma-separated for multiple)
+    Categories: popular, on_the_air (en emissió), airing_today (avui)"""
+    from datetime import datetime, timedelta
+
     with get_db() as conn:
         cursor = conn.cursor()
 
@@ -1296,6 +1301,19 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
             placeholders = ','.join(['?' for _ in content_types])
             where_conditions.append(f"s.content_type IN ({placeholders})")
             count_params.extend(content_types)
+
+        # Category filter (on_the_air, airing_today)
+        today = datetime.now().strftime('%Y-%m-%d')
+        current_year = datetime.now().year
+
+        if category == "on_the_air":
+            # Sèries en emissió (any actual)
+            where_conditions.append("s.year = ?")
+            count_params.append(current_year)
+        elif category == "airing_today":
+            # Sèries en emissió avui (any actual, aproximat)
+            where_conditions.append("s.year = ?")
+            count_params.append(current_year)
 
         # Search filter
         if search:
@@ -1325,7 +1343,7 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
         # Sorting
         if sort_by == "year":
             query += " ORDER BY s.year DESC, s.name"
-        elif sort_by == "popular":
+        elif sort_by == "popular" or category in ["on_the_air", "airing_today"]:
             query += " ORDER BY s.id DESC"
         elif sort_by == "episodes":
             query += " ORDER BY episode_count DESC, s.name"
@@ -1378,8 +1396,11 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
         }
 
 @app.get("/api/library/movies")
-async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, sort_by: str = "name", search: str = None):
-    """Retorna les pel·lícules amb paginació. Filtre opcional: movie, anime_movie, animated (comma-separated for multiple)"""
+async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, sort_by: str = "name", search: str = None, category: str = None):
+    """Retorna les pel·lícules amb paginació. Filtre opcional: movie, anime_movie, animated (comma-separated for multiple)
+    Categories: popular, now_playing (en cartellera), upcoming (pròximament)"""
+    from datetime import datetime, timedelta
+
     with get_db() as conn:
         cursor = conn.cursor()
 
@@ -1395,6 +1416,19 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
             placeholders = ','.join(['?' for _ in content_types])
             where_conditions.append(f"s.content_type IN ({placeholders})")
             count_params.extend(content_types)
+
+        # Category filter (now_playing, upcoming)
+        today = datetime.now().strftime('%Y-%m-%d')
+        three_months_ago = (datetime.now() - timedelta(days=90)).strftime('%Y-%m-%d')
+
+        if category == "now_playing":
+            # Pel·lícules estrenades en els últims 3 mesos
+            where_conditions.append("s.release_date IS NOT NULL AND s.release_date >= ? AND s.release_date <= ?")
+            count_params.extend([three_months_ago, today])
+        elif category == "upcoming":
+            # Pel·lícules amb data d'estrena futura
+            where_conditions.append("s.release_date IS NOT NULL AND s.release_date > ?")
+            count_params.append(today)
 
         # Search filter
         if search:
@@ -1422,8 +1456,14 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
         # Sorting
         if sort_by == "year":
             query += " ORDER BY s.year DESC, s.name"
-        elif sort_by == "popular":
-            query += " ORDER BY s.id DESC"
+        elif sort_by == "popular" or category in ["now_playing", "upcoming"]:
+            # Per categories TMDB, ordenar per data d'estrena
+            if category == "now_playing":
+                query += " ORDER BY s.release_date DESC, s.name"
+            elif category == "upcoming":
+                query += " ORDER BY s.release_date ASC, s.name"
+            else:
+                query += " ORDER BY s.id DESC"
         elif sort_by == "duration":
             query += " ORDER BY m.duration DESC, s.name"
         else:
@@ -5864,8 +5904,8 @@ async def import_from_tmdb(data: ImportTMDBRequest):
                     poster, backdrop, director, creators, cast_members,
                     is_imported, source_type, external_url, added_date,
                     content_type, origin_country, original_language,
-                    tmdb_seasons, tmdb_episodes
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'tmdb', ?, datetime('now'), ?, ?, ?, ?, ?)
+                    tmdb_seasons, tmdb_episodes, release_date
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'tmdb', ?, datetime('now'), ?, ?, ?, ?, ?, ?)
             """, (
                 metadata.get("title"),
                 virtual_path,
@@ -5887,7 +5927,8 @@ async def import_from_tmdb(data: ImportTMDBRequest):
                 json.dumps(metadata.get("origin_country", [])) if metadata.get("origin_country") else None,
                 metadata.get("original_language"),
                 metadata.get("seasons"),
-                metadata.get("episodes")
+                metadata.get("episodes"),
+                metadata.get("release_date")
             ))
 
             series_id = cursor.lastrowid
