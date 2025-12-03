@@ -82,38 +82,13 @@ const createAnimeSlug = (title) => {
     .trim();
 };
 
-// Fonts d'embed - Múltiples servidors amb fallback automàtic
+// Fonts d'embed - Ordre optimitzat: genèrics primer, anime després
 const EMBED_SOURCES = [
-  {
-    id: 'player4u',
-    name: 'Player4U',
-    description: 'Anime directe',
-    animeOnly: true,
-    getUrl: (type, tmdbId, season, episode, title) => {
-      if (type === 'movie' || !title) return null;
-      // Format: Title S{season}E{episode} (episodi absolut o per temporada)
-      const encodedTitle = encodeURIComponent(`${title} S${season || 1}E${episode || 1}`);
-      return `https://player4u.xyz/embed?key=${encodedTitle}`;
-    }
-  },
-  {
-    id: 'anime-autoembed',
-    name: 'AnimeEmbed',
-    description: 'Anime HD',
-    animeOnly: true,
-    getUrl: (type, tmdbId, season, episode, title) => {
-      if (type === 'movie' || !title) return null;
-      // Format: {title-slug}-episode-{episode}
-      const slug = createAnimeSlug(title);
-      // Per anime, l'episodi sovint és absolut (no per temporada)
-      // Calculem l'episodi absolut si tenim temporada > 1
-      return `https://anime.autoembed.cc/embed/${slug}-episode-${episode || 1}`;
-    }
-  },
+  // === FONTS GENERALS (funcionen amb TMDB ID) ===
   {
     id: 'vidsrc-xyz',
     name: 'VidSrc',
-    description: 'API pública',
+    description: 'Recomanat',
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
         return `https://vidsrc.xyz/embed/movie?tmdb=${tmdbId}`;
@@ -122,20 +97,20 @@ const EMBED_SOURCES = [
     }
   },
   {
-    id: '2embed',
-    name: '2Embed',
-    description: 'Segueix iframes interns',
+    id: 'vidsrc-cc',
+    name: 'VidSrc CC',
+    description: 'Menys anuncis',
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
-        return `https://www.2embed.cc/embed/${tmdbId}`;
+        return `https://vidsrc.cc/v2/embed/movie/${tmdbId}`;
       }
-      return `https://www.2embed.cc/embedtv/${tmdbId}&s=${season || 1}&e=${episode || 1}`;
+      return `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
     }
   },
   {
     id: 'embed-su',
     name: 'Embed.su',
-    description: 'Altra alternativa',
+    description: 'HD',
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
         return `https://embed.su/embed/movie/${tmdbId}`;
@@ -146,7 +121,7 @@ const EMBED_SOURCES = [
   {
     id: 'autoembed',
     name: 'AutoEmbed',
-    description: 'Estructura simple',
+    description: 'Alternatiu',
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
         return `https://autoembed.cc/embed/movie/${tmdbId}`;
@@ -155,14 +130,50 @@ const EMBED_SOURCES = [
     }
   },
   {
+    id: '2embed',
+    name: '2Embed',
+    description: 'Multifont',
+    getUrl: (type, tmdbId, season, episode) => {
+      if (type === 'movie') {
+        return `https://www.2embed.cc/embed/${tmdbId}`;
+      }
+      return `https://www.2embed.cc/embedtv/${tmdbId}&s=${season || 1}&e=${episode || 1}`;
+    }
+  },
+  {
     id: 'superembed',
     name: 'SuperEmbed',
-    description: 'Mantingut',
+    description: 'Backup',
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
         return `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1`;
       }
       return `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1&s=${season || 1}&e=${episode || 1}`;
+    }
+  },
+  // === FONTS ESPECÍFIQUES ANIME (necessiten títol) ===
+  {
+    id: 'player4u',
+    name: 'Player4U',
+    description: 'Anime directe',
+    needsTitle: true,
+    getUrl: (type, tmdbId, season, episode, title) => {
+      if (type === 'movie') return null;
+      if (!title) return 'waiting'; // Esperar títol
+      const encodedTitle = encodeURIComponent(`${title} S${season || 1}E${episode || 1}`);
+      return `https://player4u.xyz/embed?key=${encodedTitle}`;
+    }
+  },
+  {
+    id: 'anime-autoembed',
+    name: 'AnimeEmbed',
+    description: 'Anime HD',
+    needsTitle: true,
+    getUrl: (type, tmdbId, season, episode, title) => {
+      if (type === 'movie') return null;
+      if (!title) return 'waiting'; // Esperar títol
+      const slug = createAnimeSlug(title);
+      return `https://anime.autoembed.cc/embed/${slug}-episode-${episode || 1}`;
     }
   }
 ];
@@ -195,6 +206,7 @@ function StreamPlayer() {
   const [showStartOverlay, setShowStartOverlay] = useState(false); // Sense overlay
   const [hasStartedPlaying, setHasStartedPlaying] = useState(true); // Reproduir directament
   const [hasTriedFallback, setHasTriedFallback] = useState(false);
+  const [manualSourceChange, setManualSourceChange] = useState(false); // Canvi manual de servidor
 
   // Estat de progrés de visualització
   const [isWatched, setIsWatched] = useState(false);
@@ -209,13 +221,13 @@ function StreamPlayer() {
   // Construir URL per embed
   const embedUrl = React.useMemo(() => {
     const url = currentSource.getUrl(mediaType, tmdbId, season, episode, mediaTitle);
-    // Si la font retorna null (ex: font anime-only per pel·lícules), saltar a la següent
-    if (!url && currentSourceIndex < EMBED_SOURCES.length - 1) {
-      // Això es gestionarà al fallback
-      return null;
+    // 'waiting' significa que espera el títol (per fonts d'anime)
+    if (url === 'waiting') {
+      return null; // Esperar sense saltar
     }
+    // null significa que no és compatible (ex: anime-only per pel·lícules)
     return url;
-  }, [currentSource, mediaType, tmdbId, season, episode, mediaTitle, currentSourceIndex]);
+  }, [currentSource, mediaType, tmdbId, season, episode, mediaTitle]);
 
   // Funcions per carregar dades
   const loadMediaInfo = useCallback(async () => {
@@ -401,6 +413,7 @@ function StreamPlayer() {
   const handleIframeLoad = useCallback(() => {
     setLoading(false);
     setHasTriedFallback(false); // Reset per futures càrregues
+    setManualSourceChange(false); // Reset canvi manual
     if (!showStartOverlay) {
       enterImmersiveMode();
     }
@@ -420,23 +433,31 @@ function StreamPlayer() {
     }
   }, [currentSourceIndex]);
 
-  // Saltar automàticament fonts que retornen null (ex: anime-only per pel·lícules)
+  // Saltar automàticament fonts que retornen null NOMÉS si no és canvi manual
   useEffect(() => {
-    if (!embedUrl && hasStartedPlaying) {
+    // No saltar si l'usuari ha canviat manualment o si la font espera el títol
+    if (manualSourceChange) return;
+
+    const rawUrl = currentSource.getUrl(mediaType, tmdbId, season, episode, mediaTitle);
+    // 'waiting' = espera el títol, no saltar
+    if (rawUrl === 'waiting') return;
+
+    // null = no compatible, saltar automàticament
+    if (rawUrl === null && hasStartedPlaying) {
       const nextIndex = currentSourceIndex + 1;
       if (nextIndex < EMBED_SOURCES.length) {
-        console.log(`${EMBED_SOURCES[currentSourceIndex].name} no disponible, saltant...`);
+        console.log(`${currentSource.name} no compatible, saltant...`);
         setCurrentSourceIndex(nextIndex);
       }
     }
-  }, [embedUrl, currentSourceIndex, hasStartedPlaying]);
+  }, [currentSource, mediaType, tmdbId, season, episode, mediaTitle, currentSourceIndex, hasStartedPlaying, manualSourceChange]);
 
-  // Fallback automàtic després de 8 segons si encara carrega
+  // Fallback automàtic després de 10 segons si encara carrega (només si no és canvi manual)
   useEffect(() => {
-    if (!hasStartedPlaying || !loading) return;
+    if (!hasStartedPlaying || !loading || manualSourceChange) return;
 
     const fallbackTimer = setTimeout(() => {
-      // Si encara està carregant després de 8s, provar el següent servidor
+      // Si encara està carregant després de 10s, provar el següent servidor
       if (loading) {
         const nextIndex = currentSourceIndex + 1;
         if (nextIndex < EMBED_SOURCES.length) {
@@ -447,13 +468,14 @@ function StreamPlayer() {
           setLoading(false);
         }
       }
-    }, 8000);
+    }, 10000);
 
     return () => clearTimeout(fallbackTimer);
-  }, [hasStartedPlaying, loading, currentSourceIndex]);
+  }, [hasStartedPlaying, loading, currentSourceIndex, manualSourceChange]);
 
-  // Canviar de font
+  // Canviar de font manualment
   const handleSourceChange = useCallback((index) => {
+    setManualSourceChange(true); // Marcar com a canvi manual
     setLoading(true);
     setCurrentSourceIndex(index);
     setShowSourceMenu(false);
