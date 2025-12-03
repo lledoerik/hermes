@@ -17,12 +17,6 @@ const BackIcon = () => (
   </svg>
 );
 
-const ServerIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M20 13H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1zM7 19c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM20 3H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1zM7 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
-  </svg>
-);
-
 const FullscreenIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor">
     <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
@@ -71,150 +65,13 @@ const CheckCircleIcon = () => (
   </svg>
 );
 
-// Helper per crear slug per anime (títol normalitzat)
-const createAnimeSlug = (title) => {
-  if (!title) return '';
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .trim();
-};
-
-// Fonts d'embed - Ordre optimitzat: genèrics primer, anime després
-const EMBED_SOURCES = [
-  // === FONTS GENERALS (funcionen amb TMDB ID) ===
-  {
-    id: 'vidsrc-cc',
-    name: 'VidSrc CC',
-    description: 'Recomanat',
-    getUrl: (type, tmdbId, season, episode) => {
-      if (type === 'movie') {
-        return `https://vidsrc.cc/v2/embed/movie/${tmdbId}`;
-      }
-      return `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
-    }
-  },
-  {
-    id: 'vidsrc-xyz',
-    name: 'VidSrc',
-    description: 'Alternatiu',
-    getUrl: (type, tmdbId, season, episode) => {
-      if (type === 'movie') {
-        return `https://vidsrc.xyz/embed/movie?tmdb=${tmdbId}`;
-      }
-      return `https://vidsrc.xyz/embed/tv?tmdb=${tmdbId}&season=${season || 1}&episode=${episode || 1}`;
-    }
-  },
-  {
-    id: 'embed-su',
-    name: 'Embed.su',
-    description: 'HD',
-    getUrl: (type, tmdbId, season, episode) => {
-      if (type === 'movie') {
-        return `https://embed.su/embed/movie/${tmdbId}`;
-      }
-      return `https://embed.su/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
-    }
-  },
-  {
-    id: 'autoembed',
-    name: 'AutoEmbed',
-    description: 'Multifont',
-    getUrl: (type, tmdbId, season, episode) => {
-      if (type === 'movie') {
-        return `https://autoembed.cc/embed/movie/${tmdbId}`;
-      }
-      return `https://autoembed.cc/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
-    }
-  },
-  {
-    id: '2embed',
-    name: '2Embed',
-    description: 'Backup',
-    getUrl: (type, tmdbId, season, episode) => {
-      if (type === 'movie') {
-        return `https://www.2embed.cc/embed/${tmdbId}`;
-      }
-      return `https://www.2embed.cc/embedtv/${tmdbId}&s=${season || 1}&e=${episode || 1}`;
-    }
-  },
-  {
-    id: 'superembed',
-    name: 'SuperEmbed',
-    description: 'Reserva',
-    getUrl: (type, tmdbId, season, episode) => {
-      if (type === 'movie') {
-        return `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1`;
-      }
-      return `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1&s=${season || 1}&e=${episode || 1}`;
-    }
-  },
-  // === FONTS D'ANIME INTERNACIONALS ===
-  {
-    id: 'vidsrc-anime-sub',
-    name: 'Anime SUB',
-    description: 'Japonès + Subs',
-    category: 'anime',
-    getUrl: (type, tmdbId, season, episode) => {
-      if (type === 'movie') return null;
-      return `https://vidsrc.cc/v2/embed/anime/${tmdbId}/${episode || 1}/sub`;
-    }
-  },
-  {
-    id: 'vidsrc-anime-dub',
-    name: 'Anime DUB',
-    description: 'Anglès doblat',
-    category: 'anime',
-    getUrl: (type, tmdbId, season, episode) => {
-      if (type === 'movie') return null;
-      return `https://vidsrc.cc/v2/embed/anime/${tmdbId}/${episode || 1}/dub`;
-    }
-  },
-  {
-    id: 'autoembed-anime',
-    name: 'AutoEmbed Anime',
-    description: 'Anime alternatiu',
-    category: 'anime',
-    needsTitle: true,
-    getUrl: (type, tmdbId, season, episode, title) => {
-      if (type === 'movie') return null;
-      if (!title) return 'waiting';
-      const slug = createAnimeSlug(title);
-      if (!slug) return null;
-      return `https://anime.autoembed.cc/embed/${slug}-episode-${episode || 1}`;
-    }
-  },
-  // === FONTS D'ANIME EN ESPANYOL/CATALÀ (requereixen cerca per títol) ===
-  {
-    id: 'animeflv',
-    name: 'AnimeFLV',
-    description: 'Espanyol SUB',
-    category: 'anime-es',
-    isDynamic: true,  // Indica que requereix cerca al backend
-    language: 'es-sub',
-    getUrl: () => 'dynamic'  // Placeholder, la URL real s'obté del backend
-  },
-  {
-    id: 'henaojara',
-    name: 'HenaoJara',
-    description: 'Espanyol Latino',
-    category: 'anime-es',
-    isDynamic: true,
-    language: 'es-lat',
-    getUrl: () => 'dynamic'
-  },
-  {
-    id: 'fansubscat',
-    name: 'Fansubs.cat',
-    description: 'Català',
-    category: 'anime-ca',
-    isDynamic: true,
-    language: 'ca',
-    getUrl: () => 'dynamic'
+// Construir URL per VidSrc.cc
+const getEmbedUrl = (type, tmdbId, season, episode) => {
+  if (type === 'movie') {
+    return `https://vidsrc.cc/v2/embed/movie/${tmdbId}`;
   }
-];
+  return `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
+};
 
 function StreamPlayer() {
   const { type, tmdbId } = useParams();
@@ -235,56 +92,23 @@ function StreamPlayer() {
   const [episodes, setEpisodes] = useState([]);
   const [seasons, setSeasons] = useState([]);
 
-  // Sempre començar amb VidSrc principal (índex 0)
-  const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
-  const [loading, setLoading] = useState(true); // Carregar directament
+  const [loading, setLoading] = useState(true);
   const [showControls, setShowControls] = useState(true);
-  const [showSourceMenu, setShowSourceMenu] = useState(false);
   const [showEpisodesMenu, setShowEpisodesMenu] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showStartOverlay, setShowStartOverlay] = useState(false); // Sense overlay
-  const [hasStartedPlaying, setHasStartedPlaying] = useState(true); // Reproduir directament
-  const [, setHasTriedFallback] = useState(false);
-  const [manualSourceChange, setManualSourceChange] = useState(false); // Canvi manual de servidor
+  const [showStartOverlay, setShowStartOverlay] = useState(false);
+  const [hasStartedPlaying, setHasStartedPlaying] = useState(true);
 
   // Estat de progrés de visualització
   const [isWatched, setIsWatched] = useState(false);
-  const [watchStartTime, setWatchStartTime] = useState(Date.now()); // Iniciar temps de visualització
+  const [watchStartTime, setWatchStartTime] = useState(Date.now());
 
-  // Estat per fonts dinàmiques d'anime (AnimeFLV, HenaoJara, Fansubs.cat)
-  const [showAnimeSearch, setShowAnimeSearch] = useState(false);
-  const [animeSearchResults, setAnimeSearchResults] = useState([]);
-  const [animeSearchLoading, setAnimeSearchLoading] = useState(false);
-  const [selectedAnime, setSelectedAnime] = useState(null); // { source, id, title }
-  const [animeServers, setAnimeServers] = useState([]);
-  const [selectedAnimeServer, setSelectedAnimeServer] = useState(null);
-  const [dynamicEmbedUrl, setDynamicEmbedUrl] = useState(null);
-
-  const currentSource = EMBED_SOURCES[currentSourceIndex];
   const mediaType = type === 'movie' ? 'movie' : 'tv';
 
-  // Obtenir el títol per fonts que el necessiten (anime)
-  const mediaTitle = mediaInfo?.name || mediaInfo?.title || mediaInfo?.original_name || '';
-
-  // Construir URL per embed
+  // URL d'embed (només VidSrc.cc)
   const embedUrl = React.useMemo(() => {
-    // Si és una font dinàmica i tenim URL dinàmica, usar-la
-    if (currentSource.isDynamic && dynamicEmbedUrl) {
-      return dynamicEmbedUrl;
-    }
-    // Si és font dinàmica sense URL, retornar null (mostrarà cerca)
-    if (currentSource.isDynamic) {
-      return null;
-    }
-
-    const url = currentSource.getUrl(mediaType, tmdbId, season, episode, mediaTitle);
-    // 'waiting' significa que espera el títol (per fonts d'anime)
-    if (url === 'waiting') {
-      return null; // Esperar sense saltar
-    }
-    // null significa que no és compatible (ex: anime-only per pel·lícules)
-    return url;
-  }, [currentSource, mediaType, tmdbId, season, episode, mediaTitle, dynamicEmbedUrl]);
+    return getEmbedUrl(mediaType, tmdbId, season, episode);
+  }, [mediaType, tmdbId, season, episode]);
 
   // Funcions per carregar dades
   const loadMediaInfo = useCallback(async () => {
@@ -362,7 +186,7 @@ function StreamPlayer() {
     }
   }, [tmdbId, type, season, episode]);
 
-  // Funció per entrar en mode immersiu (definida aquí per evitar errors de referència)
+  // Funció per entrar en mode immersiu
   const enterImmersiveMode = useCallback(async () => {
     try {
       if (containerRef.current && !document.fullscreenElement) {
@@ -379,78 +203,6 @@ function StreamPlayer() {
       console.log('Fullscreen request failed:', e);
     }
   }, []);
-
-  // === FUNCIONS PER FONTS DINÀMIQUES D'ANIME ===
-
-  // Cercar anime pel títol a la font seleccionada
-  const searchAnime = useCallback(async (source, query) => {
-    setAnimeSearchLoading(true);
-    try {
-      const response = await axios.get(`${API_URL}/api/anime/search`, {
-        params: { q: query, source }
-      });
-      setAnimeSearchResults(response.data.results || []);
-    } catch (error) {
-      console.error('Error cercant anime:', error);
-      setAnimeSearchResults([]);
-    } finally {
-      setAnimeSearchLoading(false);
-    }
-  }, []);
-
-  // Obtenir servidors per un episodi d'anime
-  const loadAnimeServers = useCallback(async (source, animeId, episodeNum) => {
-    setLoading(true);
-    try {
-      const response = await axios.get(
-        `${API_URL}/api/anime/${source}/${animeId}/episode/${episodeNum}`
-      );
-      const servers = response.data.servers || [];
-      setAnimeServers(servers);
-
-      // Si hi ha servidors, seleccionar el primer automàticament
-      if (servers.length > 0) {
-        setSelectedAnimeServer(servers[0]);
-        setDynamicEmbedUrl(servers[0].url);
-        setShowAnimeSearch(false);
-      }
-    } catch (error) {
-      console.error('Error obtenint servidors:', error);
-      setAnimeServers([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Quan es selecciona un anime dels resultats de cerca
-  const handleSelectAnime = useCallback(async (anime) => {
-    setSelectedAnime(anime);
-    // Carregar servidors per l'episodi actual
-    await loadAnimeServers(anime.source, anime.id, episode || 1);
-  }, [episode, loadAnimeServers]);
-
-  // Quan es selecciona un servidor d'anime
-  const handleSelectAnimeServer = useCallback((server) => {
-    setSelectedAnimeServer(server);
-    setDynamicEmbedUrl(server.url);
-    setShowSourceMenu(false);
-  }, []);
-
-  // Iniciar cerca quan es selecciona una font dinàmica
-  useEffect(() => {
-    if (currentSource.isDynamic && mediaTitle && !selectedAnime) {
-      setShowAnimeSearch(true);
-      searchAnime(currentSource.id, mediaTitle);
-    }
-  }, [currentSource, mediaTitle, selectedAnime, searchAnime]);
-
-  // Reset quan canvia l'episodi
-  useEffect(() => {
-    if (selectedAnime && currentSource.isDynamic) {
-      // Tornar a carregar servidors pel nou episodi
-      loadAnimeServers(selectedAnime.source, selectedAnime.id, episode || 1);
-    }
-  }, [episode, selectedAnime, currentSource, loadAnimeServers]);
 
   // Carregar info del media si no s'ha passat per state
   useEffect(() => {
@@ -471,7 +223,7 @@ function StreamPlayer() {
     if (tmdbId) {
       loadWatchStatus();
       setWatchStartTime(Date.now());
-      setIsWatched(false); // Reset per nou contingut
+      setIsWatched(false);
     }
   }, [tmdbId, season, episode, loadWatchStatus]);
 
@@ -480,19 +232,16 @@ function StreamPlayer() {
     if (!watchStartTime || showStartOverlay || loading) return;
 
     const timer = setTimeout(() => {
-      // Després de 30 segons, marcar com "en progrés" (50%)
       saveStreamingProgress(50, false);
     }, 30000);
 
     return () => clearTimeout(timer);
   }, [watchStartTime, showStartOverlay, loading, saveStreamingProgress]);
 
-  // Guardar progrés quan l'usuari surt o canvia d'episodi
+  // Guardar progrés quan l'usuari surt
   useEffect(() => {
     const handleBeforeUnload = () => {
-      // Guardar progrés abans de sortir (50% si no està marcat com vist)
       if (!isWatched && !showStartOverlay) {
-        // Usem navigator.sendBeacon per assegurar que s'envia
         const data = JSON.stringify({
           tmdb_id: parseInt(tmdbId),
           media_type: type === 'movie' ? 'movie' : 'series',
@@ -512,39 +261,35 @@ function StreamPlayer() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [tmdbId, type, season, episode, mediaInfo, isWatched, showStartOverlay]);
 
-  // Amagar controls després de 3 segons d'inactivitat (igual que l'iframe)
+  // Amagar controls després de 3 segons d'inactivitat
   useEffect(() => {
     let timeout;
-    if (showControls && !showSourceMenu && !showEpisodesMenu && hasStartedPlaying && !loading) {
+    if (showControls && !showEpisodesMenu && hasStartedPlaying && !loading) {
       timeout = setTimeout(() => {
         setShowControls(false);
       }, 3000);
     }
     return () => clearTimeout(timeout);
-  }, [showControls, showSourceMenu, showEpisodesMenu, hasStartedPlaying, loading]);
+  }, [showControls, showEpisodesMenu, hasStartedPlaying, loading]);
 
-  // Mostrar controls quan mous el ratolí (amb timeout per amagar-los)
+  // Mostrar controls quan mous el ratolí
   const handleMouseMove = useCallback(() => {
     setShowControls(true);
 
-    // Netejar timeout anterior
     if (controlsTimeoutRef.current) {
       clearTimeout(controlsTimeoutRef.current);
     }
 
-    // Amagar controls després de 3 segons d'inactivitat
     controlsTimeoutRef.current = setTimeout(() => {
-      // No amagar si hi ha un menú obert
-      if (!showSourceMenu && !showEpisodesMenu) {
+      if (!showEpisodesMenu) {
         setShowControls(false);
       }
     }, 3000);
-  }, [showSourceMenu, showEpisodesMenu]);
+  }, [showEpisodesMenu]);
 
   // Toggle controls quan es fa clic
   const handleContainerClick = useCallback((e) => {
     const isControlClick = e.target.closest('.stream-btn') ||
-                          e.target.closest('.stream-source-dropdown') ||
                           e.target.closest('.stream-episodes-dropdown') ||
                           e.target.closest('.stream-next-episode-btn');
     if (!isControlClick) {
@@ -564,94 +309,13 @@ function StreamPlayer() {
   // Quan l'iframe carrega correctament
   const handleIframeLoad = useCallback(() => {
     setLoading(false);
-    setHasTriedFallback(false); // Reset per futures càrregues
-    setManualSourceChange(false); // Reset canvi manual
     if (!showStartOverlay) {
       enterImmersiveMode();
     }
   }, [enterImmersiveMode, showStartOverlay]);
 
-  // Quan l'iframe falla - passar al següent servidor
-  const handleIframeError = useCallback(() => {
-    console.log(`Error amb ${EMBED_SOURCES[currentSourceIndex].name}, provant següent...`);
-    const nextIndex = currentSourceIndex + 1;
-    if (nextIndex < EMBED_SOURCES.length) {
-      setCurrentSourceIndex(nextIndex);
-      setLoading(true);
-    } else {
-      // Hem provat tots els servidors
-      setLoading(false);
-      console.log('Tots els servidors han fallat');
-    }
-  }, [currentSourceIndex]);
-
-  // Saltar automàticament fonts que retornen null NOMÉS si no és canvi manual
-  useEffect(() => {
-    // No saltar si l'usuari ha canviat manualment o si la font espera el títol
-    if (manualSourceChange) return;
-
-    const rawUrl = currentSource.getUrl(mediaType, tmdbId, season, episode, mediaTitle);
-    // 'waiting' = espera el títol, no saltar
-    if (rawUrl === 'waiting') return;
-
-    // null = no compatible, saltar automàticament
-    if (rawUrl === null && hasStartedPlaying) {
-      const nextIndex = currentSourceIndex + 1;
-      if (nextIndex < EMBED_SOURCES.length) {
-        console.log(`${currentSource.name} no compatible, saltant...`);
-        setCurrentSourceIndex(nextIndex);
-      }
-    }
-  }, [currentSource, mediaType, tmdbId, season, episode, mediaTitle, currentSourceIndex, hasStartedPlaying, manualSourceChange]);
-
-  // Fallback automàtic després de 10 segons si encara carrega (només si no és canvi manual)
-  useEffect(() => {
-    if (!hasStartedPlaying || !loading || manualSourceChange) return;
-
-    const fallbackTimer = setTimeout(() => {
-      // Si encara està carregant després de 10s, provar el següent servidor
-      if (loading) {
-        const nextIndex = currentSourceIndex + 1;
-        if (nextIndex < EMBED_SOURCES.length) {
-          console.log(`Timeout - passant de ${EMBED_SOURCES[currentSourceIndex].name} a ${EMBED_SOURCES[nextIndex].name}`);
-          setCurrentSourceIndex(nextIndex);
-        } else {
-          // Hem provat tots, deixar el loading
-          setLoading(false);
-        }
-      }
-    }, 10000);
-
-    return () => clearTimeout(fallbackTimer);
-  }, [hasStartedPlaying, loading, currentSourceIndex, manualSourceChange]);
-
-  // Canviar de font manualment
-  const handleSourceChange = useCallback((index) => {
-    setManualSourceChange(true); // Marcar com a canvi manual
-    setLoading(true);
-    setCurrentSourceIndex(index);
-    setShowSourceMenu(false);
-
-    // Reset estat d'anime quan canvia la font
-    const newSource = EMBED_SOURCES[index];
-    if (!newSource.isDynamic) {
-      // Si la nova font no és dinàmica, reset tot
-      setSelectedAnime(null);
-      setAnimeServers([]);
-      setSelectedAnimeServer(null);
-      setDynamicEmbedUrl(null);
-      setShowAnimeSearch(false);
-    } else {
-      // Si és dinàmica, reset la URL i mostrar cerca
-      setDynamicEmbedUrl(null);
-      setSelectedAnime(null);
-      setShowAnimeSearch(true);
-    }
-  }, []);
-
-  // Tornar enrere - usar historial del navegador per anar a la pàgina correcta
+  // Tornar enrere
   const handleBack = useCallback(() => {
-    // Usar navigate(-1) per tornar a la pàgina anterior (Details amb ID correcte)
     navigate(-1);
   }, [navigate]);
 
@@ -717,7 +381,6 @@ function StreamPlayer() {
     setShowStartOverlay(false);
     setHasStartedPlaying(true);
     setLoading(true);
-    setHasTriedFallback(false); // Reset per si canviem d'episodi
     enterImmersiveMode();
   }, [enterImmersiveMode]);
 
@@ -727,8 +390,6 @@ function StreamPlayer() {
       if (e.key === 'Escape') {
         if (showEpisodesMenu) {
           setShowEpisodesMenu(false);
-        } else if (showSourceMenu) {
-          setShowSourceMenu(false);
         } else if (isFullscreen) {
           document.exitFullscreen();
         } else {
@@ -740,15 +401,13 @@ function StreamPlayer() {
         if (type !== 'movie') goToNextEpisode();
       } else if (e.key === 'p' || e.key === 'P') {
         if (type !== 'movie') goToPrevEpisode();
-      } else if (e.key === 's' || e.key === 'S') {
-        setShowSourceMenu(prev => !prev);
       } else if (e.key === 'm' || e.key === 'M') {
         markAsWatched();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFullscreen, handleBack, toggleFullscreen, goToNextEpisode, goToPrevEpisode, type, showEpisodesMenu, showSourceMenu, markAsWatched]);
+  }, [isFullscreen, handleBack, toggleFullscreen, goToNextEpisode, goToPrevEpisode, type, showEpisodesMenu, markAsWatched]);
 
   // Tancar menús quan es clica fora
   useEffect(() => {
@@ -797,7 +456,7 @@ function StreamPlayer() {
       onMouseMove={handleMouseMove}
       onClick={handleContainerClick}
     >
-      {/* Iframe del reproductor embed - només mostrar quan s'ha iniciat i URL vàlida */}
+      {/* Iframe del reproductor embed */}
       {hasStartedPlaying && embedUrl && (
         <iframe
           key={embedUrl}
@@ -806,105 +465,16 @@ function StreamPlayer() {
           allowFullScreen
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           onLoad={handleIframeLoad}
-          onError={handleIframeError}
           title="Video Player"
         />
       )}
 
       {/* Loading overlay */}
-      {loading && hasStartedPlaying && !showAnimeSearch && (
+      {loading && hasStartedPlaying && (
         <div className="stream-loading-overlay">
           <div className="stream-loading-spinner">
             <div className="spinner"></div>
-            <p>Carregant {currentSource.name}...</p>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de cerca d'anime per fonts dinàmiques */}
-      {showAnimeSearch && currentSource.isDynamic && (
-        <div className="stream-anime-search-overlay">
-          <div className="stream-anime-search-modal">
-            <div className="anime-search-header">
-              <h3>Cercar a {currentSource.name}</h3>
-              <p className="anime-search-lang">{currentSource.description}</p>
-              <button
-                className="anime-search-close"
-                onClick={() => setShowAnimeSearch(false)}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="anime-search-input-wrapper">
-              <input
-                type="text"
-                className="anime-search-input"
-                placeholder="Cerca anime..."
-                defaultValue={mediaTitle}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    searchAnime(currentSource.id, e.target.value);
-                  }
-                }}
-              />
-              <button
-                className="anime-search-btn"
-                onClick={(e) => {
-                  const input = e.target.parentElement.querySelector('input');
-                  searchAnime(currentSource.id, input.value);
-                }}
-              >
-                Cercar
-              </button>
-            </div>
-
-            {animeSearchLoading ? (
-              <div className="anime-search-loading">
-                <div className="spinner"></div>
-                <p>Cercant...</p>
-              </div>
-            ) : (
-              <div className="anime-search-results">
-                {animeSearchResults.length === 0 ? (
-                  <p className="anime-no-results">No s'han trobat resultats. Prova amb un altre nom.</p>
-                ) : (
-                  animeSearchResults.map((anime, index) => (
-                    <div
-                      key={`${anime.source}-${anime.id}-${index}`}
-                      className="anime-search-item"
-                      onClick={() => handleSelectAnime(anime)}
-                    >
-                      {anime.cover && (
-                        <img src={anime.cover} alt={anime.title} className="anime-search-cover" />
-                      )}
-                      <div className="anime-search-info">
-                        <span className="anime-search-title">{anime.title}</span>
-                        <span className="anime-search-source">{anime.source}</span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-
-            {/* Llista de servidors si hi ha anime seleccionat */}
-            {selectedAnime && animeServers.length > 0 && (
-              <div className="anime-servers-section">
-                <h4>Servidors disponibles:</h4>
-                <div className="anime-servers-list">
-                  {animeServers.map((server, index) => (
-                    <button
-                      key={index}
-                      className={`anime-server-btn ${selectedAnimeServer?.url === server.url ? 'active' : ''}`}
-                      onClick={() => handleSelectAnimeServer(server)}
-                    >
-                      {server.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            <p>Carregant...</p>
           </div>
         </div>
       )}
@@ -1016,39 +586,6 @@ function StreamPlayer() {
         >
           {isWatched ? <CheckCircleIcon /> : <CheckIcon />}
         </button>
-
-        {/* Selector de servidor */}
-        <div className="stream-source-selector">
-          <button
-            className={`stream-btn stream-source-btn ${showSourceMenu ? 'active' : ''}`}
-            onClick={() => setShowSourceMenu(!showSourceMenu)}
-            title="Canviar servidor (S)"
-          >
-            <ServerIcon />
-            <span className="source-name-short">{currentSource.name}</span>
-          </button>
-
-          {showSourceMenu && (
-            <div className="stream-source-dropdown">
-              <div className="stream-source-header">Servidor</div>
-              <div className="stream-source-list">
-                {EMBED_SOURCES.map((source, index) => (
-                  <button
-                    key={source.id}
-                    className={`stream-source-option ${index === currentSourceIndex ? 'active' : ''}`}
-                    onClick={() => handleSourceChange(index)}
-                  >
-                    <div className="source-info">
-                      <span className="source-name">{source.name}</span>
-                      <span className="source-desc">{source.description}</span>
-                    </div>
-                    {index === currentSourceIndex && <span className="check">✓</span>}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
 
         {/* Botó fullscreen */}
         <button className="stream-btn" onClick={toggleFullscreen} title="Pantalla completa (F)">
