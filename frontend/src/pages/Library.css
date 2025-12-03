@@ -531,6 +531,24 @@
   border-color: rgba(147, 51, 234, 0.3);
 }
 
+.content-type-btn .filter-icon {
+  font-size: 16px;
+  margin-right: var(--space-xs);
+}
+
+.content-type-btn .filter-label {
+  font-size: var(--font-size-sm);
+}
+
+.filter-hint {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  margin-left: auto;
+  padding: var(--space-xs) var(--space-sm);
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
 /* Category Tabs */
 .category-tabs {
   display: flex;

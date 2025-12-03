@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import MediaCard from '../components/MediaCard';
 import { useAuth } from '../context/AuthContext';
@@ -39,11 +39,70 @@ const ClearIcon = () => (
   </svg>
 );
 
-// Content type filter labels (toggle buttons)
-const contentTypeLabels = {
-  movie: 'Pel·lícules',
-  anime_movie: 'Anime',
-  animated: 'Animació'
+// Tipus de contingut per filtrar
+const FILTER_TYPES = {
+  movies: { id: 'movies', label: 'Pel·lícules', icon: '🎬' },
+  anime: { id: 'anime', label: 'Anime', icon: '🎌' },
+  animation: { id: 'animation', label: 'Animació', icon: '🎨' }
+};
+
+// Funció per determinar el tipus d'un item
+const getItemType = (item) => {
+  const isAnimation = item.genres?.some(g =>
+    g.id === 16 || g.name?.toLowerCase() === 'animation' || g.name?.toLowerCase() === 'animació'
+  );
+  const isJapanese = item.original_language === 'ja';
+
+  if (isAnimation && isJapanese) return 'anime';
+  if (isAnimation) return 'animation';
+  return 'movies';
+};
+
+// Hook per detectar long-press
+const useLongPress = (onLongPress, onClick, { delay = 500 } = {}) => {
+  const timeoutRef = useRef(null);
+  const isLongPressRef = useRef(false);
+
+  const start = useCallback((e) => {
+    e.preventDefault();
+    isLongPressRef.current = false;
+    timeoutRef.current = setTimeout(() => {
+      isLongPressRef.current = true;
+      onLongPress(e);
+    }, delay);
+  }, [onLongPress, delay]);
+
+  const clear = useCallback((e, shouldTriggerClick = true) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    if (shouldTriggerClick && !isLongPressRef.current) {
+      onClick(e);
+    }
+  }, [onClick]);
+
+  return {
+    onMouseDown: start,
+    onMouseUp: clear,
+    onMouseLeave: (e) => clear(e, false),
+    onTouchStart: start,
+    onTouchEnd: clear,
+  };
+};
+
+// Component FilterButton amb long-press
+const FilterButton = ({ filter, isActive, onClick, onLongPress }) => {
+  const longPressProps = useLongPress(onLongPress, onClick, { delay: 500 });
+
+  return (
+    <button
+      className={`content-type-btn ${isActive ? 'active' : ''}`}
+      {...longPressProps}
+    >
+      <span className="filter-icon">{filter.icon}</span>
+      <span className="filter-label">{filter.label}</span>
+    </button>
+  );
 };
 
 // Pagination icons
@@ -72,8 +131,8 @@ function Movies() {
   const [totalItems, setTotalItems] = useState(0);
   const itemsPerPage = 50;
 
-  // Content type filter state (array for multi-select, default to 'movie')
-  const [selectedContentTypes, setSelectedContentTypes] = useState(['movie']);
+  // Filtres actius (per defecte tots)
+  const [activeFilters, setActiveFilters] = useState(['movies', 'anime', 'animation']);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -135,18 +194,23 @@ function Movies() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Toggle content type selection
-  const toggleContentType = (type) => {
-    setSelectedContentTypes(prev => {
-      if (prev.includes(type)) {
-        // Don't allow deselecting if it's the only one selected
+  // Click: selecció exclusiva (només aquest filtre)
+  const handleFilterClick = useCallback((filterId) => {
+    setActiveFilters([filterId]);
+  }, []);
+
+  // Long-press: afegir/treure filtre (multi-selecció)
+  const handleFilterLongPress = useCallback((filterId) => {
+    setActiveFilters(prev => {
+      if (prev.includes(filterId)) {
+        // No permetre treure l'últim filtre
         if (prev.length === 1) return prev;
-        return prev.filter(t => t !== type);
+        return prev.filter(f => f !== filterId);
       } else {
-        return [...prev, type];
+        return [...prev, filterId];
       }
     });
-  };
+  }, []);
 
   const loadMovies = async () => {
     try {
@@ -246,9 +310,15 @@ function Movies() {
   };
 
   // Use API search results if searching, otherwise use paginated movies
-  const filteredMovies = searchQuery.trim()
+  const baseMovies = searchQuery.trim()
     ? (localSearchResults || [])
     : movies;
+
+  // Aplicar filtres de tipus
+  const filteredMovies = baseMovies.filter(movie => {
+    const itemType = getItemType(movie);
+    return activeFilters.includes(itemType);
+  });
 
   // No need to sort client-side anymore - backend handles it
   const sortedMovies = filteredMovies;
@@ -311,6 +381,20 @@ function Movies() {
             <option value="duration">Ordenar per duració</option>
             <option value="recent">Afegides recentment</option>
           </select>
+        </div>
+
+        {/* Filtres de tipus */}
+        <div className="content-type-filters">
+          {Object.values(FILTER_TYPES).map(filter => (
+            <FilterButton
+              key={filter.id}
+              filter={filter}
+              isActive={activeFilters.includes(filter.id)}
+              onClick={() => handleFilterClick(filter.id)}
+              onLongPress={() => handleFilterLongPress(filter.id)}
+            />
+          ))}
+          <span className="filter-hint">💡 Mantén premut per multi-selecció</span>
         </div>
       </div>
 
