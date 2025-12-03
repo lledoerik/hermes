@@ -89,7 +89,7 @@ export function LibraryProvider({ children }) {
       try {
         const [recentRes, continueRes] = await Promise.all([
           axios.get(`${API_URL}/api/library/recent`).catch(() => ({ data: [] })),
-          axios.get(`${API_URL}/api/library/continue-watching`).catch(() => ({ data: [] }))
+          axios.get(`${API_URL}/api/user/continue-watching`).catch(() => ({ data: [] }))
         ]);
         setHomeCache({
           data: { recent: recentRes.data, continueWatching: continueRes.data },
@@ -221,7 +221,7 @@ export function LibraryProvider({ children }) {
     try {
       const [recentRes, continueRes] = await Promise.all([
         axios.get(`${API_URL}/api/library/recent`).catch(() => ({ data: [] })),
-        axios.get(`${API_URL}/api/library/continue-watching`).catch(() => ({ data: [] }))
+        axios.get(`${API_URL}/api/user/continue-watching`).catch(() => ({ data: [] }))
       ]);
       const data = { recent: recentRes.data, continueWatching: continueRes.data };
       setHomeCache({ data, timestamp: Date.now() });
