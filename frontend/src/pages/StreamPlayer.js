@@ -71,8 +71,45 @@ const CheckCircleIcon = () => (
   </svg>
 );
 
+// Helper per crear slug per anime (títol normalitzat)
+const createAnimeSlug = (title) => {
+  if (!title) return '';
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .trim();
+};
+
 // Fonts d'embed - Múltiples servidors amb fallback automàtic
 const EMBED_SOURCES = [
+  {
+    id: 'player4u',
+    name: 'Player4U',
+    description: 'Anime directe',
+    animeOnly: true,
+    getUrl: (type, tmdbId, season, episode, title) => {
+      if (type === 'movie' || !title) return null;
+      // Format: Title S{season}E{episode} (episodi absolut o per temporada)
+      const encodedTitle = encodeURIComponent(`${title} S${season || 1}E${episode || 1}`);
+      return `https://player4u.xyz/embed?key=${encodedTitle}`;
+    }
+  },
+  {
+    id: 'anime-autoembed',
+    name: 'AnimeEmbed',
+    description: 'Anime HD',
+    animeOnly: true,
+    getUrl: (type, tmdbId, season, episode, title) => {
+      if (type === 'movie' || !title) return null;
+      // Format: {title-slug}-episode-{episode}
+      const slug = createAnimeSlug(title);
+      // Per anime, l'episodi sovint és absolut (no per temporada)
+      // Calculem l'episodi absolut si tenim temporada > 1
+      return `https://anime.autoembed.cc/embed/${slug}-episode-${episode || 1}`;
+    }
+  },
   {
     id: 'vidsrc-xyz',
     name: 'VidSrc',
@@ -169,10 +206,19 @@ function StreamPlayer() {
   const currentSource = EMBED_SOURCES[currentSourceIndex];
   const mediaType = type === 'movie' ? 'movie' : 'tv';
 
+  // Obtenir el títol per fonts que el necessiten (anime)
+  const mediaTitle = mediaInfo?.name || mediaInfo?.title || mediaInfo?.original_name || '';
+
   // Construir URL per embed
   const embedUrl = React.useMemo(() => {
-    return currentSource.getUrl(mediaType, tmdbId, season, episode);
-  }, [currentSource, mediaType, tmdbId, season, episode]);
+    const url = currentSource.getUrl(mediaType, tmdbId, season, episode, mediaTitle);
+    // Si la font retorna null (ex: font anime-only per pel·lícules), saltar a la següent
+    if (!url && currentSourceIndex < EMBED_SOURCES.length - 1) {
+      // Això es gestionarà al fallback
+      return null;
+    }
+    return url;
+  }, [currentSource, mediaType, tmdbId, season, episode, mediaTitle, currentSourceIndex]);
 
   // Funcions per carregar dades
   const loadMediaInfo = useCallback(async () => {
@@ -400,6 +446,17 @@ function StreamPlayer() {
     }
   }, [currentSourceIndex]);
 
+  // Saltar automàticament fonts que retornen null (ex: anime-only per pel·lícules)
+  useEffect(() => {
+    if (!embedUrl && hasStartedPlaying) {
+      const nextIndex = currentSourceIndex + 1;
+      if (nextIndex < EMBED_SOURCES.length) {
+        console.log(`${EMBED_SOURCES[currentSourceIndex].name} no disponible, saltant...`);
+        setCurrentSourceIndex(nextIndex);
+      }
+    }
+  }, [embedUrl, currentSourceIndex, hasStartedPlaying]);
+
   // Fallback automàtic després de 8 segons si encara carrega
   useEffect(() => {
     if (!hasStartedPlaying || !loading) return;
@@ -576,8 +633,8 @@ function StreamPlayer() {
       onMouseMove={handleMouseMove}
       onClick={handleContainerClick}
     >
-      {/* Iframe del reproductor embed - només mostrar quan s'ha iniciat */}
-      {hasStartedPlaying && (
+      {/* Iframe del reproductor embed - només mostrar quan s'ha iniciat i URL vàlida */}
+      {hasStartedPlaying && embedUrl && (
         <iframe
           key={embedUrl}
           src={embedUrl}
