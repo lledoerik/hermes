@@ -167,6 +167,7 @@ function Movies() {
 
   // Click: selecció exclusiva (només aquest filtre)
   const handleFilterClick = useCallback((filterId) => {
+    console.log('🎯 handleFilterClick:', filterId);
     setActiveFilters([filterId]);
     setCurrentPage(1); // Tornar a la primera pàgina
   }, []);
@@ -190,7 +191,9 @@ function Movies() {
       setLoading(true);
       // Convertir filtres a content_types del backend
       const contentType = filtersToContentTypes(activeFilters);
+      console.log('🎬 loadMovies - activeFilters:', activeFilters, '-> contentType:', contentType);
       const data = await getMovies(currentPage, itemsPerPage, sortBy, contentType);
+      console.log('🎬 loadMovies - received:', data?.items?.length, 'items');
       setMovies(data.items || []);
       setTotalPages(data.total_pages || 1);
       setTotalItems(data.total || 0);
