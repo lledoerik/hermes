@@ -555,10 +555,7 @@
 }
 
 .continue-overlay .play-btn {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: var(--color-primary);
+  background: none;
   border: none;
   outline: none;
   color: white;
@@ -566,21 +563,16 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+  transition: all 0.3s ease;
 }
 
 .continue-overlay .play-btn svg {
-  color: white;
-  fill: white;
-  width: 24px;
-  height: 24px;
+  width: 48px;
+  height: 48px;
 }
 
 .continue-overlay .play-btn:hover {
   transform: scale(1.1);
-  background: var(--color-primary-light);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
 }
 
 .continue-overlay .play-btn:focus {
