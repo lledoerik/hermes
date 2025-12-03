@@ -153,9 +153,9 @@ const EMBED_SOURCES = [
   },
   // === FONTS D'ANIME (només sèries) ===
   {
-    id: 'vidsrc-anime',
-    name: 'VidSrc Anime',
-    description: 'Anime SUB',
+    id: 'vidsrc-anime-sub',
+    name: 'Anime SUB',
+    description: 'Japonès + Subs',
     getUrl: (type, tmdbId, season, episode) => {
       // Només funciona per sèries (anime)
       if (type === 'movie') return null;
@@ -164,9 +164,20 @@ const EMBED_SOURCES = [
     }
   },
   {
+    id: 'vidsrc-anime-dub',
+    name: 'Anime DUB',
+    description: 'Anglès doblat',
+    getUrl: (type, tmdbId, season, episode) => {
+      // Només funciona per sèries (anime)
+      if (type === 'movie') return null;
+      // Format: https://vidsrc.cc/v2/embed/anime/{tmdb_id}/{episode}/dub
+      return `https://vidsrc.cc/v2/embed/anime/${tmdbId}/${episode || 1}/dub`;
+    }
+  },
+  {
     id: 'autoembed-anime',
     name: 'AutoEmbed Anime',
-    description: 'Anime',
+    description: 'Anime alternatiu',
     needsTitle: true, // Indica que necessita el títol
     getUrl: (type, tmdbId, season, episode, title) => {
       // Només funciona per sèries (anime) i necessita títol
