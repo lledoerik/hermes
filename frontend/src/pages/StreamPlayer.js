@@ -159,6 +159,11 @@ function StreamPlayer() {
   // Guardar progrés de streaming
   const saveStreamingProgress = useCallback(async (progressPercent = 50, completed = false) => {
     try {
+      // Trobar l'episodi actual per obtenir still_path
+      const currentEpisode = type !== 'movie'
+        ? episodes.find(ep => ep.episode_number === parseInt(episode || 1))
+        : null;
+
       await axios.post('/api/streaming/progress', {
         tmdb_id: parseInt(tmdbId),
         media_type: type === 'movie' ? 'movie' : 'series',
@@ -168,7 +173,8 @@ function StreamPlayer() {
         completed: completed,
         title: mediaInfo?.title || mediaInfo?.name || '',
         poster_path: mediaInfo?.poster_path || null,
-        backdrop_path: mediaInfo?.backdrop_path || null
+        backdrop_path: mediaInfo?.backdrop_path || null,
+        still_path: currentEpisode?.still_path || null
       });
       if (completed) {
         setIsWatched(true);
@@ -176,7 +182,7 @@ function StreamPlayer() {
     } catch (error) {
       console.error('Error guardant progrés:', error);
     }
-  }, [tmdbId, type, season, episode, mediaInfo]);
+  }, [tmdbId, type, season, episode, mediaInfo, episodes]);
 
   // Marcar com a vist (100%)
   const markAsWatched = useCallback(async () => {
@@ -259,6 +265,11 @@ function StreamPlayer() {
   useEffect(() => {
     const handleBeforeUnload = () => {
       if (!isWatched && !showStartOverlay) {
+        // Trobar l'episodi actual per obtenir still_path
+        const currentEpisode = type !== 'movie'
+          ? episodes.find(ep => ep.episode_number === parseInt(episode || 1))
+          : null;
+
         const data = JSON.stringify({
           tmdb_id: parseInt(tmdbId),
           media_type: type === 'movie' ? 'movie' : 'series',
@@ -268,7 +279,8 @@ function StreamPlayer() {
           completed: false,
           title: mediaInfo?.title || mediaInfo?.name || '',
           poster_path: mediaInfo?.poster_path || null,
-          backdrop_path: mediaInfo?.backdrop_path || null
+          backdrop_path: mediaInfo?.backdrop_path || null,
+          still_path: currentEpisode?.still_path || null
         });
         navigator.sendBeacon(`${API_URL}/api/streaming/progress`, data);
       }
@@ -276,7 +288,7 @@ function StreamPlayer() {
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [tmdbId, type, season, episode, mediaInfo, isWatched, showStartOverlay]);
+  }, [tmdbId, type, season, episode, mediaInfo, isWatched, showStartOverlay, episodes]);
 
   // Amagar controls després de 3 segons d'inactivitat
   useEffect(() => {

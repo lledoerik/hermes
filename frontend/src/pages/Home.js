@@ -376,10 +376,13 @@ function Home() {
             <div className="content-scroll">
               {continueWatchingSeries.map((item, index) => {
                 // Determinar URL de la imatge segons la font
+                // Prioritat: still_path (miniatura episodi) > backdrop > poster
                 let imageUrl = null;
                 if (item.source === 'streaming') {
-                  // Per streaming, usar TMDB directament
-                  if (item.backdrop) {
+                  // Per streaming, prioritzar still_path (miniatura de l'episodi)
+                  if (item.still_path) {
+                    imageUrl = `https://image.tmdb.org/t/p/w500${item.still_path}`;
+                  } else if (item.backdrop) {
                     imageUrl = `https://image.tmdb.org/t/p/w780${item.backdrop}`;
                   } else if (item.poster) {
                     imageUrl = `https://image.tmdb.org/t/p/w500${item.poster}`;
