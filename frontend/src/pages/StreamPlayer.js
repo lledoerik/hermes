@@ -86,25 +86,25 @@ const createAnimeSlug = (title) => {
 const EMBED_SOURCES = [
   // === FONTS GENERALS (funcionen amb TMDB ID) ===
   {
-    id: 'vidsrc-xyz',
-    name: 'VidSrc',
-    description: 'Recomanat',
-    getUrl: (type, tmdbId, season, episode) => {
-      if (type === 'movie') {
-        return `https://vidsrc.xyz/embed/movie?tmdb=${tmdbId}`;
-      }
-      return `https://vidsrc.xyz/embed/tv?tmdb=${tmdbId}&season=${season || 1}&episode=${episode || 1}`;
-    }
-  },
-  {
     id: 'vidsrc-cc',
     name: 'VidSrc CC',
-    description: 'Menys anuncis',
+    description: 'Recomanat',
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
         return `https://vidsrc.cc/v2/embed/movie/${tmdbId}`;
       }
       return `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
+    }
+  },
+  {
+    id: 'vidsrc-xyz',
+    name: 'VidSrc',
+    description: 'Alternatiu',
+    getUrl: (type, tmdbId, season, episode) => {
+      if (type === 'movie') {
+        return `https://vidsrc.xyz/embed/movie?tmdb=${tmdbId}`;
+      }
+      return `https://vidsrc.xyz/embed/tv?tmdb=${tmdbId}&season=${season || 1}&episode=${episode || 1}`;
     }
   },
   {
@@ -121,7 +121,7 @@ const EMBED_SOURCES = [
   {
     id: 'autoembed',
     name: 'AutoEmbed',
-    description: 'Alternatiu',
+    description: 'Multifont',
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
         return `https://autoembed.cc/embed/movie/${tmdbId}`;
@@ -132,7 +132,7 @@ const EMBED_SOURCES = [
   {
     id: '2embed',
     name: '2Embed',
-    description: 'Multifont',
+    description: 'Backup',
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
         return `https://www.2embed.cc/embed/${tmdbId}`;
@@ -143,37 +143,12 @@ const EMBED_SOURCES = [
   {
     id: 'superembed',
     name: 'SuperEmbed',
-    description: 'Backup',
+    description: 'Reserva',
     getUrl: (type, tmdbId, season, episode) => {
       if (type === 'movie') {
         return `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1`;
       }
       return `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1&s=${season || 1}&e=${episode || 1}`;
-    }
-  },
-  // === FONTS ESPECÍFIQUES ANIME (necessiten títol) ===
-  {
-    id: 'player4u',
-    name: 'Player4U',
-    description: 'Anime directe',
-    needsTitle: true,
-    getUrl: (type, tmdbId, season, episode, title) => {
-      if (type === 'movie') return null;
-      if (!title) return 'waiting'; // Esperar títol
-      const encodedTitle = encodeURIComponent(`${title} S${season || 1}E${episode || 1}`);
-      return `https://player4u.xyz/embed?key=${encodedTitle}`;
-    }
-  },
-  {
-    id: 'anime-autoembed',
-    name: 'AnimeEmbed',
-    description: 'Anime HD',
-    needsTitle: true,
-    getUrl: (type, tmdbId, season, episode, title) => {
-      if (type === 'movie') return null;
-      if (!title) return 'waiting'; // Esperar títol
-      const slug = createAnimeSlug(title);
-      return `https://anime.autoembed.cc/embed/${slug}-episode-${episode || 1}`;
     }
   }
 ];
