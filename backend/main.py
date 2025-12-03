@@ -319,6 +319,23 @@ def init_all_tables():
         except:
             pass  # La columna ja existeix
 
+        # Taula watchlist (llista de contingut per veure)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS watchlist (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                tmdb_id INTEGER NOT NULL,
+                media_type TEXT NOT NULL,
+                title TEXT,
+                poster_path TEXT,
+                backdrop_path TEXT,
+                year INTEGER,
+                rating REAL,
+                added_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, tmdb_id, media_type)
+            )
+        """)
+
         # Migració: Crear índex UNIQUE per watch_progress si no existeix
         # (per bases de dades existents que no tenen la constraint)
         try:
@@ -396,6 +413,17 @@ class StreamingProgressRequest(BaseModel):
     poster_path: Optional[str] = None
     backdrop_path: Optional[str] = None
     still_path: Optional[str] = None  # Miniatura de l'episodi
+
+
+class WatchlistRequest(BaseModel):
+    """Per afegir/eliminar contingut de la watchlist"""
+    tmdb_id: int
+    media_type: str  # 'movie' o 'series'
+    title: Optional[str] = None
+    poster_path: Optional[str] = None
+    backdrop_path: Optional[str] = None
+    year: Optional[int] = None
+    rating: Optional[float] = None
 
 
 # === STREAMING AMB RANGE SUPPORT ===
@@ -911,6 +939,141 @@ async def get_recently_watched(request: Request, limit: int = 10):
         """, (user_id, limit))
 
         return [dict(row) for row in cursor.fetchall()]
+
+
+# === WATCHLIST ===
+
+@app.get("/api/user/watchlist")
+async def get_watchlist(request: Request, limit: int = 50):
+    """Retorna la watchlist de l'usuari"""
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Cal iniciar sessió")
+    user_id = user["id"]
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT
+                id,
+                tmdb_id,
+                media_type,
+                title,
+                poster_path,
+                backdrop_path,
+                year,
+                rating,
+                added_date
+            FROM watchlist
+            WHERE user_id = ?
+            ORDER BY added_date DESC
+            LIMIT ?
+        """, (user_id, limit))
+
+        items = []
+        for row in cursor.fetchall():
+            items.append({
+                "id": row["id"],
+                "tmdb_id": row["tmdb_id"],
+                "media_type": row["media_type"],
+                "title": row["title"],
+                "poster_path": row["poster_path"],
+                "backdrop_path": row["backdrop_path"],
+                "year": row["year"],
+                "rating": row["rating"],
+                "added_date": row["added_date"]
+            })
+
+        return items
+
+
+@app.post("/api/user/watchlist")
+async def add_to_watchlist(data: WatchlistRequest, request: Request):
+    """Afegeix un element a la watchlist"""
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Cal iniciar sessió")
+    user_id = user["id"]
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("""
+                INSERT INTO watchlist (
+                    user_id, tmdb_id, media_type, title, poster_path, backdrop_path, year, rating
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, data.tmdb_id, data.media_type, data.title,
+                  data.poster_path, data.backdrop_path, data.year, data.rating))
+
+            conn.commit()
+
+            return {
+                "status": "success",
+                "message": "Afegit a la llista",
+                "tmdb_id": data.tmdb_id
+            }
+        except Exception as e:
+            if "UNIQUE constraint" in str(e):
+                return {
+                    "status": "exists",
+                    "message": "Ja està a la llista",
+                    "tmdb_id": data.tmdb_id
+                }
+            raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/user/watchlist/{tmdb_id}")
+async def remove_from_watchlist(tmdb_id: int, media_type: str, request: Request):
+    """Elimina un element de la watchlist"""
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Cal iniciar sessió")
+    user_id = user["id"]
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            DELETE FROM watchlist
+            WHERE user_id = ? AND tmdb_id = ? AND media_type = ?
+        """, (user_id, tmdb_id, media_type))
+
+        conn.commit()
+
+        if cursor.rowcount > 0:
+            return {
+                "status": "success",
+                "message": "Eliminat de la llista",
+                "tmdb_id": tmdb_id
+            }
+        else:
+            return {
+                "status": "not_found",
+                "message": "No estava a la llista",
+                "tmdb_id": tmdb_id
+            }
+
+
+@app.get("/api/user/watchlist/check/{tmdb_id}")
+async def check_in_watchlist(tmdb_id: int, media_type: str, request: Request):
+    """Comprova si un element està a la watchlist"""
+    user = get_current_user(request)
+    if not user:
+        return {"in_watchlist": False}
+    user_id = user["id"]
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT id FROM watchlist
+            WHERE user_id = ? AND tmdb_id = ? AND media_type = ?
+        """, (user_id, tmdb_id, media_type))
+
+        return {"in_watchlist": cursor.fetchone() is not None}
 
 
 @app.post("/api/media/{media_id}/progress")
