@@ -131,6 +131,9 @@ const ContinueThumbnail = ({ item, imageUrl, type }) => {
     if (item.tmdb_id && !imageUrl) {
       const fetchTmdbImage = async () => {
         let foundImage = false;
+        let newStillPath = null;
+        let newBackdropPath = null;
+        let newPosterPath = null;
         const mediaType = type === 'movie' ? 'movie' : 'tv';
 
         // Primer intentem obtenir la imatge de l'episodi si és una sèrie
@@ -140,6 +143,7 @@ const ContinueThumbnail = ({ item, imageUrl, type }) => {
             const episode = seasonRes.data?.episodes?.find(ep => ep.episode_number === item.episode_number);
             if (episode?.still_path) {
               setDynamicUrl(episode.still_path);
+              newStillPath = episode.still_path;
               foundImage = true;
             }
           } catch (e) {
@@ -152,14 +156,39 @@ const ContinueThumbnail = ({ item, imageUrl, type }) => {
           try {
             const res = await axios.get(`/api/tmdb/${mediaType}/${item.tmdb_id}`);
             if (res.data?.backdrop_path) {
-              setDynamicUrl(`https://image.tmdb.org/t/p/w780${res.data.backdrop_path}`);
+              const backdropUrl = `https://image.tmdb.org/t/p/w780${res.data.backdrop_path}`;
+              setDynamicUrl(backdropUrl);
+              newBackdropPath = res.data.backdrop_path;
               foundImage = true;
             } else if (res.data?.poster_path) {
-              setDynamicUrl(`https://image.tmdb.org/t/p/w500${res.data.poster_path}`);
+              const posterUrl = `https://image.tmdb.org/t/p/w500${res.data.poster_path}`;
+              setDynamicUrl(posterUrl);
+              newPosterPath = res.data.poster_path;
               foundImage = true;
             }
           } catch (e) {
             console.debug('Error fetching series/movie info:', e.message);
+          }
+        }
+
+        // Guardar les imatges trobades a la BD per a futures càrregues
+        if (foundImage && item.tmdb_id) {
+          try {
+            await axios.post('/api/streaming/progress', {
+              tmdb_id: item.tmdb_id,
+              media_type: type === 'movie' ? 'movie' : 'series',
+              season_number: item.season_number || null,
+              episode_number: item.episode_number || null,
+              progress_percent: item.progress_percentage || 0,
+              completed: false,
+              title: item.series_name || item.title || '',
+              poster_path: newPosterPath || item.poster || null,
+              backdrop_path: newBackdropPath || item.backdrop || null,
+              still_path: newStillPath || null
+            });
+          } catch (e) {
+            // No és crític si falla el guardat
+            console.debug('Could not save image to progress:', e.message);
           }
         }
 
@@ -169,7 +198,7 @@ const ContinueThumbnail = ({ item, imageUrl, type }) => {
     } else {
       setIsLoading(false);
     }
-  }, [item.tmdb_id, item.season_number, item.episode_number, imageUrl, type]);
+  }, [item.tmdb_id, item.season_number, item.episode_number, imageUrl, type, item.progress_percentage, item.series_name, item.title, item.poster, item.backdrop]);
 
   if (isLoading) {
     return (
