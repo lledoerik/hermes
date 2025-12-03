@@ -119,8 +119,8 @@ export function LibraryProvider({ children }) {
   }, []);
 
   // Get movies with caching
-  const getMovies = useCallback(async (page = 1, limit = 50, sortBy = 'name', contentType = null, forceRefresh = false) => {
-    const cacheKey = `${page}-${limit}-${sortBy}-${contentType || 'all'}`;
+  const getMovies = useCallback(async (page = 1, limit = 50, sortBy = 'name', contentType = null, category = null, forceRefresh = false) => {
+    const cacheKey = `${page}-${limit}-${sortBy}-${contentType || 'all'}-${category || 'none'}`;
 
     // Check page cache first
     if (!forceRefresh && moviesCache.pages[cacheKey] && isCacheValid({ data: true, timestamp: moviesCache.pages[cacheKey].timestamp })) {
@@ -131,6 +131,9 @@ export function LibraryProvider({ children }) {
       const params = { page, limit, sort_by: sortBy };
       if (contentType && contentType !== 'all') {
         params.content_type = contentType;
+      }
+      if (category && !['name', 'year', 'popular'].includes(category)) {
+        params.category = category;
       }
       const response = await axios.get(`${API_URL}/api/library/movies`, { params });
 
@@ -151,8 +154,8 @@ export function LibraryProvider({ children }) {
   }, [moviesCache.pages]);
 
   // Get series with caching
-  const getSeries = useCallback(async (page = 1, limit = 50, sortBy = 'name', contentType = null, forceRefresh = false) => {
-    const cacheKey = `${page}-${limit}-${sortBy}-${contentType || 'all'}`;
+  const getSeries = useCallback(async (page = 1, limit = 50, sortBy = 'name', contentType = null, category = null, forceRefresh = false) => {
+    const cacheKey = `${page}-${limit}-${sortBy}-${contentType || 'all'}-${category || 'none'}`;
 
     if (!forceRefresh && seriesCache.pages[cacheKey] && isCacheValid({ data: true, timestamp: seriesCache.pages[cacheKey].timestamp })) {
       return seriesCache.pages[cacheKey].data;
@@ -162,6 +165,9 @@ export function LibraryProvider({ children }) {
       const params = { page, limit, sort_by: sortBy };
       if (contentType && contentType !== 'all') {
         params.content_type = contentType;
+      }
+      if (category && !['name', 'year', 'popular'].includes(category)) {
+        params.category = category;
       }
       const response = await axios.get(`${API_URL}/api/library/series`, { params });
 
