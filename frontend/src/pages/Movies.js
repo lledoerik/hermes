@@ -62,13 +62,14 @@ const loadSavedFilters = () => {
   return ['movies']; // Per defecte només pel·lícules
 };
 
-// Funció per determinar el tipus d'un item (usa content_type del backend)
-const getItemType = (item) => {
-  // El backend ja calcula content_type: 'anime_movie', 'animated', o 'movie'
-  const contentType = item.content_type;
-  if (contentType === 'anime_movie') return 'anime';
-  if (contentType === 'animated') return 'animation';
-  return 'movies';
+// Convertir filtres del frontend a content_types del backend
+const filtersToContentTypes = (filters) => {
+  const mapping = {
+    movies: 'movie',
+    anime: 'anime_movie',
+    animation: 'animated'
+  };
+  return filters.map(f => mapping[f]).filter(Boolean).join(',');
 };
 
 // Hook per detectar long-press
@@ -182,12 +183,12 @@ function Movies() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(activeFilters));
   }, [activeFilters]);
 
-  // Reload movies when pagination or sorting changes
+  // Reload movies when pagination, sorting, or filters change
   useEffect(() => {
     loadMovies();
-  }, [currentPage, sortBy]);
+  }, [currentPage, sortBy, activeFilters]);
 
-  // Search in database when searchQuery changes
+  // Search in database when searchQuery or filters change
   useEffect(() => {
     const searchInDatabase = async () => {
       if (!searchQuery.trim()) {
@@ -197,7 +198,8 @@ function Movies() {
 
       setSearchLoading(true);
       try {
-        const response = await axios.get(`/api/library/movies?search=${encodeURIComponent(searchQuery)}&limit=500`);
+        const contentType = filtersToContentTypes(activeFilters);
+        const response = await axios.get(`/api/library/movies?search=${encodeURIComponent(searchQuery)}&limit=500&content_type=${contentType}`);
         setLocalSearchResults(response.data?.items || []);
       } catch (error) {
         console.error('Error cercant a la BD:', error);
@@ -209,11 +211,12 @@ function Movies() {
 
     const timer = setTimeout(searchInDatabase, 300); // Debounce
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, activeFilters]);
 
   // Click: selecció exclusiva (només aquest filtre)
   const handleFilterClick = useCallback((filterId) => {
     setActiveFilters([filterId]);
+    setCurrentPage(1); // Tornar a la primera pàgina
   }, []);
 
   // Long-press: afegir/treure filtre (multi-selecció)
@@ -227,13 +230,15 @@ function Movies() {
         return [...prev, filterId];
       }
     });
+    setCurrentPage(1); // Tornar a la primera pàgina
   }, []);
 
   const loadMovies = async () => {
     try {
       setLoading(true);
-      // Carregar totes les pel·lícules sense filtre de content_type
-      const data = await getMovies(currentPage, itemsPerPage, sortBy, null);
+      // Convertir filtres a content_types del backend
+      const contentType = filtersToContentTypes(activeFilters);
+      const data = await getMovies(currentPage, itemsPerPage, sortBy, contentType);
       setMovies(data.items || []);
       setTotalPages(data.total_pages || 1);
       setTotalItems(data.total || 0);
@@ -327,18 +332,10 @@ function Movies() {
   };
 
   // Use API search results if searching, otherwise use paginated movies
-  const baseMovies = searchQuery.trim()
+  // El filtratge per tipus ja es fa al backend
+  const sortedMovies = searchQuery.trim()
     ? (localSearchResults || [])
     : movies;
-
-  // Aplicar filtres de tipus
-  const filteredMovies = baseMovies.filter(movie => {
-    const itemType = getItemType(movie);
-    return activeFilters.includes(itemType);
-  });
-
-  // No need to sort client-side anymore - backend handles it
-  const sortedMovies = filteredMovies;
 
   if (loading) {
     return (
