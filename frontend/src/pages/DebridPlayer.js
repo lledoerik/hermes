@@ -274,20 +274,42 @@ function DebridPlayer() {
       const streams = response.data.streams || [];
       setTorrents(streams);
 
-      // Auto-select best cached torrent (highest quality cached)
+      // Auto-select best cached torrent (prefer English/original, then highest quality)
       const cachedTorrents = streams.filter(t => t.cached);
       if (cachedTorrents.length > 0) {
-        // Sort by quality
-        const qualityOrder = { '4K': 0, '2160p': 0, '1080p': 1, '720p': 2 };
+        const qualityOrder = { '4K': 0, '2160p': 0, '1080p': 1, '720p': 2, 'WEB': 3, 'HDTV': 4, '480p': 5 };
+        // Prefer English (original version)
+        const isEnglish = (t) => {
+          const lang = parseLanguage(t.name, t.title);
+          return lang === 'Anglès' || lang === 'Multi' || lang === 'Dual';
+        };
         cachedTorrents.sort((a, b) => {
+          // English first
+          const aEng = isEnglish(a) ? 0 : 1;
+          const bEng = isEnglish(b) ? 0 : 1;
+          if (aEng !== bEng) return aEng - bEng;
+          // Then by quality
           const qA = parseQuality(a.name);
           const qB = parseQuality(b.name);
           return (qualityOrder[qA] ?? 99) - (qualityOrder[qB] ?? 99);
         });
         setSelectedTorrent(cachedTorrents[0]);
       } else if (streams.length > 0) {
-        // No cached, show selection menu
-        setShowQualityMenu(true);
+        // No cached, auto-select best from all (prefer English, then quality)
+        const qualityOrder = { '4K': 0, '2160p': 0, '1080p': 1, '720p': 2, 'WEB': 3, 'HDTV': 4, '480p': 5 };
+        const isEnglish = (t) => {
+          const lang = parseLanguage(t.name, t.title);
+          return lang === 'Anglès' || lang === 'Multi' || lang === 'Dual';
+        };
+        const sorted = [...streams].sort((a, b) => {
+          const aEng = isEnglish(a) ? 0 : 1;
+          const bEng = isEnglish(b) ? 0 : 1;
+          if (aEng !== bEng) return aEng - bEng;
+          const qA = parseQuality(a.name);
+          const qB = parseQuality(b.name);
+          return (qualityOrder[qA] ?? 99) - (qualityOrder[qB] ?? 99);
+        });
+        setSelectedTorrent(sorted[0]);
       }
     } catch (err) {
       console.error('Error buscant torrents:', err);
