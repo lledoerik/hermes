@@ -590,6 +590,7 @@ async def fetch_movie_by_tmdb_id(api_key: str, tmdb_id: int,
         result["rating"] = movie.get("vote_average")
         result["runtime"] = movie.get("runtime")
         result["original_language"] = movie.get("original_language")
+        result["popularity"] = movie.get("popularity")
         # For movies, production_countries is more reliable
         origin_country = []
         if movie.get("production_countries"):
@@ -676,6 +677,7 @@ async def fetch_tv_by_tmdb_id(api_key: str, tmdb_id: int,
         result["episodes"] = tv.get("number_of_episodes")
         result["original_language"] = tv.get("original_language")
         result["origin_country"] = tv.get("origin_country", [])
+        result["popularity"] = tv.get("popularity")
 
         first_air_date = tv.get("first_air_date", "")
         if first_air_date:
