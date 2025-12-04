@@ -365,6 +365,22 @@ def init_all_tables():
         except:
             pass
 
+        # Migració: Netejar duplicats de pel·lícules a streaming_progress
+        try:
+            cursor.execute("""
+                DELETE FROM streaming_progress
+                WHERE media_type = 'movie'
+                AND id NOT IN (
+                    SELECT MAX(id)
+                    FROM streaming_progress
+                    WHERE media_type = 'movie'
+                    GROUP BY user_id, tmdb_id
+                )
+            """)
+            conn.commit()
+        except Exception as e:
+            logger.debug(f"Migració neteja duplicats: {e}")
+
         # Taula watchlist (llista de contingut per veure)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS watchlist (
@@ -920,33 +936,48 @@ async def get_continue_watching(request: Request):
         # 2. Obtenir contingut de streaming en progrés (no acabat)
         cursor.execute("""
             SELECT
-                sp.id,
-                sp.tmdb_id,
-                sp.media_type,
-                sp.season_number,
-                sp.episode_number,
-                sp.progress_percent,
-                sp.progress_seconds,
-                sp.total_seconds,
-                sp.completed,
-                sp.title,
-                sp.poster_path,
-                sp.backdrop_path,
-                sp.still_path,
-                sp.updated_date
-            FROM streaming_progress sp
-            WHERE sp.user_id = ?
-            AND sp.completed = 0
-            AND sp.progress_percent > 0
-            ORDER BY sp.updated_date DESC
-            LIMIT 20
+                id,
+                tmdb_id,
+                media_type,
+                season_number,
+                episode_number,
+                progress_percent,
+                progress_seconds,
+                total_seconds,
+                completed,
+                title,
+                poster_path,
+                backdrop_path,
+                still_path,
+                updated_date
+            FROM streaming_progress
+            WHERE user_id = ?
+            AND completed = 0
+            AND progress_percent > 0
+            ORDER BY updated_date DESC
+            LIMIT 30
         """, (user_id,))
 
+        # Filtrar duplicats en Python - més fiable que SQL complex
+        seen_movies = set()  # Per pel·lícules: només tmdb_id
+        seen_episodes = set()  # Per sèries: tmdb_id + season + episode
+
         for row in cursor.fetchall():
-            # Determinar el tipus
-            if row["media_type"] == "movie":
+            tmdb_id = row["tmdb_id"]
+            media_type = row["media_type"]
+
+            # Filtrar duplicats
+            if media_type == "movie":
+                if tmdb_id in seen_movies:
+                    continue  # Saltar duplicat
+                seen_movies.add(tmdb_id)
                 item_type = "movie"
             else:
+                # Per sèries, permetre múltiples episodis però no duplicats del mateix
+                episode_key = (tmdb_id, row["season_number"], row["episode_number"])
+                if episode_key in seen_episodes:
+                    continue
+                seen_episodes.add(episode_key)
                 item_type = "series"
 
             # Usar valors reals si disponibles, si no estimar
@@ -960,7 +991,7 @@ async def get_continue_watching(request: Request):
             watching.append({
                 "id": row["id"],
                 "type": item_type,
-                "tmdb_id": row["tmdb_id"],
+                "tmdb_id": tmdb_id,
                 "series_name": row["title"],
                 "title": row["title"],
                 "season_number": row["season_number"],
