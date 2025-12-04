@@ -189,6 +189,8 @@ function DebridPlayer() {
   // Media info
   const [mediaInfo, setMediaInfo] = useState(location.state?.mediaInfo || null);
   const [episodes, setEpisodes] = useState([]);
+  const [selectedSeason, setSelectedSeason] = useState(season || 1); // Per la navegació
+  const [loadingEpisodes, setLoadingEpisodes] = useState(false);
 
   // Torrent/Debrid state
   const [torrents, setTorrents] = useState([]);
@@ -273,8 +275,9 @@ function DebridPlayer() {
     });
   }, [nextEpisode, navigate, tmdbId, season, mediaInfo, duration, saveProgress]);
 
-  // Navigate to specific episode
-  const goToEpisode = useCallback(async (ep) => {
+  // Navigate to specific episode (can be from different season)
+  const goToEpisode = useCallback(async (ep, targetSeason = null) => {
+    const seasonToUse = targetSeason || selectedSeason;
     // Guardar progrés de l'episodi actual abans de canviar
     if (videoRef.current && duration > 0) {
       const percent = Math.round((videoRef.current.currentTime / duration) * 100);
@@ -285,11 +288,11 @@ function DebridPlayer() {
     setStreamUrl(null);
     setSelectedTorrent(null);
     setTorrents([]);
-    navigate(`/debrid/tv/${tmdbId}?s=${season}&e=${ep.episode_number}`, {
+    navigate(`/debrid/tv/${tmdbId}?s=${seasonToUse}&e=${ep.episode_number}`, {
       state: { mediaInfo },
       replace: true
     });
-  }, [navigate, tmdbId, season, mediaInfo, duration, saveProgress]);
+  }, [navigate, tmdbId, selectedSeason, mediaInfo, duration, saveProgress]);
 
   // Group torrents by quality and language
   const groupedTorrents = useMemo(() => {
@@ -359,16 +362,26 @@ function DebridPlayer() {
     }
   }, [type, tmdbId]);
 
-  // Load episodes for series
-  const loadEpisodes = useCallback(async () => {
-    if (type === 'movie' || !season) return;
+  // Load episodes for series (can load different season for navigator)
+  const loadEpisodes = useCallback(async (seasonNum = null) => {
+    const targetSeason = seasonNum || season;
+    if (type === 'movie' || !targetSeason) return;
+    setLoadingEpisodes(true);
     try {
-      const response = await axios.get(`${API_URL}/api/tmdb/tv/${tmdbId}/season/${season}`);
+      const response = await axios.get(`${API_URL}/api/tmdb/tv/${tmdbId}/season/${targetSeason}`);
       setEpisodes(response.data?.episodes || []);
     } catch (err) {
       console.error('Error carregant episodis:', err);
+    } finally {
+      setLoadingEpisodes(false);
     }
   }, [type, tmdbId, season]);
+
+  // Change season in navigator
+  const changeNavigatorSeason = useCallback((newSeason) => {
+    setSelectedSeason(newSeason);
+    loadEpisodes(newSeason);
+  }, [loadEpisodes]);
 
   // Search torrents and auto-play best cached
   const searchTorrents = useCallback(async () => {
@@ -1142,28 +1155,51 @@ function DebridPlayer() {
         <div className="episodes-overlay" onClick={(e) => e.stopPropagation()}>
           <div className="episodes-modal">
             <div className="episodes-header">
-              <h3>Temporada {season}</h3>
+              <div className="episodes-header-info">
+                <span className="current-playing">T{season} E{episode}</span>
+                {mediaInfo?.number_of_seasons > 1 && (
+                  <select
+                    className="season-selector"
+                    value={selectedSeason}
+                    onChange={(e) => changeNavigatorSeason(parseInt(e.target.value))}
+                  >
+                    {Array.from({ length: mediaInfo.number_of_seasons }, (_, i) => (
+                      <option key={i + 1} value={i + 1}>
+                        Temporada {i + 1}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {(!mediaInfo?.number_of_seasons || mediaInfo.number_of_seasons === 1) && (
+                  <span className="season-title">Temporada {selectedSeason}</span>
+                )}
+              </div>
               <button className="close-btn" onClick={() => setShowEpisodesList(false)}>
                 <CloseIcon />
               </button>
             </div>
             <div className="episodes-list">
-              {episodes.map((ep) => (
-                <div
-                  key={ep.id || ep.episode_number}
-                  className={`episode-item ${ep.episode_number === episode ? 'current' : ''}`}
-                  onClick={() => ep.episode_number !== episode && goToEpisode(ep)}
-                >
-                  <div className="episode-number">E{ep.episode_number}</div>
-                  <div className="episode-info">
-                    <div className="episode-name">{ep.name || `Episodi ${ep.episode_number}`}</div>
-                    {ep.runtime && <span className="episode-runtime">{ep.runtime} min</span>}
-                  </div>
-                  {ep.episode_number === episode && (
-                    <span className="current-badge">Reproduint</span>
-                  )}
-                </div>
-              ))}
+              {loadingEpisodes ? (
+                <div className="episodes-loading">Carregant...</div>
+              ) : (
+                episodes.map((ep) => {
+                  const isCurrent = selectedSeason === season && ep.episode_number === episode;
+                  return (
+                    <div
+                      key={ep.id || ep.episode_number}
+                      className={`episode-item ${isCurrent ? 'current' : ''}`}
+                      onClick={() => !isCurrent && goToEpisode(ep, selectedSeason)}
+                    >
+                      <div className="episode-number">{ep.episode_number}</div>
+                      <div className="episode-info">
+                        <div className="episode-name">{ep.name || `Episodi ${ep.episode_number}`}</div>
+                        {ep.runtime && <span className="episode-runtime">{ep.runtime} min</span>}
+                      </div>
+                      {isCurrent && <span className="current-badge">▶</span>}
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
