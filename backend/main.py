@@ -41,6 +41,42 @@ logger = logging.getLogger(__name__)
 # Scheduler global per sincronització automàtica
 scheduler = AsyncIOScheduler()
 
+# Cache en memòria per a TMDB (episodis, detalls de sèries)
+# TTL: 24 hores per defecte
+class SimpleCache:
+    """Cache simple en memòria amb TTL."""
+    def __init__(self, default_ttl: int = 86400):  # 24h per defecte
+        self._cache: Dict[str, tuple] = {}  # key -> (value, timestamp)
+        self._ttl = default_ttl
+
+    def get(self, key: str):
+        """Obtenir valor del cache si no ha expirat."""
+        if key in self._cache:
+            value, timestamp = self._cache[key]
+            import time
+            if time.time() - timestamp < self._ttl:
+                return value
+            else:
+                del self._cache[key]
+        return None
+
+    def set(self, key: str, value, ttl: int = None):
+        """Guardar valor al cache."""
+        import time
+        self._cache[key] = (value, time.time())
+
+    def clear(self):
+        """Netejar tot el cache."""
+        self._cache.clear()
+
+    def size(self) -> int:
+        """Retorna el nombre d'elements al cache."""
+        return len(self._cache)
+
+# Instàncies de cache globals
+tmdb_cache = SimpleCache(default_ttl=86400)  # 24h per episodis/detalls
+torrents_cache = SimpleCache(default_ttl=1800)  # 30min per torrents
+
 # Lifespan per gestionar startup/shutdown
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -2579,7 +2615,15 @@ async def get_tmdb_tv_season_details(tmdb_id: int, season_number: int):
     """
     Obtenir tots els episodis d'una temporada específica des de TMDB.
     Retorna informació detallada de cada episodi.
+    Utilitza cache en memòria (24h) per millorar rendiment.
     """
+    # Comprovar cache primer
+    cache_key = f"tmdb:season:{tmdb_id}:{season_number}"
+    cached_result = tmdb_cache.get(cache_key)
+    if cached_result:
+        logger.debug(f"Cache hit per temporada {tmdb_id}/{season_number}")
+        return cached_result
+
     api_key = get_tmdb_api_key()
     if not api_key:
         raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
@@ -2605,7 +2649,7 @@ async def get_tmdb_tv_season_details(tmdb_id: int, season_number: int):
                 "vote_average": ep.get("vote_average")
             })
 
-        return {
+        result = {
             "tmdb_id": tmdb_id,
             "season_number": season_number,
             "name": season_data.get("name"),
@@ -2613,6 +2657,12 @@ async def get_tmdb_tv_season_details(tmdb_id: int, season_number: int):
             "air_date": season_data.get("air_date"),
             "episodes": episodes
         }
+
+        # Guardar al cache
+        tmdb_cache.set(cache_key, result)
+        logger.debug(f"Cache set per temporada {tmdb_id}/{season_number}")
+
+        return result
     finally:
         await client.close()
 
@@ -8280,6 +8330,53 @@ async def configure_debrid(api_key: str = Query(..., description="Real-Debrid AP
     }
 
 
+def _normalize_quality(quality: str) -> str:
+    """Normalitza la qualitat a una de les 4 principals."""
+    if not quality:
+        return "SD"
+    q = quality.upper()
+    if "2160" in q or "4K" in q or "UHD" in q:
+        return "4K"
+    elif "1080" in q:
+        return "1080p"
+    elif "720" in q:
+        return "720p"
+    else:
+        return "SD"
+
+def _filter_and_prioritize_streams(streams: list, cached_hashes: set, max_per_quality: int = 2) -> list:
+    """
+    Filtra i prioritza streams:
+    - Només 4 qualitats principals (4K, 1080p, 720p, SD)
+    - Màxim N torrents per qualitat
+    - Prioritza els que estan en cache (Real-Debrid)
+    """
+    # Agrupar per qualitat normalitzada
+    quality_groups = {"4K": [], "1080p": [], "720p": [], "SD": []}
+
+    for s in streams:
+        norm_quality = _normalize_quality(s.quality if hasattr(s, 'quality') else s.get('quality', ''))
+        is_cached = (s.info_hash.lower() in cached_hashes) if (hasattr(s, 'info_hash') and s.info_hash) else False
+
+        if norm_quality in quality_groups:
+            quality_groups[norm_quality].append((s, is_cached))
+
+    # Ordenar cada grup: cached primer, després per seeders
+    result = []
+    for quality in ["4K", "1080p", "720p", "SD"]:
+        group = quality_groups[quality]
+        # Ordenar: cached primer, després per seeders (descendent)
+        group.sort(key=lambda x: (
+            -1 if x[1] else 0,  # Cached primer
+            -(x[0].seeders if hasattr(x[0], 'seeders') and x[0].seeders else 0)  # Més seeders
+        ))
+        # Agafar només els primers N
+        for s, is_cached in group[:max_per_quality]:
+            result.append((s, is_cached))
+
+    return result
+
+
 @app.get("/api/debrid/torrents/{media_type}/{tmdb_id}")
 async def search_torrents(
     media_type: str,
@@ -8288,30 +8385,47 @@ async def search_torrents(
     episode: Optional[int] = None
 ):
     """
-    Buscar torrents per un contingut
+    Buscar torrents per un contingut (optimitzat)
 
     - media_type: 'movie' o 'tv'
     - tmdb_id: ID de TMDB
     - season/episode: només per series
+
+    Optimitzacions:
+    - Cache de resultats (30 min)
+    - Filtra a 4 qualitats: 4K, 1080p, 720p, SD
+    - Màxim 2 torrents per qualitat
+    - Prioritza torrents en cache de Real-Debrid
     """
-    # Obtenir IMDB ID des de TMDB
-    api_key = get_tmdb_api_key()
-    if not api_key:
-        raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
+    # Comprovar cache de torrents primer
+    cache_key = f"torrents:{media_type}:{tmdb_id}:{season}:{episode}"
+    cached_result = torrents_cache.get(cache_key)
+    if cached_result:
+        logger.debug(f"Cache hit per torrents {cache_key}")
+        return cached_result
 
-    from backend.metadata.tmdb import TMDBClient
+    # Obtenir IMDB ID des de TMDB (amb cache)
+    imdb_cache_key = f"imdb:{media_type}:{tmdb_id}"
+    imdb_id = tmdb_cache.get(imdb_cache_key)
 
-    client = TMDBClient(api_key)
-    try:
-        # Obtenir external IDs per aconseguir IMDB ID
-        endpoint = f"/{media_type}/{tmdb_id}/external_ids"
-        external_ids = await client._request(endpoint)
-        if not external_ids or not external_ids.get("imdb_id"):
-            raise HTTPException(status_code=404, detail="No s'ha trobat IMDB ID per aquest contingut")
+    if not imdb_id:
+        api_key = get_tmdb_api_key()
+        if not api_key:
+            raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
 
-        imdb_id = external_ids["imdb_id"]
-    finally:
-        await client.close()
+        from backend.metadata.tmdb import TMDBClient
+
+        client = TMDBClient(api_key)
+        try:
+            endpoint = f"/{media_type}/{tmdb_id}/external_ids"
+            external_ids = await client._request(endpoint)
+            if not external_ids or not external_ids.get("imdb_id"):
+                raise HTTPException(status_code=404, detail="No s'ha trobat IMDB ID per aquest contingut")
+            imdb_id = external_ids["imdb_id"]
+            # Guardar IMDB ID al cache (no caduca)
+            tmdb_cache.set(imdb_cache_key, imdb_id)
+        finally:
+            await client.close()
 
     # Buscar torrents via Torrentio
     from backend.debrid import TorrentioClient
@@ -8341,23 +8455,34 @@ async def search_torrents(
         except Exception as e:
             logger.warning(f"Error comprovant cache RD: {e}")
 
-    # Retornar streams amb info de cache
-    return {
+    # Filtrar i prioritzar streams (màxim 2 per qualitat, cached primer)
+    filtered_streams = _filter_and_prioritize_streams(streams, cached_hashes, max_per_quality=2)
+
+    # Preparar resposta
+    result_streams = [
+        {
+            **s.to_dict(),
+            "cached": is_cached,
+            "quality_group": _normalize_quality(s.quality if hasattr(s, 'quality') else '')
+        }
+        for s, is_cached in filtered_streams
+    ]
+
+    result = {
         "imdb_id": imdb_id,
         "tmdb_id": tmdb_id,
         "media_type": media_type,
         "season": season,
         "episode": episode,
-        "streams": [
-            {
-                **s.to_dict(),
-                "cached": s.info_hash.lower() in cached_hashes if s.info_hash else False
-            }
-            for s in streams
-        ],
-        "total": len(streams),
-        "cached_count": len([s for s in streams if s.info_hash and s.info_hash.lower() in cached_hashes])
+        "streams": result_streams,
+        "total": len(result_streams),
+        "cached_count": len([s for s in result_streams if s.get("cached")])
     }
+
+    # Guardar al cache (30 min)
+    torrents_cache.set(cache_key, result)
+
+    return result
 
 
 @app.post("/api/debrid/stream")
