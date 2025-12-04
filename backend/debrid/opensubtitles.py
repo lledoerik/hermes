@@ -1,6 +1,6 @@
 """
 Subtitle Search Client
-Busca subtítols des de múltiples fonts
+Busca subtítols des de fonts gratuïtes sense necessitat de clau API
 """
 
 import httpx
@@ -10,7 +10,6 @@ import gzip
 import io
 import re
 import base64
-import xmlrpc.client
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
 
@@ -50,67 +49,38 @@ class Subtitle:
 
 class SubtitleClient:
     """
-    Client per buscar subtítols via OpenSubtitles XML-RPC (gratuït, sense clau)
+    Client per buscar subtítols via OpenSubtitles.org (scraping públic)
     """
 
     def __init__(self):
-        self.user_agent = "Hermes v1.0"
-        self.xmlrpc_url = "https://api.opensubtitles.org/xml-rpc"
-        self._token = None
+        self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         self._download_cache: Dict[str, str] = {}
 
     def _get_language_name(self, code: str) -> str:
         """Retorna el nom de l'idioma"""
         names = {
-            "eng": "Anglès", "en": "Anglès",
-            "spa": "Espanyol", "es": "Espanyol",
-            "cat": "Català", "ca": "Català",
-            "fre": "Francès", "fr": "Francès",
-            "ger": "Alemany", "de": "Alemany",
-            "ita": "Italià", "it": "Italià",
-            "por": "Portuguès", "pt": "Portuguès",
-            "jpn": "Japonès", "ja": "Japonès",
-            "kor": "Coreà", "ko": "Coreà",
-            "chi": "Xinès", "zh": "Xinès",
-            "rus": "Rus", "ru": "Rus",
+            "eng": "Anglès", "en": "Anglès", "english": "Anglès",
+            "spa": "Espanyol", "es": "Espanyol", "spanish": "Espanyol",
+            "cat": "Català", "ca": "Català", "catalan": "Català",
+            "fre": "Francès", "fr": "Francès", "french": "Francès",
+            "ger": "Alemany", "de": "Alemany", "german": "Alemany",
+            "ita": "Italià", "it": "Italià", "italian": "Italià",
+            "por": "Portuguès", "pt": "Portuguès", "portuguese": "Portuguès",
         }
         return names.get(code.lower(), code.upper())
 
-    def _map_language(self, lang: str) -> str:
-        """Mapeja codis d'idioma ISO 639-1 a ISO 639-2"""
+    def _normalize_lang(self, lang: str) -> str:
+        """Normalitza codi d'idioma a format curt"""
         mapping = {
-            "ca": "cat",
-            "es": "spa",
-            "en": "eng",
-            "fr": "fre",
-            "de": "ger",
-            "it": "ita",
-            "pt": "por"
+            "english": "en", "eng": "en",
+            "spanish": "es", "spa": "es",
+            "catalan": "ca", "cat": "ca",
+            "french": "fr", "fre": "fr",
+            "german": "de", "ger": "de",
+            "italian": "it", "ita": "it",
+            "portuguese": "pt", "por": "pt",
         }
-        return mapping.get(lang, lang)
-
-    async def _login(self) -> Optional[str]:
-        """Login anònim a OpenSubtitles"""
-        if self._token:
-            return self._token
-
-        try:
-            # Usar xmlrpc de forma async
-            import asyncio
-            loop = asyncio.get_event_loop()
-
-            def do_login():
-                server = xmlrpc.client.ServerProxy(self.xmlrpc_url)
-                result = server.LogIn("", "", "en", self.user_agent)
-                if result.get("status") == "200 OK":
-                    return result.get("token")
-                return None
-
-            self._token = await loop.run_in_executor(None, do_login)
-            return self._token
-        except Exception as e:
-            logger.error(f"Error login OpenSubtitles: {e}")
-            return None
+        return mapping.get(lang.lower(), lang[:2].lower() if len(lang) > 2 else lang.lower())
 
     async def search_subtitles(
         self,
@@ -121,94 +91,127 @@ class SubtitleClient:
         episode: Optional[int] = None,
         languages: Optional[List[str]] = None
     ) -> List[Subtitle]:
-        """Cerca subtítols a OpenSubtitles"""
+        """Cerca subtítols"""
         subtitles = []
 
-        token = await self._login()
-        if not token:
-            logger.warning("No s'ha pogut connectar amb OpenSubtitles")
+        # Intentar OpenSubtitles.org via scraping
+        os_results = await self._search_opensubtitles_web(
+            imdb_id=imdb_id,
+            season=season,
+            episode=episode,
+            languages=languages
+        )
+        subtitles.extend(os_results)
+
+        # Ordenar per idioma i descàrregues
+        lang_priority = {"ca": 0, "es": 1, "en": 2}
+        subtitles.sort(key=lambda s: (
+            lang_priority.get(s.language, 99),
+            -s.download_count
+        ))
+
+        logger.info(f"Trobats {len(subtitles)} subtítols")
+        return subtitles
+
+    async def _search_opensubtitles_web(
+        self,
+        imdb_id: Optional[str] = None,
+        season: Optional[int] = None,
+        episode: Optional[int] = None,
+        languages: Optional[List[str]] = None
+    ) -> List[Subtitle]:
+        """Cerca subtítols via OpenSubtitles.org web"""
+        subtitles = []
+
+        if not imdb_id:
             return []
 
         try:
-            import asyncio
-            loop = asyncio.get_event_loop()
+            # Construir URL de cerca
+            clean_imdb = imdb_id.replace("tt", "")
 
-            # Preparar paràmetres de cerca
-            search_params = {}
-
-            if imdb_id:
-                # Netejar IMDB ID
-                clean_imdb = imdb_id.replace("tt", "")
-                search_params["imdbid"] = clean_imdb
-            elif query:
-                search_params["query"] = query
+            # Per sèries, buscar per episodi
+            if season is not None and episode is not None:
+                url = f"https://www.opensubtitles.org/en/search/imdbid-{clean_imdb}/season-{season}/episode-{episode}/sublanguageid-cat,spa,eng"
             else:
-                return []
+                url = f"https://www.opensubtitles.org/en/search/imdbid-{clean_imdb}/sublanguageid-cat,spa,eng"
 
-            if season is not None:
-                search_params["season"] = str(season)
-            if episode is not None:
-                search_params["episode"] = str(episode)
+            async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+                response = await client.get(url, headers={
+                    "User-Agent": self.user_agent,
+                    "Accept": "text/html,application/xhtml+xml",
+                    "Accept-Language": "en-US,en;q=0.9"
+                })
 
-            # Convertir idiomes
-            if languages:
-                os_langs = [self._map_language(l) for l in languages]
-                search_params["sublanguageid"] = ",".join(os_langs)
-            else:
-                search_params["sublanguageid"] = "cat,spa,eng"
+                if response.status_code != 200:
+                    logger.warning(f"OpenSubtitles web retorna {response.status_code}")
+                    return []
 
-            def do_search():
-                server = xmlrpc.client.ServerProxy(self.xmlrpc_url)
-                result = server.SearchSubtitles(token, [search_params])
-                return result
+                html = response.text
 
-            result = await loop.run_in_executor(None, do_search)
+                # Parsejar HTML per trobar subtítols
+                # Buscar patró de links de descàrrega
+                import re
 
-            if result.get("status") != "200 OK":
-                logger.warning(f"OpenSubtitles cerca fallida: {result.get('status')}")
-                return []
+                # Patró per trobar subtítols a la taula de resultats
+                # Format: /en/subtitleserve/sub/XXXXXX
+                pattern = r'/en/subtitleserve/sub/(\d+)'
+                matches = re.findall(pattern, html)
 
-            data = result.get("data", [])
-            if not data or data is False:
-                return []
+                # També buscar info dels subtítols
+                # Buscar les files de la taula
+                row_pattern = r'<a[^>]*href="/en/subtitles/(\d+)[^"]*"[^>]*>([^<]+)</a>'
+                name_matches = re.findall(row_pattern, html)
 
-            for sub in data:
-                try:
-                    lang_code = sub.get("SubLanguageID", "").lower()
-                    # Mapejar a codi curt
-                    short_code = {"cat": "ca", "spa": "es", "eng": "en", "fre": "fr"}.get(lang_code, lang_code[:2])
+                # Buscar idiomes
+                lang_pattern = r'<a[^>]*title="([^"]+)"[^>]*class="[^"]*flag[^"]*"'
+                lang_matches = re.findall(lang_pattern, html)
+
+                seen_ids = set()
+                for i, sub_id in enumerate(matches[:30]):  # Limitar a 30
+                    if sub_id in seen_ids:
+                        continue
+                    seen_ids.add(sub_id)
+
+                    # Intentar determinar idioma
+                    lang = "en"  # Per defecte
+                    if i < len(lang_matches):
+                        lang_name = lang_matches[i].lower()
+                        if "spanish" in lang_name or "español" in lang_name:
+                            lang = "es"
+                        elif "catalan" in lang_name or "català" in lang_name:
+                            lang = "ca"
+                        elif "english" in lang_name:
+                            lang = "en"
+
+                    # Filtrar per idiomes desitjats
+                    if languages and lang not in languages:
+                        continue
+
+                    # Nom del release
+                    release_name = f"Subtitle {sub_id}"
+                    if i < len(name_matches):
+                        release_name = name_matches[i][1][:100]
 
                     subtitle = Subtitle(
-                        id=f"os_{sub.get('IDSubtitleFile', '')}",
-                        language=short_code,
-                        language_name=self._get_language_name(lang_code),
-                        release_name=sub.get("MovieReleaseName", "")[:100],
-                        download_url=sub.get("SubDownloadLink", ""),
-                        upload_date=sub.get("SubAddDate", ""),
-                        ratings=float(sub.get("SubRating", 0) or 0),
-                        download_count=int(sub.get("SubDownloadsCnt", 0) or 0),
-                        hearing_impaired=sub.get("SubHearingImpaired", "0") == "1",
+                        id=f"osweb_{sub_id}",
+                        language=lang,
+                        language_name=self._get_language_name(lang),
+                        release_name=release_name,
+                        download_url=f"https://www.opensubtitles.org/en/subtitleserve/sub/{sub_id}",
+                        upload_date="",
+                        ratings=0.0,
+                        download_count=1000 - i,  # Ordre aproximat
+                        hearing_impaired=False,
                         ai_translated=False,
                         source="opensubtitles"
                     )
                     subtitles.append(subtitle)
-                except Exception as e:
-                    logger.debug(f"Error parsejant subtítol: {e}")
-                    continue
-
-            # Ordenar per idioma i descàrregues
-            lang_priority = {"ca": 0, "es": 1, "en": 2}
-            subtitles.sort(key=lambda s: (
-                lang_priority.get(s.language, 99),
-                -s.download_count
-            ))
-
-            logger.info(f"Trobats {len(subtitles)} subtítols")
-            return subtitles
 
         except Exception as e:
-            logger.error(f"Error cercant subtítols: {e}")
-            return []
+            logger.error(f"Error cercant a OpenSubtitles web: {e}")
+
+        return subtitles
 
     async def download_subtitle(self, subtitle_id: str) -> Optional[str]:
         """Descarrega un subtítol i retorna en format VTT"""
@@ -216,9 +219,9 @@ class SubtitleClient:
             return self._download_cache[subtitle_id]
 
         try:
-            if subtitle_id.startswith("os_"):
-                file_id = subtitle_id[3:]
-                content = await self._download_opensubtitles(file_id)
+            if subtitle_id.startswith("osweb_"):
+                sub_id = subtitle_id[6:]
+                content = await self._download_opensubtitles_web(sub_id)
             else:
                 logger.error(f"Font desconeguda: {subtitle_id}")
                 return None
@@ -234,44 +237,68 @@ class SubtitleClient:
             logger.error(f"Error descarregant subtítol: {e}")
             return None
 
-    async def _download_opensubtitles(self, file_id: str) -> Optional[str]:
-        """Descarrega subtítol d'OpenSubtitles via XML-RPC"""
-        token = await self._login()
-        if not token:
-            return None
-
+    async def _download_opensubtitles_web(self, sub_id: str) -> Optional[str]:
+        """Descarrega subtítol d'OpenSubtitles.org"""
         try:
-            import asyncio
-            loop = asyncio.get_event_loop()
+            url = f"https://www.opensubtitles.org/en/subtitleserve/sub/{sub_id}"
 
-            def do_download():
-                server = xmlrpc.client.ServerProxy(self.xmlrpc_url)
-                result = server.DownloadSubtitles(token, [file_id])
-                return result
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                response = await client.get(url, headers={
+                    "User-Agent": self.user_agent
+                })
 
-            result = await loop.run_in_executor(None, do_download)
+                if response.status_code != 200:
+                    logger.error(f"Error descarregant subtítol: {response.status_code}")
+                    return None
 
-            if result.get("status") != "200 OK":
-                logger.error(f"Error descarregant: {result.get('status')}")
-                return None
+                content_type = response.headers.get("content-type", "")
 
-            data = result.get("data", [])
-            if not data:
-                return None
+                # Si és ZIP, extreure
+                if "zip" in content_type or response.content[:4] == b'PK\x03\x04':
+                    return self._extract_subtitle_from_zip(response.content)
 
-            # El contingut ve en base64 i comprimit amb gzip
-            encoded = data[0].get("data", "")
-            if not encoded:
-                return None
+                # Si és GZIP
+                if response.content[:2] == b'\x1f\x8b':
+                    try:
+                        content = gzip.decompress(response.content).decode('utf-8', errors='replace')
+                        return content
+                    except:
+                        pass
 
-            # Decodificar base64 i descomprimir gzip
-            compressed = base64.b64decode(encoded)
-            content = gzip.decompress(compressed).decode('utf-8', errors='replace')
-            return content
+                # Text directe
+                return response.text
 
         except Exception as e:
             logger.error(f"Error descarregant d'OpenSubtitles: {e}")
             return None
+
+    def _extract_subtitle_from_zip(self, zip_content: bytes) -> Optional[str]:
+        """Extreu subtítol d'un ZIP"""
+        try:
+            with zipfile.ZipFile(io.BytesIO(zip_content)) as zf:
+                subtitle_files = [
+                    f for f in zf.namelist()
+                    if f.lower().endswith(('.srt', '.vtt', '.sub', '.ass'))
+                ]
+
+                if not subtitle_files:
+                    return None
+
+                for ext in ['.srt', '.vtt', '.ass', '.sub']:
+                    for f in subtitle_files:
+                        if f.lower().endswith(ext):
+                            content = zf.read(f)
+                            for encoding in ['utf-8', 'latin-1', 'cp1252', 'iso-8859-1']:
+                                try:
+                                    return content.decode(encoding)
+                                except UnicodeDecodeError:
+                                    continue
+                            return content.decode('utf-8', errors='replace')
+
+        except Exception as e:
+            logger.error(f"Error extraient subtítol del ZIP: {e}")
+
+        return None
 
     def _is_srt(self, content: str) -> bool:
         """Comprova si és format SRT"""
@@ -312,7 +339,7 @@ class SubtitleClient:
         return vtt_content
 
     def is_configured(self) -> bool:
-        """Sempre disponible (usa API gratuïta)"""
+        """Sempre disponible"""
         return True
 
 
