@@ -199,8 +199,8 @@ function MediaLibrary({ type = 'series' }) {
       const contentType = filtersToContentTypes(activeFilters);
       // Convertir categoria a sortBy per l'API
       const apiSortBy = ['name', 'year'].includes(activeCategory) ? activeCategory : 'popular';
-      // Passar categoria per filtrar (now_playing, upcoming, on_the_air, airing_today)
-      const apiCategory = !['name', 'year', 'popular'].includes(activeCategory) ? activeCategory : null;
+      // Passar categoria per filtrar per TMDB (popular, now_playing, upcoming, etc.)
+      const apiCategory = !['name', 'year'].includes(activeCategory) ? activeCategory : null;
       const data = await getItems(currentPage, itemsPerPage, apiSortBy, contentType, apiCategory);
       setItems(data.items || []);
       setTotalPages(data.total_pages || 1);
