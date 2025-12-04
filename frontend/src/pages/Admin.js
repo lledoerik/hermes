@@ -126,15 +126,6 @@ const DatabaseIcon = () => (
   </svg>
 );
 
-const RocketIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"></path>
-    <path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"></path>
-    <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"></path>
-    <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"></path>
-  </svg>
-);
-
 const SyncIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
@@ -175,10 +166,6 @@ function Admin() {
   // Sync state
   const [syncStatus, setSyncStatus] = useState(null);
   const [syncRunning, setSyncRunning] = useState(false);
-
-  // Bulk import state (TMDB)
-  const [bulkImportStatus, setBulkImportStatus] = useState(null);
-  const [bulkImportPages, setBulkImportPages] = useState(50);
 
   // User management state
   const [users, setUsers] = useState([]);
@@ -353,86 +340,6 @@ function Admin() {
     }
   };
 
-  // Bulk import functions
-  const startBulkImport = async (mediaType) => {
-    try {
-      await axios.post('/api/admin/bulk-import/start', {
-        media_type: mediaType,
-        max_pages: bulkImportPages
-      });
-      addLog('info', `Importació massiva de ${mediaType === 'movie' ? 'pel·lícules' : 'sèries'} iniciada...`);
-      pollBulkImportStatus();
-    } catch (error) {
-      addLog('error', error.response?.data?.detail || 'Error iniciant importació');
-    }
-  };
-
-  const startBulkImportAll = async () => {
-    try {
-      await axios.post('/api/admin/bulk-import/start', {
-        media_type: 'movie',
-        max_pages: bulkImportPages
-      });
-      addLog('info', 'Importació massiva de TOT iniciada (pel·lícules primer, després sèries)...');
-      pollBulkImportStatus(true);
-    } catch (error) {
-      addLog('error', error.response?.data?.detail || 'Error iniciant importació');
-    }
-  };
-
-  const stopBulkImport = async () => {
-    try {
-      await axios.post('/api/admin/bulk-import/stop');
-      addLog('info', 'Aturant importació...');
-    } catch (error) {
-      addLog('error', 'Error aturant importació');
-    }
-  };
-
-  const pollBulkImportStatus = async (continueWithSeries = false) => {
-    const poll = async () => {
-      try {
-        const response = await axios.get('/api/admin/bulk-import/status');
-        setBulkImportStatus(response.data);
-        if (response.data.running) {
-          setTimeout(poll, 1000);
-        } else {
-          if (response.data.imported_count > 0) {
-            addLog('success', `Importació completada: ${response.data.imported_count} importats, ${response.data.skipped_count} omesos`);
-            loadStats();
-          }
-          if (continueWithSeries && response.data.media_type === 'movie') {
-            addLog('info', 'Ara important sèries...');
-            await axios.post('/api/admin/bulk-import/start', {
-              media_type: 'series',
-              max_pages: bulkImportPages
-            });
-            pollBulkImportStatus(false);
-          }
-        }
-      } catch (error) {
-        console.error('Error polling status:', error);
-      }
-    };
-    poll();
-  };
-
-  useEffect(() => {
-    const checkBulkStatus = async () => {
-      try {
-        const response = await axios.get('/api/admin/bulk-import/status');
-        setBulkImportStatus(response.data);
-        if (response.data.running) {
-          pollBulkImportStatus();
-        }
-      } catch (e) {
-        // Ignore
-      }
-    };
-    checkBulkStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const addLog = (type, message) => {
     const timestamp = new Date().toLocaleTimeString();
     setLogs(prev => [...prev, { type, message, timestamp }].slice(-50));
@@ -597,116 +504,6 @@ function Admin() {
           )}
         </div>
       </div>
-
-      {/* Bulk Import Section */}
-      {tmdbConfigured && (
-        <div className="admin-section highlight">
-          <div className="section-header">
-            <h2><RocketIcon /> Importació Massiva</h2>
-          </div>
-          <div className="section-content">
-            <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '1.5rem' }}>
-              Importa automàticament milers de pel·lícules i sèries des de TMDB.
-              Aquesta és una importació manual addicional a la sincronització automàtica.
-            </p>
-
-            <div className="bulk-config">
-              <label>Pàgines per categoria:</label>
-              <input
-                type="number"
-                min="1"
-                max="500"
-                value={bulkImportPages}
-                onChange={(e) => setBulkImportPages(parseInt(e.target.value) || 50)}
-                disabled={bulkImportStatus?.running}
-                className="admin-input small"
-              />
-              <span className="bulk-estimate">
-                (~{bulkImportPages * 20 * 4} títols per tipus)
-              </span>
-            </div>
-
-            <button
-              className="action-btn primary big"
-              onClick={startBulkImportAll}
-              disabled={bulkImportStatus?.running}
-            >
-              {bulkImportStatus?.running ? (
-                <><RefreshIcon /> Important...</>
-              ) : (
-                <><RocketIcon /> IMPORTAR TOT (Pel·lícules + Sèries)</>
-              )}
-            </button>
-
-            <div className="scanner-actions">
-              <button
-                className="action-btn secondary"
-                onClick={() => startBulkImport('movie')}
-                disabled={bulkImportStatus?.running}
-              >
-                <MovieIcon /> Només pel·lícules
-              </button>
-              <button
-                className="action-btn secondary"
-                onClick={() => startBulkImport('series')}
-                disabled={bulkImportStatus?.running}
-              >
-                <TvIcon /> Només sèries
-              </button>
-              {bulkImportStatus?.running && (
-                <button
-                  className="action-btn danger"
-                  onClick={stopBulkImport}
-                >
-                  Aturar
-                </button>
-              )}
-            </div>
-
-            {/* Progress indicator */}
-            {bulkImportStatus?.running && (
-              <div className="import-progress">
-                <div className="progress-header">
-                  <span>
-                    Important {bulkImportStatus.media_type === 'movie' ? 'pel·lícules' : 'sèries'}...
-                    {bulkImportStatus.current_category && ` (${bulkImportStatus.current_category})`}
-                  </span>
-                  <span>Pàgina {bulkImportStatus.current_page}/{bulkImportStatus.total_pages}</span>
-                </div>
-                <div className="progress-bar-container">
-                  <div
-                    className="progress-bar-fill"
-                    style={{ width: `${(bulkImportStatus.current_page / bulkImportStatus.total_pages) * 100}%` }}
-                  />
-                </div>
-                <div className="progress-stats">
-                  {bulkImportStatus.current_title && (
-                    <div className="current-title">Importat: {bulkImportStatus.current_title}</div>
-                  )}
-                  <div className="stats-row">
-                    <span className="stat-success">Importats: {bulkImportStatus.imported_count}</span>
-                    <span>Omesos: {bulkImportStatus.skipped_count}</span>
-                    {bulkImportStatus.error_count > 0 && (
-                      <span className="stat-error">Errors: {bulkImportStatus.error_count}</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Last import stats */}
-            {!bulkImportStatus?.running && bulkImportStatus?.imported_count > 0 && (
-              <div className="import-complete">
-                <div className="import-complete-title">Última importació completada</div>
-                <div className="import-complete-stats">
-                  {bulkImportStatus.imported_count} títols importats, {bulkImportStatus.skipped_count} omesos
-                  {bulkImportStatus.error_count > 0 && `, ${bulkImportStatus.error_count} errors`}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Users Section */}
       <div className="admin-section">
