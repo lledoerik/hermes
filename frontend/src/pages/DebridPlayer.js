@@ -288,19 +288,17 @@ function DebridPlayer() {
     });
   }, [navigate, tmdbId, selectedSeason, mediaInfo, duration, saveProgress]);
 
-  // Group torrents by quality and language
+  // Group torrents by quality only (not language)
   const groupedTorrents = useMemo(() => {
     const groups = {};
 
     torrents.forEach(torrent => {
       const quality = parseQuality(torrent.name);
-      const language = parseLanguage(torrent.name, torrent.title);
-      const key = `${quality}-${language}`;
+      const key = quality;
 
       if (!groups[key]) {
         groups[key] = {
           quality,
-          language,
           torrents: [],
           hasCached: false
         };
@@ -312,14 +310,14 @@ function DebridPlayer() {
       }
     });
 
-    // Sort groups: by quality first, then by cached status
+    // Sort groups by quality
     const qualityOrder = { '4K': 0, '1080p': 1, '720p': 2, 'WEB': 3, 'HDTV': 4, '480p': 5, 'SD': 6, 'Desconeguda': 7 };
 
     return Object.values(groups).sort((a, b) => {
-      // First by quality (highest first)
+      // By quality (highest first)
       const qualityDiff = (qualityOrder[a.quality] || 99) - (qualityOrder[b.quality] || 99);
       if (qualityDiff !== 0) return qualityDiff;
-      // Then by cached status (cached first within same quality)
+      // Then by cached status
       if (a.hasCached && !b.hasCached) return -1;
       if (!a.hasCached && b.hasCached) return 1;
       return 0;
@@ -328,7 +326,6 @@ function DebridPlayer() {
 
   // Current selection info
   const currentQuality = selectedTorrent ? parseQuality(selectedTorrent.name) : null;
-  const currentLanguage = selectedTorrent ? parseLanguage(selectedTorrent.name, selectedTorrent.title) : null;
 
   // Check Real-Debrid status
   const checkDebridStatus = useCallback(async () => {
@@ -509,9 +506,9 @@ function DebridPlayer() {
     }
   }, []);
 
-  // Change quality/language
-  const changeTorrent = useCallback((quality, language) => {
-    const group = groupedTorrents.find(g => g.quality === quality && g.language === language);
+  // Change quality
+  const changeTorrent = useCallback((quality) => {
+    const group = groupedTorrents.find(g => g.quality === quality);
     if (!group) return;
 
     // Prefer cached torrent from the group
@@ -550,6 +547,10 @@ function DebridPlayer() {
     const video = videoRef.current;
     setDuration(video.duration);
 
+    // Assegurar que el vídeo no està silenciat i té volum
+    video.muted = false;
+    video.volume = volume;
+
     // Resume from saved position if switching streams
     if (resumeTimeRef.current > 0) {
       video.currentTime = resumeTimeRef.current;
@@ -587,7 +588,7 @@ function DebridPlayer() {
       }
       setSubtitleTracks(tracks);
     }
-  }, []);
+  }, [volume]);
 
   const handlePlay = useCallback(() => setIsPlaying(true), []);
   const handlePause = useCallback(() => setIsPlaying(false), []);
@@ -869,6 +870,7 @@ function DebridPlayer() {
           ref={videoRef}
           className="video-element"
           src={streamUrl}
+          muted={isMuted}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
           onPlay={handlePlay}
@@ -937,15 +939,14 @@ function DebridPlayer() {
                 <div
                   key={index}
                   className={`quality-option ${
-                    currentQuality === group.quality && currentLanguage === group.language ? 'active' : ''
+                    currentQuality === group.quality ? 'active' : ''
                   } ${group.hasCached ? 'cached' : ''}`}
-                  onClick={() => changeTorrent(group.quality, group.language)}
+                  onClick={() => changeTorrent(group.quality)}
                 >
                   <div className="quality-label">
                     <span className="quality-value">{group.quality}</span>
                     {group.hasCached && <span className="cached-icon">⚡</span>}
                   </div>
-                  <div className="language-label">{group.language}</div>
                   <div className="torrent-count">{group.torrents.length} font{group.torrents.length > 1 ? 's' : ''}</div>
                 </div>
               ))}
