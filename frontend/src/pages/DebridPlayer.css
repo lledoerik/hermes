@@ -72,20 +72,6 @@
   background: #3d9aa8;
 }
 
-/* Torrent list */
-.torrent-list-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.9);
-  z-index: 20;
-}
-
 /* Quality Menu - minimalist popup */
 .quality-menu-overlay {
   position: absolute;
@@ -233,8 +219,7 @@
   opacity: 1;
 }
 
-.back-button,
-.sources-button {
+.back-button {
   background: none;
   border: none;
   padding: 8px;
@@ -244,13 +229,11 @@
   transition: opacity 0.2s;
 }
 
-.back-button:hover,
-.sources-button:hover {
+.back-button:hover {
   opacity: 1;
 }
 
-.back-button svg,
-.sources-button svg {
+.back-button svg {
   width: 28px;
   height: 28px;
 }
@@ -879,28 +862,9 @@
 
 /* Responsive */
 @media (max-width: 768px) {
-  .torrent-list-container {
-    width: 95%;
-    padding: 16px;
-  }
-
-  .torrent-quality {
-    min-width: 60px;
-    padding: 4px 8px;
-    font-size: 11px;
-  }
-
-  .torrent-name {
-    font-size: 12px;
-  }
-
   .controls-row button svg {
     width: 24px;
     height: 24px;
-  }
-
-  .time-display {
-    font-size: 12px;
   }
 
   .debrid-not-configured .config-buttons {

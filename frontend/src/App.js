@@ -8,8 +8,6 @@ import Home from './pages/Home';
 import Movies from './pages/Movies';
 import Series from './pages/Series';
 import Details from './pages/Details';
-// import Player from './pages/Player'; // Desactivat - ara s'utilitza streaming extern
-import StreamPlayer from './pages/StreamPlayer';
 import DebridPlayer from './pages/DebridPlayer';
 import Search from './pages/Search';
 import Admin from './pages/Admin';
@@ -31,6 +29,12 @@ function AdminRoute({ children }) {
     return <Navigate to="/" replace />;
   }
   return children;
+}
+
+// Component per redirigir rutes legacy de /stream/ a /debrid/
+function StreamRedirect() {
+  const newPath = window.location.pathname.replace('/stream/', '/debrid/') + window.location.search;
+  return <Navigate to={newPath} replace />;
 }
 
 // Main app content with loading screen
@@ -60,10 +64,10 @@ function AppContent() {
           {/* Player local desactivat - redirigir a home */}
           <Route path="/play/:type/:id" element={<Navigate to="/" replace />} />
 
-          {/* Stream Player for external sources */}
-          <Route path="/stream/:type/:tmdbId" element={<StreamPlayer />} />
+          {/* Rutes de streaming legacy - redirigir a DebridPlayer */}
+          <Route path="/stream/:type/:tmdbId" element={<StreamRedirect />} />
 
-          {/* Debrid Player - Real-Debrid streaming with HTML5 player */}
+          {/* Debrid Player - Real-Debrid streaming amb reproductor HTML5 */}
           <Route path="/debrid/:type/:tmdbId" element={<DebridPlayer />} />
 
           {/* Book Reader without Navbar - només admin */}
