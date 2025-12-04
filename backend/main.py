@@ -381,6 +381,18 @@ def init_all_tables():
         except Exception as e:
             logger.debug(f"Migració neteja duplicats: {e}")
 
+        # Migració: Convertir NULL a 0 per pel·lícules (per UNIQUE constraint)
+        try:
+            cursor.execute("""
+                UPDATE streaming_progress
+                SET season_number = 0, episode_number = 0
+                WHERE media_type = 'movie'
+                AND (season_number IS NULL OR episode_number IS NULL)
+            """)
+            conn.commit()
+        except Exception as e:
+            logger.debug(f"Migració NULL a 0: {e}")
+
         # Taula watchlist (llista de contingut per veure)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS watchlist (
@@ -1252,8 +1264,9 @@ async def save_streaming_progress(data: StreamingProgressRequest, request: Reque
         cursor = conn.cursor()
 
         # Normalitzar season_number i episode_number per pel·lícules
-        season = data.season_number if data.media_type == "series" else None
-        episode = data.episode_number if data.media_type == "series" else None
+        # Usar 0 en lloc de NULL per evitar problemes amb UNIQUE constraint
+        season = data.season_number if data.media_type == "series" else 0
+        episode = data.episode_number if data.media_type == "series" else 0
 
         # Usar UPSERT per insertar o actualitzar
         cursor.execute("""
@@ -1308,13 +1321,25 @@ async def get_streaming_progress(
             season = None
             episode = None
 
-        cursor.execute("""
-            SELECT progress_percent, completed, title, updated_date
-            FROM streaming_progress
-            WHERE user_id = ? AND tmdb_id = ? AND media_type = ?
-            AND (season_number IS ? OR season_number = ?)
-            AND (episode_number IS ? OR episode_number = ?)
-        """, (user_id, tmdb_id, media_type, season, season, episode, episode))
+        # Construir consulta dinàmicament per gestionar NULLs correctament
+        if media_type == "movie":
+            cursor.execute("""
+                SELECT progress_percent, completed, title, updated_date
+                FROM streaming_progress
+                WHERE user_id = ? AND tmdb_id = ? AND media_type = 'movie'
+                ORDER BY updated_date DESC
+                LIMIT 1
+            """, (user_id, tmdb_id))
+        else:
+            cursor.execute("""
+                SELECT progress_percent, completed, title, updated_date
+                FROM streaming_progress
+                WHERE user_id = ? AND tmdb_id = ? AND media_type = ?
+                AND COALESCE(season_number, 0) = COALESCE(?, 0)
+                AND COALESCE(episode_number, 0) = COALESCE(?, 0)
+                ORDER BY updated_date DESC
+                LIMIT 1
+            """, (user_id, tmdb_id, media_type, season, episode))
 
         row = cursor.fetchone()
         if not row:
