@@ -381,6 +381,18 @@ def init_all_tables():
         except Exception as e:
             logger.debug(f"Migració neteja duplicats: {e}")
 
+        # Migració: Convertir NULL a 0 per pel·lícules (per UNIQUE constraint)
+        try:
+            cursor.execute("""
+                UPDATE streaming_progress
+                SET season_number = 0, episode_number = 0
+                WHERE media_type = 'movie'
+                AND (season_number IS NULL OR episode_number IS NULL)
+            """)
+            conn.commit()
+        except Exception as e:
+            logger.debug(f"Migració NULL a 0: {e}")
+
         # Taula watchlist (llista de contingut per veure)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS watchlist (
@@ -1252,8 +1264,9 @@ async def save_streaming_progress(data: StreamingProgressRequest, request: Reque
         cursor = conn.cursor()
 
         # Normalitzar season_number i episode_number per pel·lícules
-        season = data.season_number if data.media_type == "series" else None
-        episode = data.episode_number if data.media_type == "series" else None
+        # Usar 0 en lloc de NULL per evitar problemes amb UNIQUE constraint
+        season = data.season_number if data.media_type == "series" else 0
+        episode = data.episode_number if data.media_type == "series" else 0
 
         # Usar UPSERT per insertar o actualitzar
         cursor.execute("""
