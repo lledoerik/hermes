@@ -8207,12 +8207,15 @@ def get_rd_api_key():
         return settings.REAL_DEBRID_API_KEY
 
     # Si no, mirar a la base de dades
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT value FROM app_settings WHERE key = 'realdebrid_api_key'")
-        row = cursor.fetchone()
-        if row and row[0]:
-            return row[0]
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT value FROM settings WHERE key = 'realdebrid_api_key'")
+            row = cursor.fetchone()
+            if row and row[0]:
+                return row[0]
+    except Exception:
+        pass
     return None
 
 
@@ -8264,8 +8267,8 @@ async def configure_debrid(api_key: str = Query(..., description="Real-Debrid AP
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT OR REPLACE INTO app_settings (key, value, updated_at)
-            VALUES ('realdebrid_api_key', ?, datetime('now'))
+            INSERT OR REPLACE INTO settings (key, value)
+            VALUES ('realdebrid_api_key', ?)
         """, (api_key,))
         conn.commit()
 
