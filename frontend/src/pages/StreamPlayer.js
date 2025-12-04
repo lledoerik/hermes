@@ -78,10 +78,7 @@ const getEmbedUrl = (type, tmdbId, season, episode, isAnime = false) => {
   if (type === 'movie') {
     return `https://vidsrc.cc/v2/embed/movie/${tmdbId}`;
   }
-  // Per anime, usar endpoint específic
-  if (isAnime) {
-    return `https://vidsrc.cc/v2/embed/anime/${tmdbId}/${episode || 1}/sub`;
-  }
+  // Usar sempre el format TV amb season/episode (funciona per anime també)
   return `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
 };
 
@@ -132,7 +129,7 @@ function StreamPlayer() {
   // URL d'embed (VidSrc.cc amb detecció d'anime)
   const embedUrl = React.useMemo(() => {
     const url = getEmbedUrl(mediaType, tmdbId, season, episode, isAnime);
-    console.log('[StreamPlayer] Embed URL:', url, { mediaType, tmdbId, season, episode, isAnime, hasStartedPlaying });
+    console.log('[StreamPlayer] Embed URL:', url, { mediaType, tmdbId, season, episode, isAnime });
     return url;
   }, [mediaType, tmdbId, season, episode, isAnime]);
 
