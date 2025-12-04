@@ -988,8 +988,8 @@ async def get_recently_watched(request: Request, limit: int = 10):
 # === WATCHLIST ===
 
 @app.get("/api/user/watchlist")
-async def get_watchlist(request: Request, limit: int = 50):
-    """Retorna la watchlist de l'usuari"""
+async def get_watchlist(request: Request):
+    """Retorna la watchlist de l'usuari (sense límit)"""
     user = get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Cal iniciar sessió")
@@ -1012,8 +1012,7 @@ async def get_watchlist(request: Request, limit: int = 50):
             FROM watchlist
             WHERE user_id = ?
             ORDER BY added_date DESC
-            LIMIT ?
-        """, (user_id, limit))
+        """, (user_id,))
 
         items = []
         for row in cursor.fetchall():
