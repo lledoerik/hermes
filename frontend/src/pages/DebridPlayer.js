@@ -83,6 +83,20 @@ const ExternalPlayerIcon = () => (
   </svg>
 );
 
+// Audio track icon
+const AudioIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+  </svg>
+);
+
+// Subtitles icon
+const SubtitlesIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 12h4v2H4v-2zm10 6H4v-2h10v2zm6 0h-4v-2h4v2zm0-4H10v-2h10v2z"/>
+  </svg>
+);
+
 // Format time (seconds to MM:SS or HH:MM:SS)
 const formatTime = (seconds) => {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -182,6 +196,14 @@ function DebridPlayer() {
   const [showControls, setShowControls] = useState(true);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
 
+  // Audio and subtitles state
+  const [audioTracks, setAudioTracks] = useState([]);
+  const [currentAudioTrack, setCurrentAudioTrack] = useState(0);
+  const [subtitleTracks, setSubtitleTracks] = useState([]);
+  const [currentSubtitleTrack, setCurrentSubtitleTrack] = useState(-1); // -1 = off
+  const [showAudioMenu, setShowAudioMenu] = useState(false);
+  const [showSubtitleMenu, setShowSubtitleMenu] = useState(false);
+
   const mediaType = type === 'movie' ? 'movie' : 'tv';
 
   // Group torrents by quality and language
@@ -274,41 +296,67 @@ function DebridPlayer() {
       const streams = response.data.streams || [];
       setTorrents(streams);
 
-      // Auto-select best cached torrent (prefer English/original, then highest quality)
+      // Get user preferences from localStorage
+      const preferredAudioLang = localStorage.getItem('hermes_audio_lang') || 'en';
+      const preferredQuality = localStorage.getItem('hermes_quality') || 'auto';
+
+      // Map language codes to parseLanguage labels
+      const langCodeToLabel = {
+        'ca': 'Català',
+        'es': 'Castellà',
+        'en': 'Anglès',
+        'fr': 'Francès',
+        'de': 'Alemany',
+        'it': 'Italià',
+        'pt': 'Portuguès',
+        'ja': 'Japonès',
+        'ko': 'Coreà',
+        'zh': 'Xinès',
+        'ru': 'Rus'
+      };
+
+      const preferredLangLabel = langCodeToLabel[preferredAudioLang] || 'Anglès';
+
+      // Quality order based on preference
+      const baseQualityOrder = { '4K': 0, '2160p': 0, '1080p': 1, '720p': 2, 'WEB': 3, 'HDTV': 4, '480p': 5, 'SD': 6 };
+
+      // Function to check if torrent matches preferred language
+      const matchesPreferredLang = (t) => {
+        const lang = parseLanguage(t.name, t.title);
+        if (lang === preferredLangLabel) return 0; // Exact match
+        if (lang === 'Multi' || lang === 'Dual') return 1; // Multi/Dual as second choice
+        if (lang === 'Anglès') return 2; // English as fallback (original version)
+        return 3; // Other languages
+      };
+
+      // Function to get quality score
+      const getQualityScore = (t) => {
+        const q = parseQuality(t.name);
+        if (preferredQuality !== 'auto') {
+          // If user has a preference, prioritize that quality
+          if (q === preferredQuality || (preferredQuality === '2160p' && q === '4K')) return 0;
+        }
+        return baseQualityOrder[q] ?? 99;
+      };
+
+      // Sort function
+      const sortTorrents = (a, b) => {
+        // First by language preference
+        const langA = matchesPreferredLang(a);
+        const langB = matchesPreferredLang(b);
+        if (langA !== langB) return langA - langB;
+        // Then by quality
+        return getQualityScore(a) - getQualityScore(b);
+      };
+
+      // Auto-select best cached torrent
       const cachedTorrents = streams.filter(t => t.cached);
       if (cachedTorrents.length > 0) {
-        const qualityOrder = { '4K': 0, '2160p': 0, '1080p': 1, '720p': 2, 'WEB': 3, 'HDTV': 4, '480p': 5 };
-        // Prefer English (original version)
-        const isEnglish = (t) => {
-          const lang = parseLanguage(t.name, t.title);
-          return lang === 'Anglès' || lang === 'Multi' || lang === 'Dual';
-        };
-        cachedTorrents.sort((a, b) => {
-          // English first
-          const aEng = isEnglish(a) ? 0 : 1;
-          const bEng = isEnglish(b) ? 0 : 1;
-          if (aEng !== bEng) return aEng - bEng;
-          // Then by quality
-          const qA = parseQuality(a.name);
-          const qB = parseQuality(b.name);
-          return (qualityOrder[qA] ?? 99) - (qualityOrder[qB] ?? 99);
-        });
+        cachedTorrents.sort(sortTorrents);
         setSelectedTorrent(cachedTorrents[0]);
       } else if (streams.length > 0) {
-        // No cached, auto-select best from all (prefer English, then quality)
-        const qualityOrder = { '4K': 0, '2160p': 0, '1080p': 1, '720p': 2, 'WEB': 3, 'HDTV': 4, '480p': 5 };
-        const isEnglish = (t) => {
-          const lang = parseLanguage(t.name, t.title);
-          return lang === 'Anglès' || lang === 'Multi' || lang === 'Dual';
-        };
-        const sorted = [...streams].sort((a, b) => {
-          const aEng = isEnglish(a) ? 0 : 1;
-          const bEng = isEnglish(b) ? 0 : 1;
-          if (aEng !== bEng) return aEng - bEng;
-          const qA = parseQuality(a.name);
-          const qB = parseQuality(b.name);
-          return (qualityOrder[qA] ?? 99) - (qualityOrder[qB] ?? 99);
-        });
+        // No cached, auto-select best from all using same preferences
+        const sorted = [...streams].sort(sortTorrents);
         setSelectedTorrent(sorted[0]);
       }
     } catch (err) {
@@ -333,12 +381,15 @@ function DebridPlayer() {
     setShowQualityMenu(false);
 
     try {
-      const response = await axios.post(`${API_URL}/api/debrid/stream`, null, {
-        params: {
-          info_hash: torrent.info_hash,
-          magnet: torrent.magnet
-        }
-      });
+      const params = {
+        info_hash: torrent.info_hash,
+        magnet: torrent.magnet
+      };
+      // Afegir file_idx per sèries (season packs)
+      if (torrent.file_idx !== undefined && torrent.file_idx !== null) {
+        params.file_idx = torrent.file_idx;
+      }
+      const response = await axios.post(`${API_URL}/api/debrid/stream`, null, { params });
 
       if (response.data.status === 'success') {
         setStreamUrl(response.data.url);
@@ -412,17 +463,88 @@ function DebridPlayer() {
 
   const handleLoadedMetadata = useCallback(() => {
     if (!videoRef.current) return;
-    setDuration(videoRef.current.duration);
+    const video = videoRef.current;
+    setDuration(video.duration);
 
     // Resume from saved position if switching streams
     if (resumeTimeRef.current > 0) {
-      videoRef.current.currentTime = resumeTimeRef.current;
+      video.currentTime = resumeTimeRef.current;
       resumeTimeRef.current = 0;
+    }
+
+    // Detect audio tracks (if available via HTML5 API)
+    if (video.audioTracks && video.audioTracks.length > 0) {
+      const tracks = [];
+      for (let i = 0; i < video.audioTracks.length; i++) {
+        const track = video.audioTracks[i];
+        tracks.push({
+          id: i,
+          label: track.label || track.language || `Pista ${i + 1}`,
+          language: track.language || '',
+          enabled: track.enabled
+        });
+        if (track.enabled) setCurrentAudioTrack(i);
+      }
+      setAudioTracks(tracks);
+    }
+
+    // Detect text/subtitle tracks
+    if (video.textTracks && video.textTracks.length > 0) {
+      const tracks = [];
+      for (let i = 0; i < video.textTracks.length; i++) {
+        const track = video.textTracks[i];
+        tracks.push({
+          id: i,
+          label: track.label || track.language || `Subtítols ${i + 1}`,
+          language: track.language || '',
+          mode: track.mode
+        });
+        if (track.mode === 'showing') setCurrentSubtitleTrack(i);
+      }
+      setSubtitleTracks(tracks);
     }
   }, []);
 
   const handlePlay = useCallback(() => setIsPlaying(true), []);
   const handlePause = useCallback(() => setIsPlaying(false), []);
+
+  // Change audio track
+  const changeAudioTrack = useCallback((trackId) => {
+    if (!videoRef.current || !videoRef.current.audioTracks) return;
+    const audioTracks = videoRef.current.audioTracks;
+    for (let i = 0; i < audioTracks.length; i++) {
+      audioTracks[i].enabled = (i === trackId);
+    }
+    setCurrentAudioTrack(trackId);
+    setShowAudioMenu(false);
+  }, []);
+
+  // Change subtitle track
+  const changeSubtitleTrack = useCallback((trackId) => {
+    if (!videoRef.current || !videoRef.current.textTracks) return;
+    const textTracks = videoRef.current.textTracks;
+    for (let i = 0; i < textTracks.length; i++) {
+      textTracks[i].mode = (i === trackId) ? 'showing' : 'hidden';
+    }
+    setCurrentSubtitleTrack(trackId);
+    setShowSubtitleMenu(false);
+  }, []);
+
+  // Toggle subtitles on/off
+  const toggleSubtitles = useCallback(() => {
+    if (currentSubtitleTrack >= 0) {
+      // Turn off
+      if (videoRef.current && videoRef.current.textTracks) {
+        for (let i = 0; i < videoRef.current.textTracks.length; i++) {
+          videoRef.current.textTracks[i].mode = 'hidden';
+        }
+      }
+      setCurrentSubtitleTrack(-1);
+    } else if (subtitleTracks.length > 0) {
+      // Turn on first track
+      changeSubtitleTrack(0);
+    }
+  }, [currentSubtitleTrack, subtitleTracks, changeSubtitleTrack]);
 
   const handleEnded = useCallback(() => {
     setIsPlaying(false);
@@ -738,6 +860,13 @@ function DebridPlayer() {
       {/* Controls */}
       {streamUrl && (
         <div className="controls-container">
+          {/* Time display above progress bar */}
+          <div className="time-row">
+            <span className="time-current">{formatTime(currentTime)}</span>
+            <span className="time-separator">/</span>
+            <span className="time-duration">{formatTime(duration)}</span>
+          </div>
+
           {/* Progress bar */}
           <div className="progress-container" onClick={handleProgressClick}>
             <div className="progress-bar">
@@ -778,13 +907,36 @@ function DebridPlayer() {
                   className="volume-slider"
                 />
               </div>
-              <span className="time-display">
-                {formatTime(currentTime)} / {formatTime(duration)}
-              </span>
             </div>
 
             {/* Right controls */}
             <div className="controls-right">
+              {/* Audio tracks button */}
+              <button
+                className={`control-btn ${audioTracks.length > 0 ? '' : 'disabled'}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (audioTracks.length > 0) setShowAudioMenu(!showAudioMenu);
+                }}
+                title={audioTracks.length > 0 ? 'Canviar àudio' : 'Àudio no disponible'}
+              >
+                <AudioIcon />
+              </button>
+
+              {/* Subtitles button */}
+              <button
+                className={`control-btn ${currentSubtitleTrack >= 0 ? 'active' : ''} ${subtitleTracks.length > 0 ? '' : 'disabled'}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (subtitleTracks.length > 0) {
+                    toggleSubtitles();
+                  }
+                }}
+                title={subtitleTracks.length > 0 ? 'Subtítols' : 'Subtítols no disponibles'}
+              >
+                <SubtitlesIcon />
+              </button>
+
               {/* Quality indicator & button */}
               <button
                 className="quality-button"
@@ -799,6 +951,50 @@ function DebridPlayer() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Audio menu */}
+      {showAudioMenu && audioTracks.length > 0 && (
+        <div className="track-menu" onClick={(e) => e.stopPropagation()}>
+          <div className="track-menu-header">
+            <h4>Pista d'àudio</h4>
+            <button onClick={() => setShowAudioMenu(false)}><CloseIcon /></button>
+          </div>
+          {audioTracks.map((track) => (
+            <div
+              key={track.id}
+              className={`track-option ${currentAudioTrack === track.id ? 'active' : ''}`}
+              onClick={() => changeAudioTrack(track.id)}
+            >
+              {track.label}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Subtitle menu */}
+      {showSubtitleMenu && subtitleTracks.length > 0 && (
+        <div className="track-menu" onClick={(e) => e.stopPropagation()}>
+          <div className="track-menu-header">
+            <h4>Subtítols</h4>
+            <button onClick={() => setShowSubtitleMenu(false)}><CloseIcon /></button>
+          </div>
+          <div
+            className={`track-option ${currentSubtitleTrack === -1 ? 'active' : ''}`}
+            onClick={() => { changeSubtitleTrack(-1); setCurrentSubtitleTrack(-1); setShowSubtitleMenu(false); }}
+          >
+            Desactivats
+          </div>
+          {subtitleTracks.map((track) => (
+            <div
+              key={track.id}
+              className={`track-option ${currentSubtitleTrack === track.id ? 'active' : ''}`}
+              onClick={() => changeSubtitleTrack(track.id)}
+            >
+              {track.label}
+            </div>
+          ))}
         </div>
       )}
     </div>

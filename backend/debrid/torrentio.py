@@ -24,6 +24,7 @@ class TorrentStream:
     quality: Optional[str]
     source: Optional[str]
     languages: List[str]
+    file_idx: Optional[int] = None  # Index del fitxer per sèries (season packs)
 
     def to_dict(self) -> Dict:
         return {
@@ -35,7 +36,8 @@ class TorrentStream:
             "seeders": self.seeders,
             "quality": self.quality,
             "source": self.source,
-            "languages": self.languages
+            "languages": self.languages,
+            "file_idx": self.file_idx
         }
 
 
@@ -144,6 +146,13 @@ class TorrentioClient:
             if flags:
                 languages = flags
 
+            # Extreure fileIdx (índex del fitxer per season packs)
+            file_idx = None
+            if "fileIdx" in stream:
+                file_idx = stream["fileIdx"]
+            elif "fileIdx" in behavior_hints:
+                file_idx = behavior_hints["fileIdx"]
+
             return TorrentStream(
                 name=name,
                 title=title,
@@ -153,7 +162,8 @@ class TorrentioClient:
                 seeders=seeders,
                 quality=quality,
                 source=source,
-                languages=languages
+                languages=languages,
+                file_idx=file_idx
             )
 
         except Exception as e:
