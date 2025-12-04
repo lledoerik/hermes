@@ -10,6 +10,7 @@ import Series from './pages/Series';
 import Details from './pages/Details';
 // import Player from './pages/Player'; // Desactivat - ara s'utilitza streaming extern
 import StreamPlayer from './pages/StreamPlayer';
+import DebridPlayer from './pages/DebridPlayer';
 import Search from './pages/Search';
 import Admin from './pages/Admin';
 import Books from './pages/Books';
@@ -61,6 +62,9 @@ function AppContent() {
 
           {/* Stream Player for external sources */}
           <Route path="/stream/:type/:tmdbId" element={<StreamPlayer />} />
+
+          {/* Debrid Player - Real-Debrid streaming with HTML5 player */}
+          <Route path="/debrid/:type/:tmdbId" element={<DebridPlayer />} />
 
           {/* Book Reader without Navbar - només admin */}
           <Route path="/read/:id" element={<AdminRoute><BookReader /></AdminRoute>} />
