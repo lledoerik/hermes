@@ -66,22 +66,22 @@ export function LibraryProvider({ children }) {
         console.error('Error loading series:', e);
       }
 
-      // 3. Load books
+      // 3. Load books (endpoint pot no existir encara)
       setLoadingProgress({ current: ++current, total, message: 'Carregant llibres...' });
       try {
         const booksRes = await axios.get(`${API_URL}/api/library/books`);
         setBooksCache({ data: booksRes.data, timestamp: Date.now() });
       } catch (e) {
-        console.error('Error loading books:', e);
+        console.debug('Books endpoint no disponible');
       }
 
-      // 4. Load audiobooks
+      // 4. Load audiobooks (endpoint pot no existir encara)
       setLoadingProgress({ current: ++current, total, message: 'Carregant audiollibres...' });
       try {
         const audiobooksRes = await axios.get(`${API_URL}/api/library/audiobooks`);
         setAudiobooksCache({ data: audiobooksRes.data, timestamp: Date.now() });
       } catch (e) {
-        console.error('Error loading audiobooks:', e);
+        console.debug('Audiobooks endpoint no disponible');
       }
 
       // 5. Load home data (recent, continue watching, etc.)
@@ -197,8 +197,8 @@ export function LibraryProvider({ children }) {
       setBooksCache({ data: response.data, timestamp: Date.now() });
       return response.data;
     } catch (error) {
-      console.error('Error fetching books:', error);
-      throw error;
+      console.debug('Books endpoint no disponible');
+      return [];
     }
   }, [booksCache]);
 
@@ -213,8 +213,8 @@ export function LibraryProvider({ children }) {
       setAudiobooksCache({ data: response.data, timestamp: Date.now() });
       return response.data;
     } catch (error) {
-      console.error('Error fetching audiobooks:', error);
-      throw error;
+      console.debug('Audiobooks endpoint no disponible');
+      return [];
     }
   }, [audiobooksCache]);
 
