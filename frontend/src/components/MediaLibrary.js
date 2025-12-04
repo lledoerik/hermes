@@ -35,7 +35,7 @@ const LIBRARY_CONFIG = {
       popular: 'Populars',
       name: 'Per nom',
       year: 'Per any',
-      now_playing: 'En cartellera',
+      now_playing: 'Cartellera',
       upcoming: 'Pròximament'
     },
     emptyText: 'pel·lícules',
