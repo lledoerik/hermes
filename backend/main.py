@@ -365,6 +365,22 @@ def init_all_tables():
         except:
             pass
 
+        # Migració: Netejar duplicats de pel·lícules a streaming_progress
+        try:
+            cursor.execute("""
+                DELETE FROM streaming_progress
+                WHERE media_type = 'movie'
+                AND id NOT IN (
+                    SELECT MAX(id)
+                    FROM streaming_progress
+                    WHERE media_type = 'movie'
+                    GROUP BY user_id, tmdb_id
+                )
+            """)
+            conn.commit()
+        except Exception as e:
+            logger.debug(f"Migració neteja duplicats: {e}")
+
         # Taula watchlist (llista de contingut per veure)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS watchlist (
@@ -918,6 +934,7 @@ async def get_continue_watching(request: Request):
             })
 
         # 2. Obtenir contingut de streaming en progrés (no acabat)
+        # Per pel·lícules, agrupem per tmdb_id per evitar duplicats
         cursor.execute("""
             SELECT
                 sp.id,
@@ -935,12 +952,25 @@ async def get_continue_watching(request: Request):
                 sp.still_path,
                 sp.updated_date
             FROM streaming_progress sp
+            INNER JOIN (
+                SELECT tmdb_id, media_type,
+                       COALESCE(season_number, 0) as sn,
+                       COALESCE(episode_number, 0) as en,
+                       MAX(updated_date) as max_date
+                FROM streaming_progress
+                WHERE user_id = ? AND completed = 0 AND progress_percent > 0
+                GROUP BY tmdb_id, media_type,
+                         CASE WHEN media_type = 'movie' THEN 0 ELSE COALESCE(season_number, 0) END,
+                         CASE WHEN media_type = 'movie' THEN 0 ELSE COALESCE(episode_number, 0) END
+            ) latest ON sp.tmdb_id = latest.tmdb_id
+                    AND sp.media_type = latest.media_type
+                    AND sp.updated_date = latest.max_date
             WHERE sp.user_id = ?
             AND sp.completed = 0
             AND sp.progress_percent > 0
             ORDER BY sp.updated_date DESC
             LIMIT 20
-        """, (user_id,))
+        """, (user_id, user_id))
 
         for row in cursor.fetchall():
             # Determinar el tipus
