@@ -137,7 +137,7 @@ function DebridPlayer() {
   const { type, tmdbId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  useAuth(); // Per verificar autenticació
 
   const videoRef = useRef(null);
   const containerRef = useRef(null);
@@ -210,17 +210,6 @@ function DebridPlayer() {
       return (qualityOrder[a.quality] || 99) - (qualityOrder[b.quality] || 99);
     });
   }, [torrents]);
-
-  // Available qualities and languages
-  const availableQualities = useMemo(() => {
-    const qualities = [...new Set(groupedTorrents.map(g => g.quality))];
-    return qualities;
-  }, [groupedTorrents]);
-
-  const availableLanguages = useMemo(() => {
-    const languages = [...new Set(groupedTorrents.map(g => g.language))];
-    return languages;
-  }, [groupedTorrents]);
 
   // Current selection info
   const currentQuality = selectedTorrent ? parseQuality(selectedTorrent.name) : null;
@@ -534,9 +523,10 @@ function DebridPlayer() {
 
   // Save progress on unmount
   useEffect(() => {
+    const video = videoRef.current;
     return () => {
-      if (videoRef.current && duration > 0) {
-        const percent = Math.round((videoRef.current.currentTime / duration) * 100);
+      if (video && duration > 0) {
+        const percent = Math.round((video.currentTime / duration) * 100);
         if (percent > 5 && percent < 95) {
           const data = JSON.stringify({
             tmdb_id: parseInt(tmdbId),
