@@ -5811,6 +5811,10 @@ class ImportBookRequest(BaseModel):
     olid: Optional[str] = None  # Open Library ID
     isbn: Optional[str] = None
 
+class ExternalImportRequest(BaseModel):
+    username: str
+    platform: str  # 'letterboxd', 'myanimelist', 'goodreads'
+
 
 @app.post("/api/import/search")
 async def search_for_import(data: ImportSearchRequest):
@@ -6189,6 +6193,421 @@ async def import_book_from_openlibrary(data: ImportBookRequest):
             "year": metadata.get("year"),
             "cover": cover_final
         }
+
+
+# ============================================================
+# IMPORTACIÓ EXTERNA (Letterboxd, MyAnimeList, Goodreads)
+# ============================================================
+
+async def scrape_letterboxd_watchlist(username: str) -> List[Dict]:
+    """
+    Fa scraping de la watchlist pública de Letterboxd.
+    Retorna una llista de pel·lícules amb títol i any.
+    """
+    import httpx
+    from bs4 import BeautifulSoup
+
+    movies = []
+    page = 1
+    max_pages = 10  # Limit per seguretat
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        while page <= max_pages:
+            url = f"https://letterboxd.com/{username}/watchlist/page/{page}/"
+            try:
+                response = await client.get(url, headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                })
+
+                if response.status_code == 404:
+                    if page == 1:
+                        raise HTTPException(status_code=404, detail=f"Usuari '{username}' no trobat a Letterboxd")
+                    break
+
+                if response.status_code != 200:
+                    break
+
+                soup = BeautifulSoup(response.text, 'lxml')
+
+                # Buscar els elements de pel·lícules
+                film_items = soup.select('li.poster-container')
+
+                if not film_items:
+                    break
+
+                for item in film_items:
+                    poster = item.select_one('div.poster')
+                    if poster:
+                        # El títol està a data-film-name o alt de la imatge
+                        title = poster.get('data-film-name') or ''
+                        year_str = poster.get('data-film-release-year') or ''
+                        film_slug = poster.get('data-film-slug') or ''
+
+                        # Si no tenim el títol, intentar obtenir-lo de la imatge
+                        if not title:
+                            img = item.select_one('img')
+                            if img:
+                                title = img.get('alt', '')
+
+                        if title:
+                            year = int(year_str) if year_str.isdigit() else None
+                            movies.append({
+                                'title': title,
+                                'year': year,
+                                'slug': film_slug,
+                                'source': 'letterboxd'
+                            })
+
+                page += 1
+
+            except httpx.RequestError as e:
+                logger.error(f"Error fent scraping de Letterboxd: {e}")
+                break
+
+    return movies
+
+
+async def scrape_myanimelist_watching(username: str) -> List[Dict]:
+    """
+    Fa scraping de la llista 'currently watching' de MyAnimeList.
+    Retorna una llista d'animes amb títol.
+    """
+    import httpx
+    from bs4 import BeautifulSoup
+
+    animes = []
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        # status=1 és "Currently Watching"
+        url = f"https://myanimelist.net/animelist/{username}?status=1"
+
+        try:
+            response = await client.get(url, headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            })
+
+            if response.status_code == 404:
+                raise HTTPException(status_code=404, detail=f"Usuari '{username}' no trobat a MyAnimeList")
+
+            if response.status_code != 200:
+                raise HTTPException(status_code=400, detail="Error accedint a MyAnimeList")
+
+            soup = BeautifulSoup(response.text, 'lxml')
+
+            # MAL guarda les dades en un JSON dins de la pàgina
+            import re
+            data_script = soup.find('table', {'class': 'list-table'})
+            if data_script and data_script.get('data-items'):
+                try:
+                    items_json = json.loads(data_script.get('data-items'))
+                    for item in items_json:
+                        title = item.get('anime_title', '')
+                        mal_id = item.get('anime_id')
+
+                        if title:
+                            animes.append({
+                                'title': title,
+                                'mal_id': mal_id,
+                                'source': 'myanimelist'
+                            })
+                except json.JSONDecodeError:
+                    logger.error("Error parsejant JSON de MyAnimeList")
+
+            # Fallback: buscar a la taula HTML
+            if not animes:
+                rows = soup.select('tr.list-table-data')
+                for row in rows:
+                    title_cell = row.select_one('td.title a.link')
+                    if title_cell:
+                        title = title_cell.get_text(strip=True)
+                        if title:
+                            animes.append({
+                                'title': title,
+                                'source': 'myanimelist'
+                            })
+
+        except httpx.RequestError as e:
+            logger.error(f"Error fent scraping de MyAnimeList: {e}")
+            raise HTTPException(status_code=500, detail="Error de connexió amb MyAnimeList")
+
+    return animes
+
+
+async def scrape_goodreads_to_read(username: str) -> List[Dict]:
+    """
+    Fa scraping de la shelf 'to-read' de Goodreads.
+    Retorna una llista de llibres amb títol i autor.
+    """
+    import httpx
+    from bs4 import BeautifulSoup
+
+    books = []
+    page = 1
+    max_pages = 5
+
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+        while page <= max_pages:
+            url = f"https://www.goodreads.com/review/list/{username}?shelf=to-read&page={page}"
+
+            try:
+                response = await client.get(url, headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                })
+
+                if response.status_code == 404:
+                    if page == 1:
+                        raise HTTPException(status_code=404, detail=f"Usuari '{username}' no trobat a Goodreads")
+                    break
+
+                if response.status_code != 200:
+                    break
+
+                soup = BeautifulSoup(response.text, 'lxml')
+
+                # Buscar files de llibres
+                book_rows = soup.select('tr.bookalike')
+
+                if not book_rows:
+                    break
+
+                for row in book_rows:
+                    title_cell = row.select_one('td.title a')
+                    author_cell = row.select_one('td.author a')
+
+                    if title_cell:
+                        title = title_cell.get_text(strip=True)
+                        # Netejar el títol (pot tenir salts de línia i espais)
+                        title = ' '.join(title.split())
+
+                        author = author_cell.get_text(strip=True) if author_cell else None
+                        if author:
+                            # Format: "Cognom, Nom" -> "Nom Cognom"
+                            parts = author.split(', ')
+                            if len(parts) == 2:
+                                author = f"{parts[1]} {parts[0]}"
+
+                        if title:
+                            books.append({
+                                'title': title,
+                                'author': author,
+                                'source': 'goodreads'
+                            })
+
+                page += 1
+
+            except httpx.RequestError as e:
+                logger.error(f"Error fent scraping de Goodreads: {e}")
+                break
+
+    return books
+
+
+@app.post("/api/import/external")
+async def import_from_external_platform(
+    data: ExternalImportRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Importa contingut des d'una plataforma externa (Letterboxd, MyAnimeList, Goodreads).
+    Cerca cada element a TMDB/OpenLibrary i l'afegeix a la watchlist de l'usuari.
+    """
+    user_id = current_user["id"]
+    results = {
+        "found": [],
+        "not_found": [],
+        "already_in_watchlist": [],
+        "errors": []
+    }
+
+    platform = data.platform.lower()
+
+    # Obtenir llista d'elements segons la plataforma
+    if platform == 'letterboxd':
+        items = await scrape_letterboxd_watchlist(data.username)
+        media_type = 'movie'
+    elif platform == 'myanimelist':
+        items = await scrape_myanimelist_watching(data.username)
+        media_type = 'series'
+    elif platform == 'goodreads':
+        items = await scrape_goodreads_to_read(data.username)
+        media_type = 'book'
+    else:
+        raise HTTPException(status_code=400, detail=f"Plataforma '{platform}' no suportada")
+
+    if not items:
+        return {
+            "status": "warning",
+            "message": f"No s'han trobat elements a la llista de {data.username}",
+            "results": results
+        }
+
+    # Processar cada element
+    api_key = get_tmdb_api_key() if media_type in ['movie', 'series'] else None
+
+    if media_type in ['movie', 'series'] and not api_key:
+        raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB per importar pel·lícules i sèries")
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        for item in items:
+            try:
+                if media_type == 'book':
+                    # Cercar a OpenLibrary
+                    from backend.metadata.openlibrary import OpenLibraryClient
+                    client = OpenLibraryClient()
+
+                    try:
+                        search_result = await client.search_book(item['title'], item.get('author'))
+
+                        if search_result:
+                            # Comprovar si ja existeix a la BD
+                            olid = search_result.get("key", "").replace("/works/", "")
+                            cursor.execute("SELECT id FROM books WHERE olid = ? OR title = ?", (olid, item['title']))
+                            existing = cursor.fetchone()
+
+                            if existing:
+                                results["already_in_watchlist"].append({
+                                    "title": item['title'],
+                                    "author": item.get('author'),
+                                    "type": "book"
+                                })
+                            else:
+                                results["found"].append({
+                                    "title": search_result.get("title", item['title']),
+                                    "author": search_result.get("author_name", [item.get('author')])[0] if search_result.get("author_name") else item.get('author'),
+                                    "year": search_result.get("first_publish_year"),
+                                    "olid": olid,
+                                    "type": "book"
+                                })
+                        else:
+                            results["not_found"].append({
+                                "title": item['title'],
+                                "author": item.get('author'),
+                                "type": "book"
+                            })
+                    finally:
+                        await client.close()
+
+                else:
+                    # Cercar a TMDB (pel·lícules o sèries/anime)
+                    from backend.metadata.tmdb import TMDBClient
+                    client = TMDBClient(api_key)
+
+                    try:
+                        if media_type == 'movie':
+                            params = {"query": item['title'], "language": "ca-ES"}
+                            if item.get('year'):
+                                params["year"] = item['year']
+                            response = await client._request("/search/movie", params)
+                        else:
+                            # Per anime, buscar a TV
+                            params = {"query": item['title'], "language": "ca-ES"}
+                            response = await client._request("/search/tv", params)
+
+                        if response and response.get("results"):
+                            # Agafar el primer resultat (millor match)
+                            match = response["results"][0]
+                            tmdb_id = match.get("id")
+
+                            # Verificar si ja està a la watchlist
+                            cursor.execute(
+                                "SELECT id FROM watchlist WHERE user_id = ? AND tmdb_id = ? AND media_type = ?",
+                                (user_id, tmdb_id, media_type)
+                            )
+                            existing = cursor.fetchone()
+
+                            if existing:
+                                results["already_in_watchlist"].append({
+                                    "title": match.get("title") or match.get("name"),
+                                    "tmdb_id": tmdb_id,
+                                    "type": media_type
+                                })
+                            else:
+                                # Afegir a la watchlist
+                                release_date = match.get("release_date") or match.get("first_air_date", "")
+                                year = int(release_date[:4]) if release_date and len(release_date) >= 4 else None
+
+                                cursor.execute("""
+                                    INSERT INTO watchlist (
+                                        user_id, tmdb_id, media_type, title, poster_path, year, rating
+                                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                                """, (
+                                    user_id,
+                                    tmdb_id,
+                                    media_type,
+                                    match.get("title") or match.get("name"),
+                                    match.get("poster_path"),
+                                    year,
+                                    match.get("vote_average")
+                                ))
+
+                                results["found"].append({
+                                    "title": match.get("title") or match.get("name"),
+                                    "year": year,
+                                    "tmdb_id": tmdb_id,
+                                    "poster": f"https://image.tmdb.org/t/p/w342{match['poster_path']}" if match.get('poster_path') else None,
+                                    "type": media_type
+                                })
+                        else:
+                            results["not_found"].append({
+                                "title": item['title'],
+                                "year": item.get('year'),
+                                "type": media_type
+                            })
+                    finally:
+                        await client.close()
+
+            except Exception as e:
+                logger.error(f"Error processant '{item.get('title')}': {e}")
+                results["errors"].append({
+                    "title": item.get('title'),
+                    "error": str(e)
+                })
+
+        conn.commit()
+
+    # Resum
+    total_found = len(results["found"])
+    total_not_found = len(results["not_found"])
+    total_existing = len(results["already_in_watchlist"])
+
+    return {
+        "status": "success",
+        "message": f"Importació completada: {total_found} afegits, {total_existing} ja existien, {total_not_found} no trobats",
+        "platform": platform,
+        "username": data.username,
+        "total_items": len(items),
+        "results": results
+    }
+
+
+@app.post("/api/import/external/preview")
+async def preview_external_import(
+    data: ExternalImportRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Previsualitza el contingut a importar sense afegir-lo a la watchlist.
+    Útil per mostrar a l'usuari què es trobarà abans d'importar.
+    """
+    platform = data.platform.lower()
+
+    if platform == 'letterboxd':
+        items = await scrape_letterboxd_watchlist(data.username)
+    elif platform == 'myanimelist':
+        items = await scrape_myanimelist_watching(data.username)
+    elif platform == 'goodreads':
+        items = await scrape_goodreads_to_read(data.username)
+    else:
+        raise HTTPException(status_code=400, detail=f"Plataforma '{platform}' no suportada")
+
+    return {
+        "platform": platform,
+        "username": data.username,
+        "items": items,
+        "count": len(items)
+    }
 
 
 @app.get("/api/import/stats")
