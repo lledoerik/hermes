@@ -794,6 +794,7 @@ function DebridPlayer() {
     if (debridConfigured && type !== 'movie') {
       searchTorrents();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [episode]); // Only re-run when episode number changes
 
   // Save progress on unmount
@@ -1060,13 +1061,12 @@ function DebridPlayer() {
                 </button>
               )}
 
-              {/* Quality indicator & button */}
+              {/* Quality button */}
               <button
-                className="quality-button"
+                className="control-btn"
                 onClick={(e) => { e.stopPropagation(); setShowQualityMenu(true); }}
                 title="Canviar qualitat/idioma"
               >
-                <span className="current-quality">{currentQuality || 'HD'}</span>
                 <SettingsIcon />
               </button>
               <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}>
