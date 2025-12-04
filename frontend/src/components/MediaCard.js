@@ -193,7 +193,12 @@ function MediaCard({ item, type = 'series', width = 180, isTmdb = false }) {
     }
     // Usuaris premium poden reproduir
     if (isStreamingOnly && item.tmdb_id) {
-      navigate(`/debrid/${type === 'movies' ? 'movie' : 'tv'}/${item.tmdb_id}`);
+      if (type === 'movies') {
+        navigate(`/debrid/movie/${item.tmdb_id}`);
+      } else {
+        // Sèries necessiten temporada i episodi
+        navigate(`/debrid/tv/${item.tmdb_id}?s=1&e=1`);
+      }
     } else if (type === 'movies') {
       if (item.has_file === false) {
         navigate(`/movies/${item.id}`);
