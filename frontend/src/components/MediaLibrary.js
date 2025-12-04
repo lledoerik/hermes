@@ -260,7 +260,10 @@ function MediaLibrary({ type = 'series' }) {
       setDiscoverTotalPages(response.data.total_pages);
       setDiscoverPage(page);
 
-      const toImport = results.filter(item => !item.in_library);
+      // Per categories amb filtratge per data (now_playing, upcoming),
+      // importar TOTS els items per actualitzar release_date dels existents
+      const needsDateUpdate = ['now_playing', 'upcoming', 'on_the_air', 'airing_today'].includes(category);
+      const toImport = needsDateUpdate ? results : results.filter(item => !item.in_library);
 
       if (toImport.length > 0) {
         setAutoImporting(true);
