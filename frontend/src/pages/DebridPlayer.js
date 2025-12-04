@@ -224,12 +224,7 @@ function DebridPlayer() {
 
   const mediaType = type === 'movie' ? 'movie' : 'tv';
 
-  // Determine current and next episode
-  const currentEpisodeInfo = useMemo(() => {
-    if (type === 'movie' || !episodes.length || !episode) return null;
-    return episodes.find(ep => ep.episode_number === episode);
-  }, [type, episodes, episode]);
-
+  // Determine next episode
   const nextEpisode = useMemo(() => {
     if (type === 'movie' || !episodes.length || !episode) return null;
     const currentIndex = episodes.findIndex(ep => ep.episode_number === episode);
@@ -238,6 +233,27 @@ function DebridPlayer() {
     }
     return null;
   }, [type, episodes, episode]);
+
+  // Save progress to backend (defined early for use in navigation)
+  const saveProgress = useCallback(async (percent, completed = false) => {
+    try {
+      const currentEp = episodes.find(ep => ep.episode_number === episode);
+      await axios.post(`${API_URL}/api/streaming/progress`, {
+        tmdb_id: parseInt(tmdbId),
+        media_type: type === 'movie' ? 'movie' : 'series',
+        season_number: type !== 'movie' ? (season || 1) : null,
+        episode_number: type !== 'movie' ? (episode || 1) : null,
+        progress_percent: percent,
+        completed: completed,
+        title: mediaInfo?.title || mediaInfo?.name || '',
+        poster_path: mediaInfo?.poster_path || null,
+        backdrop_path: mediaInfo?.backdrop_path || null,
+        still_path: currentEp?.still_path || null
+      });
+    } catch (err) {
+      console.error('Error guardant progrés:', err);
+    }
+  }, [tmdbId, type, season, episode, mediaInfo, episodes]);
 
   // Navigate to next episode
   const goToNextEpisode = useCallback(async () => {
@@ -489,27 +505,6 @@ function DebridPlayer() {
     }
     setShowQualityMenu(false);
   }, [groupedTorrents, selectedTorrent, getStreamUrl]);
-
-  // Save progress to backend
-  const saveProgress = useCallback(async (percent, completed = false) => {
-    try {
-      const currentEp = episodes.find(ep => ep.episode_number === episode);
-      await axios.post(`${API_URL}/api/streaming/progress`, {
-        tmdb_id: parseInt(tmdbId),
-        media_type: type === 'movie' ? 'movie' : 'series',
-        season_number: type !== 'movie' ? (season || 1) : null,
-        episode_number: type !== 'movie' ? (episode || 1) : null,
-        progress_percent: percent,
-        completed: completed,
-        title: mediaInfo?.title || mediaInfo?.name || '',
-        poster_path: mediaInfo?.poster_path || null,
-        backdrop_path: mediaInfo?.backdrop_path || null,
-        still_path: currentEp?.still_path || null
-      });
-    } catch (err) {
-      console.error('Error guardant progrés:', err);
-    }
-  }, [tmdbId, type, season, episode, mediaInfo, episodes]);
 
   // Video event handlers
   const handleTimeUpdate = useCallback(() => {
