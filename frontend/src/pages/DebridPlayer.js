@@ -216,6 +216,7 @@ function DebridPlayer() {
   const [showEpisodesList, setShowEpisodesList] = useState(false);
   const [showEndedOverlay, setShowEndedOverlay] = useState(false);
   const episodesListRef = useRef(null);
+  const episodesCacheRef = useRef({}); // Cache d'episodis per temporada
 
   const mediaType = type === 'movie' ? 'movie' : 'tv';
 
@@ -287,19 +288,17 @@ function DebridPlayer() {
     });
   }, [navigate, tmdbId, selectedSeason, mediaInfo, duration, saveProgress]);
 
-  // Group torrents by quality and language
+  // Group torrents by quality only (not language)
   const groupedTorrents = useMemo(() => {
     const groups = {};
 
     torrents.forEach(torrent => {
       const quality = parseQuality(torrent.name);
-      const language = parseLanguage(torrent.name, torrent.title);
-      const key = `${quality}-${language}`;
+      const key = quality;
 
       if (!groups[key]) {
         groups[key] = {
           quality,
-          language,
           torrents: [],
           hasCached: false
         };
@@ -311,14 +310,14 @@ function DebridPlayer() {
       }
     });
 
-    // Sort groups: by quality first, then by cached status
+    // Sort groups by quality
     const qualityOrder = { '4K': 0, '1080p': 1, '720p': 2, 'WEB': 3, 'HDTV': 4, '480p': 5, 'SD': 6, 'Desconeguda': 7 };
 
     return Object.values(groups).sort((a, b) => {
-      // First by quality (highest first)
+      // By quality (highest first)
       const qualityDiff = (qualityOrder[a.quality] || 99) - (qualityOrder[b.quality] || 99);
       if (qualityDiff !== 0) return qualityDiff;
-      // Then by cached status (cached first within same quality)
+      // Then by cached status
       if (a.hasCached && !b.hasCached) return -1;
       if (!a.hasCached && b.hasCached) return 1;
       return 0;
@@ -327,7 +326,6 @@ function DebridPlayer() {
 
   // Current selection info
   const currentQuality = selectedTorrent ? parseQuality(selectedTorrent.name) : null;
-  const currentLanguage = selectedTorrent ? parseLanguage(selectedTorrent.name, selectedTorrent.title) : null;
 
   // Check Real-Debrid status
   const checkDebridStatus = useCallback(async () => {
@@ -355,14 +353,25 @@ function DebridPlayer() {
     }
   }, [type, tmdbId]);
 
-  // Load episodes for series (can load different season for navigator)
+  // Load episodes for series (can load different season for navigator) - amb cache local
   const loadEpisodes = useCallback(async (seasonNum = null) => {
     const targetSeason = seasonNum || season;
     if (type === 'movie' || !targetSeason) return;
+
+    // Comprovar cache local primer
+    const cacheKey = `${tmdbId}_${targetSeason}`;
+    if (episodesCacheRef.current[cacheKey]) {
+      setEpisodes(episodesCacheRef.current[cacheKey]);
+      return;
+    }
+
     setLoadingEpisodes(true);
     try {
       const response = await axios.get(`${API_URL}/api/tmdb/tv/${tmdbId}/season/${targetSeason}`);
-      setEpisodes(response.data?.episodes || []);
+      const eps = response.data?.episodes || [];
+      // Guardar al cache local
+      episodesCacheRef.current[cacheKey] = eps;
+      setEpisodes(eps);
     } catch (err) {
       console.error('Error carregant episodis:', err);
     } finally {
@@ -497,9 +506,9 @@ function DebridPlayer() {
     }
   }, []);
 
-  // Change quality/language
-  const changeTorrent = useCallback((quality, language) => {
-    const group = groupedTorrents.find(g => g.quality === quality && g.language === language);
+  // Change quality
+  const changeTorrent = useCallback((quality) => {
+    const group = groupedTorrents.find(g => g.quality === quality);
     if (!group) return;
 
     // Prefer cached torrent from the group
@@ -538,6 +547,10 @@ function DebridPlayer() {
     const video = videoRef.current;
     setDuration(video.duration);
 
+    // Assegurar que el vídeo no està silenciat i té volum
+    video.muted = false;
+    video.volume = volume;
+
     // Resume from saved position if switching streams
     if (resumeTimeRef.current > 0) {
       video.currentTime = resumeTimeRef.current;
@@ -575,7 +588,7 @@ function DebridPlayer() {
       }
       setSubtitleTracks(tracks);
     }
-  }, []);
+  }, [volume]);
 
   const handlePlay = useCallback(() => setIsPlaying(true), []);
   const handlePause = useCallback(() => setIsPlaying(false), []);
@@ -857,6 +870,7 @@ function DebridPlayer() {
           ref={videoRef}
           className="video-element"
           src={streamUrl}
+          muted={isMuted}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
           onPlay={handlePlay}
@@ -925,15 +939,14 @@ function DebridPlayer() {
                 <div
                   key={index}
                   className={`quality-option ${
-                    currentQuality === group.quality && currentLanguage === group.language ? 'active' : ''
+                    currentQuality === group.quality ? 'active' : ''
                   } ${group.hasCached ? 'cached' : ''}`}
-                  onClick={() => changeTorrent(group.quality, group.language)}
+                  onClick={() => changeTorrent(group.quality)}
                 >
                   <div className="quality-label">
                     <span className="quality-value">{group.quality}</span>
                     {group.hasCached && <span className="cached-icon">⚡</span>}
                   </div>
-                  <div className="language-label">{group.language}</div>
                   <div className="torrent-count">{group.torrents.length} font{group.torrents.length > 1 ? 's' : ''}</div>
                 </div>
               ))}
@@ -1142,31 +1155,31 @@ function DebridPlayer() {
           <div className="episodes-modal">
             <div className="episodes-header">
               <div className="episodes-header-info">
-                {(mediaInfo?.number_of_seasons > 1 || mediaInfo?.seasons?.length > 1) ? (
-                  <select
-                    className="season-selector"
-                    value={selectedSeason}
-                    onChange={(e) => changeNavigatorSeason(parseInt(e.target.value))}
-                  >
-                    {mediaInfo?.seasons ? (
-                      mediaInfo.seasons
-                        .filter(s => s.season_number > 0)
-                        .map(s => (
-                          <option key={s.season_number} value={s.season_number}>
-                            Temporada {s.season_number}
-                          </option>
-                        ))
-                    ) : (
-                      Array.from({ length: mediaInfo.number_of_seasons }, (_, i) => (
-                        <option key={i + 1} value={i + 1}>
-                          Temporada {i + 1}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                ) : (
-                  <span className="season-title">Temporada {selectedSeason}</span>
-                )}
+                {(() => {
+                  const totalSeasons = mediaInfo?.seasons?.filter(s => s.season_number > 0)?.length || mediaInfo?.number_of_seasons || 1;
+                  const canGoPrev = selectedSeason > 1;
+                  const canGoNext = selectedSeason < totalSeasons;
+
+                  return (
+                    <div className="season-nav">
+                      <button
+                        className="season-nav-btn"
+                        onClick={() => canGoPrev && changeNavigatorSeason(selectedSeason - 1)}
+                        disabled={!canGoPrev}
+                      >
+                        <PrevIcon />
+                      </button>
+                      <span className="season-title">Temporada {selectedSeason}</span>
+                      <button
+                        className="season-nav-btn"
+                        onClick={() => canGoNext && changeNavigatorSeason(selectedSeason + 1)}
+                        disabled={!canGoNext}
+                      >
+                        <NextIcon />
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
               <button className="close-btn" onClick={() => setShowEpisodesList(false)}>
                 <CloseIcon />
