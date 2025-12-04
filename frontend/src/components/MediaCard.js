@@ -193,7 +193,7 @@ function MediaCard({ item, type = 'series', width = 180, isTmdb = false }) {
     }
     // Usuaris premium poden reproduir
     if (isStreamingOnly && item.tmdb_id) {
-      navigate(`/stream/${type === 'movies' ? 'movie' : 'tv'}/${item.tmdb_id}`);
+      navigate(`/debrid/${type === 'movies' ? 'movie' : 'tv'}/${item.tmdb_id}`);
     } else if (type === 'movies') {
       if (item.has_file === false) {
         navigate(`/movies/${item.id}`);

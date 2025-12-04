@@ -169,9 +169,9 @@ function Watchlist() {
 
   const handlePlay = (item) => {
     if (item.media_type === 'movie') {
-      navigate(`/stream/movie/${item.tmdb_id}`);
+      navigate(`/debrid/movie/${item.tmdb_id}`);
     } else {
-      navigate(`/stream/tv/${item.tmdb_id}?s=1&e=1`);
+      navigate(`/debrid/tv/${item.tmdb_id}?s=1&e=1`);
     }
   };
 

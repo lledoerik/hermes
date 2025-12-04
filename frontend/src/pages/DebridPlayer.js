@@ -75,6 +75,14 @@ const CloseIcon = () => (
   </svg>
 );
 
+// Icon for iframe/external player fallback
+const ExternalPlayerIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M19 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H5V8h14v10z"/>
+    <path d="M10 16l5-4-5-4v8z"/>
+  </svg>
+);
+
 // Format time (seconds to MM:SS or HH:MM:SS)
 const formatTime = (seconds) => {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -636,6 +644,20 @@ function DebridPlayer() {
           <h1>{title}</h1>
           {subtitle && <span>{subtitle}</span>}
         </div>
+        {/* Fallback to iframe player */}
+        <button
+          className="sources-button"
+          onClick={() => {
+            // Navigate to iframe player as fallback
+            const streamUrl = mediaType === 'movie'
+              ? `/stream/movie/${tmdbId}`
+              : `/stream/tv/${tmdbId}?s=${season || 1}&e=${episode || 1}`;
+            navigate(streamUrl);
+          }}
+          title="Reproductor alternatiu (iframe)"
+        >
+          <ExternalPlayerIcon />
+        </button>
       </div>
 
       {/* Controls */}
