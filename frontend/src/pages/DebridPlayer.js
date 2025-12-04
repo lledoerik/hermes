@@ -381,12 +381,15 @@ function DebridPlayer() {
     setShowQualityMenu(false);
 
     try {
-      const response = await axios.post(`${API_URL}/api/debrid/stream`, null, {
-        params: {
-          info_hash: torrent.info_hash,
-          magnet: torrent.magnet
-        }
-      });
+      const params = {
+        info_hash: torrent.info_hash,
+        magnet: torrent.magnet
+      };
+      // Afegir file_idx per sèries (season packs)
+      if (torrent.file_idx !== undefined && torrent.file_idx !== null) {
+        params.file_idx = torrent.file_idx;
+      }
+      const response = await axios.post(`${API_URL}/api/debrid/stream`, null, { params });
 
       if (response.data.status === 'success') {
         setStreamUrl(response.data.url);

@@ -135,13 +135,14 @@ class RealDebridClient:
         logger.info(f"Link unrestricted: {result.get('filename')}")
         return result
 
-    async def get_streaming_url(self, magnet: str, file_index: int = 0) -> Optional[Dict]:
+    async def get_streaming_url(self, magnet: str, file_idx: Optional[int] = None) -> Optional[Dict]:
         """
         Mètode convenient per obtenir URL de streaming d'un magnet
 
         Args:
             magnet: Magnet link
-            file_index: Índex del fitxer a reproduir (0 = més gran/principal)
+            file_idx: Índex del fitxer a reproduir (de Torrentio, per season packs).
+                      Si és None, selecciona el fitxer de vídeo més gran.
 
         Returns:
             Dict amb 'url' (streaming URL), 'filename', 'filesize'
@@ -156,20 +157,36 @@ class RealDebridClient:
 
             # 3. Seleccionar fitxers si cal
             if info.get("status") == "waiting_files_selection":
-                # Seleccionar tots o el més gran
                 files = info.get("files", [])
                 if files:
-                    # Ordenar per mida i agafar el més gran (normalment el vídeo)
                     video_extensions = {'.mkv', '.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm'}
                     video_files = [
                         f for f in files
                         if any(f.get("path", "").lower().endswith(ext) for ext in video_extensions)
                     ]
 
-                    if video_files:
-                        # Ordenar per mida descendent
+                    selected_id = None
+
+                    # Si tenim file_idx de Torrentio, usar-lo directament
+                    if file_idx is not None:
+                        # Buscar el fitxer amb aquest índex
+                        for f in files:
+                            if f.get("id") == file_idx + 1:  # RD usa ids basats en 1
+                                selected_id = f["id"]
+                                logger.info(f"Seleccionant fitxer per fileIdx {file_idx}: {f.get('path')}")
+                                break
+                        # Si no trobem per id, provar per posició
+                        if selected_id is None and file_idx < len(files):
+                            selected_id = files[file_idx]["id"]
+                            logger.info(f"Seleccionant fitxer per posició {file_idx}: {files[file_idx].get('path')}")
+
+                    # Si no tenim file_idx o no l'hem trobat, seleccionar el vídeo més gran
+                    if selected_id is None and video_files:
                         video_files.sort(key=lambda x: x.get("bytes", 0), reverse=True)
-                        selected_id = video_files[file_index]["id"] if file_index < len(video_files) else video_files[0]["id"]
+                        selected_id = video_files[0]["id"]
+                        logger.info(f"Seleccionant vídeo més gran: {video_files[0].get('path')}")
+
+                    if selected_id:
                         await self.select_files(torrent_id, str(selected_id))
                     else:
                         await self.select_files(torrent_id, "all")
