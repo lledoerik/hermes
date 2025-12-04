@@ -1285,8 +1285,38 @@ async def get_stats():
 @app.get("/api/library/series")
 async def get_series(content_type: str = None, page: int = 1, limit: int = 50, sort_by: str = "name", search: str = None, category: str = None):
     """Retorna les sèries amb paginació. Filtre opcional: series, anime, toons (comma-separated for multiple)
-    Categories: popular, on_the_air (en emissió), airing_today (avui)"""
-    from datetime import datetime, timedelta
+    Categories: popular, on_the_air (en emissió), airing_today (avui) - filtren per TMDB directament"""
+
+    # Si és una categoria TMDB, obtenir els IDs de TMDB i filtrar
+    tmdb_categories = ["popular", "on_the_air", "airing_today"]
+    tmdb_ids_ordered = None
+
+    if category in tmdb_categories:
+        api_key = get_tmdb_api_key()
+        if api_key:
+            from backend.metadata.tmdb import TMDBClient
+            client = TMDBClient(api_key)
+            try:
+                endpoint_map = {
+                    "popular": "/tv/popular",
+                    "on_the_air": "/tv/on_the_air",
+                    "airing_today": "/tv/airing_today"
+                }
+                endpoint = endpoint_map.get(category, "/tv/popular")
+
+                # Obtenir múltiples pàgines de TMDB per tenir més resultats
+                all_tmdb_ids = []
+                for tmdb_page in range(1, 4):  # 3 pàgines = ~60 sèries
+                    response = await client._request(endpoint, {"language": "ca-ES", "page": tmdb_page})
+                    if response and response.get("results"):
+                        for item in response["results"]:
+                            all_tmdb_ids.append(item.get("id"))
+                    else:
+                        break
+
+                tmdb_ids_ordered = all_tmdb_ids
+            finally:
+                await client.close()
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -1304,18 +1334,11 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
             where_conditions.append(f"s.content_type IN ({placeholders})")
             count_params.extend(content_types)
 
-        # Category filter (on_the_air, airing_today)
-        today = datetime.now().strftime('%Y-%m-%d')
-        current_year = datetime.now().year
-
-        if category == "on_the_air":
-            # Sèries en emissió (any actual)
-            where_conditions.append("s.year = ?")
-            count_params.append(current_year)
-        elif category == "airing_today":
-            # Sèries en emissió avui (any actual, aproximat)
-            where_conditions.append("s.year = ?")
-            count_params.append(current_year)
+        # Si tenim IDs de TMDB, filtrar per ells
+        if tmdb_ids_ordered:
+            placeholders = ','.join(['?' for _ in tmdb_ids_ordered])
+            where_conditions.append(f"s.tmdb_id IN ({placeholders})")
+            count_params.extend(tmdb_ids_ordered)
 
         # Search filter
         if search:
@@ -1342,10 +1365,14 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
 
         query += " GROUP BY s.id"
 
-        # Sorting
-        if sort_by == "year":
+        # Sorting - per categories TMDB, mantenir l'ordre de TMDB (per popularitat)
+        if tmdb_ids_ordered and category in tmdb_categories:
+            # Ordenar pel mateix ordre que TMDB retorna (ja ordenat per popularitat)
+            order_cases = ", ".join([f"WHEN {tid} THEN {i}" for i, tid in enumerate(tmdb_ids_ordered)])
+            query += f" ORDER BY CASE s.tmdb_id {order_cases} ELSE 9999 END"
+        elif sort_by == "year":
             query += " ORDER BY s.year DESC, s.name"
-        elif sort_by == "popular" or category in ["on_the_air", "airing_today"]:
+        elif sort_by == "popular":
             query += " ORDER BY COALESCE(s.popularity, 0) DESC, s.id DESC"
         elif sort_by == "episodes":
             query += " ORDER BY episode_count DESC, s.name"
@@ -1400,8 +1427,38 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
 @app.get("/api/library/movies")
 async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, sort_by: str = "name", search: str = None, category: str = None):
     """Retorna les pel·lícules amb paginació. Filtre opcional: movie, anime_movie, animated (comma-separated for multiple)
-    Categories: popular, now_playing (en cartellera), upcoming (pròximament)"""
-    from datetime import datetime, timedelta
+    Categories: popular, now_playing (en cartellera), upcoming (pròximament) - filtren per TMDB directament"""
+
+    # Si és una categoria TMDB, obtenir els IDs de TMDB i filtrar
+    tmdb_categories = ["popular", "now_playing", "upcoming"]
+    tmdb_ids_ordered = None
+
+    if category in tmdb_categories:
+        api_key = get_tmdb_api_key()
+        if api_key:
+            from backend.metadata.tmdb import TMDBClient
+            client = TMDBClient(api_key)
+            try:
+                endpoint_map = {
+                    "popular": "/movie/popular",
+                    "now_playing": "/movie/now_playing",
+                    "upcoming": "/movie/upcoming"
+                }
+                endpoint = endpoint_map.get(category, "/movie/popular")
+
+                # Obtenir múltiples pàgines de TMDB per tenir més resultats
+                all_tmdb_ids = []
+                for tmdb_page in range(1, 4):  # 3 pàgines = ~60 pel·lícules
+                    response = await client._request(endpoint, {"language": "ca-ES", "page": tmdb_page})
+                    if response and response.get("results"):
+                        for item in response["results"]:
+                            all_tmdb_ids.append(item.get("id"))
+                    else:
+                        break
+
+                tmdb_ids_ordered = all_tmdb_ids
+            finally:
+                await client.close()
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -1419,25 +1476,11 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
             where_conditions.append(f"s.content_type IN ({placeholders})")
             count_params.extend(content_types)
 
-        # Category filter (now_playing, upcoming)
-        today = datetime.now().strftime('%Y-%m-%d')
-        three_months_ago = (datetime.now() - timedelta(days=90)).strftime('%Y-%m-%d')
-        current_year = datetime.now().year
-
-        if category == "now_playing":
-            # Pel·lícules estrenades en els últims 3 mesos (o any actual si no hi ha release_date)
-            where_conditions.append("""
-                (s.release_date IS NOT NULL AND s.release_date >= ? AND s.release_date <= ?)
-                OR (s.release_date IS NULL AND s.year = ?)
-            """)
-            count_params.extend([three_months_ago, today, current_year])
-        elif category == "upcoming":
-            # Pel·lícules amb data d'estrena futura (o any > actual si no hi ha release_date)
-            where_conditions.append("""
-                (s.release_date IS NOT NULL AND s.release_date > ?)
-                OR (s.release_date IS NULL AND s.year > ?)
-            """)
-            count_params.extend([today, current_year])
+        # Si tenim IDs de TMDB, filtrar per ells
+        if tmdb_ids_ordered:
+            placeholders = ','.join(['?' for _ in tmdb_ids_ordered])
+            where_conditions.append(f"s.tmdb_id IN ({placeholders})")
+            count_params.extend(tmdb_ids_ordered)
 
         # Search filter
         if search:
@@ -1462,17 +1505,16 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
         """
         params = count_params.copy()
 
-        # Sorting
-        if sort_by == "year":
+        # Sorting - per categories TMDB, mantenir l'ordre de TMDB (per popularitat)
+        if tmdb_ids_ordered and category in tmdb_categories:
+            # Ordenar pel mateix ordre que TMDB retorna (ja ordenat per popularitat)
+            # SQLite: usar CASE WHEN per mantenir l'ordre
+            order_cases = ", ".join([f"WHEN {tid} THEN {i}" for i, tid in enumerate(tmdb_ids_ordered)])
+            query += f" ORDER BY CASE s.tmdb_id {order_cases} ELSE 9999 END"
+        elif sort_by == "year":
             query += " ORDER BY s.year DESC, s.name"
-        elif sort_by == "popular" or category in ["now_playing", "upcoming"]:
-            # Per categories TMDB, ordenar per popularitat
-            if category == "now_playing":
-                query += " ORDER BY COALESCE(s.popularity, 0) DESC, s.release_date DESC, s.name"
-            elif category == "upcoming":
-                query += " ORDER BY s.release_date ASC, COALESCE(s.popularity, 0) DESC, s.name"
-            else:
-                query += " ORDER BY COALESCE(s.popularity, 0) DESC, s.id DESC"
+        elif sort_by == "popular":
+            query += " ORDER BY COALESCE(s.popularity, 0) DESC, s.id DESC"
         elif sort_by == "duration":
             query += " ORDER BY m.duration DESC, s.name"
         else:
