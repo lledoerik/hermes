@@ -51,26 +51,49 @@ class TorrentioClient:
             name = stream.get("name", "")
             title = stream.get("title", "")
 
-            # Extreure info_hash del behaviorHints o de l'URL
+            # Extreure info_hash de múltiples llocs possibles
             info_hash = None
             behavior_hints = stream.get("behaviorHints", {})
+
+            # 1. Directament de behaviorHints.infoHash
             if "infoHash" in behavior_hints:
                 info_hash = behavior_hints["infoHash"]
-            else:
-                # Intentar extreure del url o title
+
+            # 2. De bingeGroup (format: hash:fileIdx)
+            if not info_hash and "bingeGroup" in behavior_hints:
+                binge = behavior_hints["bingeGroup"]
+                if ":" in binge:
+                    info_hash = binge.split(":")[0]
+                elif len(binge) == 40:
+                    info_hash = binge
+
+            # 3. De la URL (pot tenir el hash en diversos formats)
+            if not info_hash:
                 url = stream.get("url", "")
-                hash_match = re.search(r'([a-fA-F0-9]{40})', url)
+                # Format: /hash/fileIdx o similar
+                hash_match = re.search(r'/([a-fA-F0-9]{40})(?:/|$|\?)', url)
                 if hash_match:
                     info_hash = hash_match.group(1).lower()
+                else:
+                    # Buscar hash en qualsevol lloc de la URL
+                    hash_match = re.search(r'([a-fA-F0-9]{40})', url)
+                    if hash_match:
+                        info_hash = hash_match.group(1).lower()
 
+            # 4. Del title (alguns proveïdors ho posen aquí)
             if not info_hash:
-                # Alguns streams tenen el hash en el title
                 hash_match = re.search(r'([a-fA-F0-9]{40})', title)
                 if hash_match:
                     info_hash = hash_match.group(1).lower()
 
+            # 5. Del name
             if not info_hash:
-                logger.debug(f"No s'ha trobat info_hash per stream: {name}")
+                hash_match = re.search(r'([a-fA-F0-9]{40})', name)
+                if hash_match:
+                    info_hash = hash_match.group(1).lower()
+
+            if not info_hash:
+                logger.debug(f"No s'ha trobat info_hash per stream: {name[:50]}...")
                 return None
 
             # Construir magnet link
@@ -178,6 +201,14 @@ class TorrentioClient:
 
                 data = response.json()
                 streams_data = data.get("streams", [])
+
+                # Debug: mostrar primer stream per veure format
+                if streams_data:
+                    sample = streams_data[0]
+                    logger.info(f"Sample stream: name={sample.get('name', '')[:60]}")
+                    logger.info(f"Sample stream keys: {list(sample.keys())}")
+                    logger.info(f"Sample behaviorHints: {sample.get('behaviorHints', {})}")
+                    logger.info(f"Sample URL: {sample.get('url', '')[:100]}...")
 
                 streams = []
                 for stream_data in streams_data:
