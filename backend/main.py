@@ -8363,7 +8363,8 @@ async def search_torrents(
 @app.post("/api/debrid/stream")
 async def get_debrid_stream(
     info_hash: str = Query(..., description="Hash del torrent"),
-    magnet: str = Query(..., description="Magnet link complet")
+    magnet: str = Query(..., description="Magnet link complet"),
+    file_idx: Optional[int] = Query(None, description="Índex del fitxer (per season packs)")
 ):
     """
     Obtenir URL de streaming directa de Real-Debrid
@@ -8379,7 +8380,7 @@ async def get_debrid_stream(
     client = RealDebridClient(rd_api_key)
 
     try:
-        result = await client.get_streaming_url(magnet)
+        result = await client.get_streaming_url(magnet, file_idx=file_idx)
         if not result:
             raise HTTPException(status_code=500, detail="No s'ha pogut obtenir URL de streaming")
 
