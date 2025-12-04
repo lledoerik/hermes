@@ -390,27 +390,29 @@ function StreamPlayer() {
     return () => clearTimeout(timeout);
   }, [showControls, showEpisodesMenu, hasStartedPlaying, loading]);
 
-  // Mostrar popup "Següent capítol" després d'un temps (estil Netflix)
+  // Mostrar popup "Següent capítol" quan has vist el 90% de l'episodi
   useEffect(() => {
     if (type === 'movie' || !season || !episode || episodes.length === 0 || showStartOverlay || loading) {
       return;
     }
+    if (showNextEpisodePopup) return; // Ja s'està mostrant
 
-    // Temps estimat fins mostrar el popup (en minuts)
-    // Anime: 18 min, Sèries normals: 35 min
-    const showAfterMinutes = isAnime ? 18 : 35;
+    // Obtenir runtime de l'episodi actual
+    const currentEpisode = episodes.find(ep => ep.episode_number === parseInt(episode));
+    const runtimeMinutes = currentEpisode?.runtime || (isAnime ? 24 : 45);
+    const totalSeconds = runtimeMinutes * 60;
+    const threshold = totalSeconds * 0.90; // 90% del temps
 
-    const timer = setTimeout(() => {
+    // Comprovar cada segon si hem arribat al 90%
+    if (watchedSeconds >= threshold && watchedSeconds > 60) {
       // Comprovar si hi ha següent episodi
-      const currentIndex = episodes.findIndex(ep => ep.episode_number === episode);
+      const currentIndex = episodes.findIndex(ep => ep.episode_number === parseInt(episode));
       if (currentIndex >= 0 && currentIndex < episodes.length - 1) {
         setShowNextEpisodePopup(true);
         setNextEpisodeCountdown(15);
       }
-    }, showAfterMinutes * 60 * 1000);
-
-    return () => clearTimeout(timer);
-  }, [type, season, episode, episodes, isAnime, showStartOverlay, loading]);
+    }
+  }, [type, season, episode, episodes, isAnime, showStartOverlay, loading, watchedSeconds, showNextEpisodePopup]);
 
   // Countdown per auto-play del següent episodi
   useEffect(() => {
