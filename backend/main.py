@@ -8559,6 +8559,130 @@ async def get_cached_stream(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ==================== OPENSUBTITLES API ====================
+
+def get_opensubtitles_api_key() -> Optional[str]:
+    """Obtenir la clau API d'OpenSubtitles"""
+    return os.getenv("OPENSUBTITLES_API_KEY", "")
+
+
+@app.get("/api/subtitles/status")
+async def get_subtitles_status():
+    """Comprovar si OpenSubtitles està configurat"""
+    api_key = get_opensubtitles_api_key()
+    return {
+        "configured": bool(api_key),
+        "service": "OpenSubtitles"
+    }
+
+
+@app.get("/api/subtitles/search/{media_type}/{tmdb_id}")
+async def search_subtitles(
+    media_type: str,
+    tmdb_id: int,
+    season: Optional[int] = Query(None),
+    episode: Optional[int] = Query(None),
+    languages: Optional[str] = Query("ca,es,en", description="Codis d'idioma separats per comes")
+):
+    """
+    Cercar subtítols per una pel·lícula o episodi
+
+    Args:
+        media_type: "movie" o "tv"
+        tmdb_id: ID de TMDB
+        season: Número de temporada (per sèries)
+        episode: Número d'episodi (per sèries)
+        languages: Idiomes a buscar (per defecte: ca,es,en)
+    """
+    api_key = get_opensubtitles_api_key()
+    if not api_key:
+        return {"subtitles": [], "message": "OpenSubtitles no configurat"}
+
+    from backend.debrid.opensubtitles import OpenSubtitlesClient
+
+    # Obtenir l'IMDB ID des del TMDB
+    imdb_id = None
+    try:
+        # Fer petició a TMDB per obtenir l'IMDB ID
+        tmdb_api_key = os.getenv("TMDB_API_KEY", "")
+        if tmdb_api_key:
+            async with httpx.AsyncClient() as client:
+                if media_type == "movie":
+                    url = f"https://api.themoviedb.org/3/movie/{tmdb_id}/external_ids"
+                else:
+                    url = f"https://api.themoviedb.org/3/tv/{tmdb_id}/external_ids"
+
+                response = await client.get(url, params={"api_key": tmdb_api_key})
+                if response.status_code == 200:
+                    data = response.json()
+                    imdb_id = data.get("imdb_id")
+    except Exception as e:
+        logger.warning(f"No s'ha pogut obtenir IMDB ID: {e}")
+
+    client = OpenSubtitlesClient(api_key)
+
+    # Parsejar idiomes
+    lang_list = [l.strip() for l in languages.split(",") if l.strip()]
+
+    try:
+        subtitles = await client.search_subtitles(
+            imdb_id=imdb_id,
+            tmdb_id=tmdb_id if not imdb_id else None,
+            season=season if media_type == "tv" else None,
+            episode=episode if media_type == "tv" else None,
+            languages=lang_list
+        )
+
+        return {
+            "subtitles": [s.to_dict() for s in subtitles[:20]],  # Limitar a 20
+            "total": len(subtitles)
+        }
+
+    except Exception as e:
+        logger.error(f"Error cercant subtítols: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/subtitles/download/{file_id}")
+async def download_subtitle(file_id: str):
+    """
+    Descarregar un subtítol en format VTT
+
+    Args:
+        file_id: ID del fitxer de subtítol d'OpenSubtitles
+
+    Returns:
+        Contingut del subtítol en format VTT
+    """
+    api_key = get_opensubtitles_api_key()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="OpenSubtitles no configurat")
+
+    from backend.debrid.opensubtitles import OpenSubtitlesClient
+
+    client = OpenSubtitlesClient(api_key)
+
+    try:
+        content = await client.download_subtitle(file_id)
+        if not content:
+            raise HTTPException(status_code=404, detail="No s'ha pogut descarregar el subtítol")
+
+        return Response(
+            content=content,
+            media_type="text/vtt",
+            headers={
+                "Content-Disposition": f'attachment; filename="subtitle_{file_id}.vtt"',
+                "Access-Control-Allow-Origin": "*"
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error descarregant subtítol: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
