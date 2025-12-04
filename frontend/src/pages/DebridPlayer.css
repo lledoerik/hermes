@@ -177,13 +177,8 @@
 }
 
 .cached-icon {
-  margin-left: 4px;
-  font-size: 10px;
-}
-
-.torrent-count {
-  color: #555;
-  font-size: 10px;
+  margin-left: 6px;
+  font-size: 12px;
 }
 
 .no-torrents {
