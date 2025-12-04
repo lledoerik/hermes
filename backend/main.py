@@ -152,6 +152,8 @@ def init_all_tables():
             ("tmdb_episodes", "INTEGER"),
             # Data d'estrena completa per filtrar 'en cartellera' i 'pròximament'
             ("release_date", "TEXT"),
+            # Popularitat de TMDB per ordenar
+            ("popularity", "REAL"),
         ]
         for col_name, col_type in series_columns:
             try:
@@ -1344,7 +1346,7 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
         if sort_by == "year":
             query += " ORDER BY s.year DESC, s.name"
         elif sort_by == "popular" or category in ["on_the_air", "airing_today"]:
-            query += " ORDER BY s.id DESC"
+            query += " ORDER BY COALESCE(s.popularity, 0) DESC, s.id DESC"
         elif sort_by == "episodes":
             query += " ORDER BY episode_count DESC, s.name"
         elif sort_by == "seasons":
@@ -1464,13 +1466,13 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
         if sort_by == "year":
             query += " ORDER BY s.year DESC, s.name"
         elif sort_by == "popular" or category in ["now_playing", "upcoming"]:
-            # Per categories TMDB, ordenar per data d'estrena
+            # Per categories TMDB, ordenar per popularitat
             if category == "now_playing":
-                query += " ORDER BY s.release_date DESC, s.name"
+                query += " ORDER BY COALESCE(s.popularity, 0) DESC, s.release_date DESC, s.name"
             elif category == "upcoming":
-                query += " ORDER BY s.release_date ASC, s.name"
+                query += " ORDER BY s.release_date ASC, COALESCE(s.popularity, 0) DESC, s.name"
             else:
-                query += " ORDER BY s.id DESC"
+                query += " ORDER BY COALESCE(s.popularity, 0) DESC, s.id DESC"
         elif sort_by == "duration":
             query += " ORDER BY m.duration DESC, s.name"
         else:
@@ -5846,21 +5848,31 @@ async def import_from_tmdb(data: ImportTMDBRequest):
     # Verificar si ja existeix (per tmdb_id o path)
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, name, release_date FROM series WHERE tmdb_id = ? OR path = ?", (data.tmdb_id, virtual_path))
+        cursor.execute("SELECT id, name, release_date, popularity FROM series WHERE tmdb_id = ? OR path = ?", (data.tmdb_id, virtual_path))
         existing = cursor.fetchone()
         if existing:
-            # Si ja existeix però no té release_date, actualitzar-lo
-            if not existing['release_date']:
-                # Obtenir release_date de TMDB
+            # Si ja existeix però no té release_date o popularity, actualitzar-lo
+            if not existing['release_date'] or not existing['popularity']:
+                # Obtenir dades de TMDB
                 if data.media_type == 'movie':
                     metadata = await fetch_movie_by_tmdb_id(api_key, data.tmdb_id)
                 else:
                     metadata = await fetch_tv_by_tmdb_id(api_key, data.tmdb_id)
 
-                if metadata.get("release_date"):
+                updates = []
+                params = []
+                if metadata.get("release_date") and not existing['release_date']:
+                    updates.append("release_date = ?")
+                    params.append(metadata.get("release_date"))
+                if metadata.get("popularity"):
+                    updates.append("popularity = ?")
+                    params.append(metadata.get("popularity"))
+
+                if updates:
+                    params.append(existing['id'])
                     cursor.execute(
-                        "UPDATE series SET release_date = ? WHERE id = ?",
-                        (metadata.get("release_date"), existing['id'])
+                        f"UPDATE series SET {', '.join(updates)} WHERE id = ?",
+                        params
                     )
                     conn.commit()
 
@@ -5925,8 +5937,8 @@ async def import_from_tmdb(data: ImportTMDBRequest):
                     poster, backdrop, director, creators, cast_members,
                     is_imported, source_type, external_url, added_date,
                     content_type, origin_country, original_language,
-                    tmdb_seasons, tmdb_episodes, release_date
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'tmdb', ?, datetime('now'), ?, ?, ?, ?, ?, ?)
+                    tmdb_seasons, tmdb_episodes, release_date, popularity
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'tmdb', ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?)
             """, (
                 metadata.get("title"),
                 virtual_path,
@@ -5949,7 +5961,8 @@ async def import_from_tmdb(data: ImportTMDBRequest):
                 metadata.get("original_language"),
                 metadata.get("seasons"),
                 metadata.get("episodes"),
-                metadata.get("release_date")
+                metadata.get("release_date"),
+                metadata.get("popularity")
             ))
 
             series_id = cursor.lastrowid
