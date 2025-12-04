@@ -822,44 +822,6 @@
   white-space: nowrap;
 }
 
-/* Silent audio notification */
-.silent-notification {
-  position: absolute;
-  top: 80px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 35;
-  animation: fadeInDown 0.3s ease-out;
-}
-
-@keyframes fadeInDown {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
-.silent-notification-content {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: rgba(30, 41, 59, 0.95);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
-  padding: 12px 20px;
-  color: #fff;
-  font-size: 14px;
-}
-
-.silent-icon {
-  font-size: 18px;
-}
-
 /* Responsive */
 @media (max-width: 768px) {
   .controls-row button svg {
