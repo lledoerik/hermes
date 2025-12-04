@@ -7,6 +7,10 @@ import json
 import logging
 from pathlib import Path
 
+# Carregar variables d'entorn des de .env
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).parent.parent / ".env")
+
 logger = logging.getLogger(__name__)
 
 # === PATHS ===
