@@ -181,6 +181,12 @@ function DebridPlayer() {
   const progressSaveTimeoutRef = useRef(null);
   const resumeTimeRef = useRef(0);
 
+  // Audio analysis refs
+  const audioContextRef = useRef(null);
+  const analyserRef = useRef(null);
+  const silentCheckIntervalRef = useRef(null);
+  const silentStartTimeRef = useRef(null);
+
   // URL params
   const searchParams = new URLSearchParams(location.search);
   const season = searchParams.get('s') ? parseInt(searchParams.get('s')) : null;
@@ -223,6 +229,10 @@ function DebridPlayer() {
   // Episode navigation state
   const [showEpisodesList, setShowEpisodesList] = useState(false);
   const [showEndedOverlay, setShowEndedOverlay] = useState(false);
+
+  // Silent audio detection state
+  const [silentNotification, setSilentNotification] = useState(null);
+  const [triedTorrents, setTriedTorrents] = useState(new Set());
 
   const mediaType = type === 'movie' ? 'movie' : 'tv';
 
@@ -519,6 +529,48 @@ function DebridPlayer() {
     setShowQualityMenu(false);
   }, [groupedTorrents, selectedTorrent, getStreamUrl]);
 
+  // Get next available torrent (not tried yet)
+  const getNextAvailableTorrent = useCallback(() => {
+    // Flatten all torrents from groups, preferring cached ones first
+    const allTorrents = [];
+    groupedTorrents.forEach(group => {
+      // Add cached torrents first
+      group.torrents.filter(t => t.cached).forEach(t => allTorrents.push(t));
+      // Then non-cached
+      group.torrents.filter(t => !t.cached).forEach(t => allTorrents.push(t));
+    });
+
+    // Find first torrent not tried yet and not the current one
+    return allTorrents.find(t =>
+      t.info_hash !== selectedTorrent?.info_hash &&
+      !triedTorrents.has(t.info_hash)
+    );
+  }, [groupedTorrents, selectedTorrent, triedTorrents]);
+
+  // Switch to next torrent due to silent audio
+  const switchToNextTorrent = useCallback(() => {
+    const nextTorrent = getNextAvailableTorrent();
+    if (nextTorrent) {
+      // Mark current as tried
+      if (selectedTorrent) {
+        setTriedTorrents(prev => new Set([...prev, selectedTorrent.info_hash]));
+      }
+      // Show notification
+      const lang = parseLanguage(nextTorrent.name, nextTorrent.title);
+      const quality = parseQuality(nextTorrent.name);
+      setSilentNotification(`Àudio mut detectat. Provant: ${quality} ${lang}...`);
+      setTimeout(() => setSilentNotification(null), 3000);
+
+      // Switch torrent
+      setSelectedTorrent(nextTorrent);
+      setStreamUrl(null);
+      getStreamUrl(nextTorrent, false); // Don't keep time, start fresh
+    } else {
+      setSilentNotification('No hi ha més fonts disponibles');
+      setTimeout(() => setSilentNotification(null), 3000);
+    }
+  }, [getNextAvailableTorrent, selectedTorrent, getStreamUrl]);
+
   // Video event handlers
   const handleTimeUpdate = useCallback(() => {
     if (!videoRef.current) return;
@@ -810,6 +862,93 @@ function DebridPlayer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [episode]); // Only re-run when episode number changes
 
+  // Silent audio detection using Web Audio API
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !streamUrl) return;
+
+    let audioContext = null;
+    let analyser = null;
+    let source = null;
+
+    const setupAudioAnalysis = () => {
+      try {
+        // Create AudioContext
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        audioContextRef.current = audioContext;
+
+        // Create analyser node
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        analyserRef.current = analyser;
+
+        // Connect video to analyser
+        source = audioContext.createMediaElementSource(video);
+        source.connect(analyser);
+        analyser.connect(audioContext.destination);
+
+        // Start checking for silence
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        silentStartTimeRef.current = null;
+
+        silentCheckIntervalRef.current = setInterval(() => {
+          if (!video.paused && video.currentTime > 0 && video.currentTime < 10) {
+            analyser.getByteFrequencyData(dataArray);
+
+            // Calculate average volume
+            const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+
+            // Consider silent if average is below threshold (very low)
+            const isSilent = average < 2;
+
+            if (isSilent) {
+              if (!silentStartTimeRef.current) {
+                silentStartTimeRef.current = Date.now();
+              } else {
+                const silentDuration = (Date.now() - silentStartTimeRef.current) / 1000;
+                if (silentDuration >= 7) {
+                  // 7 seconds of silence detected
+                  console.log('Àudio mut detectat durant 7 segons, canviant de font...');
+                  clearInterval(silentCheckIntervalRef.current);
+                  switchToNextTorrent();
+                }
+              }
+            } else {
+              // Audio detected, reset timer
+              silentStartTimeRef.current = null;
+              // If we've passed 10 seconds with audio, stop checking
+              if (video.currentTime > 10) {
+                clearInterval(silentCheckIntervalRef.current);
+              }
+            }
+          }
+        }, 200); // Check every 200ms
+
+      } catch (err) {
+        console.error('Error setting up audio analysis:', err);
+      }
+    };
+
+    // Setup when video can play
+    const handleCanPlay = () => {
+      // Small delay to ensure video is ready
+      setTimeout(setupAudioAnalysis, 500);
+    };
+
+    video.addEventListener('canplay', handleCanPlay);
+
+    // Cleanup
+    return () => {
+      video.removeEventListener('canplay', handleCanPlay);
+      if (silentCheckIntervalRef.current) {
+        clearInterval(silentCheckIntervalRef.current);
+      }
+      if (audioContext && audioContext.state !== 'closed') {
+        audioContext.close().catch(() => {});
+      }
+    };
+  }, [streamUrl, switchToNextTorrent]);
+
   // Save progress on unmount
   useEffect(() => {
     const video = videoRef.current;
@@ -868,6 +1007,16 @@ function DebridPlayer() {
         <div className="loading-overlay">
           <div className="spinner"></div>
           <p>{loadingTorrents ? 'Buscant fonts...' : 'Preparant stream...'}</p>
+        </div>
+      )}
+
+      {/* Silent audio notification */}
+      {silentNotification && (
+        <div className="silent-notification">
+          <div className="silent-notification-content">
+            <span className="silent-icon">🔇</span>
+            <span>{silentNotification}</span>
+          </div>
         </div>
       )}
 
