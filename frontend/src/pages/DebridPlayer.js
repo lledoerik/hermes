@@ -1399,18 +1399,19 @@ function DebridPlayer() {
                 <AudioIcon />
               </button>
 
-              {/* Subtitles button */}
+              {/* Subtitles & Language button */}
               <button
-                className={`control-btn ${(currentSubtitleTrack >= 0 || selectedOpenSubtitle) ? 'active' : ''} ${(subtitleTracks.length > 0 || openSubtitles.length > 0) ? '' : 'disabled'}`}
+                className={`control-btn ${(currentSubtitleTrack >= 0 || selectedOpenSubtitle || selectedLanguage !== 'ALL') ? 'active' : ''}`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (subtitleTracks.length > 0 || openSubtitles.length > 0) {
-                    setShowSubtitleMenu(!showSubtitleMenu);
-                  }
+                  setShowSubtitleMenu(!showSubtitleMenu);
                 }}
-                title={(subtitleTracks.length > 0 || openSubtitles.length > 0) ? 'Subtítols' : (loadingSubtitles ? 'Cercant subtítols...' : 'Subtítols no disponibles')}
+                title="Subtítols i Idioma"
               >
                 <SubtitlesIcon />
+                {selectedLanguage !== 'ALL' && (
+                  <span className="lang-badge">{selectedLanguage}</span>
+                )}
               </button>
 
               {/* Episodes list button (only for series) */}
@@ -1423,18 +1424,6 @@ function DebridPlayer() {
                   <EpisodesIcon />
                 </button>
               )}
-
-              {/* Language selector button */}
-              <button
-                className="control-btn language-btn"
-                onClick={(e) => { e.stopPropagation(); setShowLanguageMenu(!showLanguageMenu); }}
-                title="Seleccionar idioma"
-              >
-                <LanguageIcon />
-                {currentLanguage && (
-                  <span className="lang-badge">{currentLanguage}</span>
-                )}
-              </button>
 
               {/* Quality button */}
               <button
@@ -1472,12 +1461,38 @@ function DebridPlayer() {
       )}
 
       {/* Subtitle menu */}
-      {showSubtitleMenu && (subtitleTracks.length > 0 || openSubtitles.length > 0) && (
+      {showSubtitleMenu && (
         <div className="track-menu subtitle-menu-extended" onClick={(e) => e.stopPropagation()}>
           <div className="track-menu-header">
-            <h4>Subtítols</h4>
+            <h4>Idioma i Subtítols</h4>
             <button onClick={() => setShowSubtitleMenu(false)}><CloseIcon /></button>
           </div>
+
+          {/* Secció d'Idioma */}
+          <div className="subtitle-section-header">Idioma d'àudio</div>
+          <div className="language-options-grid">
+            {LANGUAGE_OPTIONS.map((lang) => {
+              const isAvailable = lang.code === 'ALL' || availableLanguages.has(lang.code);
+              const count = lang.code === 'ALL'
+                ? torrents.length
+                : torrents.filter(t => parseLanguage(t.name, t.title) === lang.code).length;
+
+              return (
+                <div
+                  key={lang.code}
+                  className={`language-option-compact ${selectedLanguage === lang.code ? 'active' : ''} ${!isAvailable ? 'unavailable' : ''}`}
+                  onClick={() => isAvailable && changeLanguage(lang.code)}
+                >
+                  <span className="lang-flag">{lang.flag}</span>
+                  <span className="lang-label">{lang.label}</span>
+                  {count > 0 && <span className="lang-count">{count}</span>}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Secció de Subtítols */}
+          <div className="subtitle-section-header">Subtítols</div>
 
           {/* Desactivar opció */}
           <div
@@ -1491,7 +1506,6 @@ function DebridPlayer() {
               setCurrentSubtitleTrack(-1);
               setSelectedOpenSubtitle(null);
               setSubtitleUrl(null);
-              setShowSubtitleMenu(false);
             }}
           >
             Desactivats
@@ -1500,7 +1514,6 @@ function DebridPlayer() {
           {/* Subtítols embeguts al vídeo */}
           {subtitleTracks.length > 0 && (
             <>
-              <div className="subtitle-section-header">Embeguts</div>
               {subtitleTracks.map((track) => (
                 <div
                   key={`embedded-${track.id}`}
@@ -1510,7 +1523,7 @@ function DebridPlayer() {
                     changeSubtitleTrack(track.id);
                   }}
                 >
-                  {track.label}
+                  {track.label} <span className="sub-source">Embegut</span>
                 </div>
               ))}
             </>
@@ -1519,7 +1532,6 @@ function DebridPlayer() {
           {/* Subtítols d'OpenSubtitles */}
           {openSubtitles.length > 0 && (
             <>
-              <div className="subtitle-section-header">OpenSubtitles</div>
               {openSubtitles.slice(0, 10).map((sub) => (
                 <div
                   key={`os-${sub.id}`}
@@ -1539,43 +1551,13 @@ function DebridPlayer() {
           {loadingSubtitles && (
             <div className="track-option loading">Cercant subtítols...</div>
           )}
-        </div>
-      )}
 
-      {/* Language selector menu */}
-      {showLanguageMenu && (
-        <div className="language-menu" onClick={(e) => e.stopPropagation()}>
-          <div className="language-menu-header">
-            <h4>Idioma</h4>
-            <button onClick={() => setShowLanguageMenu(false)}><CloseIcon /></button>
-          </div>
-          <div className="language-menu-content">
-            {LANGUAGE_OPTIONS.map((lang) => {
-              const isAvailable = lang.code === 'ALL' || availableLanguages.has(lang.code);
-              const count = lang.code === 'ALL'
-                ? torrents.length
-                : torrents.filter(t => parseLanguage(t.name, t.title) === lang.code).length;
-
-              return (
-                <div
-                  key={lang.code}
-                  className={`language-option ${selectedLanguage === lang.code ? 'active' : ''} ${!isAvailable ? 'unavailable' : ''}`}
-                  onClick={() => isAvailable && changeLanguage(lang.code)}
-                >
-                  <span className="lang-flag">{lang.flag}</span>
-                  <span className="lang-label">{lang.label}</span>
-                  {count > 0 && <span className="lang-count">{count}</span>}
-                </div>
-              );
-            })}
-          </div>
-          {filteredTorrents.length === 0 && selectedLanguage !== 'ALL' && (
-            <div className="no-torrents-lang">
-              No hi ha fonts en aquest idioma
-            </div>
+          {!loadingSubtitles && subtitleTracks.length === 0 && openSubtitles.length === 0 && (
+            <div className="track-option disabled">No hi ha subtítols disponibles</div>
           )}
         </div>
       )}
+
 
       {/* Video ended overlay with next episode - corner popup */}
       {showEndedOverlay && nextEpisode && (

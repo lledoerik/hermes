@@ -989,6 +989,67 @@
   color: #aaa;
 }
 
+/* Language options grid in subtitle menu */
+.language-options-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 8px 12px;
+}
+
+.language-option-compact {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.language-option-compact:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.language-option-compact.active {
+  background: rgba(0, 180, 180, 0.3);
+  border: 1px solid rgba(0, 200, 200, 0.5);
+}
+
+.language-option-compact.unavailable {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.language-option-compact .lang-flag {
+  font-size: 18px;
+  margin-bottom: 2px;
+}
+
+.language-option-compact .lang-label {
+  font-size: 10px;
+  color: #fff;
+  font-weight: 500;
+}
+
+.language-option-compact .lang-count {
+  font-size: 9px;
+  color: #888;
+  margin-top: 2px;
+}
+
+.track-option .sub-source {
+  font-size: 9px;
+  color: #666;
+  margin-left: 8px;
+}
+
+.track-option.disabled {
+  color: #666;
+  cursor: default;
+}
+
 .track-option.loading {
   color: #888;
   font-style: italic;
