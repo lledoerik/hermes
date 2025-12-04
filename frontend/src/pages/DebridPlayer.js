@@ -75,14 +75,6 @@ const CloseIcon = () => (
   </svg>
 );
 
-// Icon for iframe/external player fallback
-const ExternalPlayerIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M19 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H5V8h14v10z"/>
-    <path d="M10 16l5-4-5-4v8z"/>
-  </svg>
-);
-
 // Audio track icon
 const AudioIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor">
@@ -229,6 +221,7 @@ function DebridPlayer() {
   // Episode navigation state
   const [showEpisodesList, setShowEpisodesList] = useState(false);
   const [showEndedOverlay, setShowEndedOverlay] = useState(false);
+  const episodesListRef = useRef(null);
 
   // Silent audio detection state
   const [silentNotification, setSilentNotification] = useState(null);
@@ -862,6 +855,18 @@ function DebridPlayer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [episode]); // Only re-run when episode number changes
 
+  // Scroll to current episode when episodes list opens
+  useEffect(() => {
+    if (showEpisodesList && episodesListRef.current) {
+      const currentItem = episodesListRef.current.querySelector('.episode-item.current');
+      if (currentItem) {
+        setTimeout(() => {
+          currentItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
+      }
+    }
+  }, [showEpisodesList, episodes]);
+
   // Silent audio detection using Web Audio API
   useEffect(() => {
     const video = videoRef.current;
@@ -907,8 +912,7 @@ function DebridPlayer() {
               } else {
                 const silentDuration = (Date.now() - silentStartTimeRef.current) / 1000;
                 if (silentDuration >= 7) {
-                  // 7 seconds of silence detected
-                  console.log('Àudio mut detectat durant 7 segons, canviant de font...');
+                  // 7 seconds of silence detected - switch to next source
                   clearInterval(silentCheckIntervalRef.current);
                   switchToNextTorrent();
                 }
@@ -1036,14 +1040,9 @@ function DebridPlayer() {
             </button>
             <button
               className="secondary"
-              onClick={() => {
-                const streamUrl = mediaType === 'movie'
-                  ? `/stream/movie/${tmdbId}`
-                  : `/stream/tv/${tmdbId}?s=${season || 1}&e=${episode || 1}`;
-                navigate(streamUrl);
-              }}
+              onClick={() => navigate(-1)}
             >
-              Usar reproductor alternatiu
+              Tornar enrere
             </button>
           </div>
         </div>
@@ -1105,20 +1104,6 @@ function DebridPlayer() {
           <h1>{title}</h1>
           {subtitle && <span>{subtitle}</span>}
         </div>
-        {/* Fallback to iframe player */}
-        <button
-          className="sources-button"
-          onClick={() => {
-            // Navigate to iframe player as fallback
-            const streamUrl = mediaType === 'movie'
-              ? `/stream/movie/${tmdbId}`
-              : `/stream/tv/${tmdbId}?s=${season || 1}&e=${episode || 1}`;
-            navigate(streamUrl);
-          }}
-          title="Reproductor alternatiu (iframe)"
-        >
-          <ExternalPlayerIcon />
-        </button>
       </div>
 
       {/* Controls */}
@@ -1305,21 +1290,29 @@ function DebridPlayer() {
           <div className="episodes-modal">
             <div className="episodes-header">
               <div className="episodes-header-info">
-                <span className="current-playing">T{season} E{episode}</span>
-                {mediaInfo?.number_of_seasons > 1 && (
+                {(mediaInfo?.number_of_seasons > 1 || mediaInfo?.seasons?.length > 1) ? (
                   <select
                     className="season-selector"
                     value={selectedSeason}
                     onChange={(e) => changeNavigatorSeason(parseInt(e.target.value))}
                   >
-                    {Array.from({ length: mediaInfo.number_of_seasons }, (_, i) => (
-                      <option key={i + 1} value={i + 1}>
-                        Temporada {i + 1}
-                      </option>
-                    ))}
+                    {mediaInfo?.seasons ? (
+                      mediaInfo.seasons
+                        .filter(s => s.season_number > 0)
+                        .map(s => (
+                          <option key={s.season_number} value={s.season_number}>
+                            Temporada {s.season_number}
+                          </option>
+                        ))
+                    ) : (
+                      Array.from({ length: mediaInfo.number_of_seasons }, (_, i) => (
+                        <option key={i + 1} value={i + 1}>
+                          Temporada {i + 1}
+                        </option>
+                      ))
+                    )}
                   </select>
-                )}
-                {(!mediaInfo?.number_of_seasons || mediaInfo.number_of_seasons === 1) && (
+                ) : (
                   <span className="season-title">Temporada {selectedSeason}</span>
                 )}
               </div>
@@ -1327,7 +1320,7 @@ function DebridPlayer() {
                 <CloseIcon />
               </button>
             </div>
-            <div className="episodes-list">
+            <div className="episodes-list" ref={episodesListRef}>
               {loadingEpisodes ? (
                 <div className="episodes-loading">Carregant...</div>
               ) : (
