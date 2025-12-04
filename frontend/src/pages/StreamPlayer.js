@@ -132,7 +132,7 @@ function StreamPlayer() {
   // URL d'embed (VidSrc.cc amb detecció d'anime)
   const embedUrl = React.useMemo(() => {
     const url = getEmbedUrl(mediaType, tmdbId, season, episode, isAnime);
-    console.log('[StreamPlayer] Embed URL:', url, { mediaType, tmdbId, season, episode, isAnime, hasStartedPlaying });
+    console.log('[StreamPlayer] Embed URL:', url, { mediaType, tmdbId, season, episode, isAnime });
     return url;
   }, [mediaType, tmdbId, season, episode, isAnime]);
 
