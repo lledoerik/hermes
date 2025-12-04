@@ -296,41 +296,67 @@ function DebridPlayer() {
       const streams = response.data.streams || [];
       setTorrents(streams);
 
-      // Auto-select best cached torrent (prefer English/original, then highest quality)
+      // Get user preferences from localStorage
+      const preferredAudioLang = localStorage.getItem('hermes_audio_lang') || 'en';
+      const preferredQuality = localStorage.getItem('hermes_quality') || 'auto';
+
+      // Map language codes to parseLanguage labels
+      const langCodeToLabel = {
+        'ca': 'Català',
+        'es': 'Castellà',
+        'en': 'Anglès',
+        'fr': 'Francès',
+        'de': 'Alemany',
+        'it': 'Italià',
+        'pt': 'Portuguès',
+        'ja': 'Japonès',
+        'ko': 'Coreà',
+        'zh': 'Xinès',
+        'ru': 'Rus'
+      };
+
+      const preferredLangLabel = langCodeToLabel[preferredAudioLang] || 'Anglès';
+
+      // Quality order based on preference
+      const baseQualityOrder = { '4K': 0, '2160p': 0, '1080p': 1, '720p': 2, 'WEB': 3, 'HDTV': 4, '480p': 5, 'SD': 6 };
+
+      // Function to check if torrent matches preferred language
+      const matchesPreferredLang = (t) => {
+        const lang = parseLanguage(t.name, t.title);
+        if (lang === preferredLangLabel) return 0; // Exact match
+        if (lang === 'Multi' || lang === 'Dual') return 1; // Multi/Dual as second choice
+        if (lang === 'Anglès') return 2; // English as fallback (original version)
+        return 3; // Other languages
+      };
+
+      // Function to get quality score
+      const getQualityScore = (t) => {
+        const q = parseQuality(t.name);
+        if (preferredQuality !== 'auto') {
+          // If user has a preference, prioritize that quality
+          if (q === preferredQuality || (preferredQuality === '2160p' && q === '4K')) return 0;
+        }
+        return baseQualityOrder[q] ?? 99;
+      };
+
+      // Sort function
+      const sortTorrents = (a, b) => {
+        // First by language preference
+        const langA = matchesPreferredLang(a);
+        const langB = matchesPreferredLang(b);
+        if (langA !== langB) return langA - langB;
+        // Then by quality
+        return getQualityScore(a) - getQualityScore(b);
+      };
+
+      // Auto-select best cached torrent
       const cachedTorrents = streams.filter(t => t.cached);
       if (cachedTorrents.length > 0) {
-        const qualityOrder = { '4K': 0, '2160p': 0, '1080p': 1, '720p': 2, 'WEB': 3, 'HDTV': 4, '480p': 5 };
-        // Prefer English (original version)
-        const isEnglish = (t) => {
-          const lang = parseLanguage(t.name, t.title);
-          return lang === 'Anglès' || lang === 'Multi' || lang === 'Dual';
-        };
-        cachedTorrents.sort((a, b) => {
-          // English first
-          const aEng = isEnglish(a) ? 0 : 1;
-          const bEng = isEnglish(b) ? 0 : 1;
-          if (aEng !== bEng) return aEng - bEng;
-          // Then by quality
-          const qA = parseQuality(a.name);
-          const qB = parseQuality(b.name);
-          return (qualityOrder[qA] ?? 99) - (qualityOrder[qB] ?? 99);
-        });
+        cachedTorrents.sort(sortTorrents);
         setSelectedTorrent(cachedTorrents[0]);
       } else if (streams.length > 0) {
-        // No cached, auto-select best from all (prefer English, then quality)
-        const qualityOrder = { '4K': 0, '2160p': 0, '1080p': 1, '720p': 2, 'WEB': 3, 'HDTV': 4, '480p': 5 };
-        const isEnglish = (t) => {
-          const lang = parseLanguage(t.name, t.title);
-          return lang === 'Anglès' || lang === 'Multi' || lang === 'Dual';
-        };
-        const sorted = [...streams].sort((a, b) => {
-          const aEng = isEnglish(a) ? 0 : 1;
-          const bEng = isEnglish(b) ? 0 : 1;
-          if (aEng !== bEng) return aEng - bEng;
-          const qA = parseQuality(a.name);
-          const qB = parseQuality(b.name);
-          return (qualityOrder[qA] ?? 99) - (qualityOrder[qB] ?? 99);
-        });
+        // No cached, auto-select best from all using same preferences
+        const sorted = [...streams].sort(sortTorrents);
         setSelectedTorrent(sorted[0]);
       }
     } catch (err) {
