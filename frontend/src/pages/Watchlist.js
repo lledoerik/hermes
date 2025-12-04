@@ -84,6 +84,13 @@ const AlertIcon = () => (
   </svg>
 );
 
+const SearchIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="11" cy="11" r="8"/>
+    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+  </svg>
+);
+
 // Platform logos
 const LetterboxdLogo = () => (
   <svg viewBox="0 0 500 500" fill="currentColor">
@@ -127,6 +134,9 @@ function Watchlist() {
   const [importing, setImporting] = useState(false);
   const [importResults, setImportResults] = useState(null);
   const [importError, setImportError] = useState(null);
+  const [previewResults, setPreviewResults] = useState(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
 
   const loadWatchlist = useCallback(async () => {
     if (!isAuthenticated) {
@@ -203,6 +213,8 @@ function Watchlist() {
     setImportUsername('');
     setImportResults(null);
     setImportError(null);
+    setPreviewResults(null);
+    setImportProgress({ current: 0, total: 0 });
     setShowImportModal(true);
   };
 
@@ -212,17 +224,61 @@ function Watchlist() {
     setImportUsername('');
     setImportResults(null);
     setImportError(null);
+    setPreviewResults(null);
+    setImportProgress({ current: 0, total: 0 });
   };
 
-  const handleImport = async () => {
+  const handlePreview = async () => {
     if (!importUsername.trim()) {
       setImportError('Cal introduir un nom d\'usuari');
       return;
     }
 
+    setPreviewing(true);
+    setImportError(null);
+    setPreviewResults(null);
+
+    try {
+      const response = await axios.post(`${API_URL}/api/import/external/preview`, {
+        username: importUsername.trim(),
+        platform: selectedPlatform
+      });
+
+      if (response.data.total_items === 0) {
+        setImportError('No s\'han trobat elements per importar. Comprova el nom d\'usuari.');
+      } else {
+        setPreviewResults(response.data);
+      }
+    } catch (error) {
+      console.error('Error preview:', error);
+      setImportError(
+        error.response?.data?.detail ||
+        'Error al cercar. Comprova el nom d\'usuari.'
+      );
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!previewResults) return;
+
     setImporting(true);
     setImportError(null);
     setImportResults(null);
+
+    const totalItems = previewResults.total_items;
+    setImportProgress({ current: 0, total: totalItems });
+
+    // Simulate progress while import is running
+    const progressInterval = setInterval(() => {
+      setImportProgress(prev => {
+        // Progress slowly, max 95% until done
+        const increment = Math.max(1, Math.floor(totalItems / 20));
+        const newCurrent = Math.min(prev.current + increment, Math.floor(totalItems * 0.95));
+        return { ...prev, current: newCurrent };
+      });
+    }, 500);
 
     try {
       const response = await axios.post(`${API_URL}/api/import/external`, {
@@ -230,6 +286,8 @@ function Watchlist() {
         platform: selectedPlatform
       });
 
+      clearInterval(progressInterval);
+      setImportProgress({ current: totalItems, total: totalItems });
       setImportResults(response.data);
 
       // Reload watchlist if items were added
@@ -237,6 +295,7 @@ function Watchlist() {
         loadWatchlist();
       }
     } catch (error) {
+      clearInterval(progressInterval);
       console.error('Error importació:', error);
       setImportError(
         error.response?.data?.detail ||
@@ -420,46 +479,122 @@ function Watchlist() {
             <div className="modal-content">
               {!importResults ? (
                 <>
-                  <div className="input-group">
-                    <label>{platforms[selectedPlatform].placeholder}</label>
-                    <input
-                      type="text"
-                      value={importUsername}
-                      onChange={(e) => setImportUsername(e.target.value)}
-                      placeholder={platforms[selectedPlatform].placeholder}
-                      onKeyDown={(e) => e.key === 'Enter' && !importing && handleImport()}
-                      disabled={importing}
-                    />
-                    <span className="input-hint">
-                      {platforms[selectedPlatform].urlExample}
-                    </span>
-                  </div>
+                  {/* Step 1: Username input */}
+                  {!previewResults && !importing && (
+                    <>
+                      <div className="input-group">
+                        <label>{platforms[selectedPlatform].placeholder}</label>
+                        <input
+                          type="text"
+                          value={importUsername}
+                          onChange={(e) => setImportUsername(e.target.value)}
+                          placeholder={platforms[selectedPlatform].placeholder}
+                          onKeyDown={(e) => e.key === 'Enter' && !previewing && handlePreview()}
+                          disabled={previewing}
+                        />
+                        <span className="input-hint">
+                          {platforms[selectedPlatform].urlExample}
+                        </span>
+                      </div>
 
-                  {importError && (
-                    <div className="import-error">
-                      <AlertIcon />
-                      <span>{importError}</span>
+                      {importError && (
+                        <div className="import-error">
+                          <AlertIcon />
+                          <span>{importError}</span>
+                        </div>
+                      )}
+
+                      <button
+                        className="import-submit-btn"
+                        onClick={handlePreview}
+                        disabled={previewing || !importUsername.trim()}
+                        style={{ '--platform-color': platforms[selectedPlatform].color }}
+                      >
+                        {previewing ? (
+                          <>
+                            <div className="btn-spinner"></div>
+                            Cercant...
+                          </>
+                        ) : (
+                          <>
+                            <SearchIcon />
+                            Cercar contingut
+                          </>
+                        )}
+                      </button>
+                    </>
+                  )}
+
+                  {/* Step 2: Preview results */}
+                  {previewResults && !importing && (
+                    <div className="preview-results">
+                      <div className="preview-summary">
+                        <div className="preview-icon" style={{ '--platform-color': platforms[selectedPlatform].color }}>
+                          {React.createElement(platforms[selectedPlatform].icon)}
+                        </div>
+                        <div className="preview-count">
+                          <span className="count-number">{previewResults.total_items}</span>
+                          <span className="count-label">títols trobats</span>
+                        </div>
+                      </div>
+
+                      <div className="preview-items">
+                        {previewResults.items?.slice(0, 5).map((item, idx) => (
+                          <div key={idx} className="preview-item">
+                            <span>{item.title}</span>
+                            {item.year && <span className="item-year">({item.year})</span>}
+                          </div>
+                        ))}
+                        {previewResults.total_items > 5 && (
+                          <div className="preview-item more">
+                            ...i {previewResults.total_items - 5} més
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="preview-actions">
+                        <button
+                          className="import-back-btn"
+                          onClick={() => setPreviewResults(null)}
+                        >
+                          Enrere
+                        </button>
+                        <button
+                          className="import-submit-btn"
+                          onClick={handleImport}
+                          style={{ '--platform-color': platforms[selectedPlatform].color }}
+                        >
+                          <DownloadIcon />
+                          Importar tot
+                        </button>
+                      </div>
                     </div>
                   )}
 
-                  <button
-                    className="import-submit-btn"
-                    onClick={handleImport}
-                    disabled={importing || !importUsername.trim()}
-                    style={{ '--platform-color': platforms[selectedPlatform].color }}
-                  >
-                    {importing ? (
-                      <>
-                        <div className="btn-spinner"></div>
-                        Importació...
-                      </>
-                    ) : (
-                      <>
-                        <DownloadIcon />
-                        Importar
-                      </>
-                    )}
-                  </button>
+                  {/* Step 3: Importing with progress */}
+                  {importing && (
+                    <div className="import-progress">
+                      <div className="progress-icon">
+                        <div className="import-spinner"></div>
+                      </div>
+                      <h3>Importació en progrés...</h3>
+                      <p className="progress-text">
+                        Processant {importProgress.current} de {importProgress.total} títols
+                      </p>
+                      <div className="progress-bar-container">
+                        <div
+                          className="progress-bar"
+                          style={{
+                            width: `${importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0}%`,
+                            '--platform-color': platforms[selectedPlatform].color
+                          }}
+                        ></div>
+                      </div>
+                      <p className="progress-hint">
+                        Cercant cada títol a TMDB i afegint a la teva llista...
+                      </p>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="import-results">
