@@ -105,3 +105,12 @@ if PRODUCTION and DEFAULT_ADMIN_PASSWORD == "hermes2024":
         "AVÍS: Utilitzant contrasenya d'admin per defecte en producció. "
         "Defineix HERMES_ADMIN_PASSWORD!"
     )
+
+# === REAL-DEBRID ===
+# API Key de Real-Debrid per streaming de torrents
+# Obtenir a: https://real-debrid.com/apitoken
+REAL_DEBRID_API_KEY = os.environ.get("HERMES_REALDEBRID_API_KEY", "")
+REAL_DEBRID_API_URL = "https://api.real-debrid.com/rest/1.0"
+
+# Torrentio config (proveïdors de torrents)
+TORRENTIO_URL = os.environ.get("HERMES_TORRENTIO_URL", "https://torrentio.strem.fun")
