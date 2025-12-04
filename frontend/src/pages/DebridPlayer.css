@@ -431,6 +431,86 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Real-Debrid not configured overlay */
+.debrid-not-configured {
+  text-align: center;
+  padding: 40px;
+}
+
+.debrid-not-configured .config-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.debrid-not-configured h3 {
+  margin: 0 0 12px;
+  font-size: 24px;
+  color: #fff;
+  font-weight: 500;
+}
+
+.debrid-not-configured > p {
+  color: #aaa;
+  margin-bottom: 24px;
+  font-size: 15px;
+}
+
+.debrid-not-configured .config-steps {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 24px;
+  text-align: left;
+  max-width: 400px;
+}
+
+.debrid-not-configured .config-steps p {
+  color: #ccc;
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.debrid-not-configured .config-steps a {
+  color: #4fc3f7;
+  text-decoration: none;
+}
+
+.debrid-not-configured .config-steps a:hover {
+  text-decoration: underline;
+}
+
+.debrid-not-configured .config-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.debrid-not-configured .config-buttons button {
+  padding: 12px 24px;
+  background: #e50914;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.debrid-not-configured .config-buttons button:hover {
+  background: #f40612;
+}
+
+.debrid-not-configured .config-buttons button.secondary {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.debrid-not-configured .config-buttons button.secondary:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .torrent-list-container {
@@ -455,5 +535,13 @@
 
   .time-display {
     font-size: 12px;
+  }
+
+  .debrid-not-configured .config-buttons {
+    flex-direction: column;
+  }
+
+  .debrid-not-configured .config-buttons button {
+    width: 100%;
   }
 }
