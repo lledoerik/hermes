@@ -117,6 +117,13 @@ const EpisodesIcon = () => (
   </svg>
 );
 
+// Language icon
+const LanguageIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/>
+  </svg>
+);
+
 // Format time (seconds to MM:SS or HH:MM:SS)
 const formatTime = (seconds) => {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -142,37 +149,82 @@ const parseQuality = (name) => {
   return 'SD';
 };
 
-// Parse language from torrent name/title
+// Language codes for the filter system
+// VO = Versió Original (qualsevol idioma no reconegut: japonès, italià, francès, etc.)
+// ENG = Anglès
+// ESP = Espanyol/Castellà
+// CAT = Català
+// LAT = Espanyol Llatinoamèrica
+const LANGUAGE_OPTIONS = [
+  { code: 'ALL', label: 'Tots', flag: '🌐' },
+  { code: 'VO', label: 'VO', flag: '🎬' },
+  { code: 'ENG', label: 'ENG', flag: '🇬🇧' },
+  { code: 'ESP', label: 'ESP', flag: '🇪🇸' },
+  { code: 'CAT', label: 'CAT', flag: '🏳️' },
+  { code: 'LAT', label: 'LAT', flag: '🇲🇽' }
+];
+
+// Parse language from torrent name/title - returns standardized code
 const parseLanguage = (name, title) => {
   const text = `${name} ${title}`.toLowerCase();
+  const fullText = `${name} ${title}`;
 
-  // Check flags first
-  if (title) {
-    if (title.includes('🇪🇸') || title.includes('🇲🇽')) return 'Castellà';
-    if (title.includes('🇬🇧') || title.includes('🇺🇸')) return 'Anglès';
-    if (title.includes('🇯🇵')) return 'Japonès';
-    if (title.includes('🇫🇷')) return 'Francès';
-    if (title.includes('🇩🇪')) return 'Alemany';
-    if (title.includes('🇮🇹')) return 'Italià';
-    if (title.includes('🇰🇷')) return 'Coreà';
-    if (title.includes('🇨🇳') || title.includes('🇹🇼')) return 'Xinès';
-    if (title.includes('🇵🇹') || title.includes('🇧🇷')) return 'Portuguès';
-    if (title.includes('🇷🇺')) return 'Rus';
+  // Check for Català first (specific patterns)
+  if (text.includes('catala') || text.includes('català') || text.includes('catalan')) {
+    return 'CAT';
   }
 
-  // Check text patterns
-  if (text.includes('spanish') || text.includes('español') || text.includes('castellano') || text.includes('esp')) return 'Castellà';
-  if (text.includes('latino') || text.includes('lat')) return 'Llatí';
-  if (text.includes('catala') || text.includes('català')) return 'Català';
-  if (text.includes('french') || text.includes('français') || text.includes('vff') || text.includes('vf')) return 'Francès';
-  if (text.includes('german') || text.includes('deutsch')) return 'Alemany';
-  if (text.includes('italian') || text.includes('italiano')) return 'Italià';
-  if (text.includes('japanese') || text.includes('日本語')) return 'Japonès';
-  if (text.includes('korean') || text.includes('한국어')) return 'Coreà';
-  if (text.includes('multi')) return 'Multi';
-  if (text.includes('dual')) return 'Dual';
+  // Check for Latino/Llatinoamèrica
+  if (fullText.includes('🇲🇽') || fullText.includes('🇦🇷') || fullText.includes('🇨🇴') || fullText.includes('🇨🇱')) {
+    return 'LAT';
+  }
+  if (text.includes('latino') || text.includes('lat ') || text.includes(' lat') ||
+      text.includes('latinoamerica') || text.includes('spanish lat') || text.includes('español lat')) {
+    return 'LAT';
+  }
 
-  return 'Anglès'; // Default
+  // Check for Spanish/Castellà (Spain)
+  if (fullText.includes('🇪🇸')) {
+    return 'ESP';
+  }
+  if (text.includes('castellano') || text.includes('español') || text.includes('spanish spain') ||
+      text.includes('spa ') || text.includes(' spa') || text.includes('spanish') ||
+      (text.includes('esp') && !text.includes('desperate'))) {
+    return 'ESP';
+  }
+
+  // Check for English
+  if (fullText.includes('🇬🇧') || fullText.includes('🇺🇸') || fullText.includes('🇦🇺')) {
+    return 'ENG';
+  }
+  if (text.includes('english') || text.includes('eng ') || text.includes(' eng') ||
+      text.includes('engsub') || text.includes('subeng')) {
+    return 'ENG';
+  }
+
+  // Check for Multi/Dual - treat as ENG (usually includes English)
+  if (text.includes('multi') || text.includes('dual')) {
+    return 'ENG';
+  }
+
+  // Everything else is VO (Versió Original)
+  // This includes: Japanese, Korean, French, German, Italian, Chinese, Russian, etc.
+  if (fullText.includes('🇯🇵') || fullText.includes('🇰🇷') || fullText.includes('🇫🇷') ||
+      fullText.includes('🇩🇪') || fullText.includes('🇮🇹') || fullText.includes('🇨🇳') ||
+      fullText.includes('🇹🇼') || fullText.includes('🇷🇺') || fullText.includes('🇵🇹') ||
+      fullText.includes('🇧🇷')) {
+    return 'VO';
+  }
+  if (text.includes('japanese') || text.includes('korean') || text.includes('french') ||
+      text.includes('german') || text.includes('italian') || text.includes('chinese') ||
+      text.includes('russian') || text.includes('portuguese') || text.includes('hindi') ||
+      text.includes('日本語') || text.includes('한국어') || text.includes('français') ||
+      text.includes('deutsch') || text.includes('italiano')) {
+    return 'VO';
+  }
+
+  // Default: assume English for unmarked torrents (most common)
+  return 'ENG';
 };
 
 function DebridPlayer() {
@@ -218,6 +270,12 @@ function DebridPlayer() {
   const [showControls, setShowControls] = useState(true);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
 
+  // Language filter state
+  const [selectedLanguage, setSelectedLanguage] = useState(() => {
+    return localStorage.getItem('hermes_stream_lang') || 'ALL';
+  });
+  const [showLanguageMenu, setShowLanguageMenu] = useState(false);
+
   // Audio and subtitles state
   const [audioTracks, setAudioTracks] = useState([]);
   const [currentAudioTrack, setCurrentAudioTrack] = useState(0);
@@ -225,6 +283,12 @@ function DebridPlayer() {
   const [currentSubtitleTrack, setCurrentSubtitleTrack] = useState(-1); // -1 = off
   const [showAudioMenu, setShowAudioMenu] = useState(false);
   const [showSubtitleMenu, setShowSubtitleMenu] = useState(false);
+
+  // OpenSubtitles state
+  const [openSubtitles, setOpenSubtitles] = useState([]);
+  const [selectedOpenSubtitle, setSelectedOpenSubtitle] = useState(null);
+  const [loadingSubtitles, setLoadingSubtitles] = useState(false);
+  const [subtitleUrl, setSubtitleUrl] = useState(null);
 
   // Episode navigation state
   const [showEpisodesList, setShowEpisodesList] = useState(false);
@@ -302,11 +366,29 @@ function DebridPlayer() {
     });
   }, [navigate, tmdbId, selectedSeason, mediaInfo, duration, saveProgress]);
 
+  // Filter torrents by selected language
+  const filteredTorrents = useMemo(() => {
+    if (selectedLanguage === 'ALL') return torrents;
+    return torrents.filter(torrent => {
+      const lang = parseLanguage(torrent.name, torrent.title);
+      return lang === selectedLanguage;
+    });
+  }, [torrents, selectedLanguage]);
+
+  // Get available languages from torrents
+  const availableLanguages = useMemo(() => {
+    const langs = new Set();
+    torrents.forEach(torrent => {
+      langs.add(parseLanguage(torrent.name, torrent.title));
+    });
+    return langs;
+  }, [torrents]);
+
   // Group torrents by quality only (not language)
   const groupedTorrents = useMemo(() => {
     const groups = {};
 
-    torrents.forEach(torrent => {
+    filteredTorrents.forEach(torrent => {
       const quality = parseQuality(torrent.name);
       const key = quality;
 
@@ -336,10 +418,44 @@ function DebridPlayer() {
       if (!a.hasCached && b.hasCached) return 1;
       return 0;
     });
-  }, [torrents]);
+  }, [filteredTorrents]);
 
   // Current selection info
   const currentQuality = selectedTorrent ? parseQuality(selectedTorrent.name) : null;
+  const currentLanguage = selectedTorrent ? parseLanguage(selectedTorrent.name, selectedTorrent.title) : null;
+
+  // Change language filter
+  const changeLanguage = useCallback((langCode) => {
+    setSelectedLanguage(langCode);
+    localStorage.setItem('hermes_stream_lang', langCode);
+    setShowLanguageMenu(false);
+
+    // Auto-select best torrent for new language
+    const langTorrents = langCode === 'ALL' ? torrents : torrents.filter(t =>
+      parseLanguage(t.name, t.title) === langCode
+    );
+
+    if (langTorrents.length > 0) {
+      // Prefer cached torrents
+      const cachedInLang = langTorrents.filter(t => t.cached);
+      if (cachedInLang.length > 0) {
+        // Sort by quality
+        const qualityOrder = { '4K': 0, '1080p': 1, '720p': 2, 'WEB': 3, 'HDTV': 4, '480p': 5, 'SD': 6 };
+        cachedInLang.sort((a, b) => {
+          const qA = qualityOrder[parseQuality(a.name)] ?? 99;
+          const qB = qualityOrder[parseQuality(b.name)] ?? 99;
+          return qA - qB;
+        });
+        setSelectedTorrent(cachedInLang[0]);
+        setStreamUrl(null);
+        getStreamUrl(cachedInLang[0], true);
+      } else {
+        setSelectedTorrent(langTorrents[0]);
+        setStreamUrl(null);
+        getStreamUrl(langTorrents[0], true);
+      }
+    }
+  }, [torrents, getStreamUrl]);
 
   // Check Real-Debrid status
   const checkDebridStatus = useCallback(async () => {
@@ -631,7 +747,7 @@ function DebridPlayer() {
 
   // Toggle subtitles on/off
   const toggleSubtitles = useCallback(() => {
-    if (currentSubtitleTrack >= 0) {
+    if (currentSubtitleTrack >= 0 || selectedOpenSubtitle) {
       // Turn off
       if (videoRef.current && videoRef.current.textTracks) {
         for (let i = 0; i < videoRef.current.textTracks.length; i++) {
@@ -639,11 +755,77 @@ function DebridPlayer() {
         }
       }
       setCurrentSubtitleTrack(-1);
+      setSelectedOpenSubtitle(null);
+      setSubtitleUrl(null);
     } else if (subtitleTracks.length > 0) {
       // Turn on first track
       changeSubtitleTrack(0);
+    } else if (openSubtitles.length > 0) {
+      // Use first OpenSubtitles track
+      selectOpenSubtitle(openSubtitles[0]);
     }
-  }, [currentSubtitleTrack, subtitleTracks, changeSubtitleTrack]);
+  }, [currentSubtitleTrack, subtitleTracks, changeSubtitleTrack, openSubtitles, selectedOpenSubtitle]);
+
+  // Search for subtitles from OpenSubtitles
+  const searchOpenSubtitles = useCallback(async () => {
+    setLoadingSubtitles(true);
+    try {
+      let url = `${API_URL}/api/subtitles/search/${mediaType}/${tmdbId}`;
+      const params = new URLSearchParams();
+      if (mediaType === 'tv' && season && episode) {
+        params.append('season', season);
+        params.append('episode', episode);
+      }
+      params.append('languages', 'ca,es,en');
+
+      const response = await axios.get(`${url}?${params.toString()}`);
+      const subs = response.data.subtitles || [];
+      setOpenSubtitles(subs);
+    } catch (err) {
+      console.error('Error cercant subtítols:', err);
+    } finally {
+      setLoadingSubtitles(false);
+    }
+  }, [mediaType, tmdbId, season, episode]);
+
+  // Select and load an OpenSubtitles subtitle
+  const selectOpenSubtitle = useCallback(async (subtitle) => {
+    if (!subtitle) return;
+
+    setSelectedOpenSubtitle(subtitle);
+    setShowSubtitleMenu(false);
+
+    try {
+      // Generate the VTT URL
+      const vttUrl = `${API_URL}/api/subtitles/download/${subtitle.id}`;
+      setSubtitleUrl(vttUrl);
+
+      // Remove existing track if any
+      if (videoRef.current) {
+        const video = videoRef.current;
+        const existingTracks = video.querySelectorAll('track');
+        existingTracks.forEach(track => track.remove());
+
+        // Add new track
+        const track = document.createElement('track');
+        track.kind = 'subtitles';
+        track.label = subtitle.language_name;
+        track.srclang = subtitle.language;
+        track.src = vttUrl;
+        track.default = true;
+        video.appendChild(track);
+
+        // Enable the track
+        setTimeout(() => {
+          if (video.textTracks && video.textTracks.length > 0) {
+            video.textTracks[0].mode = 'showing';
+          }
+        }, 100);
+      }
+    } catch (err) {
+      console.error('Error carregant subtítol:', err);
+    }
+  }, []);
 
   const handleEnded = useCallback(() => {
     setIsPlaying(false);
@@ -715,12 +897,12 @@ function DebridPlayer() {
       clearTimeout(controlsTimeoutRef.current);
     }
 
-    if (isPlaying && !showQualityMenu) {
+    if (isPlaying && !showQualityMenu && !showLanguageMenu) {
       controlsTimeoutRef.current = setTimeout(() => {
         setShowControls(false);
       }, 3000);
     }
-  }, [isPlaying, showQualityMenu]);
+  }, [isPlaying, showQualityMenu, showLanguageMenu]);
 
   // Keyboard controls
   useEffect(() => {
@@ -729,6 +911,10 @@ function DebridPlayer() {
       if (e.key === 'Escape') {
         if (showQualityMenu) {
           setShowQualityMenu(false);
+          return;
+        }
+        if (showLanguageMenu) {
+          setShowLanguageMenu(false);
           return;
         }
         if (showEpisodesList) {
@@ -747,7 +933,7 @@ function DebridPlayer() {
       }
 
       // Don't handle other keys if overlays are open
-      if (showQualityMenu || showEpisodesList || showEndedOverlay) {
+      if (showQualityMenu || showLanguageMenu || showEpisodesList || showEndedOverlay) {
         return;
       }
 
@@ -787,7 +973,7 @@ function DebridPlayer() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlay, skipBack, skipForward, toggleFullscreen, toggleMute, isFullscreen, showQualityMenu, showEpisodesList, showEndedOverlay, nextEpisode, goToNextEpisode]);
+  }, [togglePlay, skipBack, skipForward, toggleFullscreen, toggleMute, isFullscreen, showQualityMenu, showLanguageMenu, showEpisodesList, showEndedOverlay, nextEpisode, goToNextEpisode]);
 
   // Initial load
   useEffect(() => {
@@ -802,9 +988,12 @@ function DebridPlayer() {
       } else {
         setLoadingTorrents(false);
       }
+
+      // Search for subtitles
+      searchOpenSubtitles();
     };
     init();
-  }, [mediaInfo, loadMediaInfo, loadEpisodes, searchTorrents, checkDebridStatus]);
+  }, [mediaInfo, loadMediaInfo, loadEpisodes, searchTorrents, checkDebridStatus, searchOpenSubtitles]);
 
   // Auto-get stream when torrent is selected
   useEffect(() => {
@@ -1050,14 +1239,14 @@ function DebridPlayer() {
 
               {/* Subtitles button */}
               <button
-                className={`control-btn ${currentSubtitleTrack >= 0 ? 'active' : ''} ${subtitleTracks.length > 0 ? '' : 'disabled'}`}
+                className={`control-btn ${(currentSubtitleTrack >= 0 || selectedOpenSubtitle) ? 'active' : ''} ${(subtitleTracks.length > 0 || openSubtitles.length > 0) ? '' : 'disabled'}`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (subtitleTracks.length > 0) {
-                    toggleSubtitles();
+                  if (subtitleTracks.length > 0 || openSubtitles.length > 0) {
+                    setShowSubtitleMenu(!showSubtitleMenu);
                   }
                 }}
-                title={subtitleTracks.length > 0 ? 'Subtítols' : 'Subtítols no disponibles'}
+                title={(subtitleTracks.length > 0 || openSubtitles.length > 0) ? 'Subtítols' : (loadingSubtitles ? 'Cercant subtítols...' : 'Subtítols no disponibles')}
               >
                 <SubtitlesIcon />
               </button>
@@ -1073,22 +1262,23 @@ function DebridPlayer() {
                 </button>
               )}
 
-              {/* Next episode button (only for series with next episode) */}
-              {nextEpisode && (
-                <button
-                  className="control-btn"
-                  onClick={(e) => { e.stopPropagation(); goToNextEpisode(); }}
-                  title={`Següent: E${nextEpisode.episode_number}`}
-                >
-                  <NextEpisodeIcon />
-                </button>
-              )}
+              {/* Language selector button */}
+              <button
+                className="control-btn language-btn"
+                onClick={(e) => { e.stopPropagation(); setShowLanguageMenu(!showLanguageMenu); }}
+                title="Seleccionar idioma"
+              >
+                <LanguageIcon />
+                {currentLanguage && (
+                  <span className="lang-badge">{currentLanguage}</span>
+                )}
+              </button>
 
               {/* Quality button */}
               <button
                 className="control-btn"
                 onClick={(e) => { e.stopPropagation(); setShowQualityMenu(true); }}
-                title="Canviar qualitat/idioma"
+                title="Canviar qualitat"
               >
                 <SettingsIcon />
               </button>
@@ -1120,27 +1310,108 @@ function DebridPlayer() {
       )}
 
       {/* Subtitle menu */}
-      {showSubtitleMenu && subtitleTracks.length > 0 && (
-        <div className="track-menu" onClick={(e) => e.stopPropagation()}>
+      {showSubtitleMenu && (subtitleTracks.length > 0 || openSubtitles.length > 0) && (
+        <div className="track-menu subtitle-menu-extended" onClick={(e) => e.stopPropagation()}>
           <div className="track-menu-header">
             <h4>Subtítols</h4>
             <button onClick={() => setShowSubtitleMenu(false)}><CloseIcon /></button>
           </div>
+
+          {/* Desactivar opció */}
           <div
-            className={`track-option ${currentSubtitleTrack === -1 ? 'active' : ''}`}
-            onClick={() => { changeSubtitleTrack(-1); setCurrentSubtitleTrack(-1); setShowSubtitleMenu(false); }}
+            className={`track-option ${currentSubtitleTrack === -1 && !selectedOpenSubtitle ? 'active' : ''}`}
+            onClick={() => {
+              if (videoRef.current && videoRef.current.textTracks) {
+                for (let i = 0; i < videoRef.current.textTracks.length; i++) {
+                  videoRef.current.textTracks[i].mode = 'hidden';
+                }
+              }
+              setCurrentSubtitleTrack(-1);
+              setSelectedOpenSubtitle(null);
+              setSubtitleUrl(null);
+              setShowSubtitleMenu(false);
+            }}
           >
             Desactivats
           </div>
-          {subtitleTracks.map((track) => (
-            <div
-              key={track.id}
-              className={`track-option ${currentSubtitleTrack === track.id ? 'active' : ''}`}
-              onClick={() => changeSubtitleTrack(track.id)}
-            >
-              {track.label}
+
+          {/* Subtítols embeguts al vídeo */}
+          {subtitleTracks.length > 0 && (
+            <>
+              <div className="subtitle-section-header">Embeguts</div>
+              {subtitleTracks.map((track) => (
+                <div
+                  key={`embedded-${track.id}`}
+                  className={`track-option ${currentSubtitleTrack === track.id ? 'active' : ''}`}
+                  onClick={() => {
+                    setSelectedOpenSubtitle(null);
+                    changeSubtitleTrack(track.id);
+                  }}
+                >
+                  {track.label}
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* Subtítols d'OpenSubtitles */}
+          {openSubtitles.length > 0 && (
+            <>
+              <div className="subtitle-section-header">OpenSubtitles</div>
+              {openSubtitles.slice(0, 10).map((sub) => (
+                <div
+                  key={`os-${sub.id}`}
+                  className={`track-option ${selectedOpenSubtitle?.id === sub.id ? 'active' : ''}`}
+                  onClick={() => {
+                    setCurrentSubtitleTrack(-1);
+                    selectOpenSubtitle(sub);
+                  }}
+                >
+                  <span className="sub-language">{sub.language_name}</span>
+                  {sub.hearing_impaired && <span className="sub-badge">CC</span>}
+                </div>
+              ))}
+            </>
+          )}
+
+          {loadingSubtitles && (
+            <div className="track-option loading">Cercant subtítols...</div>
+          )}
+        </div>
+      )}
+
+      {/* Language selector menu */}
+      {showLanguageMenu && (
+        <div className="language-menu" onClick={(e) => e.stopPropagation()}>
+          <div className="language-menu-header">
+            <h4>Idioma</h4>
+            <button onClick={() => setShowLanguageMenu(false)}><CloseIcon /></button>
+          </div>
+          <div className="language-menu-content">
+            {LANGUAGE_OPTIONS.map((lang) => {
+              const isAvailable = lang.code === 'ALL' || availableLanguages.has(lang.code);
+              const count = lang.code === 'ALL'
+                ? torrents.length
+                : torrents.filter(t => parseLanguage(t.name, t.title) === lang.code).length;
+
+              return (
+                <div
+                  key={lang.code}
+                  className={`language-option ${selectedLanguage === lang.code ? 'active' : ''} ${!isAvailable ? 'unavailable' : ''}`}
+                  onClick={() => isAvailable && changeLanguage(lang.code)}
+                >
+                  <span className="lang-flag">{lang.flag}</span>
+                  <span className="lang-label">{lang.label}</span>
+                  {count > 0 && <span className="lang-count">{count}</span>}
+                </div>
+              );
+            })}
+          </div>
+          {filteredTorrents.length === 0 && selectedLanguage !== 'ALL' && (
+            <div className="no-torrents-lang">
+              No hi ha fonts en aquest idioma
             </div>
-          ))}
+          )}
         </div>
       )}
 
