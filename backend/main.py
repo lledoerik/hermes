@@ -21,6 +21,10 @@ from fastapi.responses import FileResponse, StreamingResponse, Response
 from pydantic import BaseModel
 import mimetypes
 
+# Scheduler per sincronització automàtica
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+
 # Afegir path per imports
 sys.path.append(str(Path(__file__).parent.parent))
 from config import settings
@@ -7223,6 +7227,318 @@ async def get_anime_episode_sources(source: str, anime_id: str, episode: int):
     except Exception as e:
         logger.error(f"Error obtenint fonts d'episodi: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# === SINCRONITZACIÓ AUTOMÀTICA ===
+
+# Scheduler global
+scheduler = AsyncIOScheduler()
+
+async def sync_tmdb_category(media_type: str, category: str, max_pages: int = 50):
+    """
+    Sincronitza una categoria de TMDB important tot el contingut.
+    max_pages: màxim de pàgines a importar (20 items/pàgina, 50 pàgines = 1000 items)
+    """
+    from backend.metadata.tmdb import TMDBClient, fetch_movie_by_tmdb_id, fetch_tv_by_tmdb_id
+
+    api_key = get_tmdb_api_key()
+    if not api_key:
+        logger.warning("Sync TMDB: No hi ha clau API configurada")
+        return 0
+
+    client = TMDBClient(api_key)
+    imported_count = 0
+
+    try:
+        # Mapeig d'endpoints
+        if media_type == "movie":
+            endpoint_map = {
+                "popular": "/movie/popular",
+                "top_rated": "/movie/top_rated",
+                "now_playing": "/movie/now_playing",
+                "upcoming": "/movie/upcoming"
+            }
+        else:
+            endpoint_map = {
+                "popular": "/tv/popular",
+                "top_rated": "/tv/top_rated",
+                "on_the_air": "/tv/on_the_air",
+                "airing_today": "/tv/airing_today"
+            }
+
+        endpoint = endpoint_map.get(category)
+        if not endpoint:
+            logger.warning(f"Sync TMDB: Categoria desconeguda {category}")
+            return 0
+
+        # Obtenir IDs existents
+        with get_db() as conn:
+            cursor = conn.cursor()
+            media_type_db = 'movie' if media_type == 'movie' else 'series'
+            cursor.execute("SELECT tmdb_id FROM series WHERE media_type = ? AND tmdb_id IS NOT NULL", (media_type_db,))
+            existing_ids = {row[0] for row in cursor.fetchall()}
+
+        # Recórrer totes les pàgines
+        for page in range(1, max_pages + 1):
+            response = await client._request(endpoint, {"language": "ca-ES", "page": page, "region": "ES"})
+
+            if not response or not response.get("results"):
+                break
+
+            for item in response["results"]:
+                tmdb_id = item.get("id")
+                if tmdb_id in existing_ids:
+                    continue
+
+                try:
+                    # Importar el contingut
+                    if media_type == "movie":
+                        metadata = await fetch_movie_by_tmdb_id(api_key, tmdb_id)
+                    else:
+                        metadata = await fetch_tv_by_tmdb_id(api_key, tmdb_id)
+
+                    if not metadata.get("found"):
+                        continue
+
+                    # Inserir a la BD
+                    virtual_path = f"imported/{media_type}/{tmdb_id}"
+
+                    with get_db() as conn:
+                        cursor = conn.cursor()
+
+                        # Verificar de nou per evitar duplicats
+                        cursor.execute("SELECT id FROM series WHERE tmdb_id = ?", (tmdb_id,))
+                        if cursor.fetchone():
+                            existing_ids.add(tmdb_id)
+                            continue
+
+                        cursor.execute("""
+                            INSERT INTO series (
+                                name, path, media_type, tmdb_id, title, year, overview, rating, genres, runtime,
+                                poster, backdrop, director, creators, cast_members,
+                                is_imported, source_type, external_url, added_date,
+                                content_type, origin_country, original_language,
+                                tmdb_seasons, tmdb_episodes, release_date, popularity, vote_count
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'tmdb', ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            metadata.get("title") or metadata.get("original_title"),
+                            virtual_path,
+                            'movie' if media_type == 'movie' else 'series',
+                            tmdb_id,
+                            metadata.get("title"),
+                            metadata.get("year"),
+                            metadata.get("overview"),
+                            metadata.get("rating"),
+                            json.dumps(metadata.get("genres", [])),
+                            metadata.get("runtime"),
+                            f"https://image.tmdb.org/t/p/w500{item.get('poster_path')}" if item.get("poster_path") else None,
+                            f"https://image.tmdb.org/t/p/w1280{item.get('backdrop_path')}" if item.get("backdrop_path") else None,
+                            metadata.get("director"),
+                            json.dumps(metadata.get("creators", [])) if metadata.get("creators") else None,
+                            json.dumps(metadata.get("cast", [])),
+                            None,
+                            metadata.get("content_type"),
+                            json.dumps(metadata.get("origin_country", [])),
+                            metadata.get("original_language"),
+                            metadata.get("seasons"),
+                            metadata.get("episodes"),
+                            metadata.get("release_date"),
+                            metadata.get("popularity"),
+                            metadata.get("vote_count")
+                        ))
+                        conn.commit()
+                        existing_ids.add(tmdb_id)
+                        imported_count += 1
+
+                except Exception as e:
+                    logger.error(f"Error important {media_type} {tmdb_id}: {e}")
+                    continue
+
+            # Si no hi ha més pàgines, sortir
+            if page >= response.get("total_pages", 1):
+                break
+
+            # Petit delay per no saturar l'API
+            await asyncio.sleep(0.1)
+
+        logger.info(f"Sync TMDB {media_type}/{category}: {imported_count} nous items importats")
+        return imported_count
+
+    finally:
+        await client.close()
+
+
+async def sync_books_from_openlibrary(max_items: int = 500):
+    """
+    Sincronitza llibres populars des d'Open Library.
+    """
+    import urllib.request
+    import urllib.parse
+
+    imported_count = 0
+
+    try:
+        # Categories de llibres populars
+        subjects = ["fiction", "fantasy", "science_fiction", "mystery", "romance", "thriller", "horror", "biography"]
+
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT openlibrary_id FROM books WHERE openlibrary_id IS NOT NULL")
+            existing_ids = {row[0] for row in cursor.fetchall()}
+
+        for subject in subjects:
+            if imported_count >= max_items:
+                break
+
+            try:
+                # API d'Open Library per subjects
+                url = f"https://openlibrary.org/subjects/{subject}.json?limit=100"
+                req = urllib.request.Request(url)
+                req.add_header('User-Agent', 'Hermes Media Server/1.0')
+
+                with urllib.request.urlopen(req, timeout=30) as response:
+                    data = json.loads(response.read().decode('utf-8'))
+
+                for work in data.get("works", []):
+                    if imported_count >= max_items:
+                        break
+
+                    ol_id = work.get("key", "").replace("/works/", "")
+                    if not ol_id or ol_id in existing_ids:
+                        continue
+
+                    try:
+                        # Obtenir detalls del llibre
+                        title = work.get("title")
+                        authors = [a.get("name") for a in work.get("authors", [])]
+                        cover_id = work.get("cover_id")
+
+                        with get_db() as conn:
+                            cursor = conn.cursor()
+                            cursor.execute("""
+                                INSERT INTO books (
+                                    title, author, openlibrary_id, cover_url,
+                                    is_imported, source_type, added_date
+                                ) VALUES (?, ?, ?, ?, 1, 'openlibrary', datetime('now'))
+                            """, (
+                                title,
+                                ", ".join(authors) if authors else None,
+                                ol_id,
+                                f"https://covers.openlibrary.org/b/id/{cover_id}-L.jpg" if cover_id else None
+                            ))
+                            conn.commit()
+                            existing_ids.add(ol_id)
+                            imported_count += 1
+
+                    except Exception as e:
+                        logger.error(f"Error important llibre {ol_id}: {e}")
+                        continue
+
+                await asyncio.sleep(1)  # Respectar rate limits
+
+            except Exception as e:
+                logger.error(f"Error sincronitzant subject {subject}: {e}")
+                continue
+
+        logger.info(f"Sync Books: {imported_count} nous llibres importats")
+        return imported_count
+
+    except Exception as e:
+        logger.error(f"Error general sincronitzant llibres: {e}")
+        return imported_count
+
+
+async def daily_sync_job():
+    """
+    Tasca de sincronització diària que s'executa a les 2:30 AM.
+    Sincronitza tot el contingut de TMDB i llibres.
+    """
+    logger.info("=== INICI SINCRONITZACIÓ DIÀRIA ===")
+    start_time = datetime.now()
+
+    total_imported = 0
+
+    try:
+        # Sincronitzar pel·lícules
+        for category in ["popular", "top_rated", "now_playing", "upcoming"]:
+            count = await sync_tmdb_category("movie", category, max_pages=25)
+            total_imported += count
+
+        # Sincronitzar sèries
+        for category in ["popular", "top_rated", "on_the_air"]:
+            count = await sync_tmdb_category("series", category, max_pages=25)
+            total_imported += count
+
+        # Sincronitzar llibres (per audiobooks també)
+        books_count = await sync_books_from_openlibrary(max_items=500)
+        total_imported += books_count
+
+        elapsed = (datetime.now() - start_time).total_seconds()
+        logger.info(f"=== FI SINCRONITZACIÓ DIÀRIA: {total_imported} items en {elapsed:.1f}s ===")
+
+        # Guardar última sincronització
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT OR REPLACE INTO settings (key, value)
+                VALUES ('last_sync', ?)
+            """, (datetime.now().isoformat(),))
+            conn.commit()
+
+    except Exception as e:
+        logger.error(f"Error en sincronització diària: {e}")
+
+
+@app.on_event("startup")
+async def start_scheduler():
+    """Inicia el scheduler quan arrenca l'aplicació."""
+    # Sincronització diària a les 2:30 AM
+    scheduler.add_job(
+        daily_sync_job,
+        CronTrigger(hour=2, minute=30),
+        id="daily_sync",
+        name="Sincronització diària TMDB + Llibres",
+        replace_existing=True
+    )
+    scheduler.start()
+    logger.info("Scheduler iniciat - Sincronització diària programada a les 2:30 AM")
+
+
+@app.on_event("shutdown")
+async def stop_scheduler():
+    """Atura el scheduler quan es tanca l'aplicació."""
+    scheduler.shutdown()
+    logger.info("Scheduler aturat")
+
+
+@app.get("/api/sync/status")
+async def get_sync_status():
+    """Retorna l'estat de la sincronització i pròxima execució."""
+    job = scheduler.get_job("daily_sync")
+    next_run = job.next_run_time if job else None
+
+    # Obtenir última sincronització
+    last_sync = None
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM settings WHERE key = 'last_sync'")
+        row = cursor.fetchone()
+        if row:
+            last_sync = row[0]
+
+    return {
+        "scheduler_running": scheduler.running,
+        "next_sync": next_run.isoformat() if next_run else None,
+        "last_sync": last_sync,
+        "sync_time": "02:30"
+    }
+
+
+@app.post("/api/sync/run")
+async def run_sync_now(background_tasks: BackgroundTasks):
+    """Executa la sincronització manualment (en segon pla)."""
+    background_tasks.add_task(daily_sync_job)
+    return {"status": "started", "message": "Sincronització iniciada en segon pla"}
 
 
 if __name__ == "__main__":

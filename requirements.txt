@@ -10,3 +10,5 @@ EbookLib>=0.18
 PyMuPDF>=1.23.0
 # Traducció automàtica
 deep-translator>=1.11.0
+# Scheduler per sincronització automàtica
+apscheduler>=3.10.0
