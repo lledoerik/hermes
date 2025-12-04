@@ -144,6 +144,10 @@ function Admin() {
   const [tmdbKey, setTmdbKey] = useState('');
   const [tmdbConfigured, setTmdbConfigured] = useState(false);
 
+  // Real-Debrid state
+  const [rdKey, setRdKey] = useState('');
+  const [rdStatus, setRdStatus] = useState(null); // null = loading, { configured, valid, message }
+
   // Sync state
   const [syncStatus, setSyncStatus] = useState(null);
   const [syncRunning, setSyncRunning] = useState(false);
@@ -180,6 +184,7 @@ function Admin() {
   useEffect(() => {
     loadStats();
     checkTmdbKey();
+    checkRdStatus();
     loadUserData();
     loadSyncStatus();
 
@@ -286,6 +291,32 @@ function Admin() {
       setTmdbKey('');
     } catch (error) {
       addLog('error', 'Error guardant clau TMDB');
+    }
+  };
+
+  // Real-Debrid functions
+  const checkRdStatus = async () => {
+    try {
+      const response = await axios.get('/api/debrid/status');
+      setRdStatus(response.data);
+    } catch (error) {
+      console.error('Error checking RD status:', error);
+      setRdStatus({ configured: false, valid: false });
+    }
+  };
+
+  const saveRdKey = async () => {
+    if (!rdKey.trim()) return;
+    try {
+      await axios.post(`/api/debrid/configure?api_key=${encodeURIComponent(rdKey)}`);
+      showMessage('Clau Real-Debrid guardada correctament');
+      addLog('success', 'Real-Debrid configurat correctament');
+      setRdKey('');
+      checkRdStatus(); // Refresh status
+    } catch (error) {
+      const errorMsg = error.response?.data?.detail || 'Error guardant clau Real-Debrid';
+      showMessage(errorMsg, 'error');
+      addLog('error', errorMsg);
     }
   };
 
@@ -484,6 +515,57 @@ function Admin() {
         </div>
       </div>
 
+      {/* Real-Debrid Configuration */}
+      <div className="admin-section">
+        <div className="section-header">
+          <h2><KeyIcon /> Real-Debrid (Streaming HD)</h2>
+        </div>
+        <div className="section-content">
+          {rdStatus === null ? (
+            <div style={{ color: 'rgba(255,255,255,0.6)' }}>Comprovant...</div>
+          ) : !rdStatus.configured || !rdStatus.valid ? (
+            <div className="tmdb-config">
+              <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '1rem' }}>
+                Per reproduir contingut en HD directament, necessites un compte de <a href="https://real-debrid.com/?id=10857509" target="_blank" rel="noopener noreferrer" style={{ color: '#328492' }}>Real-Debrid</a> i la seva <a href="https://real-debrid.com/apitoken" target="_blank" rel="noopener noreferrer" style={{ color: '#328492' }}>clau API</a>
+              </p>
+              {rdStatus.configured && !rdStatus.valid && (
+                <p style={{ color: '#e50914', marginBottom: '1rem' }}>
+                  La clau actual no és vàlida. Si us plau, introdueix una nova clau.
+                </p>
+              )}
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input
+                  type="password"
+                  value={rdKey}
+                  onChange={(e) => setRdKey(e.target.value)}
+                  placeholder="Introdueix la clau API de Real-Debrid..."
+                  className="admin-input"
+                />
+                <button
+                  className="action-btn"
+                  onClick={saveRdKey}
+                  disabled={!rdKey.trim()}
+                >
+                  Desar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="tmdb-configured">
+              <CheckIcon />
+              <span>Real-Debrid configurat correctament</span>
+              <button
+                className="action-btn secondary"
+                onClick={() => setRdStatus({ ...rdStatus, configured: false })}
+                style={{ marginLeft: '1rem', padding: '6px 12px', fontSize: '13px' }}
+              >
+                Canviar clau
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Users Section */}
       <div className="admin-section">
         <div className="section-header">
@@ -650,6 +732,12 @@ function Admin() {
               <span className="system-label">API TMDB</span>
               <span className={`system-value ${tmdbConfigured ? 'status-ok' : 'status-error'}`}>
                 {tmdbConfigured ? 'Configurada' : 'No configurada'}
+              </span>
+            </div>
+            <div className="system-info-item">
+              <span className="system-label">Real-Debrid</span>
+              <span className={`system-value ${rdStatus?.configured && rdStatus?.valid ? 'status-ok' : 'status-error'}`}>
+                {rdStatus?.configured && rdStatus?.valid ? 'Actiu' : 'No configurat'}
               </span>
             </div>
             <div className="system-info-item">

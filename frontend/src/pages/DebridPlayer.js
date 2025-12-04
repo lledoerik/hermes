@@ -169,6 +169,7 @@ function DebridPlayer() {
   const [loadingTorrents, setLoadingTorrents] = useState(true);
   const [loadingStream, setLoadingStream] = useState(false);
   const [error, setError] = useState(null);
+  const [debridConfigured, setDebridConfigured] = useState(null); // null = checking, true/false = result
 
   // Player state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -222,6 +223,19 @@ function DebridPlayer() {
   // Current selection info
   const currentQuality = selectedTorrent ? parseQuality(selectedTorrent.name) : null;
   const currentLanguage = selectedTorrent ? parseLanguage(selectedTorrent.name, selectedTorrent.title) : null;
+
+  // Check Real-Debrid status
+  const checkDebridStatus = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/debrid/status`);
+      setDebridConfigured(response.data.configured && response.data.valid);
+      return response.data.configured && response.data.valid;
+    } catch (err) {
+      console.error('Error checking debrid status:', err);
+      setDebridConfigured(false);
+      return false;
+    }
+  }, []);
 
   // Load media info
   const loadMediaInfo = useCallback(async () => {
@@ -508,10 +522,20 @@ function DebridPlayer() {
 
   // Initial load
   useEffect(() => {
-    if (!mediaInfo) loadMediaInfo();
-    loadEpisodes();
-    searchTorrents();
-  }, [mediaInfo, loadMediaInfo, loadEpisodes, searchTorrents]);
+    const init = async () => {
+      if (!mediaInfo) loadMediaInfo();
+      loadEpisodes();
+
+      // Check debrid status first
+      const isConfigured = await checkDebridStatus();
+      if (isConfigured) {
+        searchTorrents();
+      } else {
+        setLoadingTorrents(false);
+      }
+    };
+    init();
+  }, [mediaInfo, loadMediaInfo, loadEpisodes, searchTorrents, checkDebridStatus]);
 
   // Auto-get stream when torrent is selected
   useEffect(() => {
@@ -588,8 +612,37 @@ function DebridPlayer() {
         </div>
       )}
 
+      {/* Real-Debrid not configured overlay */}
+      {debridConfigured === false && !loadingTorrents && (
+        <div className="error-overlay debrid-not-configured">
+          <div className="config-icon">⚙️</div>
+          <h3>Real-Debrid no configurat</h3>
+          <p>Per reproduir en HD necessites configurar una clau API de Real-Debrid.</p>
+          <div className="config-steps">
+            <p>1. Obté una clau API a: <a href="https://real-debrid.com/apitoken" target="_blank" rel="noopener noreferrer">real-debrid.com/apitoken</a></p>
+            <p>2. Configura-la a Administració → Real-Debrid</p>
+          </div>
+          <div className="config-buttons">
+            <button onClick={() => navigate('/admin')}>
+              Anar a Administració
+            </button>
+            <button
+              className="secondary"
+              onClick={() => {
+                const streamUrl = mediaType === 'movie'
+                  ? `/stream/movie/${tmdbId}`
+                  : `/stream/tv/${tmdbId}?s=${season || 1}&e=${episode || 1}`;
+                navigate(streamUrl);
+              }}
+            >
+              Usar reproductor alternatiu
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Error overlay */}
-      {error && (
+      {error && debridConfigured !== false && (
         <div className="error-overlay">
           <p>{error}</p>
           <button onClick={() => { setError(null); searchTorrents(); }}>
