@@ -126,11 +126,9 @@ function StreamPlayer() {
     return isAnimeContent(mediaInfo);
   }, [mediaInfo]);
 
-  // URL d'embed (VidSrc.cc amb detecció d'anime)
+  // URL d'embed (VidSrc.cc)
   const embedUrl = React.useMemo(() => {
-    const url = getEmbedUrl(mediaType, tmdbId, season, episode, isAnime);
-    console.log('[StreamPlayer] Embed URL:', url, { mediaType, tmdbId, season, episode, isAnime });
-    return url;
+    return getEmbedUrl(mediaType, tmdbId, season, episode, isAnime);
   }, [mediaType, tmdbId, season, episode, isAnime]);
 
   // Funcions per carregar dades
