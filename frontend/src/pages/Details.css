@@ -980,6 +980,32 @@
   height: 14px;
 }
 
+.episodes-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  gap: 16px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+}
+
+.episodes-loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--accent-color, #328492);
+  border-radius: 50%;
+  animation: episodes-spin 0.8s linear infinite;
+}
+
+@keyframes episodes-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .episodes-empty {
   text-align: center;
   padding: 60px 20px;

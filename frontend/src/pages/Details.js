@@ -65,14 +65,13 @@ function Details() {
   const [episodes, setEpisodes] = useState([]);
   const [selectedSeason, setSelectedSeason] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [loadingEpisodes, setLoadingEpisodes] = useState(false);
   const [showTmdbInput, setShowTmdbInput] = useState(false);
   const [tmdbId, setTmdbId] = useState('');
   const [tmdbLoading, setTmdbLoading] = useState(false);
   const [tmdbMessage, setTmdbMessage] = useState(null);
   const [imageCacheBust, setImageCacheBust] = useState('');
   const [usingTmdbSeasons, setUsingTmdbSeasons] = useState(false);
-  const [, setLocalSeasonNumbers] = useState(new Set());
-  const [, setLocalEpisodeMap] = useState({}); // { seasonNum: { epNum: episodeData } }
 
   // Watch providers state
   const [watchProviders, setWatchProviders] = useState(null);
@@ -160,7 +159,6 @@ function Details() {
 
         const localSeasons = seasonsRes.data || [];
         const localSeasonNums = new Set(localSeasons.map(s => s.season_number));
-        setLocalSeasonNumbers(localSeasonNums);
 
         // Sempre intentem carregar temporades TMDB si tenim tmdb_id
         // per permetre veure episodis via streaming de temporades que no tenim locals
@@ -227,6 +225,8 @@ function Details() {
   }, [type, id, isTmdbOnly, realTmdbId]);
 
   const loadEpisodes = useCallback(async (seasonNum, isTmdb = false, tmdbIdParam = null) => {
+    setLoadingEpisodes(true);
+    setEpisodes([]); // Clear episodes while loading
     try {
       // Per contingut TMDB-only, carregar directament des de TMDB
       const effectiveTmdbId = isTmdbOnly ? realTmdbId : tmdbIdParam;
@@ -260,7 +260,6 @@ function Details() {
       localEpisodes.forEach(ep => {
         localEpMap[ep.episode_number] = ep;
       });
-      setLocalEpisodeMap(prev => ({ ...prev, [seasonNum]: localEpMap }));
 
       // Si tenim TMDB, carregar episodis de TMDB i combinar
       if (effectiveTmdbId) {
@@ -300,6 +299,8 @@ function Details() {
     } catch (error) {
       console.error('Error carregant episodis:', error);
       setEpisodes([]);
+    } finally {
+      setLoadingEpisodes(false);
     }
   }, [id, isTmdbOnly, realTmdbId]);
 
@@ -583,7 +584,9 @@ function Details() {
                 <span className="meta-item">{seasons.length} temporades</span>
               )}
               {item.genres && Array.isArray(item.genres) && item.genres.length > 0 && (
-                <span className="meta-item genres">{item.genres.join(', ')}</span>
+                <span className="meta-item genres">
+                  {item.genres.map(g => typeof g === 'object' ? g.name : g).filter(Boolean).join(', ')}
+                </span>
               )}
             </div>
 
@@ -833,6 +836,12 @@ function Details() {
             )}
           </div>
 
+          {loadingEpisodes ? (
+            <div className="episodes-loading">
+              <div className="episodes-loading-spinner"></div>
+              <span>Carregant episodis...</span>
+            </div>
+          ) : (
           <div className="episodes-grid">
             {episodes.map((episode) => (
               <div
@@ -894,8 +903,9 @@ function Details() {
               </div>
             ))}
           </div>
+          )}
 
-          {episodes.length === 0 && (
+          {!loadingEpisodes && episodes.length === 0 && (
             <div className="episodes-empty">
               No hi ha episodis disponibles per aquesta temporada
             </div>
