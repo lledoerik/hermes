@@ -57,16 +57,6 @@ const ClipboardIcon = () => (
   </svg>
 );
 
-const PaletteIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <circle cx="13.5" cy="6.5" r=".5"></circle>
-    <circle cx="17.5" cy="10.5" r=".5"></circle>
-    <circle cx="8.5" cy="7.5" r=".5"></circle>
-    <circle cx="6.5" cy="12.5" r=".5"></circle>
-    <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.555C21.965 6.012 17.461 2 12 2z"></path>
-  </svg>
-);
-
 const VolumeIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
@@ -83,28 +73,6 @@ const SubtitlesIcon = () => (
 const PlayIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <polygon points="5 3 19 12 5 21 5 3"></polygon>
-  </svg>
-);
-
-const BookIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-  </svg>
-);
-
-const HeadphonesIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
-    <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
-  </svg>
-);
-
-const DownloadIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-    <polyline points="7 10 12 15 17 10"></polyline>
-    <line x1="12" y1="15" x2="12" y2="3"></line>
   </svg>
 );
 
@@ -167,6 +135,36 @@ const RocketIcon = () => (
   </svg>
 );
 
+const SyncIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+  </svg>
+);
+
+const ServerIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+    <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+    <line x1="6" y1="6" x2="6.01" y2="6"></line>
+    <line x1="6" y1="18" x2="6.01" y2="18"></line>
+  </svg>
+);
+
+const CalendarIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+    <line x1="16" y1="2" x2="16" y2="6"></line>
+    <line x1="8" y1="2" x2="8" y2="6"></line>
+    <line x1="3" y1="10" x2="21" y2="10"></line>
+  </svg>
+);
+
+const ActivityIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+  </svg>
+);
+
 function Admin() {
   const [stats, setStats] = useState(null);
   const [logs, setLogs] = useState([]);
@@ -174,17 +172,13 @@ function Admin() {
   const [tmdbKey, setTmdbKey] = useState('');
   const [tmdbConfigured, setTmdbConfigured] = useState(false);
 
-  // Bulk import state (TMDB) - unified for all
+  // Sync state
+  const [syncStatus, setSyncStatus] = useState(null);
+  const [syncRunning, setSyncRunning] = useState(false);
+
+  // Bulk import state (TMDB)
   const [bulkImportStatus, setBulkImportStatus] = useState(null);
   const [bulkImportPages, setBulkImportPages] = useState(50);
-
-  // Book bulk import state
-  const [bookBulkImportStatus, setBookBulkImportStatus] = useState(null);
-  const [bookBulkImportMax, setBookBulkImportMax] = useState(100);
-
-  // Audiobook bulk import state
-  const [audiobookBulkImportStatus, setAudiobookBulkImportStatus] = useState(null);
-  const [audiobookBulkImportMax, setAudiobookBulkImportMax] = useState(50);
 
   // User management state
   const [users, setUsers] = useState([]);
@@ -206,11 +200,25 @@ function Admin() {
     }
   }, []);
 
+  const loadSyncStatus = useCallback(async () => {
+    try {
+      const response = await axios.get('/api/sync/status');
+      setSyncStatus(response.data);
+    } catch (error) {
+      console.error('Error carregant estat sync:', error);
+    }
+  }, []);
+
   useEffect(() => {
     loadStats();
     checkTmdbKey();
     loadUserData();
-  }, [loadStats]);
+    loadSyncStatus();
+
+    // Refresh sync status every 30 seconds
+    const interval = setInterval(loadSyncStatus, 30000);
+    return () => clearInterval(interval);
+  }, [loadStats, loadSyncStatus]);
 
   const showMessage = (text, type = 'success') => {
     setMessage({ text, type });
@@ -313,6 +321,38 @@ function Admin() {
     }
   };
 
+  // Manual sync trigger
+  const runSyncNow = async () => {
+    try {
+      setSyncRunning(true);
+      await axios.post('/api/sync/run');
+      addLog('info', 'Sincronització iniciada en segon pla');
+      showMessage('Sincronització iniciada');
+
+      // Poll for completion
+      const pollSync = setInterval(async () => {
+        await loadSyncStatus();
+        const res = await axios.get('/api/sync/status');
+        if (res.data.last_sync !== syncStatus?.last_sync) {
+          clearInterval(pollSync);
+          setSyncRunning(false);
+          addLog('success', 'Sincronització completada');
+          loadStats();
+        }
+      }, 5000);
+
+      // Timeout after 10 minutes
+      setTimeout(() => {
+        clearInterval(pollSync);
+        setSyncRunning(false);
+      }, 600000);
+    } catch (error) {
+      setSyncRunning(false);
+      addLog('error', 'Error iniciant sincronització');
+      showMessage('Error iniciant sincronització', 'error');
+    }
+  };
+
   // Bulk import functions
   const startBulkImport = async (mediaType) => {
     try {
@@ -327,16 +367,14 @@ function Admin() {
     }
   };
 
-  // Import ALL at once (movies + series)
   const startBulkImportAll = async () => {
     try {
-      // Start with movies first
       await axios.post('/api/admin/bulk-import/start', {
         media_type: 'movie',
         max_pages: bulkImportPages
       });
       addLog('info', 'Importació massiva de TOT iniciada (pel·lícules primer, després sèries)...');
-      pollBulkImportStatus(true); // Pass flag to continue with series after movies
+      pollBulkImportStatus(true);
     } catch (error) {
       addLog('error', error.response?.data?.detail || 'Error iniciant importació');
     }
@@ -359,12 +397,10 @@ function Admin() {
         if (response.data.running) {
           setTimeout(poll, 1000);
         } else {
-          // Import finished
           if (response.data.imported_count > 0) {
             addLog('success', `Importació completada: ${response.data.imported_count} importats, ${response.data.skipped_count} omesos`);
             loadStats();
           }
-          // If we were importing movies and need to continue with series
           if (continueWithSeries && response.data.media_type === 'movie') {
             addLog('info', 'Ara important sèries...');
             await axios.post('/api/admin/bulk-import/start', {
@@ -381,7 +417,6 @@ function Admin() {
     poll();
   };
 
-  // Check bulk import status on load
   useEffect(() => {
     const checkBulkStatus = async () => {
       try {
@@ -398,127 +433,21 @@ function Admin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Book bulk import functions
-  const startBookBulkImport = async () => {
-    try {
-      await axios.post('/api/admin/bulk-import/books/start', {
-        max_per_subject: bookBulkImportMax
-      });
-      addLog('info', 'Importació massiva de llibres iniciada...');
-      pollBookBulkImportStatus();
-    } catch (error) {
-      addLog('error', error.response?.data?.detail || 'Error iniciant importació de llibres');
-    }
-  };
-
-  const stopBookBulkImport = async () => {
-    try {
-      await axios.post('/api/admin/bulk-import/books/stop');
-      addLog('info', 'Aturant importació de llibres...');
-    } catch (error) {
-      addLog('error', 'Error aturant importació de llibres');
-    }
-  };
-
-  const pollBookBulkImportStatus = async () => {
-    const poll = async () => {
-      try {
-        const response = await axios.get('/api/admin/bulk-import/books/status');
-        setBookBulkImportStatus(response.data);
-        if (response.data.running) {
-          setTimeout(poll, 1000);
-        } else {
-          if (response.data.imported_count > 0) {
-            addLog('success', `Importació de llibres completada: ${response.data.imported_count} importats, ${response.data.skipped_count} omesos`);
-            loadStats();
-          }
-        }
-      } catch (error) {
-        console.error('Error polling book status:', error);
-      }
-    };
-    poll();
-  };
-
-  // Check book bulk import status on load
-  useEffect(() => {
-    const checkBookBulkStatus = async () => {
-      try {
-        const response = await axios.get('/api/admin/bulk-import/books/status');
-        setBookBulkImportStatus(response.data);
-        if (response.data.running) {
-          pollBookBulkImportStatus();
-        }
-      } catch (e) {
-        // Ignore
-      }
-    };
-    checkBookBulkStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Audiobook bulk import functions
-  const startAudiobookBulkImport = async () => {
-    try {
-      await axios.post('/api/admin/bulk-import/audiobooks/start', {
-        max_per_term: audiobookBulkImportMax
-      });
-      addLog('info', 'Importació massiva d\'audiollibres iniciada...');
-      pollAudiobookBulkImportStatus();
-    } catch (error) {
-      addLog('error', error.response?.data?.detail || 'Error iniciant importació d\'audiollibres');
-    }
-  };
-
-  const stopAudiobookBulkImport = async () => {
-    try {
-      await axios.post('/api/admin/bulk-import/audiobooks/stop');
-      addLog('info', 'Aturant importació d\'audiollibres...');
-    } catch (error) {
-      addLog('error', 'Error aturant importació d\'audiollibres');
-    }
-  };
-
-  const pollAudiobookBulkImportStatus = async () => {
-    const poll = async () => {
-      try {
-        const response = await axios.get('/api/admin/bulk-import/audiobooks/status');
-        setAudiobookBulkImportStatus(response.data);
-        if (response.data.running) {
-          setTimeout(poll, 1000);
-        } else {
-          if (response.data.imported_count > 0) {
-            addLog('success', `Importació d'audiollibres completada: ${response.data.imported_count} importats, ${response.data.skipped_count} omesos`);
-            loadStats();
-          }
-        }
-      } catch (error) {
-        console.error('Error polling audiobook status:', error);
-      }
-    };
-    poll();
-  };
-
-  // Check audiobook bulk import status on load
-  useEffect(() => {
-    const checkAudiobookBulkStatus = async () => {
-      try {
-        const response = await axios.get('/api/admin/bulk-import/audiobooks/status');
-        setAudiobookBulkImportStatus(response.data);
-        if (response.data.running) {
-          pollAudiobookBulkImportStatus();
-        }
-      } catch (e) {
-        // Ignore
-      }
-    };
-    checkAudiobookBulkStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const addLog = (type, message) => {
     const timestamp = new Date().toLocaleTimeString();
     setLogs(prev => [...prev, { type, message, timestamp }].slice(-50));
+  };
+
+  const formatDate = (isoString) => {
+    if (!isoString) return 'Mai';
+    const date = new Date(isoString);
+    return date.toLocaleString('ca-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   if (loading) {
@@ -540,14 +469,6 @@ function Admin() {
       {/* Stats Grid */}
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-icon"><TvIcon /></div>
-          <div className="stat-info">
-            <h3>{stats?.series || 0}</h3>
-            <p>Sèries</p>
-          </div>
-        </div>
-
-        <div className="stat-card">
           <div className="stat-icon"><MovieIcon /></div>
           <div className="stat-info">
             <h3>{stats?.movies || 0}</h3>
@@ -556,19 +477,87 @@ function Admin() {
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon"><BookIcon /></div>
+          <div className="stat-icon"><TvIcon /></div>
           <div className="stat-info">
-            <h3>{stats?.books || 0}</h3>
-            <p>Llibres</p>
+            <h3>{stats?.series || 0}</h3>
+            <p>Sèries</p>
           </div>
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon"><HeadphonesIcon /></div>
+          <div className="stat-icon"><DatabaseIcon /></div>
           <div className="stat-info">
-            <h3>{stats?.audiobooks || 0}</h3>
-            <p>Audiollibres</p>
+            <h3>{stats?.files || 0}</h3>
+            <p>Fitxers</p>
           </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-icon"><ClockIcon /></div>
+          <div className="stat-info">
+            <h3>{stats?.total_hours || 0}h</h3>
+            <p>Contingut</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Sync Section - NEW */}
+      <div className="admin-section sync-section">
+        <div className="section-header">
+          <h2><SyncIcon /> Sincronització Automàtica</h2>
+          <div className={`sync-badge ${syncStatus?.scheduler_running ? 'active' : 'inactive'}`}>
+            {syncStatus?.scheduler_running ? 'Actiu' : 'Inactiu'}
+          </div>
+        </div>
+        <div className="section-content">
+          <div className="sync-info-grid">
+            <div className="sync-info-item">
+              <div className="sync-info-icon"><CalendarIcon /></div>
+              <div className="sync-info-content">
+                <span className="sync-info-label">Hora programada</span>
+                <span className="sync-info-value">{syncStatus?.sync_time || '02:30'}</span>
+              </div>
+            </div>
+
+            <div className="sync-info-item">
+              <div className="sync-info-icon"><ClockIcon /></div>
+              <div className="sync-info-content">
+                <span className="sync-info-label">Última sincronització</span>
+                <span className="sync-info-value">{formatDate(syncStatus?.last_sync)}</span>
+              </div>
+            </div>
+
+            <div className="sync-info-item">
+              <div className="sync-info-icon"><ActivityIcon /></div>
+              <div className="sync-info-content">
+                <span className="sync-info-label">Pròxima execució</span>
+                <span className="sync-info-value">{formatDate(syncStatus?.next_sync)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="sync-description">
+            <p>
+              La sincronització automàtica s'executa diàriament a les <strong>2:30 AM</strong> i importa:
+            </p>
+            <ul>
+              <li>Pel·lícules populars, millor valorades, en cartellera i pròximament de TMDB</li>
+              <li>Sèries populars, millor valorades i en emissió de TMDB</li>
+              <li>Llibres de diverses categories d'Open Library</li>
+            </ul>
+          </div>
+
+          <button
+            className="action-btn sync-btn"
+            onClick={runSyncNow}
+            disabled={syncRunning}
+          >
+            {syncRunning ? (
+              <><RefreshIcon /> Sincronitzant...</>
+            ) : (
+              <><SyncIcon /> Sincronitzar ara</>
+            )}
+          </button>
         </div>
       </div>
 
@@ -589,49 +578,40 @@ function Admin() {
                   value={tmdbKey}
                   onChange={(e) => setTmdbKey(e.target.value)}
                   placeholder="Introdueix la clau API..."
-                  style={{
-                    flex: 1,
-                    padding: '0.75rem 1rem',
-                    background: 'rgba(255,255,255,0.1)',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    borderRadius: '8px',
-                    color: 'white',
-                    fontSize: '0.9rem'
-                  }}
+                  className="admin-input"
                 />
                 <button
                   className="action-btn"
                   onClick={saveTmdbKey}
                   disabled={!tmdbKey.trim()}
-                  style={{ padding: '0.75rem 1.25rem' }}
                 >
                   Desar
                 </button>
               </div>
             </div>
           ) : (
-            <div style={{ padding: '0.75rem 1rem', background: 'rgba(50, 132, 146, 0.15)', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div className="tmdb-configured">
               <CheckIcon />
-              <span style={{ color: 'rgba(255,255,255,0.8)' }}>Clau TMDB configurada correctament</span>
+              <span>Clau TMDB configurada correctament</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* Bulk Import Section - MAIN FEATURE */}
+      {/* Bulk Import Section */}
       {tmdbConfigured && (
         <div className="admin-section highlight">
           <div className="section-header">
-            <h2><RocketIcon /> Importació massiva</h2>
+            <h2><RocketIcon /> Importació Massiva</h2>
           </div>
           <div className="section-content">
             <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '1.5rem' }}>
-              Importa automàticament milers de pel·lícules i sèries des de TMDB per veure en streaming.
-              Tot el contingut estarà disponible per reproduir online.
+              Importa automàticament milers de pel·lícules i sèries des de TMDB.
+              Aquesta és una importació manual addicional a la sincronització automàtica.
             </p>
 
-            <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-              <label style={{ color: 'rgba(255,255,255,0.8)' }}>Pàgines per categoria:</label>
+            <div className="bulk-config">
+              <label>Pàgines per categoria:</label>
               <input
                 type="number"
                 min="1"
@@ -639,27 +619,17 @@ function Admin() {
                 value={bulkImportPages}
                 onChange={(e) => setBulkImportPages(parseInt(e.target.value) || 50)}
                 disabled={bulkImportStatus?.running}
-                style={{
-                  width: '80px',
-                  padding: '0.5rem',
-                  background: 'rgba(255,255,255,0.1)',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  borderRadius: '6px',
-                  color: 'white',
-                  fontSize: '1rem'
-                }}
+                className="admin-input small"
               />
-              <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem' }}>
+              <span className="bulk-estimate">
                 (~{bulkImportPages * 20 * 4} títols per tipus)
               </span>
             </div>
 
-            {/* MAIN BUTTON - Import ALL */}
             <button
               className="action-btn primary big"
               onClick={startBulkImportAll}
               disabled={bulkImportStatus?.running}
-              style={{ width: '100%', padding: '1.25rem', fontSize: '1.1rem', marginBottom: '1rem' }}
             >
               {bulkImportStatus?.running ? (
                 <><RefreshIcon /> Important...</>
@@ -670,14 +640,14 @@ function Admin() {
 
             <div className="scanner-actions">
               <button
-                className="action-btn"
+                className="action-btn secondary"
                 onClick={() => startBulkImport('movie')}
                 disabled={bulkImportStatus?.running}
               >
                 <MovieIcon /> Només pel·lícules
               </button>
               <button
-                className="action-btn"
+                className="action-btn secondary"
                 onClick={() => startBulkImport('series')}
                 disabled={bulkImportStatus?.running}
               >
@@ -695,36 +665,29 @@ function Admin() {
 
             {/* Progress indicator */}
             {bulkImportStatus?.running && (
-              <div style={{ marginTop: '1.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '14px', color: 'rgba(255,255,255,0.8)' }}>
+              <div className="import-progress">
+                <div className="progress-header">
                   <span>
                     Important {bulkImportStatus.media_type === 'movie' ? 'pel·lícules' : 'sèries'}...
                     {bulkImportStatus.current_category && ` (${bulkImportStatus.current_category})`}
                   </span>
                   <span>Pàgina {bulkImportStatus.current_page}/{bulkImportStatus.total_pages}</span>
                 </div>
-                <div style={{ height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
+                <div className="progress-bar-container">
                   <div
-                    style={{
-                      width: `${(bulkImportStatus.current_page / bulkImportStatus.total_pages) * 100}%`,
-                      height: '100%',
-                      background: 'linear-gradient(90deg, #328492, #4aa3b3)',
-                      borderRadius: '4px',
-                      transition: 'width 0.3s ease'
-                    }}
+                    className="progress-bar-fill"
+                    style={{ width: `${(bulkImportStatus.current_page / bulkImportStatus.total_pages) * 100}%` }}
                   />
                 </div>
-                <div style={{ marginTop: '0.75rem', fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>
+                <div className="progress-stats">
                   {bulkImportStatus.current_title && (
-                    <div style={{ marginBottom: '0.5rem', color: 'rgba(255,255,255,0.8)' }}>
-                      Importat: {bulkImportStatus.current_title}
-                    </div>
+                    <div className="current-title">Importat: {bulkImportStatus.current_title}</div>
                   )}
-                  <div style={{ display: 'flex', gap: '1.5rem' }}>
-                    <span style={{ color: '#22c55e' }}>Importats: {bulkImportStatus.imported_count}</span>
+                  <div className="stats-row">
+                    <span className="stat-success">Importats: {bulkImportStatus.imported_count}</span>
                     <span>Omesos: {bulkImportStatus.skipped_count}</span>
                     {bulkImportStatus.error_count > 0 && (
-                      <span style={{ color: '#ef4444' }}>Errors: {bulkImportStatus.error_count}</span>
+                      <span className="stat-error">Errors: {bulkImportStatus.error_count}</span>
                     )}
                   </div>
                 </div>
@@ -733,9 +696,9 @@ function Admin() {
 
             {/* Last import stats */}
             {!bulkImportStatus?.running && bulkImportStatus?.imported_count > 0 && (
-              <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(34, 197, 94, 0.1)', borderRadius: '8px', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
-                <div style={{ color: '#22c55e', fontWeight: '500', marginBottom: '0.5rem' }}>Última importació completada</div>
-                <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)' }}>
+              <div className="import-complete">
+                <div className="import-complete-title">Última importació completada</div>
+                <div className="import-complete-stats">
                   {bulkImportStatus.imported_count} títols importats, {bulkImportStatus.skipped_count} omesos
                   {bulkImportStatus.error_count > 0 && `, ${bulkImportStatus.error_count} errors`}
                 </div>
@@ -744,190 +707,6 @@ function Admin() {
           </div>
         </div>
       )}
-
-      {/* Book Bulk Import Section */}
-      <div className="admin-section">
-        <div className="section-header">
-          <h2><BookIcon /> Importació de Llibres</h2>
-        </div>
-        <div className="section-content">
-          <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '1rem' }}>
-            Importa llibres des d'Open Library per categories: ficció, ciència-ficció, fantasia, etc.
-          </p>
-
-          <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-            <label style={{ color: 'rgba(255,255,255,0.8)' }}>Llibres per categoria:</label>
-            <input
-              type="number"
-              min="10"
-              max="500"
-              value={bookBulkImportMax}
-              onChange={(e) => setBookBulkImportMax(parseInt(e.target.value) || 100)}
-              disabled={bookBulkImportStatus?.running}
-              style={{
-                width: '80px',
-                padding: '0.5rem',
-                background: 'rgba(255,255,255,0.1)',
-                border: '1px solid rgba(255,255,255,0.2)',
-                borderRadius: '6px',
-                color: 'white',
-                fontSize: '1rem'
-              }}
-            />
-          </div>
-
-          <div className="scanner-actions">
-            <button
-              className="action-btn"
-              onClick={startBookBulkImport}
-              disabled={bookBulkImportStatus?.running}
-            >
-              <BookIcon /> Importar llibres
-            </button>
-            {bookBulkImportStatus?.running && (
-              <button
-                className="action-btn danger"
-                onClick={stopBookBulkImport}
-              >
-                Aturar
-              </button>
-            )}
-          </div>
-
-          {/* Progress */}
-          {bookBulkImportStatus?.running && (
-            <div style={{ marginTop: '1.5rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '14px', color: 'rgba(255,255,255,0.8)' }}>
-                <span>
-                  Important llibres...
-                  {bookBulkImportStatus.current_subject && ` (${bookBulkImportStatus.current_subject})`}
-                </span>
-              </div>
-              <div style={{ height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
-                <div
-                  style={{
-                    width: `${(bookBulkImportStatus.current_page / bookBulkImportStatus.total_pages) * 100}%`,
-                    height: '100%',
-                    background: 'linear-gradient(90deg, #22c55e, #4ade80)',
-                    borderRadius: '4px',
-                    transition: 'width 0.3s ease'
-                  }}
-                />
-              </div>
-              <div style={{ marginTop: '0.5rem', fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>
-                Importats: {bookBulkImportStatus.imported_count} | Omesos: {bookBulkImportStatus.skipped_count}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Audiobook Bulk Import Section */}
-      <div className="admin-section">
-        <div className="section-header">
-          <h2><HeadphonesIcon /> Importació d'Audiollibres</h2>
-        </div>
-        <div className="section-content">
-          <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '1rem' }}>
-            Importa audiollibres des d'Audnexus amb informació de narradors i duració.
-          </p>
-
-          <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-            <label style={{ color: 'rgba(255,255,255,0.8)' }}>Audiollibres per cerca:</label>
-            <input
-              type="number"
-              min="10"
-              max="200"
-              value={audiobookBulkImportMax}
-              onChange={(e) => setAudiobookBulkImportMax(parseInt(e.target.value) || 50)}
-              disabled={audiobookBulkImportStatus?.running}
-              style={{
-                width: '80px',
-                padding: '0.5rem',
-                background: 'rgba(255,255,255,0.1)',
-                border: '1px solid rgba(255,255,255,0.2)',
-                borderRadius: '6px',
-                color: 'white',
-                fontSize: '1rem'
-              }}
-            />
-          </div>
-
-          <div className="scanner-actions">
-            <button
-              className="action-btn"
-              onClick={startAudiobookBulkImport}
-              disabled={audiobookBulkImportStatus?.running}
-            >
-              <HeadphonesIcon /> Importar audiollibres
-            </button>
-            {audiobookBulkImportStatus?.running && (
-              <button
-                className="action-btn danger"
-                onClick={stopAudiobookBulkImport}
-              >
-                Aturar
-              </button>
-            )}
-          </div>
-
-          {/* Progress */}
-          {audiobookBulkImportStatus?.running && (
-            <div style={{ marginTop: '1.5rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '14px', color: 'rgba(255,255,255,0.8)' }}>
-                <span>
-                  Important audiollibres...
-                  {audiobookBulkImportStatus.current_genre && ` (${audiobookBulkImportStatus.current_genre})`}
-                </span>
-              </div>
-              <div style={{ height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
-                <div
-                  style={{
-                    width: `${(audiobookBulkImportStatus.current_page / audiobookBulkImportStatus.total_pages) * 100}%`,
-                    height: '100%',
-                    background: 'linear-gradient(90deg, #f59e0b, #fbbf24)',
-                    borderRadius: '4px',
-                    transition: 'width 0.3s ease'
-                  }}
-                />
-              </div>
-              <div style={{ marginTop: '0.5rem', fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>
-                Importats: {audiobookBulkImportStatus.imported_count} | Omesos: {audiobookBulkImportStatus.skipped_count}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Logs Section */}
-      <div className="admin-section">
-        <div className="section-header">
-          <h2><ClipboardIcon /> Registre d'Activitat</h2>
-          <button
-            className="action-btn secondary"
-            onClick={() => setLogs([])}
-            style={{ padding: '8px 15px', fontSize: '14px' }}
-          >
-            Netejar
-          </button>
-        </div>
-        <div className="section-content">
-          <div className="logs-container">
-            {logs.length === 0 ? (
-              <div style={{ color: 'rgba(255,255,255,0.4)', textAlign: 'center', padding: '20px' }}>
-                No hi ha activitat recent
-              </div>
-            ) : (
-              logs.map((log, index) => (
-                <div key={index} className={`log-entry ${log.type}`}>
-                  <span className="log-time">[{log.timestamp}]</span>
-                  <span className="log-message">{log.message}</span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
 
       {/* Users Section */}
       <div className="admin-section">
@@ -1043,17 +822,47 @@ function Admin() {
           )}
 
           {invitations.length === 0 && (
-            <div style={{ color: 'rgba(255,255,255,0.4)', textAlign: 'center', padding: '20px' }}>
+            <div className="empty-state">
               No hi ha invitacions actives
             </div>
           )}
         </div>
       </div>
 
+      {/* Logs Section */}
+      <div className="admin-section">
+        <div className="section-header">
+          <h2><ClipboardIcon /> Registre d'Activitat</h2>
+          <button
+            className="action-btn secondary"
+            onClick={() => setLogs([])}
+            style={{ padding: '8px 15px', fontSize: '14px' }}
+          >
+            Netejar
+          </button>
+        </div>
+        <div className="section-content">
+          <div className="logs-container">
+            {logs.length === 0 ? (
+              <div className="empty-state">
+                No hi ha activitat recent
+              </div>
+            ) : (
+              logs.map((log, index) => (
+                <div key={index} className={`log-entry ${log.type}`}>
+                  <span className="log-time">[{log.timestamp}]</span>
+                  <span className="log-message">{log.message}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Preferences Section */}
       <div className="admin-section">
         <div className="section-header">
-          <h2><PaletteIcon /> Preferències</h2>
+          <h2><SettingsIcon /> Preferències de Reproducció</h2>
         </div>
         <div className="section-content">
           <div className="paths-list">
@@ -1105,15 +914,45 @@ function Admin() {
                   <p>Reproduir següent episodi automàticament</p>
                 </div>
               </div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+              <label className="toggle-container">
                 <input
                   type="checkbox"
                   defaultChecked={localStorage.getItem('hermes_autoplay') !== 'false'}
                   onChange={(e) => localStorage.setItem('hermes_autoplay', e.target.checked)}
-                  style={{ width: '20px', height: '20px', cursor: 'pointer' }}
                 />
-                <span style={{ color: 'rgba(255,255,255,0.7)' }}>Activat</span>
+                <span className="toggle-label">Activat</span>
               </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* System Info */}
+      <div className="admin-section">
+        <div className="section-header">
+          <h2><ServerIcon /> Informació del Sistema</h2>
+        </div>
+        <div className="section-content">
+          <div className="system-info-grid">
+            <div className="system-info-item">
+              <span className="system-label">Versió</span>
+              <span className="system-value">Hermes 1.0.0</span>
+            </div>
+            <div className="system-info-item">
+              <span className="system-label">API TMDB</span>
+              <span className={`system-value ${tmdbConfigured ? 'status-ok' : 'status-error'}`}>
+                {tmdbConfigured ? 'Configurada' : 'No configurada'}
+              </span>
+            </div>
+            <div className="system-info-item">
+              <span className="system-label">Scheduler</span>
+              <span className={`system-value ${syncStatus?.scheduler_running ? 'status-ok' : 'status-error'}`}>
+                {syncStatus?.scheduler_running ? 'Actiu' : 'Inactiu'}
+              </span>
+            </div>
+            <div className="system-info-item">
+              <span className="system-label">Usuaris</span>
+              <span className="system-value">{users.length}</span>
             </div>
           </div>
         </div>
