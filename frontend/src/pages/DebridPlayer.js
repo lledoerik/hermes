@@ -97,6 +97,20 @@ const SubtitlesIcon = () => (
   </svg>
 );
 
+// Next episode icon
+const NextEpisodeIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
+  </svg>
+);
+
+// Episodes list icon
+const EpisodesIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M4 6h2v2H4V6zm0 5h2v2H4v-2zm0 5h2v2H4v-2zm16-8V6H8v2h12zm0 5v-2H8v2h12zm0 5v-2H8v2h12z"/>
+  </svg>
+);
+
 // Format time (seconds to MM:SS or HH:MM:SS)
 const formatTime = (seconds) => {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -204,7 +218,52 @@ function DebridPlayer() {
   const [showAudioMenu, setShowAudioMenu] = useState(false);
   const [showSubtitleMenu, setShowSubtitleMenu] = useState(false);
 
+  // Episode navigation state
+  const [showEpisodesList, setShowEpisodesList] = useState(false);
+  const [showEndedOverlay, setShowEndedOverlay] = useState(false);
+
   const mediaType = type === 'movie' ? 'movie' : 'tv';
+
+  // Determine current and next episode
+  const currentEpisodeInfo = useMemo(() => {
+    if (type === 'movie' || !episodes.length || !episode) return null;
+    return episodes.find(ep => ep.episode_number === episode);
+  }, [type, episodes, episode]);
+
+  const nextEpisode = useMemo(() => {
+    if (type === 'movie' || !episodes.length || !episode) return null;
+    const currentIndex = episodes.findIndex(ep => ep.episode_number === episode);
+    if (currentIndex >= 0 && currentIndex < episodes.length - 1) {
+      return episodes[currentIndex + 1];
+    }
+    return null;
+  }, [type, episodes, episode]);
+
+  // Navigate to next episode
+  const goToNextEpisode = useCallback(() => {
+    if (!nextEpisode) return;
+    setShowEndedOverlay(false);
+    setStreamUrl(null);
+    setSelectedTorrent(null);
+    setTorrents([]);
+    navigate(`/debrid/tv/${tmdbId}?s=${season}&e=${nextEpisode.episode_number}`, {
+      state: { mediaInfo },
+      replace: true
+    });
+  }, [nextEpisode, navigate, tmdbId, season, mediaInfo]);
+
+  // Navigate to specific episode
+  const goToEpisode = useCallback((ep) => {
+    setShowEpisodesList(false);
+    setShowEndedOverlay(false);
+    setStreamUrl(null);
+    setSelectedTorrent(null);
+    setTorrents([]);
+    navigate(`/debrid/tv/${tmdbId}?s=${season}&e=${ep.episode_number}`, {
+      state: { mediaInfo },
+      replace: true
+    });
+  }, [navigate, tmdbId, season, mediaInfo]);
 
   // Group torrents by quality and language
   const groupedTorrents = useMemo(() => {
@@ -230,15 +289,17 @@ function DebridPlayer() {
       }
     });
 
-    // Sort groups: cached first, then by quality
+    // Sort groups: by quality first, then by cached status
     const qualityOrder = { '4K': 0, '1080p': 1, '720p': 2, 'WEB': 3, 'HDTV': 4, '480p': 5, 'SD': 6, 'Desconeguda': 7 };
 
     return Object.values(groups).sort((a, b) => {
-      // Cached first
+      // First by quality (highest first)
+      const qualityDiff = (qualityOrder[a.quality] || 99) - (qualityOrder[b.quality] || 99);
+      if (qualityDiff !== 0) return qualityDiff;
+      // Then by cached status (cached first within same quality)
       if (a.hasCached && !b.hasCached) return -1;
       if (!a.hasCached && b.hasCached) return 1;
-      // Then by quality
-      return (qualityOrder[a.quality] || 99) - (qualityOrder[b.quality] || 99);
+      return 0;
     });
   }, [torrents]);
 
@@ -549,7 +610,12 @@ function DebridPlayer() {
   const handleEnded = useCallback(() => {
     setIsPlaying(false);
     saveProgress(100, true);
-  }, [saveProgress]);
+    // Show overlay with next episode button if available
+    if (nextEpisode) {
+      setShowEndedOverlay(true);
+      setShowControls(true);
+    }
+  }, [saveProgress, nextEpisode]);
 
   // Controls
   const togglePlay = useCallback(() => {
@@ -621,10 +687,29 @@ function DebridPlayer() {
   // Keyboard controls
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (showQualityMenu) {
-        if (e.key === 'Escape') {
+      // Handle escape for various menus/overlays
+      if (e.key === 'Escape') {
+        if (showQualityMenu) {
           setShowQualityMenu(false);
+          return;
         }
+        if (showEpisodesList) {
+          setShowEpisodesList(false);
+          return;
+        }
+        if (showEndedOverlay) {
+          setShowEndedOverlay(false);
+          return;
+        }
+        if (isFullscreen) {
+          document.exitFullscreen();
+          return;
+        }
+        return;
+      }
+
+      // Don't handle other keys if overlays are open
+      if (showQualityMenu || showEpisodesList || showEndedOverlay) {
         return;
       }
 
@@ -650,9 +735,11 @@ function DebridPlayer() {
           e.preventDefault();
           toggleMute();
           break;
-        case 'Escape':
-          if (isFullscreen) {
-            document.exitFullscreen();
+        case 'n':
+          // Next episode shortcut
+          if (nextEpisode) {
+            e.preventDefault();
+            goToNextEpisode();
           }
           break;
         default:
@@ -662,7 +749,7 @@ function DebridPlayer() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlay, skipBack, skipForward, toggleFullscreen, toggleMute, isFullscreen, showQualityMenu]);
+  }, [togglePlay, skipBack, skipForward, toggleFullscreen, toggleMute, isFullscreen, showQualityMenu, showEpisodesList, showEndedOverlay, nextEpisode, goToNextEpisode]);
 
   // Initial load
   useEffect(() => {
@@ -696,6 +783,13 @@ function DebridPlayer() {
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
+
+  // Re-fetch torrents when episode changes
+  useEffect(() => {
+    if (debridConfigured && type !== 'movie') {
+      searchTorrents();
+    }
+  }, [episode]); // Only re-run when episode number changes
 
   // Save progress on unmount
   useEffect(() => {
@@ -937,6 +1031,28 @@ function DebridPlayer() {
                 <SubtitlesIcon />
               </button>
 
+              {/* Episodes list button (only for series) */}
+              {type !== 'movie' && episodes.length > 0 && (
+                <button
+                  className="control-btn"
+                  onClick={(e) => { e.stopPropagation(); setShowEpisodesList(true); }}
+                  title="Llista d'episodis"
+                >
+                  <EpisodesIcon />
+                </button>
+              )}
+
+              {/* Next episode button (only for series with next episode) */}
+              {nextEpisode && (
+                <button
+                  className="control-btn"
+                  onClick={(e) => { e.stopPropagation(); goToNextEpisode(); }}
+                  title={`Següent: E${nextEpisode.episode_number}`}
+                >
+                  <NextEpisodeIcon />
+                </button>
+              )}
+
               {/* Quality indicator & button */}
               <button
                 className="quality-button"
@@ -995,6 +1111,60 @@ function DebridPlayer() {
               {track.label}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Video ended overlay with next episode */}
+      {showEndedOverlay && nextEpisode && (
+        <div className="ended-overlay" onClick={(e) => e.stopPropagation()}>
+          <div className="ended-content">
+            <p className="ended-label">Següent episodi</p>
+            <h3>E{nextEpisode.episode_number}: {nextEpisode.name || `Episodi ${nextEpisode.episode_number}`}</h3>
+            {nextEpisode.overview && (
+              <p className="ended-overview">{nextEpisode.overview.substring(0, 150)}...</p>
+            )}
+            <div className="ended-buttons">
+              <button className="next-episode-btn" onClick={goToNextEpisode}>
+                <NextEpisodeIcon />
+                <span>Reproduir ara</span>
+              </button>
+              <button className="replay-btn" onClick={() => { setShowEndedOverlay(false); seek(0); togglePlay(); }}>
+                Tornar a veure
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Episodes list modal */}
+      {showEpisodesList && (
+        <div className="episodes-overlay" onClick={(e) => e.stopPropagation()}>
+          <div className="episodes-modal">
+            <div className="episodes-header">
+              <h3>Temporada {season}</h3>
+              <button className="close-btn" onClick={() => setShowEpisodesList(false)}>
+                <CloseIcon />
+              </button>
+            </div>
+            <div className="episodes-list">
+              {episodes.map((ep) => (
+                <div
+                  key={ep.id || ep.episode_number}
+                  className={`episode-item ${ep.episode_number === episode ? 'current' : ''}`}
+                  onClick={() => ep.episode_number !== episode && goToEpisode(ep)}
+                >
+                  <div className="episode-number">E{ep.episode_number}</div>
+                  <div className="episode-info">
+                    <div className="episode-name">{ep.name || `Episodi ${ep.episode_number}`}</div>
+                    {ep.runtime && <span className="episode-runtime">{ep.runtime} min</span>}
+                  </div>
+                  {ep.episode_number === episode && (
+                    <span className="current-badge">Reproduint</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </div>
