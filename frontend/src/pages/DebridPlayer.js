@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -53,25 +53,25 @@ const VolumeMuteIcon = () => (
 
 const SkipBackIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8zm-1.1 11H10v-3.3L9 13v-.7l1.8-.6h.1V16zm4.3-1.8c0 .3 0 .6-.1.8l-.3.6s-.3.3-.5.3-.4.1-.6.1-.4 0-.6-.1-.3-.2-.5-.3-.2-.3-.3-.6-.1-.5-.1-.8v-.7c0-.3 0-.6.1-.8l.3-.6s.3-.3.5-.3.4-.1.6-.1.4 0 .6.1.3.2.5.3.2.3.3.6.1.5.1.8v.7zm-.9-.8v-.5s-.1-.2-.1-.3-.1-.1-.2-.2-.2-.1-.3-.1-.2 0-.3.1l-.2.2s-.1.2-.1.3v2s.1.2.1.3.1.1.2.2.2.1.3.1.2 0 .3-.1l.2-.2s.1-.2.1-.3v-1.5z"/>
+    <path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/>
   </svg>
 );
 
 const SkipForwardIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M18 13c0 3.31-2.69 6-6 6s-6-2.69-6-6 2.69-6 6-6v4l5-5-5-5v4c-4.42 0-8 3.58-8 8s3.58 8 8 8 8-3.58 8-8h-2zm-7.46 2.22c-.06.05-.12.09-.2.12s-.17.04-.27.04c-.09 0-.17-.01-.25-.04s-.14-.06-.2-.11-.1-.1-.13-.17-.05-.14-.05-.22h-.85c0 .21.04.39.12.55s.19.28.33.38.29.18.46.23.35.07.53.07c.21 0 .41-.03.6-.08s.34-.14.48-.24.24-.24.32-.39.12-.33.12-.53c0-.23-.06-.44-.18-.61s-.3-.3-.54-.39c.1-.05.2-.1.28-.17s.15-.14.2-.22.1-.16.13-.25.04-.18.04-.27c0-.2-.04-.37-.11-.52s-.17-.27-.3-.37-.28-.18-.46-.23-.37-.08-.59-.08c-.19 0-.38.03-.54.08s-.32.13-.44.23-.23.22-.3.37-.11.3-.11.48h.85c0-.07.02-.14.05-.2s.07-.11.12-.15.11-.07.18-.1.14-.03.22-.03c.1 0 .18.01.25.04s.13.06.18.11.08.11.11.17.04.14.04.22c0 .18-.05.32-.16.43s-.26.16-.48.16h-.43v.66h.45c.11 0 .2.01.29.04s.16.06.22.11.11.12.14.2.05.18.05.29c0 .09-.01.17-.04.24s-.08.13-.13.18zm3.9.01c-.06.05-.12.09-.2.12s-.17.04-.27.04c-.09 0-.17-.01-.25-.04s-.14-.06-.2-.11-.1-.1-.13-.17-.05-.14-.05-.22h-.85c0 .21.04.39.12.55s.19.28.33.38.29.18.46.23.35.07.53.07c.21 0 .41-.03.6-.08s.34-.14.48-.24.24-.24.32-.39.12-.33.12-.53c0-.23-.06-.44-.18-.61s-.3-.3-.54-.39c.1-.05.2-.1.28-.17s.15-.14.2-.22.1-.16.13-.25.04-.18.04-.27c0-.2-.04-.37-.11-.52s-.17-.27-.3-.37-.28-.18-.46-.23-.37-.08-.59-.08c-.19 0-.38.03-.54.08s-.32.13-.44.23-.23.22-.3.37-.11.3-.11.48h.85c0-.07.02-.14.05-.2s.07-.11.12-.15.11-.07.18-.1.14-.03.22-.03c.1 0 .18.01.25.04s.13.06.18.11.08.11.11.17.04.14.04.22c0 .18-.05.32-.16.43s-.26.16-.48.16h-.43v.66h.45c.11 0 .2.01.29.04s.16.06.22.11.11.12.14.2.05.18.05.29c0 .09-.01.17-.04.24s-.07.13-.12.18z"/>
-  </svg>
-);
-
-const NextEpisodeIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
+    <path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/>
   </svg>
 );
 
 const SettingsIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor">
     <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+  </svg>
+);
+
+const CloseIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
   </svg>
 );
 
@@ -87,6 +87,52 @@ const formatTime = (seconds) => {
   return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
+// Parse quality from torrent name
+const parseQuality = (name) => {
+  if (!name) return 'Desconeguda';
+  const lower = name.toLowerCase();
+  if (lower.includes('2160p') || lower.includes('4k') || lower.includes('uhd')) return '4K';
+  if (lower.includes('1080p')) return '1080p';
+  if (lower.includes('720p')) return '720p';
+  if (lower.includes('480p')) return '480p';
+  if (lower.includes('hdtv')) return 'HDTV';
+  if (lower.includes('web')) return 'WEB';
+  return 'SD';
+};
+
+// Parse language from torrent name/title
+const parseLanguage = (name, title) => {
+  const text = `${name} ${title}`.toLowerCase();
+
+  // Check flags first
+  if (title) {
+    if (title.includes('🇪🇸') || title.includes('🇲🇽')) return 'Castellà';
+    if (title.includes('🇬🇧') || title.includes('🇺🇸')) return 'Anglès';
+    if (title.includes('🇯🇵')) return 'Japonès';
+    if (title.includes('🇫🇷')) return 'Francès';
+    if (title.includes('🇩🇪')) return 'Alemany';
+    if (title.includes('🇮🇹')) return 'Italià';
+    if (title.includes('🇰🇷')) return 'Coreà';
+    if (title.includes('🇨🇳') || title.includes('🇹🇼')) return 'Xinès';
+    if (title.includes('🇵🇹') || title.includes('🇧🇷')) return 'Portuguès';
+    if (title.includes('🇷🇺')) return 'Rus';
+  }
+
+  // Check text patterns
+  if (text.includes('spanish') || text.includes('español') || text.includes('castellano') || text.includes('esp')) return 'Castellà';
+  if (text.includes('latino') || text.includes('lat')) return 'Llatí';
+  if (text.includes('catala') || text.includes('català')) return 'Català';
+  if (text.includes('french') || text.includes('français') || text.includes('vff') || text.includes('vf')) return 'Francès';
+  if (text.includes('german') || text.includes('deutsch')) return 'Alemany';
+  if (text.includes('italian') || text.includes('italiano')) return 'Italià';
+  if (text.includes('japanese') || text.includes('日本語')) return 'Japonès';
+  if (text.includes('korean') || text.includes('한국어')) return 'Coreà';
+  if (text.includes('multi')) return 'Multi';
+  if (text.includes('dual')) return 'Dual';
+
+  return 'Anglès'; // Default
+};
+
 function DebridPlayer() {
   const { type, tmdbId } = useParams();
   const location = useLocation();
@@ -97,6 +143,7 @@ function DebridPlayer() {
   const containerRef = useRef(null);
   const controlsTimeoutRef = useRef(null);
   const progressSaveTimeoutRef = useRef(null);
+  const resumeTimeRef = useRef(0);
 
   // URL params
   const searchParams = new URLSearchParams(location.search);
@@ -124,9 +171,60 @@ function DebridPlayer() {
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
-  const [showTorrentList, setShowTorrentList] = useState(true);
+  const [showQualityMenu, setShowQualityMenu] = useState(false);
 
   const mediaType = type === 'movie' ? 'movie' : 'tv';
+
+  // Group torrents by quality and language
+  const groupedTorrents = useMemo(() => {
+    const groups = {};
+
+    torrents.forEach(torrent => {
+      const quality = parseQuality(torrent.name);
+      const language = parseLanguage(torrent.name, torrent.title);
+      const key = `${quality}-${language}`;
+
+      if (!groups[key]) {
+        groups[key] = {
+          quality,
+          language,
+          torrents: [],
+          hasCached: false
+        };
+      }
+
+      groups[key].torrents.push(torrent);
+      if (torrent.cached) {
+        groups[key].hasCached = true;
+      }
+    });
+
+    // Sort groups: cached first, then by quality
+    const qualityOrder = { '4K': 0, '1080p': 1, '720p': 2, 'WEB': 3, 'HDTV': 4, '480p': 5, 'SD': 6, 'Desconeguda': 7 };
+
+    return Object.values(groups).sort((a, b) => {
+      // Cached first
+      if (a.hasCached && !b.hasCached) return -1;
+      if (!a.hasCached && b.hasCached) return 1;
+      // Then by quality
+      return (qualityOrder[a.quality] || 99) - (qualityOrder[b.quality] || 99);
+    });
+  }, [torrents]);
+
+  // Available qualities and languages
+  const availableQualities = useMemo(() => {
+    const qualities = [...new Set(groupedTorrents.map(g => g.quality))];
+    return qualities;
+  }, [groupedTorrents]);
+
+  const availableLanguages = useMemo(() => {
+    const languages = [...new Set(groupedTorrents.map(g => g.language))];
+    return languages;
+  }, [groupedTorrents]);
+
+  // Current selection info
+  const currentQuality = selectedTorrent ? parseQuality(selectedTorrent.name) : null;
+  const currentLanguage = selectedTorrent ? parseLanguage(selectedTorrent.name, selectedTorrent.title) : null;
 
   // Load media info
   const loadMediaInfo = useCallback(async () => {
@@ -152,7 +250,7 @@ function DebridPlayer() {
     }
   }, [type, tmdbId, season]);
 
-  // Search torrents
+  // Search torrents and auto-play best cached
   const searchTorrents = useCallback(async () => {
     setLoadingTorrents(true);
     setError(null);
@@ -162,12 +260,23 @@ function DebridPlayer() {
         url += `?season=${season}&episode=${episode}`;
       }
       const response = await axios.get(url);
-      setTorrents(response.data.streams || []);
+      const streams = response.data.streams || [];
+      setTorrents(streams);
 
-      // Auto-select first cached torrent if available
-      const cached = response.data.streams.find(t => t.cached);
-      if (cached) {
-        setSelectedTorrent(cached);
+      // Auto-select best cached torrent (highest quality cached)
+      const cachedTorrents = streams.filter(t => t.cached);
+      if (cachedTorrents.length > 0) {
+        // Sort by quality
+        const qualityOrder = { '4K': 0, '2160p': 0, '1080p': 1, '720p': 2 };
+        cachedTorrents.sort((a, b) => {
+          const qA = parseQuality(a.name);
+          const qB = parseQuality(b.name);
+          return (qualityOrder[qA] ?? 99) - (qualityOrder[qB] ?? 99);
+        });
+        setSelectedTorrent(cachedTorrents[0]);
+      } else if (streams.length > 0) {
+        // No cached, show selection menu
+        setShowQualityMenu(true);
       }
     } catch (err) {
       console.error('Error buscant torrents:', err);
@@ -178,12 +287,17 @@ function DebridPlayer() {
   }, [mediaType, tmdbId, season, episode]);
 
   // Get stream URL from selected torrent
-  const getStreamUrl = useCallback(async (torrent) => {
+  const getStreamUrl = useCallback(async (torrent, keepTime = false) => {
     if (!torrent) return;
+
+    // Save current time if switching streams
+    if (keepTime && videoRef.current) {
+      resumeTimeRef.current = videoRef.current.currentTime;
+    }
 
     setLoadingStream(true);
     setError(null);
-    setShowTorrentList(false);
+    setShowQualityMenu(false);
 
     try {
       const response = await axios.post(`${API_URL}/api/debrid/stream`, null, {
@@ -205,6 +319,21 @@ function DebridPlayer() {
       setLoadingStream(false);
     }
   }, []);
+
+  // Change quality/language
+  const changeTorrent = useCallback((quality, language) => {
+    const group = groupedTorrents.find(g => g.quality === quality && g.language === language);
+    if (!group) return;
+
+    // Prefer cached torrent from the group
+    const torrent = group.torrents.find(t => t.cached) || group.torrents[0];
+    if (torrent && torrent.info_hash !== selectedTorrent?.info_hash) {
+      setSelectedTorrent(torrent);
+      setStreamUrl(null); // Reset to trigger new stream fetch
+      getStreamUrl(torrent, true); // Keep current time
+    }
+    setShowQualityMenu(false);
+  }, [groupedTorrents, selectedTorrent, getStreamUrl]);
 
   // Save progress to backend
   const saveProgress = useCallback(async (percent, completed = false) => {
@@ -251,6 +380,12 @@ function DebridPlayer() {
   const handleLoadedMetadata = useCallback(() => {
     if (!videoRef.current) return;
     setDuration(videoRef.current.duration);
+
+    // Resume from saved position if switching streams
+    if (resumeTimeRef.current > 0) {
+      videoRef.current.currentTime = resumeTimeRef.current;
+      resumeTimeRef.current = 0;
+    }
   }, []);
 
   const handlePlay = useCallback(() => setIsPlaying(true), []);
@@ -259,7 +394,6 @@ function DebridPlayer() {
   const handleEnded = useCallback(() => {
     setIsPlaying(false);
     saveProgress(100, true);
-    // TODO: Auto-play next episode
   }, [saveProgress]);
 
   // Controls
@@ -322,17 +456,22 @@ function DebridPlayer() {
       clearTimeout(controlsTimeoutRef.current);
     }
 
-    if (isPlaying && !showTorrentList) {
+    if (isPlaying && !showQualityMenu) {
       controlsTimeoutRef.current = setTimeout(() => {
         setShowControls(false);
       }, 3000);
     }
-  }, [isPlaying, showTorrentList]);
+  }, [isPlaying, showQualityMenu]);
 
   // Keyboard controls
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (showTorrentList) return;
+      if (showQualityMenu) {
+        if (e.key === 'Escape') {
+          setShowQualityMenu(false);
+        }
+        return;
+      }
 
       switch (e.key) {
         case ' ':
@@ -368,7 +507,7 @@ function DebridPlayer() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlay, skipBack, skipForward, toggleFullscreen, toggleMute, isFullscreen, showTorrentList]);
+  }, [togglePlay, skipBack, skipForward, toggleFullscreen, toggleMute, isFullscreen, showQualityMenu]);
 
   // Initial load
   useEffect(() => {
@@ -379,10 +518,10 @@ function DebridPlayer() {
 
   // Auto-get stream when torrent is selected
   useEffect(() => {
-    if (selectedTorrent && !streamUrl) {
+    if (selectedTorrent && !streamUrl && !loadingStream) {
       getStreamUrl(selectedTorrent);
     }
-  }, [selectedTorrent, streamUrl, getStreamUrl]);
+  }, [selectedTorrent, streamUrl, loadingStream, getStreamUrl]);
 
   // Fullscreen change detection
   useEffect(() => {
@@ -399,7 +538,6 @@ function DebridPlayer() {
       if (videoRef.current && duration > 0) {
         const percent = Math.round((videoRef.current.currentTime / duration) * 100);
         if (percent > 5 && percent < 95) {
-          // Use sendBeacon for reliability
           const data = JSON.stringify({
             tmdb_id: parseInt(tmdbId),
             media_type: type === 'movie' ? 'movie' : 'series',
@@ -425,7 +563,7 @@ function DebridPlayer() {
       ref={containerRef}
       className={`debrid-player ${isFullscreen ? 'fullscreen' : ''} ${showControls ? 'show-controls' : ''}`}
       onMouseMove={handleMouseMove}
-      onClick={() => !showTorrentList && togglePlay()}
+      onClick={() => !showQualityMenu && streamUrl && togglePlay()}
     >
       {/* Video element */}
       {streamUrl && (
@@ -462,38 +600,38 @@ function DebridPlayer() {
         </div>
       )}
 
-      {/* Torrent selection */}
-      {showTorrentList && !loadingTorrents && torrents.length > 0 && (
-        <div className="torrent-list-overlay" onClick={(e) => e.stopPropagation()}>
-          <div className="torrent-list-container">
-            <h2>Selecciona una font</h2>
-            <p className="torrent-info">
-              {torrents.filter(t => t.cached).length} de {torrents.length} disponibles instantàniament
-            </p>
-            <div className="torrent-list">
-              {torrents.map((torrent, index) => (
+      {/* Quality/Language Menu */}
+      {showQualityMenu && (
+        <div className="quality-menu-overlay" onClick={(e) => e.stopPropagation()}>
+          <div className="quality-menu">
+            <div className="quality-menu-header">
+              <h3>Qualitat i idioma</h3>
+              <button className="close-btn" onClick={() => setShowQualityMenu(false)}>
+                <CloseIcon />
+              </button>
+            </div>
+            <div className="quality-menu-content">
+              {groupedTorrents.map((group, index) => (
                 <div
-                  key={torrent.info_hash || index}
-                  className={`torrent-item ${torrent.cached ? 'cached' : ''} ${selectedTorrent?.info_hash === torrent.info_hash ? 'selected' : ''}`}
-                  onClick={() => {
-                    setSelectedTorrent(torrent);
-                    setStreamUrl(null);
-                  }}
+                  key={index}
+                  className={`quality-option ${
+                    currentQuality === group.quality && currentLanguage === group.language ? 'active' : ''
+                  } ${group.hasCached ? 'cached' : ''}`}
+                  onClick={() => changeTorrent(group.quality, group.language)}
                 >
-                  <div className="torrent-quality">
-                    {torrent.quality || '??'}
-                    {torrent.cached && <span className="cached-badge">⚡</span>}
+                  <div className="quality-label">
+                    <span className="quality-value">{group.quality}</span>
+                    {group.hasCached && <span className="cached-icon">⚡</span>}
                   </div>
-                  <div className="torrent-details">
-                    <span className="torrent-name">{torrent.name}</span>
-                    <span className="torrent-meta">
-                      {torrent.size && <span>{torrent.size}</span>}
-                      {torrent.seeders && <span>👤 {torrent.seeders}</span>}
-                      {torrent.source && <span>{torrent.source}</span>}
-                    </span>
-                  </div>
+                  <div className="language-label">{group.language}</div>
+                  <div className="torrent-count">{group.torrents.length} font{group.torrents.length > 1 ? 's' : ''}</div>
                 </div>
               ))}
+              {groupedTorrents.length === 0 && !loadingTorrents && (
+                <div className="no-torrents">
+                  No s'han trobat fonts disponibles
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -508,9 +646,6 @@ function DebridPlayer() {
           <h1>{title}</h1>
           {subtitle && <span>{subtitle}</span>}
         </div>
-        <button className="sources-button" onClick={() => setShowTorrentList(!showTorrentList)}>
-          <SettingsIcon />
-        </button>
       </div>
 
       {/* Controls */}
@@ -536,10 +671,10 @@ function DebridPlayer() {
               <button onClick={(e) => { e.stopPropagation(); togglePlay(); }}>
                 {isPlaying ? <PauseIcon /> : <PlayIcon />}
               </button>
-              <button onClick={(e) => { e.stopPropagation(); skipBack(); }}>
+              <button onClick={(e) => { e.stopPropagation(); skipBack(); }} title="-10s">
                 <SkipBackIcon />
               </button>
-              <button onClick={(e) => { e.stopPropagation(); skipForward(); }}>
+              <button onClick={(e) => { e.stopPropagation(); skipForward(); }} title="+30s">
                 <SkipForwardIcon />
               </button>
               <div className="volume-control" onClick={(e) => e.stopPropagation()}>
@@ -563,11 +698,15 @@ function DebridPlayer() {
 
             {/* Right controls */}
             <div className="controls-right">
-              {type !== 'movie' && (
-                <button onClick={(e) => e.stopPropagation()}>
-                  <NextEpisodeIcon />
-                </button>
-              )}
+              {/* Quality indicator & button */}
+              <button
+                className="quality-button"
+                onClick={(e) => { e.stopPropagation(); setShowQualityMenu(true); }}
+                title="Canviar qualitat/idioma"
+              >
+                <span className="current-quality">{currentQuality || 'HD'}</span>
+                <SettingsIcon />
+              </button>
               <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}>
                 {isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
               </button>
