@@ -971,8 +971,9 @@ async def get_continue_watching(request: Request):
         """, (user_id,))
 
         # Filtrar duplicats en Python - més fiable que SQL complex
+        # Per sèries: només mostrar l'episodi més recent (agrupar per tmdb_id)
         seen_movies = set()  # Per pel·lícules: només tmdb_id
-        seen_episodes = set()  # Per sèries: tmdb_id + season + episode
+        seen_series = set()  # Per sèries: només tmdb_id (un entry per sèrie)
 
         for row in cursor.fetchall():
             tmdb_id = row["tmdb_id"]
@@ -985,11 +986,10 @@ async def get_continue_watching(request: Request):
                 seen_movies.add(tmdb_id)
                 item_type = "movie"
             else:
-                # Per sèries, permetre múltiples episodis però no duplicats del mateix
-                episode_key = (tmdb_id, row["season_number"], row["episode_number"])
-                if episode_key in seen_episodes:
-                    continue
-                seen_episodes.add(episode_key)
+                # Per sèries, només mostrar un entry (l'episodi més recent)
+                if tmdb_id in seen_series:
+                    continue  # Ja tenim aquesta sèrie
+                seen_series.add(tmdb_id)
                 item_type = "series"
 
             # Usar valors reals si disponibles, si no estimar
