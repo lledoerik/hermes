@@ -924,12 +924,12 @@ function DebridPlayer() {
         </div>
       )}
 
-      {/* Quality/Language Menu */}
+      {/* Quality Menu */}
       {showQualityMenu && (
         <div className="quality-menu-overlay" onClick={(e) => e.stopPropagation()}>
           <div className="quality-menu">
             <div className="quality-menu-header">
-              <h3>Qualitat i idioma</h3>
+              <h3>Qualitat</h3>
               <button className="close-btn" onClick={() => setShowQualityMenu(false)}>
                 <CloseIcon />
               </button>
@@ -943,11 +943,8 @@ function DebridPlayer() {
                   } ${group.hasCached ? 'cached' : ''}`}
                   onClick={() => changeTorrent(group.quality)}
                 >
-                  <div className="quality-label">
-                    <span className="quality-value">{group.quality}</span>
-                    {group.hasCached && <span className="cached-icon">⚡</span>}
-                  </div>
-                  <div className="torrent-count">{group.torrents.length} font{group.torrents.length > 1 ? 's' : ''}</div>
+                  <span className="quality-value">{group.quality}</span>
+                  {group.hasCached && <span className="cached-icon">⚡</span>}
                 </div>
               ))}
               {groupedTorrents.length === 0 && !loadingTorrents && (
