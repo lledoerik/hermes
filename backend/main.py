@@ -8559,20 +8559,26 @@ async def get_cached_stream(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ==================== OPENSUBTITLES API ====================
+# ==================== SUBTITLES API ====================
 
-def get_opensubtitles_api_key() -> Optional[str]:
-    """Obtenir la clau API d'OpenSubtitles"""
-    return os.getenv("OPENSUBTITLES_API_KEY", "")
+# Client de subtítols compartit (cache)
+_subtitle_client = None
+
+def get_subtitle_client():
+    """Obtenir el client de subtítols"""
+    global _subtitle_client
+    if _subtitle_client is None:
+        from backend.debrid.opensubtitles import SubtitleClient
+        _subtitle_client = SubtitleClient()
+    return _subtitle_client
 
 
 @app.get("/api/subtitles/status")
 async def get_subtitles_status():
-    """Comprovar si OpenSubtitles està configurat"""
-    api_key = get_opensubtitles_api_key()
+    """Comprovar si els subtítols estan configurats"""
     return {
-        "configured": bool(api_key),
-        "service": "OpenSubtitles"
+        "configured": True,
+        "service": "Subdl"
     }
 
 
@@ -8594,32 +8600,25 @@ async def search_subtitles(
         episode: Número d'episodi (per sèries)
         languages: Idiomes a buscar (per defecte: ca,es,en)
     """
-    api_key = get_opensubtitles_api_key()
-    if not api_key:
-        return {"subtitles": [], "message": "OpenSubtitles no configurat"}
-
-    from backend.debrid.opensubtitles import OpenSubtitlesClient
+    client = get_subtitle_client()
 
     # Obtenir l'IMDB ID des del TMDB
     imdb_id = None
     try:
-        # Fer petició a TMDB per obtenir l'IMDB ID
         tmdb_api_key = os.getenv("TMDB_API_KEY", "")
         if tmdb_api_key:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient() as http_client:
                 if media_type == "movie":
                     url = f"https://api.themoviedb.org/3/movie/{tmdb_id}/external_ids"
                 else:
                     url = f"https://api.themoviedb.org/3/tv/{tmdb_id}/external_ids"
 
-                response = await client.get(url, params={"api_key": tmdb_api_key})
+                response = await http_client.get(url, params={"api_key": tmdb_api_key})
                 if response.status_code == 200:
                     data = response.json()
                     imdb_id = data.get("imdb_id")
     except Exception as e:
         logger.warning(f"No s'ha pogut obtenir IMDB ID: {e}")
-
-    client = OpenSubtitlesClient(api_key)
 
     # Parsejar idiomes
     lang_list = [l.strip() for l in languages.split(",") if l.strip()]
@@ -8634,7 +8633,7 @@ async def search_subtitles(
         )
 
         return {
-            "subtitles": [s.to_dict() for s in subtitles[:20]],  # Limitar a 20
+            "subtitles": [s.to_dict() for s in subtitles[:20]],
             "total": len(subtitles)
         }
 
@@ -8649,18 +8648,12 @@ async def download_subtitle(file_id: str):
     Descarregar un subtítol en format VTT
 
     Args:
-        file_id: ID del fitxer de subtítol d'OpenSubtitles
+        file_id: ID del subtítol (format: source_id, e.g., subdl_12345)
 
     Returns:
         Contingut del subtítol en format VTT
     """
-    api_key = get_opensubtitles_api_key()
-    if not api_key:
-        raise HTTPException(status_code=400, detail="OpenSubtitles no configurat")
-
-    from backend.debrid.opensubtitles import OpenSubtitlesClient
-
-    client = OpenSubtitlesClient(api_key)
+    client = get_subtitle_client()
 
     try:
         content = await client.download_subtitle(file_id)
