@@ -163,10 +163,24 @@ function StreamPlayer() {
   // Guardar progrés de streaming
   const saveStreamingProgress = useCallback(async (progressPercent = 50, completed = false) => {
     try {
-      // Trobar l'episodi actual per obtenir still_path
+      // Trobar l'episodi actual per obtenir still_path i runtime
       const currentEpisode = type !== 'movie'
         ? episodes.find(ep => ep.episode_number === parseInt(episode || 1))
         : null;
+
+      // Calcular segons totals i de progrés
+      // Per pel·lícules usar runtime de mediaInfo, per sèries usar runtime de l'episodi
+      let runtimeMinutes = 0;
+      if (type === 'movie' && mediaInfo?.runtime) {
+        runtimeMinutes = mediaInfo.runtime;
+      } else if (currentEpisode?.runtime) {
+        runtimeMinutes = currentEpisode.runtime;
+      } else {
+        runtimeMinutes = 45; // Fallback per episodis sense runtime
+      }
+
+      const totalSeconds = runtimeMinutes * 60;
+      const progressSeconds = Math.round((progressPercent / 100) * totalSeconds);
 
       await axios.post('/api/streaming/progress', {
         tmdb_id: parseInt(tmdbId),
@@ -174,6 +188,8 @@ function StreamPlayer() {
         season_number: type !== 'movie' ? (season || 1) : null,
         episode_number: type !== 'movie' ? (episode || 1) : null,
         progress_percent: progressPercent,
+        progress_seconds: progressSeconds,
+        total_seconds: totalSeconds,
         completed: completed,
         title: mediaInfo?.title || mediaInfo?.name || '',
         poster_path: mediaInfo?.poster_path || null,
@@ -270,10 +286,22 @@ function StreamPlayer() {
   useEffect(() => {
     const handleBeforeUnload = () => {
       if (!isWatched && !showStartOverlay) {
-        // Trobar l'episodi actual per obtenir still_path
+        // Trobar l'episodi actual per obtenir still_path i runtime
         const currentEpisode = type !== 'movie'
           ? episodes.find(ep => ep.episode_number === parseInt(episode || 1))
           : null;
+
+        // Calcular segons totals
+        let runtimeMinutes = 0;
+        if (type === 'movie' && mediaInfo?.runtime) {
+          runtimeMinutes = mediaInfo.runtime;
+        } else if (currentEpisode?.runtime) {
+          runtimeMinutes = currentEpisode.runtime;
+        } else {
+          runtimeMinutes = 45;
+        }
+        const totalSeconds = runtimeMinutes * 60;
+        const progressSeconds = Math.round(0.5 * totalSeconds); // 50%
 
         const data = JSON.stringify({
           tmdb_id: parseInt(tmdbId),
@@ -281,6 +309,8 @@ function StreamPlayer() {
           season_number: type !== 'movie' ? (season || 1) : null,
           episode_number: type !== 'movie' ? (episode || 1) : null,
           progress_percent: 50,
+          progress_seconds: progressSeconds,
+          total_seconds: totalSeconds,
           completed: false,
           title: mediaInfo?.title || mediaInfo?.name || '',
           poster_path: mediaInfo?.poster_path || null,

@@ -355,6 +355,16 @@ def init_all_tables():
         except:
             pass  # La columna ja existeix
 
+        # Migració: Afegir columnes progress_seconds i total_seconds
+        try:
+            cursor.execute("ALTER TABLE streaming_progress ADD COLUMN progress_seconds INTEGER")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE streaming_progress ADD COLUMN total_seconds INTEGER")
+        except:
+            pass
+
         # Taula watchlist (llista de contingut per veure)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS watchlist (
@@ -452,6 +462,8 @@ class StreamingProgressRequest(BaseModel):
     season_number: Optional[int] = None
     episode_number: Optional[int] = None
     progress_percent: float = 50.0
+    progress_seconds: Optional[int] = None  # Segons actuals de visualització
+    total_seconds: Optional[int] = None  # Durada total en segons
     completed: bool = False
     title: Optional[str] = None
     poster_path: Optional[str] = None
@@ -914,6 +926,8 @@ async def get_continue_watching(request: Request):
                 sp.season_number,
                 sp.episode_number,
                 sp.progress_percent,
+                sp.progress_seconds,
+                sp.total_seconds,
                 sp.completed,
                 sp.title,
                 sp.poster_path,
@@ -935,6 +949,14 @@ async def get_continue_watching(request: Request):
             else:
                 item_type = "series"
 
+            # Usar valors reals si disponibles, si no estimar
+            progress_secs = row["progress_seconds"]
+            total_secs = row["total_seconds"]
+            if progress_secs is None or total_secs is None:
+                # Fallback per entrades antigues sense segons reals
+                total_secs = 6000  # 100 min estimat
+                progress_secs = int((row["progress_percent"] / 100) * total_secs)
+
             watching.append({
                 "id": row["id"],
                 "type": item_type,
@@ -946,8 +968,8 @@ async def get_continue_watching(request: Request):
                 "poster": row["poster_path"],
                 "backdrop": row["backdrop_path"],
                 "still_path": row["still_path"],
-                "progress_seconds": row["progress_percent"] * 60,  # Simular segons per compatibilitat
-                "total_seconds": 6000,  # Valor estimat (100 min)
+                "progress_seconds": progress_secs,
+                "total_seconds": total_secs,
                 "progress_percentage": row["progress_percent"],
                 "last_watched": row["updated_date"],
                 "source": "streaming"
@@ -1206,11 +1228,14 @@ async def save_streaming_progress(data: StreamingProgressRequest, request: Reque
         cursor.execute("""
             INSERT INTO streaming_progress (
                 user_id, tmdb_id, media_type, season_number, episode_number,
-                progress_percent, completed, title, poster_path, backdrop_path, still_path, updated_date
+                progress_percent, progress_seconds, total_seconds,
+                completed, title, poster_path, backdrop_path, still_path, updated_date
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
             ON CONFLICT(user_id, tmdb_id, media_type, season_number, episode_number) DO UPDATE SET
                 progress_percent = excluded.progress_percent,
+                progress_seconds = COALESCE(excluded.progress_seconds, streaming_progress.progress_seconds),
+                total_seconds = COALESCE(excluded.total_seconds, streaming_progress.total_seconds),
                 completed = excluded.completed,
                 title = COALESCE(excluded.title, streaming_progress.title),
                 poster_path = COALESCE(excluded.poster_path, streaming_progress.poster_path),
@@ -1218,7 +1243,8 @@ async def save_streaming_progress(data: StreamingProgressRequest, request: Reque
                 still_path = COALESCE(excluded.still_path, streaming_progress.still_path),
                 updated_date = datetime('now')
         """, (user_id, data.tmdb_id, data.media_type, season, episode,
-              data.progress_percent, 1 if data.completed else 0, data.title,
+              data.progress_percent, data.progress_seconds, data.total_seconds,
+              1 if data.completed else 0, data.title,
               data.poster_path, data.backdrop_path, data.still_path))
 
         conn.commit()
