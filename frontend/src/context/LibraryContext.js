@@ -132,7 +132,7 @@ export function LibraryProvider({ children }) {
       if (contentType && contentType !== 'all') {
         params.content_type = contentType;
       }
-      if (category && !['name', 'year', 'popular'].includes(category)) {
+      if (category && !['name', 'year'].includes(category)) {
         params.category = category;
       }
       const response = await axios.get(`${API_URL}/api/library/movies`, { params });
@@ -166,7 +166,7 @@ export function LibraryProvider({ children }) {
       if (contentType && contentType !== 'all') {
         params.content_type = contentType;
       }
-      if (category && !['name', 'year', 'popular'].includes(category)) {
+      if (category && !['name', 'year'].includes(category)) {
         params.category = category;
       }
       const response = await axios.get(`${API_URL}/api/library/series`, { params });
