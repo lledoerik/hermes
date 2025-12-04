@@ -32,14 +32,14 @@ const LIBRARY_CONFIG = {
       { value: 'duration', label: 'Ordenar per duració' }
     ],
     categories: {
-      popular: 'Populars',
       name: 'Per nom',
       year: 'Per any',
       now_playing: 'Cartellera',
       upcoming: 'Pròximament'
     },
     emptyText: 'pel·lícules',
-    searchPlaceholder: 'Cerca pel·lícules...'
+    searchPlaceholder: 'Cerca pel·lícules...',
+    tmdbSearchType: 'movies'
   },
   series: {
     title: 'Sèries',
@@ -61,14 +61,14 @@ const LIBRARY_CONFIG = {
       { value: 'seasons', label: 'Ordenar per temporades' }
     ],
     categories: {
-      popular: 'Populars',
       name: 'Per nom',
       year: 'Per any',
       on_the_air: 'En emissió',
       airing_today: 'Avui'
     },
     emptyText: 'sèries',
-    searchPlaceholder: 'Cerca sèries...'
+    searchPlaceholder: 'Cerca sèries...',
+    tmdbSearchType: 'series'
   }
 };
 
@@ -100,8 +100,8 @@ function MediaLibrary({ type = 'series' }) {
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sortBy, setSortBy] = useState('popular');
-  const [activeCategory, setActiveCategory] = useState('popular');
+  const [sortBy, setSortBy] = useState('name');
+  const [activeCategory, setActiveCategory] = useState('name');
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -150,9 +150,9 @@ function MediaLibrary({ type = 'series' }) {
     localStorage.setItem(config.storageKey, JSON.stringify(activeFilters));
   }, [activeFilters, config.storageKey]);
 
-  // Cerca a la BD
+  // Cerca a TMDB (igual que Search.js però filtrat per tipus)
   useEffect(() => {
-    const searchInDatabase = async () => {
+    const searchTMDB = async () => {
       if (!searchQuery.trim()) {
         setLocalSearchResults(null);
         return;
@@ -160,20 +160,32 @@ function MediaLibrary({ type = 'series' }) {
 
       setSearchLoading(true);
       try {
-        const contentType = filtersToContentTypes(activeFilters);
-        const response = await axios.get(`${config.apiEndpoint}?search=${encodeURIComponent(searchQuery)}&limit=500&content_type=${contentType}`);
-        setLocalSearchResults(response.data?.items || []);
+        // Cercar a TMDB - igual que Search.js
+        const response = await axios.get(`/api/tmdb/search?q=${encodeURIComponent(searchQuery)}`);
+        // Filtrar només pel tipus corresponent (movies o series)
+        const results = response.data[config.tmdbSearchType] || [];
+        // Convertir al format esperat per MediaCard
+        const formattedResults = results.map(item => ({
+          id: `tmdb-${item.tmdb_id}`,
+          tmdb_id: item.tmdb_id,
+          name: item.name,
+          year: item.year,
+          poster: item.poster,
+          rating: item.rating,
+          is_tmdb: true
+        }));
+        setLocalSearchResults(formattedResults);
       } catch (error) {
-        console.error('Error cercant a la BD:', error);
+        console.error('Error cercant a TMDB:', error);
         setLocalSearchResults([]);
       } finally {
         setSearchLoading(false);
       }
     };
 
-    const timer = setTimeout(searchInDatabase, 300);
+    const timer = setTimeout(searchTMDB, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery, activeFilters, config.apiEndpoint, filtersToContentTypes]);
+  }, [searchQuery, config.tmdbSearchType]);
 
   // Gestió de filtres
   const handleFilterClick = useCallback((filterId) => {
@@ -198,8 +210,8 @@ function MediaLibrary({ type = 'series' }) {
       setLoading(true);
       const contentType = filtersToContentTypes(activeFilters);
       // Convertir categoria a sortBy per l'API
-      const apiSortBy = ['name', 'year'].includes(activeCategory) ? activeCategory : 'popular';
-      // Passar categoria per filtrar per TMDB (popular, now_playing, upcoming, etc.)
+      const apiSortBy = ['name', 'year'].includes(activeCategory) ? activeCategory : 'name';
+      // Passar categoria per filtrar per TMDB (now_playing, upcoming, etc.)
       const apiCategory = !['name', 'year'].includes(activeCategory) ? activeCategory : null;
       const data = await getItems(currentPage, itemsPerPage, apiSortBy, contentType, apiCategory);
       setItems(data.items || []);
@@ -406,10 +418,11 @@ function MediaLibrary({ type = 'series' }) {
           <div className="library-grid">
             {sortedItems.map((item) => (
               <MediaCard
-                key={`local-${item.id}`}
+                key={item.id}
                 item={item}
                 type={type}
                 width="100%"
+                isTmdb={item.is_tmdb}
               />
             ))}
           </div>
