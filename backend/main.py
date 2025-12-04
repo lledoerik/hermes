@@ -12,7 +12,7 @@ import logging
 import asyncio
 from pathlib import Path
 from typing import Optional, List, Dict
-from contextlib import contextmanager
+from contextlib import contextmanager, asynccontextmanager
 from datetime import datetime
 
 from fastapi import FastAPI, HTTPException, Depends, Query, Request, BackgroundTasks, UploadFile, File
@@ -38,11 +38,37 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Scheduler global per sincronització automàtica
+scheduler = AsyncIOScheduler()
+
+# Lifespan per gestionar startup/shutdown
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Gestiona l'inici i tancament de l'aplicació."""
+    # Startup
+    scheduler.add_job(
+        daily_sync_job,
+        CronTrigger(hour=2, minute=30),
+        id="daily_sync",
+        name="Sincronització diària TMDB + Llibres",
+        replace_existing=True
+    )
+    scheduler.start()
+    logger.info("Scheduler iniciat - Sincronització diària programada a les 2:30 AM")
+
+    yield  # L'aplicació s'executa aquí
+
+    # Shutdown
+    scheduler.shutdown()
+    logger.info("Scheduler aturat")
+
+
 # Crear app FastAPI
 app = FastAPI(
     title="Hermes Media Server",
     description="Sistema de streaming personal amb suport multi-pista",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Configurar CORS
@@ -7239,9 +7265,6 @@ async def get_anime_episode_sources(source: str, anime_id: str, episode: int):
 
 # === SINCRONITZACIÓ AUTOMÀTICA ===
 
-# Scheduler global
-scheduler = AsyncIOScheduler()
-
 async def sync_tmdb_category(media_type: str, category: str, max_pages: int = 50):
     """
     Sincronitza una categoria de TMDB important tot el contingut.
@@ -7495,28 +7518,6 @@ async def daily_sync_job():
 
     except Exception as e:
         logger.error(f"Error en sincronització diària: {e}")
-
-
-@app.on_event("startup")
-async def start_scheduler():
-    """Inicia el scheduler quan arrenca l'aplicació."""
-    # Sincronització diària a les 2:30 AM
-    scheduler.add_job(
-        daily_sync_job,
-        CronTrigger(hour=2, minute=30),
-        id="daily_sync",
-        name="Sincronització diària TMDB + Llibres",
-        replace_existing=True
-    )
-    scheduler.start()
-    logger.info("Scheduler iniciat - Sincronització diària programada a les 2:30 AM")
-
-
-@app.on_event("shutdown")
-async def stop_scheduler():
-    """Atura el scheduler quan es tanca l'aplicació."""
-    scheduler.shutdown()
-    logger.info("Scheduler aturat")
 
 
 @app.get("/api/sync/status")
