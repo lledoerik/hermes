@@ -1420,15 +1420,22 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
         # Category filter (now_playing, upcoming)
         today = datetime.now().strftime('%Y-%m-%d')
         three_months_ago = (datetime.now() - timedelta(days=90)).strftime('%Y-%m-%d')
+        current_year = datetime.now().year
 
         if category == "now_playing":
-            # Pel·lícules estrenades en els últims 3 mesos
-            where_conditions.append("s.release_date IS NOT NULL AND s.release_date >= ? AND s.release_date <= ?")
-            count_params.extend([three_months_ago, today])
+            # Pel·lícules estrenades en els últims 3 mesos (o any actual si no hi ha release_date)
+            where_conditions.append("""
+                (s.release_date IS NOT NULL AND s.release_date >= ? AND s.release_date <= ?)
+                OR (s.release_date IS NULL AND s.year = ?)
+            """)
+            count_params.extend([three_months_ago, today, current_year])
         elif category == "upcoming":
-            # Pel·lícules amb data d'estrena futura
-            where_conditions.append("s.release_date IS NOT NULL AND s.release_date > ?")
-            count_params.append(today)
+            # Pel·lícules amb data d'estrena futura (o any > actual si no hi ha release_date)
+            where_conditions.append("""
+                (s.release_date IS NOT NULL AND s.release_date > ?)
+                OR (s.release_date IS NULL AND s.year > ?)
+            """)
+            count_params.extend([today, current_year])
 
         # Search filter
         if search:
@@ -5839,10 +5846,24 @@ async def import_from_tmdb(data: ImportTMDBRequest):
     # Verificar si ja existeix (per tmdb_id o path)
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, name FROM series WHERE tmdb_id = ? OR path = ?", (data.tmdb_id, virtual_path))
+        cursor.execute("SELECT id, name, release_date FROM series WHERE tmdb_id = ? OR path = ?", (data.tmdb_id, virtual_path))
         existing = cursor.fetchone()
         if existing:
-            # Retornem èxit si ja existeix (pot passar amb imports paral·lels)
+            # Si ja existeix però no té release_date, actualitzar-lo
+            if not existing['release_date']:
+                # Obtenir release_date de TMDB
+                if data.media_type == 'movie':
+                    metadata = await fetch_movie_by_tmdb_id(api_key, data.tmdb_id)
+                else:
+                    metadata = await fetch_tv_by_tmdb_id(api_key, data.tmdb_id)
+
+                if metadata.get("release_date"):
+                    cursor.execute(
+                        "UPDATE series SET release_date = ? WHERE id = ?",
+                        (metadata.get("release_date"), existing['id'])
+                    )
+                    conn.commit()
+
             return {
                 "status": "success",
                 "message": f"'{existing['name']}' ja existeix a la biblioteca",
