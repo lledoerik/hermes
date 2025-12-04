@@ -43,7 +43,7 @@
   width: 48px;
   height: 48px;
   border: 4px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #e50914;
+  border-top-color: #328492;
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 16px;
@@ -55,12 +55,12 @@
 
 .error-overlay p {
   margin-bottom: 16px;
-  color: #e50914;
+  color: #f87171;
 }
 
 .error-overlay button {
   padding: 10px 24px;
-  background: #e50914;
+  background: #328492;
   border: none;
   border-radius: 4px;
   color: #fff;
@@ -69,7 +69,7 @@
 }
 
 .error-overlay button:hover {
-  background: #f40612;
+  background: #3d9aa8;
 }
 
 /* Torrent list */
@@ -325,7 +325,7 @@
   top: 0;
   left: 0;
   height: 100%;
-  background: #e50914;
+  background: #328492;
   border-radius: 2px;
 }
 
@@ -452,7 +452,7 @@
 }
 
 .control-btn.active {
-  color: #e50914;
+  color: #328492;
   opacity: 1;
 }
 
@@ -519,8 +519,8 @@
 }
 
 .track-option.active {
-  color: #e50914;
-  background: rgba(229, 9, 20, 0.1);
+  color: #328492;
+  background: rgba(50, 132, 146, 0.15);
 }
 
 /* Real-Debrid not configured overlay */
@@ -580,7 +580,7 @@
 
 .debrid-not-configured .config-buttons button {
   padding: 12px 24px;
-  background: #e50914;
+  background: #328492;
   border: none;
   border-radius: 6px;
   color: #fff;
@@ -591,7 +591,7 @@
 }
 
 .debrid-not-configured .config-buttons button:hover {
-  background: #f40612;
+  background: #3d9aa8;
 }
 
 .debrid-not-configured .config-buttons button.secondary {
@@ -837,6 +837,44 @@
   border-radius: 3px;
   font-weight: 500;
   white-space: nowrap;
+}
+
+/* Silent audio notification */
+.silent-notification {
+  position: absolute;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 35;
+  animation: fadeInDown 0.3s ease-out;
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.silent-notification-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(30, 41, 59, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 12px 20px;
+  color: #fff;
+  font-size: 14px;
+}
+
+.silent-icon {
+  font-size: 18px;
 }
 
 /* Responsive */
