@@ -1308,13 +1308,25 @@ async def get_streaming_progress(
             season = None
             episode = None
 
-        cursor.execute("""
-            SELECT progress_percent, completed, title, updated_date
-            FROM streaming_progress
-            WHERE user_id = ? AND tmdb_id = ? AND media_type = ?
-            AND (season_number IS ? OR season_number = ?)
-            AND (episode_number IS ? OR episode_number = ?)
-        """, (user_id, tmdb_id, media_type, season, season, episode, episode))
+        # Construir consulta dinàmicament per gestionar NULLs correctament
+        if media_type == "movie":
+            cursor.execute("""
+                SELECT progress_percent, completed, title, updated_date
+                FROM streaming_progress
+                WHERE user_id = ? AND tmdb_id = ? AND media_type = 'movie'
+                ORDER BY updated_date DESC
+                LIMIT 1
+            """, (user_id, tmdb_id))
+        else:
+            cursor.execute("""
+                SELECT progress_percent, completed, title, updated_date
+                FROM streaming_progress
+                WHERE user_id = ? AND tmdb_id = ? AND media_type = ?
+                AND COALESCE(season_number, 0) = COALESCE(?, 0)
+                AND COALESCE(episode_number, 0) = COALESCE(?, 0)
+                ORDER BY updated_date DESC
+                LIMIT 1
+            """, (user_id, tmdb_id, media_type, season, episode))
 
         row = cursor.fetchone()
         if not row:
