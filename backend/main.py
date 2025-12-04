@@ -6211,13 +6211,33 @@ async def scrape_letterboxd_watchlist(username: str) -> List[Dict]:
     page = 1
     max_pages = 10  # Limit per seguretat
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    # Capçaleres completes per simular un navegador real
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9,ca;q=0.8,es;q=0.7',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Cache-Control': 'max-age=0',
+    }
+
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
         while page <= max_pages:
-            url = f"https://letterboxd.com/{username}/watchlist/page/{page}/"
+            # Primera pàgina sense /page/1/
+            if page == 1:
+                url = f"https://letterboxd.com/{username}/watchlist/"
+            else:
+                url = f"https://letterboxd.com/{username}/watchlist/page/{page}/"
+
             try:
-                response = await client.get(url, headers={
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                })
+                response = await client.get(url, headers=headers)
+
+                logger.info(f"Letterboxd response status: {response.status_code} for {url}")
 
                 if response.status_code == 404:
                     if page == 1:
@@ -6225,23 +6245,39 @@ async def scrape_letterboxd_watchlist(username: str) -> List[Dict]:
                     break
 
                 if response.status_code != 200:
+                    logger.warning(f"Letterboxd returned status {response.status_code}")
                     break
 
                 soup = BeautifulSoup(response.text, 'lxml')
 
-                # Buscar els elements de pel·lícules
+                # Buscar els elements de pel·lícules - múltiples selectors
                 film_items = soup.select('li.poster-container')
 
+                # Fallback: buscar per altres selectors comuns de Letterboxd
                 if not film_items:
+                    film_items = soup.select('ul.poster-list li')
+
+                if not film_items:
+                    film_items = soup.select('.film-poster')
+
+                if not film_items:
+                    # Debug: log per veure què rebem
+                    logger.warning(f"No film items found on page {page}. HTML length: {len(response.text)}")
+                    # Última pàgina o llista buida
                     break
 
                 for item in film_items:
-                    poster = item.select_one('div.poster')
+                    # Buscar el div.poster o directament l'element amb data attributes
+                    poster = item.select_one('div.poster, div.film-poster') or item
                     if poster:
-                        # El títol està a data-film-name o alt de la imatge
-                        title = poster.get('data-film-name') or ''
+                        # El títol pot estar en diversos llocs
+                        title = (
+                            poster.get('data-film-name') or
+                            poster.get('data-target-link-title') or
+                            ''
+                        )
                         year_str = poster.get('data-film-release-year') or ''
-                        film_slug = poster.get('data-film-slug') or ''
+                        film_slug = poster.get('data-film-slug') or poster.get('data-target-link') or ''
 
                         # Si no tenim el títol, intentar obtenir-lo de la imatge
                         if not title:
@@ -6249,8 +6285,12 @@ async def scrape_letterboxd_watchlist(username: str) -> List[Dict]:
                             if img:
                                 title = img.get('alt', '')
 
+                        # Netejar el slug si és un path complet
+                        if film_slug and film_slug.startswith('/film/'):
+                            film_slug = film_slug.replace('/film/', '').rstrip('/')
+
                         if title:
-                            year = int(year_str) if year_str.isdigit() else None
+                            year = int(year_str) if year_str and year_str.isdigit() else None
                             movies.append({
                                 'title': title,
                                 'year': year,
@@ -6258,12 +6298,18 @@ async def scrape_letterboxd_watchlist(username: str) -> List[Dict]:
                                 'source': 'letterboxd'
                             })
 
+                # Comprovar si hi ha més pàgines
+                pagination = soup.select_one('.pagination .next, .paginate-nextprev .next')
+                if not pagination:
+                    break
+
                 page += 1
 
             except httpx.RequestError as e:
                 logger.error(f"Error fent scraping de Letterboxd: {e}")
                 break
 
+    logger.info(f"Letterboxd scraping complete: {len(movies)} movies found for {username}")
     return movies
 
 
