@@ -78,10 +78,7 @@ const getEmbedUrl = (type, tmdbId, season, episode, isAnime = false) => {
   if (type === 'movie') {
     return `https://vidsrc.cc/v2/embed/movie/${tmdbId}`;
   }
-  // Per anime, usar endpoint específic
-  if (isAnime) {
-    return `https://vidsrc.cc/v2/embed/anime/${tmdbId}/${episode || 1}/sub`;
-  }
+  // Usar sempre el format TV amb season/episode (funciona per anime també)
   return `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season || 1}/${episode || 1}`;
 };
 
