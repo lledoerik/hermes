@@ -55,12 +55,78 @@ const SeriesIcon = () => (
   </svg>
 );
 
+const DownloadIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+    <polyline points="7 10 12 15 17 10"/>
+    <line x1="12" y1="15" x2="12" y2="3"/>
+  </svg>
+);
+
+const CloseIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <line x1="18" y1="6" x2="6" y2="18"/>
+    <line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>
+);
+
+const CheckIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polyline points="20 6 9 17 4 12"/>
+  </svg>
+);
+
+const AlertIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="12" cy="12" r="10"/>
+    <line x1="12" y1="8" x2="12" y2="12"/>
+    <line x1="12" y1="16" x2="12.01" y2="16"/>
+  </svg>
+);
+
+// Platform logos
+const LetterboxdLogo = () => (
+  <svg viewBox="0 0 500 500" fill="currentColor">
+    <path d="M250 500C111.93 500 0 388.07 0 250S111.93 0 250 0s250 111.93 250 250-111.93 250-250 250zm0-450C139.54 50 50 139.54 50 250s89.54 200 200 200 200-89.54 200-200S360.46 50 250 50z"/>
+    <circle cx="150" cy="250" r="60"/>
+    <circle cx="250" cy="250" r="60"/>
+    <circle cx="350" cy="250" r="60"/>
+  </svg>
+);
+
+const MALLogo = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M8.273 7.247v8.423l-2.103-.003v-5.216l-2.03 2.404-1.989-2.458-.02 5.285H0V7.247h2.09l1.9 2.442 1.903-2.442h2.38zm5.908 0H9.152v8.423h5.03v-2.07h-2.845v-1.349h2.641v-2.074h-2.641V9.32h2.844V7.247zm5.125 0h-2.186v8.423h2.186v-2.812l1.509 2.812h2.617l-1.822-3.206 1.67-3.012h-2.454l-1.52 2.834V7.247z"/>
+  </svg>
+);
+
+const GoodreadsLogo = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12.027 11.573c-.545.178-1.09.267-1.635.267-1.363 0-2.534-.534-3.512-1.602-.979-1.068-1.468-2.424-1.468-4.068 0-1.644.489-3 1.468-4.068.978-1.068 2.149-1.602 3.512-1.602.544 0 1.09.089 1.635.267V0h1.635v11.573h-1.635zm0-8.673c-.545-.178-1.09-.267-1.635-.267-.817 0-1.507.356-2.07 1.068-.563.712-.844 1.602-.844 2.67s.281 1.958.844 2.67c.563.712 1.253 1.068 2.07 1.068.544 0 1.09-.089 1.635-.267V2.9zM19.591 24h-1.635v-5.8c-.545.178-1.09.267-1.635.267-1.363 0-2.534-.534-3.512-1.602-.979-1.068-1.468-2.424-1.468-4.068 0-1.644.489-3 1.468-4.068.978-1.068 2.149-1.602 3.512-1.602.544 0 1.09.089 1.635.267V7.127h1.635V24zm-1.635-15.1c-.545-.178-1.09-.267-1.635-.267-.817 0-1.507.356-2.07 1.068-.563.712-.844 1.602-.844 2.67s.281 1.958.844 2.67c.563.712 1.253 1.068 2.07 1.068.544 0 1.09-.089 1.635-.267V8.9z"/>
+  </svg>
+);
+
+const BookIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+  </svg>
+);
+
 function Watchlist() {
   const { isAuthenticated } = useAuth();
   const [watchlist, setWatchlist] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all, movie, series
   const navigate = useNavigate();
+
+  // Import states
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [selectedPlatform, setSelectedPlatform] = useState(null);
+  const [importUsername, setImportUsername] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importResults, setImportResults] = useState(null);
+  const [importError, setImportError] = useState(null);
 
   const loadWatchlist = useCallback(async () => {
     if (!isAuthenticated) {
@@ -104,6 +170,83 @@ function Watchlist() {
     navigate(`/${type}/tmdb-${item.tmdb_id}`);
   };
 
+  // Platform configurations
+  const platforms = {
+    letterboxd: {
+      name: 'Letterboxd',
+      icon: LetterboxdLogo,
+      color: '#00e054',
+      description: 'Importa la teva watchlist de pel·lícules',
+      placeholder: 'Nom d\'usuari de Letterboxd',
+      urlExample: 'letterboxd.com/usuari/watchlist'
+    },
+    myanimelist: {
+      name: 'MyAnimeList',
+      icon: MALLogo,
+      color: '#2e51a2',
+      description: 'Importa els animes que estàs veient',
+      placeholder: 'Nom d\'usuari de MAL',
+      urlExample: 'myanimelist.net/animelist/usuari'
+    },
+    goodreads: {
+      name: 'Goodreads',
+      icon: GoodreadsLogo,
+      color: '#553b08',
+      description: 'Importa els llibres per llegir',
+      placeholder: 'ID d\'usuari de Goodreads',
+      urlExample: 'goodreads.com/user/show/123456789'
+    }
+  };
+
+  const openImportModal = (platform) => {
+    setSelectedPlatform(platform);
+    setImportUsername('');
+    setImportResults(null);
+    setImportError(null);
+    setShowImportModal(true);
+  };
+
+  const closeImportModal = () => {
+    setShowImportModal(false);
+    setSelectedPlatform(null);
+    setImportUsername('');
+    setImportResults(null);
+    setImportError(null);
+  };
+
+  const handleImport = async () => {
+    if (!importUsername.trim()) {
+      setImportError('Cal introduir un nom d\'usuari');
+      return;
+    }
+
+    setImporting(true);
+    setImportError(null);
+    setImportResults(null);
+
+    try {
+      const response = await axios.post(`${API_URL}/api/import/external`, {
+        username: importUsername.trim(),
+        platform: selectedPlatform
+      });
+
+      setImportResults(response.data);
+
+      // Reload watchlist if items were added
+      if (response.data.results?.found?.length > 0) {
+        loadWatchlist();
+      }
+    } catch (error) {
+      console.error('Error importació:', error);
+      setImportError(
+        error.response?.data?.detail ||
+        'Error durant la importació. Comprova el nom d\'usuari.'
+      );
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const filteredWatchlist = filter === 'all'
     ? watchlist
     : watchlist.filter(item => item.media_type === filter);
@@ -143,6 +286,30 @@ function Watchlist() {
         <p className="watchlist-subtitle">
           {watchlist.length} {watchlist.length === 1 ? 'títol' : 'títols'} guardats
         </p>
+      </div>
+
+      {/* Import Section */}
+      <div className="import-section">
+        <div className="import-header">
+          <DownloadIcon />
+          <span>Importar des de...</span>
+        </div>
+        <div className="import-buttons">
+          {Object.entries(platforms).map(([key, platform]) => {
+            const Icon = platform.icon;
+            return (
+              <button
+                key={key}
+                className="import-btn"
+                style={{ '--platform-color': platform.color }}
+                onClick={() => openImportModal(key)}
+              >
+                <Icon />
+                <span>{platform.name}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {watchlist.length > 0 && (
@@ -233,6 +400,138 @@ function Watchlist() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Import Modal */}
+      {showImportModal && selectedPlatform && (
+        <div className="import-modal-overlay" onClick={closeImportModal}>
+          <div className="import-modal" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={closeImportModal}>
+              <CloseIcon />
+            </button>
+
+            <div className="modal-header" style={{ '--platform-color': platforms[selectedPlatform].color }}>
+              {React.createElement(platforms[selectedPlatform].icon)}
+              <h2>Importar de {platforms[selectedPlatform].name}</h2>
+              <p>{platforms[selectedPlatform].description}</p>
+            </div>
+
+            <div className="modal-content">
+              {!importResults ? (
+                <>
+                  <div className="input-group">
+                    <label>{platforms[selectedPlatform].placeholder}</label>
+                    <input
+                      type="text"
+                      value={importUsername}
+                      onChange={(e) => setImportUsername(e.target.value)}
+                      placeholder={platforms[selectedPlatform].placeholder}
+                      onKeyDown={(e) => e.key === 'Enter' && !importing && handleImport()}
+                      disabled={importing}
+                    />
+                    <span className="input-hint">
+                      {platforms[selectedPlatform].urlExample}
+                    </span>
+                  </div>
+
+                  {importError && (
+                    <div className="import-error">
+                      <AlertIcon />
+                      <span>{importError}</span>
+                    </div>
+                  )}
+
+                  <button
+                    className="import-submit-btn"
+                    onClick={handleImport}
+                    disabled={importing || !importUsername.trim()}
+                    style={{ '--platform-color': platforms[selectedPlatform].color }}
+                  >
+                    {importing ? (
+                      <>
+                        <div className="btn-spinner"></div>
+                        Importació...
+                      </>
+                    ) : (
+                      <>
+                        <DownloadIcon />
+                        Importar
+                      </>
+                    )}
+                  </button>
+                </>
+              ) : (
+                <div className="import-results">
+                  <div className="results-summary">
+                    <div className="result-stat success">
+                      <CheckIcon />
+                      <span>{importResults.results?.found?.length || 0}</span>
+                      <label>Afegits</label>
+                    </div>
+                    <div className="result-stat existing">
+                      <BookmarkIcon />
+                      <span>{importResults.results?.already_in_watchlist?.length || 0}</span>
+                      <label>Ja existien</label>
+                    </div>
+                    <div className="result-stat warning">
+                      <AlertIcon />
+                      <span>{importResults.results?.not_found?.length || 0}</span>
+                      <label>No trobats</label>
+                    </div>
+                  </div>
+
+                  {importResults.results?.found?.length > 0 && (
+                    <div className="results-list">
+                      <h4>Afegits a la llista:</h4>
+                      <ul>
+                        {importResults.results.found.slice(0, 10).map((item, idx) => (
+                          <li key={idx}>
+                            {item.type === 'movie' && <MovieIcon />}
+                            {item.type === 'series' && <SeriesIcon />}
+                            {item.type === 'book' && <BookIcon />}
+                            <span>{item.title}</span>
+                            {item.year && <span className="item-year">({item.year})</span>}
+                          </li>
+                        ))}
+                        {importResults.results.found.length > 10 && (
+                          <li className="more-items">
+                            ...i {importResults.results.found.length - 10} més
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+
+                  {importResults.results?.not_found?.length > 0 && (
+                    <div className="results-list not-found">
+                      <h4>No s'han trobat:</h4>
+                      <ul>
+                        {importResults.results.not_found.slice(0, 5).map((item, idx) => (
+                          <li key={idx}>
+                            <span>{item.title}</span>
+                          </li>
+                        ))}
+                        {importResults.results.not_found.length > 5 && (
+                          <li className="more-items">
+                            ...i {importResults.results.not_found.length - 5} més
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+
+                  <button
+                    className="import-done-btn"
+                    onClick={closeImportModal}
+                    style={{ '--platform-color': platforms[selectedPlatform].color }}
+                  >
+                    Fet!
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
