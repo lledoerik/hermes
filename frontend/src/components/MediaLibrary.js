@@ -304,12 +304,6 @@ function MediaLibrary({ type = 'series' }) {
     }
   };
 
-  const handleLoadMore = () => {
-    if (discoverPage < discoverTotalPages && !autoImporting && !['name', 'year'].includes(activeCategory)) {
-      loadAndImportDiscover(activeCategory, discoverPage + 1);
-    }
-  };
-
   const clearSearch = () => {
     setSearchQuery('');
   };
@@ -511,19 +505,6 @@ function MediaLibrary({ type = 'series' }) {
               <div className="empty-icon"><Icon size={48} /></div>
               <h2>No hi ha {config.emptyText}</h2>
               <p>{isAdmin ? 'Selecciona una categoria per importar contingut' : 'La biblioteca està buida'}</p>
-            </div>
-          )}
-
-          {/* Load more - només admin per categories TMDB */}
-          {isAdmin && hasResults && discoverPage < discoverTotalPages && !autoImporting && !['name', 'year'].includes(activeCategory) && (
-            <div className="load-more-container">
-              <button
-                className="load-more-btn"
-                onClick={handleLoadMore}
-                disabled={discoverLoading}
-              >
-                {discoverLoading ? 'Carregant...' : `Carregar més ${config.categories[activeCategory]?.toLowerCase() || ''}`}
-              </button>
             </div>
           )}
         </>
