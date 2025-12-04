@@ -988,8 +988,8 @@ async def get_recently_watched(request: Request, limit: int = 10):
 # === WATCHLIST ===
 
 @app.get("/api/user/watchlist")
-async def get_watchlist(request: Request, limit: int = 50):
-    """Retorna la watchlist de l'usuari"""
+async def get_watchlist(request: Request):
+    """Retorna la watchlist de l'usuari (sense límit)"""
     user = get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Cal iniciar sessió")
@@ -1012,8 +1012,7 @@ async def get_watchlist(request: Request, limit: int = 50):
             FROM watchlist
             WHERE user_id = ?
             ORDER BY added_date DESC
-            LIMIT ?
-        """, (user_id, limit))
+        """, (user_id,))
 
         items = []
         for row in cursor.fetchall():
@@ -6493,6 +6492,7 @@ async def import_from_external_platform(
     """
     Importa contingut des d'una plataforma externa (Letterboxd, MyAnimeList, Goodreads).
     Cerca cada element a TMDB/OpenLibrary i l'afegeix a la watchlist de l'usuari.
+    Processa en paral·lel per ser més ràpid.
     """
     user_id = current_user["id"]
     results = {
@@ -6524,27 +6524,150 @@ async def import_from_external_platform(
             "results": results
         }
 
-    # Processar cada element
+    # Processar elements
     api_key = get_tmdb_api_key() if media_type in ['movie', 'series'] else None
 
     if media_type in ['movie', 'series'] and not api_key:
         raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB per importar pel·lícules i sèries")
 
-    with get_db() as conn:
-        cursor = conn.cursor()
+    logger.info(f"Processing {len(items)} items from {platform}")
 
-        for item in items:
+    if media_type in ['movie', 'series']:
+        # Processar pel·lícules/sèries amb TMDB en paral·lel
+        from backend.metadata.tmdb import TMDBClient
+
+        async def search_tmdb(item, client):
+            """Cerca una pel·lícula/sèrie a TMDB."""
             try:
-                if media_type == 'book':
-                    # Cercar a OpenLibrary
-                    from backend.metadata.openlibrary import OpenLibraryClient
-                    client = OpenLibraryClient()
+                if media_type == 'movie':
+                    params = {"query": item['title'], "language": "ca-ES"}
+                    if item.get('year'):
+                        params["year"] = item['year']
+                    response = await client._request("/search/movie", params)
+                else:
+                    params = {"query": item['title'], "language": "ca-ES"}
+                    response = await client._request("/search/tv", params)
 
+                if response and response.get("results"):
+                    match = response["results"][0]
+                    return {"item": item, "match": match, "found": True}
+                else:
+                    return {"item": item, "match": None, "found": False}
+            except Exception as e:
+                logger.error(f"Error cercant '{item.get('title')}': {e}")
+                return {"item": item, "match": None, "found": False, "error": str(e)}
+
+        # Utilitzar un sol client TMDB i processar en batches
+        client = TMDBClient(api_key)
+        try:
+            # Processar en batches de 10 per no sobrecarregar TMDB
+            batch_size = 10
+            all_search_results = []
+
+            for i in range(0, len(items), batch_size):
+                batch = items[i:i + batch_size]
+                batch_results = await asyncio.gather(
+                    *[search_tmdb(item, client) for item in batch],
+                    return_exceptions=True
+                )
+                all_search_results.extend(batch_results)
+                logger.info(f"Processed batch {i//batch_size + 1}/{(len(items) + batch_size - 1)//batch_size}")
+
+        finally:
+            await client.close()
+
+        # Ara processar els resultats i inserir a la BD
+        with get_db() as conn:
+            cursor = conn.cursor()
+
+            for result in all_search_results:
+                if isinstance(result, Exception):
+                    continue
+
+                item = result.get("item", {})
+
+                if result.get("error"):
+                    results["errors"].append({
+                        "title": item.get('title'),
+                        "error": result["error"]
+                    })
+                    continue
+
+                if result.get("found") and result.get("match"):
+                    match = result["match"]
+                    tmdb_id = match.get("id")
+
+                    # Verificar si ja està a la watchlist
+                    cursor.execute(
+                        "SELECT id FROM watchlist WHERE user_id = ? AND tmdb_id = ? AND media_type = ?",
+                        (user_id, tmdb_id, media_type)
+                    )
+                    existing = cursor.fetchone()
+
+                    if existing:
+                        results["already_in_watchlist"].append({
+                            "title": match.get("title") or match.get("name"),
+                            "tmdb_id": tmdb_id,
+                            "type": media_type
+                        })
+                    else:
+                        # Afegir a la watchlist
+                        release_date = match.get("release_date") or match.get("first_air_date", "")
+                        year = int(release_date[:4]) if release_date and len(release_date) >= 4 else None
+
+                        try:
+                            cursor.execute("""
+                                INSERT INTO watchlist (
+                                    user_id, tmdb_id, media_type, title, poster_path, year, rating
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                            """, (
+                                user_id,
+                                tmdb_id,
+                                media_type,
+                                match.get("title") or match.get("name"),
+                                match.get("poster_path"),
+                                year,
+                                match.get("vote_average")
+                            ))
+
+                            results["found"].append({
+                                "title": match.get("title") or match.get("name"),
+                                "year": year,
+                                "tmdb_id": tmdb_id,
+                                "poster": f"https://image.tmdb.org/t/p/w342{match['poster_path']}" if match.get('poster_path') else None,
+                                "type": media_type
+                            })
+                        except Exception as e:
+                            # Probablement ja existeix (UNIQUE constraint)
+                            if "UNIQUE" in str(e):
+                                results["already_in_watchlist"].append({
+                                    "title": match.get("title") or match.get("name"),
+                                    "tmdb_id": tmdb_id,
+                                    "type": media_type
+                                })
+                else:
+                    results["not_found"].append({
+                        "title": item.get('title'),
+                        "year": item.get('year'),
+                        "type": media_type
+                    })
+
+            conn.commit()
+
+    else:
+        # Processar llibres (OpenLibrary)
+        from backend.metadata.openlibrary import OpenLibraryClient
+
+        with get_db() as conn:
+            cursor = conn.cursor()
+            client = OpenLibraryClient()
+
+            try:
+                for item in items:
                     try:
                         search_result = await client.search_book(item['title'], item.get('author'))
 
                         if search_result:
-                            # Comprovar si ja existeix a la BD
                             olid = search_result.get("key", "").replace("/works/", "")
                             cursor.execute("SELECT id FROM books WHERE olid = ? OR title = ?", (olid, item['title']))
                             existing = cursor.fetchone()
@@ -6569,91 +6692,23 @@ async def import_from_external_platform(
                                 "author": item.get('author'),
                                 "type": "book"
                             })
-                    finally:
-                        await client.close()
+                    except Exception as e:
+                        logger.error(f"Error processant llibre '{item.get('title')}': {e}")
+                        results["errors"].append({
+                            "title": item.get('title'),
+                            "error": str(e)
+                        })
+            finally:
+                await client.close()
 
-                else:
-                    # Cercar a TMDB (pel·lícules o sèries/anime)
-                    from backend.metadata.tmdb import TMDBClient
-                    client = TMDBClient(api_key)
-
-                    try:
-                        if media_type == 'movie':
-                            params = {"query": item['title'], "language": "ca-ES"}
-                            if item.get('year'):
-                                params["year"] = item['year']
-                            response = await client._request("/search/movie", params)
-                        else:
-                            # Per anime, buscar a TV
-                            params = {"query": item['title'], "language": "ca-ES"}
-                            response = await client._request("/search/tv", params)
-
-                        if response and response.get("results"):
-                            # Agafar el primer resultat (millor match)
-                            match = response["results"][0]
-                            tmdb_id = match.get("id")
-
-                            # Verificar si ja està a la watchlist
-                            cursor.execute(
-                                "SELECT id FROM watchlist WHERE user_id = ? AND tmdb_id = ? AND media_type = ?",
-                                (user_id, tmdb_id, media_type)
-                            )
-                            existing = cursor.fetchone()
-
-                            if existing:
-                                results["already_in_watchlist"].append({
-                                    "title": match.get("title") or match.get("name"),
-                                    "tmdb_id": tmdb_id,
-                                    "type": media_type
-                                })
-                            else:
-                                # Afegir a la watchlist
-                                release_date = match.get("release_date") or match.get("first_air_date", "")
-                                year = int(release_date[:4]) if release_date and len(release_date) >= 4 else None
-
-                                cursor.execute("""
-                                    INSERT INTO watchlist (
-                                        user_id, tmdb_id, media_type, title, poster_path, year, rating
-                                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                                """, (
-                                    user_id,
-                                    tmdb_id,
-                                    media_type,
-                                    match.get("title") or match.get("name"),
-                                    match.get("poster_path"),
-                                    year,
-                                    match.get("vote_average")
-                                ))
-
-                                results["found"].append({
-                                    "title": match.get("title") or match.get("name"),
-                                    "year": year,
-                                    "tmdb_id": tmdb_id,
-                                    "poster": f"https://image.tmdb.org/t/p/w342{match['poster_path']}" if match.get('poster_path') else None,
-                                    "type": media_type
-                                })
-                        else:
-                            results["not_found"].append({
-                                "title": item['title'],
-                                "year": item.get('year'),
-                                "type": media_type
-                            })
-                    finally:
-                        await client.close()
-
-            except Exception as e:
-                logger.error(f"Error processant '{item.get('title')}': {e}")
-                results["errors"].append({
-                    "title": item.get('title'),
-                    "error": str(e)
-                })
-
-        conn.commit()
+            conn.commit()
 
     # Resum
     total_found = len(results["found"])
     total_not_found = len(results["not_found"])
     total_existing = len(results["already_in_watchlist"])
+
+    logger.info(f"Import complete: {total_found} added, {total_existing} existing, {total_not_found} not found")
 
     return {
         "status": "success",
