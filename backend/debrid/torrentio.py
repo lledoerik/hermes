@@ -55,11 +55,15 @@ class TorrentioClient:
             info_hash = None
             behavior_hints = stream.get("behaviorHints", {})
 
-            # 1. Directament de behaviorHints.infoHash
-            if "infoHash" in behavior_hints:
+            # 1. Directament del stream (clau principal - format més comú!)
+            if "infoHash" in stream:
+                info_hash = stream["infoHash"]
+
+            # 2. De behaviorHints.infoHash (format alternatiu)
+            if not info_hash and "infoHash" in behavior_hints:
                 info_hash = behavior_hints["infoHash"]
 
-            # 2. De bingeGroup (format: hash:fileIdx)
+            # 3. De bingeGroup (format: hash:fileIdx)
             if not info_hash and "bingeGroup" in behavior_hints:
                 binge = behavior_hints["bingeGroup"]
                 if ":" in binge:
