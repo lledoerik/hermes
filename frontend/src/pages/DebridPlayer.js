@@ -216,6 +216,7 @@ function DebridPlayer() {
   const [showEpisodesList, setShowEpisodesList] = useState(false);
   const [showEndedOverlay, setShowEndedOverlay] = useState(false);
   const episodesListRef = useRef(null);
+  const episodesCacheRef = useRef({}); // Cache d'episodis per temporada
 
   const mediaType = type === 'movie' ? 'movie' : 'tv';
 
@@ -355,14 +356,25 @@ function DebridPlayer() {
     }
   }, [type, tmdbId]);
 
-  // Load episodes for series (can load different season for navigator)
+  // Load episodes for series (can load different season for navigator) - amb cache local
   const loadEpisodes = useCallback(async (seasonNum = null) => {
     const targetSeason = seasonNum || season;
     if (type === 'movie' || !targetSeason) return;
+
+    // Comprovar cache local primer
+    const cacheKey = `${tmdbId}_${targetSeason}`;
+    if (episodesCacheRef.current[cacheKey]) {
+      setEpisodes(episodesCacheRef.current[cacheKey]);
+      return;
+    }
+
     setLoadingEpisodes(true);
     try {
       const response = await axios.get(`${API_URL}/api/tmdb/tv/${tmdbId}/season/${targetSeason}`);
-      setEpisodes(response.data?.episodes || []);
+      const eps = response.data?.episodes || [];
+      // Guardar al cache local
+      episodesCacheRef.current[cacheKey] = eps;
+      setEpisodes(eps);
     } catch (err) {
       console.error('Error carregant episodis:', err);
     } finally {
@@ -1142,31 +1154,31 @@ function DebridPlayer() {
           <div className="episodes-modal">
             <div className="episodes-header">
               <div className="episodes-header-info">
-                {(mediaInfo?.number_of_seasons > 1 || mediaInfo?.seasons?.length > 1) ? (
-                  <select
-                    className="season-selector"
-                    value={selectedSeason}
-                    onChange={(e) => changeNavigatorSeason(parseInt(e.target.value))}
-                  >
-                    {mediaInfo?.seasons ? (
-                      mediaInfo.seasons
-                        .filter(s => s.season_number > 0)
-                        .map(s => (
-                          <option key={s.season_number} value={s.season_number}>
-                            Temporada {s.season_number}
-                          </option>
-                        ))
-                    ) : (
-                      Array.from({ length: mediaInfo.number_of_seasons }, (_, i) => (
-                        <option key={i + 1} value={i + 1}>
-                          Temporada {i + 1}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                ) : (
-                  <span className="season-title">Temporada {selectedSeason}</span>
-                )}
+                {(() => {
+                  const totalSeasons = mediaInfo?.seasons?.filter(s => s.season_number > 0)?.length || mediaInfo?.number_of_seasons || 1;
+                  const canGoPrev = selectedSeason > 1;
+                  const canGoNext = selectedSeason < totalSeasons;
+
+                  return (
+                    <div className="season-nav">
+                      <button
+                        className="season-nav-btn"
+                        onClick={() => canGoPrev && changeNavigatorSeason(selectedSeason - 1)}
+                        disabled={!canGoPrev}
+                      >
+                        <PrevIcon />
+                      </button>
+                      <span className="season-title">Temporada {selectedSeason}</span>
+                      <button
+                        className="season-nav-btn"
+                        onClick={() => canGoNext && changeNavigatorSeason(selectedSeason + 1)}
+                        disabled={!canGoNext}
+                      >
+                        <NextIcon />
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
               <button className="close-btn" onClick={() => setShowEpisodesList(false)}>
                 <CloseIcon />
