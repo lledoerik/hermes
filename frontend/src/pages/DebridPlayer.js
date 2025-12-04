@@ -240,8 +240,13 @@ function DebridPlayer() {
   }, [type, episodes, episode]);
 
   // Navigate to next episode
-  const goToNextEpisode = useCallback(() => {
+  const goToNextEpisode = useCallback(async () => {
     if (!nextEpisode) return;
+    // Guardar progrés de l'episodi actual abans de canviar
+    if (videoRef.current && duration > 0) {
+      const percent = Math.round((videoRef.current.currentTime / duration) * 100);
+      await saveProgress(percent, percent >= 90); // Marcar com completat si >90%
+    }
     setShowEndedOverlay(false);
     setStreamUrl(null);
     setSelectedTorrent(null);
@@ -250,10 +255,15 @@ function DebridPlayer() {
       state: { mediaInfo },
       replace: true
     });
-  }, [nextEpisode, navigate, tmdbId, season, mediaInfo]);
+  }, [nextEpisode, navigate, tmdbId, season, mediaInfo, duration, saveProgress]);
 
   // Navigate to specific episode
-  const goToEpisode = useCallback((ep) => {
+  const goToEpisode = useCallback(async (ep) => {
+    // Guardar progrés de l'episodi actual abans de canviar
+    if (videoRef.current && duration > 0) {
+      const percent = Math.round((videoRef.current.currentTime / duration) * 100);
+      await saveProgress(percent, percent >= 90);
+    }
     setShowEpisodesList(false);
     setShowEndedOverlay(false);
     setStreamUrl(null);
@@ -263,7 +273,7 @@ function DebridPlayer() {
       state: { mediaInfo },
       replace: true
     });
-  }, [navigate, tmdbId, season, mediaInfo]);
+  }, [navigate, tmdbId, season, mediaInfo, duration, saveProgress]);
 
   // Group torrents by quality and language
   const groupedTorrents = useMemo(() => {
@@ -807,7 +817,9 @@ function DebridPlayer() {
             completed: false,
             title: mediaInfo?.title || mediaInfo?.name || ''
           });
-          navigator.sendBeacon(`${API_URL}/api/streaming/progress`, data);
+          // Usar Blob amb content-type correcte per sendBeacon
+          const blob = new Blob([data], { type: 'application/json' });
+          navigator.sendBeacon(`${API_URL}/api/streaming/progress`, blob);
         }
       }
     };
