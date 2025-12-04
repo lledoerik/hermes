@@ -945,6 +945,11 @@ function DebridPlayer() {
       return;
     }
 
+    // Enter fullscreen on first tap (requires user gesture)
+    if (!isFullscreen && streamUrl) {
+      enterFullscreenMobile();
+    }
+
     const now = Date.now();
     const tapZone = getTapZone(e);
     const timeSinceLastTap = now - lastTapTimeRef.current;
@@ -1000,7 +1005,7 @@ function DebridPlayer() {
         tapTimeoutRef.current = null;
       }, 300);
     }
-  }, [showQualityMenu, showLanguageMenu, showEpisodesList, showSubtitleMenu, showAudioMenu, showEndedOverlay, getTapZone, skipBack, skipForward, togglePlay, streamUrl, showControls, isPlaying]);
+  }, [showQualityMenu, showLanguageMenu, showEpisodesList, showSubtitleMenu, showAudioMenu, showEndedOverlay, getTapZone, skipBack, skipForward, togglePlay, streamUrl, showControls, isPlaying, isFullscreen, enterFullscreenMobile]);
 
   // Visual feedback for double tap
   const [doubleTapIndicator, setDoubleTapIndicator] = useState(null);
@@ -1123,16 +1128,7 @@ function DebridPlayer() {
     }
   }, [selectedTorrent, streamUrl, loadingStream, getStreamUrl]);
 
-  // Auto-enter fullscreen when video starts playing on mobile
-  useEffect(() => {
-    if (streamUrl && !isFullscreen) {
-      // Small delay to ensure video is ready
-      const timeout = setTimeout(() => {
-        enterFullscreenMobile();
-      }, 500);
-      return () => clearTimeout(timeout);
-    }
-  }, [streamUrl, isFullscreen, enterFullscreenMobile]);
+  // Note: Fullscreen is triggered on first tap (requires user gesture)
 
   // Fullscreen change detection and orientation unlock
   useEffect(() => {

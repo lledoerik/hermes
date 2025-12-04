@@ -1,13 +1,13 @@
 """
-OpenSubtitles API Client
-Busca i descarrega subtítols des d'OpenSubtitles.com
+Subtitle Search Client
+Busca subtítols des de múltiples fonts gratuïtes
 """
 
 import httpx
 import logging
-import os
+import zipfile
+import io
 import re
-import tempfile
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
 
@@ -27,6 +27,7 @@ class Subtitle:
     download_count: int
     hearing_impaired: bool
     ai_translated: bool
+    source: str  # Font del subtítol
 
     def to_dict(self) -> Dict:
         return {
@@ -39,247 +40,21 @@ class Subtitle:
             "ratings": self.ratings,
             "download_count": self.download_count,
             "hearing_impaired": self.hearing_impaired,
-            "ai_translated": self.ai_translated
+            "ai_translated": self.ai_translated,
+            "source": self.source
         }
 
 
-class OpenSubtitlesClient:
+class SubtitleClient:
     """
-    Client per buscar subtítols via OpenSubtitles API
-    Utilitza l'API REST de opensubtitles.com
+    Client per buscar subtítols via múltiples fonts gratuïtes
     """
 
-    def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.getenv("OPENSUBTITLES_API_KEY", "")
-        self.base_url = "https://api.opensubtitles.com/api/v1"
-        self.user_agent = "Hermes v1.0"
-        self.token = None
-
-    def _get_headers(self) -> Dict[str, str]:
-        """Retorna els headers per les peticions"""
-        headers = {
-            "Content-Type": "application/json",
-            "User-Agent": self.user_agent,
-            "Accept": "application/json"
-        }
-        if self.api_key:
-            headers["Api-Key"] = self.api_key
-        if self.token:
-            headers["Authorization"] = f"Bearer {self.token}"
-        return headers
-
-    async def search_subtitles(
-        self,
-        imdb_id: Optional[str] = None,
-        tmdb_id: Optional[int] = None,
-        query: Optional[str] = None,
-        season: Optional[int] = None,
-        episode: Optional[int] = None,
-        languages: Optional[List[str]] = None
-    ) -> List[Subtitle]:
-        """
-        Cerca subtítols a OpenSubtitles
-
-        Args:
-            imdb_id: ID d'IMDB (e.g., "tt1234567")
-            tmdb_id: ID de TMDB
-            query: Cerca per nom
-            season: Número de temporada (per sèries)
-            episode: Número d'episodi (per sèries)
-            languages: Llista de codis d'idioma (e.g., ["en", "es", "ca"])
-
-        Returns:
-            Llista de Subtitle ordenats per qualitat
-        """
-        if not self.api_key:
-            logger.warning("OpenSubtitles API key no configurada")
-            return []
-
-        # Construir paràmetres de cerca
-        params = {}
-
-        if imdb_id:
-            # Netejar l'IMDB ID (treure 'tt' si és necessari)
-            clean_imdb = imdb_id.replace("tt", "")
-            params["imdb_id"] = clean_imdb
-        elif tmdb_id:
-            params["tmdb_id"] = tmdb_id
-        elif query:
-            params["query"] = query
-        else:
-            logger.error("Cal proporcionar imdb_id, tmdb_id o query")
-            return []
-
-        if season is not None:
-            params["season_number"] = season
-        if episode is not None:
-            params["episode_number"] = episode
-
-        # Idiomes per defecte: català, espanyol, anglès
-        if languages:
-            params["languages"] = ",".join(languages)
-        else:
-            params["languages"] = "ca,es,en"
-
-        try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                response = await client.get(
-                    f"{self.base_url}/subtitles",
-                    params=params,
-                    headers=self._get_headers()
-                )
-
-                if response.status_code == 401:
-                    logger.error("OpenSubtitles: API key invàlida")
-                    return []
-
-                if response.status_code != 200:
-                    logger.warning(f"OpenSubtitles retorna {response.status_code}")
-                    return []
-
-                data = response.json()
-                subtitles_data = data.get("data", [])
-
-                subtitles = []
-                for sub_data in subtitles_data:
-                    try:
-                        attributes = sub_data.get("attributes", {})
-                        files = attributes.get("files", [])
-
-                        if not files:
-                            continue
-
-                        # Agafar el primer fitxer
-                        file_info = files[0]
-
-                        subtitle = Subtitle(
-                            id=str(file_info.get("file_id", "")),
-                            language=attributes.get("language", ""),
-                            language_name=self._get_language_name(attributes.get("language", "")),
-                            release_name=attributes.get("release", "")[:100],
-                            download_url="",  # Es generarà després
-                            upload_date=attributes.get("upload_date", ""),
-                            ratings=float(attributes.get("ratings", 0)),
-                            download_count=int(attributes.get("download_count", 0)),
-                            hearing_impaired=attributes.get("hearing_impaired", False),
-                            ai_translated=attributes.get("ai_translated", False)
-                        )
-                        subtitles.append(subtitle)
-                    except Exception as e:
-                        logger.debug(f"Error parsejant subtítol: {e}")
-                        continue
-
-                # Ordenar per popularitat (download_count) i rating
-                subtitles.sort(key=lambda s: (-s.download_count, -s.ratings))
-
-                logger.info(f"Trobats {len(subtitles)} subtítols")
-                return subtitles
-
-        except httpx.RequestError as e:
-            logger.error(f"Error connectant amb OpenSubtitles: {e}")
-            return []
-        except Exception as e:
-            logger.error(f"Error buscant subtítols: {e}")
-            return []
-
-    async def download_subtitle(self, file_id: str) -> Optional[str]:
-        """
-        Descarrega un subtítol i retorna el contingut en format VTT
-
-        Args:
-            file_id: ID del fitxer de subtítol
-
-        Returns:
-            Contingut del subtítol en format VTT o None si hi ha error
-        """
-        if not self.api_key:
-            logger.warning("OpenSubtitles API key no configurada")
-            return None
-
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                # Primer, obtenir l'URL de descàrrega
-                response = await client.post(
-                    f"{self.base_url}/download",
-                    json={"file_id": int(file_id)},
-                    headers=self._get_headers()
-                )
-
-                if response.status_code != 200:
-                    logger.error(f"Error obtenint URL de descàrrega: {response.status_code}")
-                    return None
-
-                data = response.json()
-                download_link = data.get("link")
-
-                if not download_link:
-                    logger.error("No s'ha obtingut l'URL de descàrrega")
-                    return None
-
-                # Descarregar el subtítol
-                sub_response = await client.get(download_link)
-                if sub_response.status_code != 200:
-                    logger.error(f"Error descarregant subtítol: {sub_response.status_code}")
-                    return None
-
-                content = sub_response.text
-
-                # Convertir a VTT si és SRT
-                if self._is_srt(content):
-                    content = self._srt_to_vtt(content)
-
-                return content
-
-        except Exception as e:
-            logger.error(f"Error descarregant subtítol: {e}")
-            return None
-
-    def _is_srt(self, content: str) -> bool:
-        """Comprova si el contingut és format SRT"""
-        # SRT comença amb un número, VTT comença amb "WEBVTT"
-        first_lines = content.strip().split('\n')[:5]
-        for line in first_lines:
-            line = line.strip()
-            if line.isdigit():
-                return True
-            if line.upper().startswith("WEBVTT"):
-                return False
-        return True
-
-    def _srt_to_vtt(self, srt_content: str) -> str:
-        """Converteix SRT a VTT"""
-        vtt_content = "WEBVTT\n\n"
-
-        # Reemplaçar comes per punts en els temps
-        # SRT: 00:00:01,234 --> 00:00:02,345
-        # VTT: 00:00:01.234 --> 00:00:02.345
-        lines = srt_content.strip().split('\n')
-
-        i = 0
-        while i < len(lines):
-            line = lines[i].strip()
-
-            # Saltar números de seqüència
-            if line.isdigit():
-                i += 1
-                continue
-
-            # Processar línia de temps
-            if '-->' in line:
-                # Convertir format de temps
-                line = line.replace(',', '.')
-                vtt_content += line + '\n'
-                i += 1
-
-                # Afegir text fins línia buida
-                while i < len(lines) and lines[i].strip():
-                    vtt_content += lines[i] + '\n'
-                    i += 1
-                vtt_content += '\n'
-            else:
-                i += 1
-
-        return vtt_content
+    def __init__(self):
+        self.user_agent = "Hermes/1.0"
+        self.subdl_api = "https://api.subdl.com/api/v1/subtitles"
+        # Cache per evitar descarregues repetides
+        self._download_cache: Dict[str, str] = {}
 
     def _get_language_name(self, code: str) -> str:
         """Retorna el nom de l'idioma"""
@@ -300,13 +75,323 @@ class OpenSubtitlesClient:
             "nl": "Neerlandès",
             "pl": "Polonès",
             "tr": "Turc",
-            "sv": "Suec",
-            "no": "Noruec",
-            "da": "Danès",
-            "fi": "Finès"
+            "sv": "Suec"
         }
         return names.get(code, code.upper())
 
+    def _map_language_to_subdl(self, lang: str) -> str:
+        """Mapeja codis d'idioma a format subdl"""
+        mapping = {
+            "ca": "catalan",
+            "es": "spanish",
+            "en": "english",
+            "fr": "french",
+            "de": "german",
+            "it": "italian",
+            "pt": "portuguese"
+        }
+        return mapping.get(lang, lang)
+
+    async def search_subtitles(
+        self,
+        imdb_id: Optional[str] = None,
+        tmdb_id: Optional[int] = None,
+        query: Optional[str] = None,
+        season: Optional[int] = None,
+        episode: Optional[int] = None,
+        languages: Optional[List[str]] = None
+    ) -> List[Subtitle]:
+        """
+        Cerca subtítols
+
+        Args:
+            imdb_id: ID d'IMDB (e.g., "tt1234567")
+            tmdb_id: ID de TMDB
+            query: Cerca per nom
+            season: Número de temporada (per sèries)
+            episode: Número d'episodi (per sèries)
+            languages: Llista de codis d'idioma (e.g., ["en", "es", "ca"])
+
+        Returns:
+            Llista de Subtitle ordenats per qualitat
+        """
+        all_subtitles = []
+
+        # Buscar a subdl.com (API gratuïta)
+        subdl_results = await self._search_subdl(
+            imdb_id=imdb_id,
+            tmdb_id=tmdb_id,
+            query=query,
+            season=season,
+            episode=episode,
+            languages=languages
+        )
+        all_subtitles.extend(subdl_results)
+
+        # Ordenar per idioma prioritat i descàrregues
+        lang_priority = {"ca": 0, "es": 1, "en": 2}
+        all_subtitles.sort(key=lambda s: (
+            lang_priority.get(s.language, 99),
+            -s.download_count,
+            -s.ratings
+        ))
+
+        logger.info(f"Trobats {len(all_subtitles)} subtítols en total")
+        return all_subtitles
+
+    async def _search_subdl(
+        self,
+        imdb_id: Optional[str] = None,
+        tmdb_id: Optional[int] = None,
+        query: Optional[str] = None,
+        season: Optional[int] = None,
+        episode: Optional[int] = None,
+        languages: Optional[List[str]] = None
+    ) -> List[Subtitle]:
+        """Cerca subtítols a subdl.com"""
+        subtitles = []
+
+        try:
+            params = {
+                "subs_per_page": 30
+            }
+
+            # Usar IMDB ID o TMDB ID
+            if imdb_id:
+                params["imdb_id"] = imdb_id
+            elif tmdb_id:
+                params["tmdb_id"] = str(tmdb_id)
+            elif query:
+                params["film_name"] = query
+            else:
+                return []
+
+            # Afegir temporada/episodi per sèries
+            if season is not None:
+                params["season_number"] = season
+            if episode is not None:
+                params["episode_number"] = episode
+
+            # Idiomes (subdl usa noms complets)
+            if languages:
+                subdl_langs = [self._map_language_to_subdl(l) for l in languages]
+                params["languages"] = ",".join(subdl_langs)
+
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                response = await client.get(
+                    self.subdl_api,
+                    params=params,
+                    headers={"User-Agent": self.user_agent}
+                )
+
+                if response.status_code != 200:
+                    logger.warning(f"Subdl retorna {response.status_code}")
+                    return []
+
+                data = response.json()
+
+                if not data.get("status"):
+                    return []
+
+                subs_data = data.get("subtitles", [])
+
+                for sub in subs_data:
+                    try:
+                        # Mapeja l'idioma de subdl al nostre format
+                        lang_name = sub.get("language", "").lower()
+                        lang_code = self._subdl_lang_to_code(lang_name)
+
+                        # Filtrar per idiomes desitjats
+                        if languages and lang_code not in languages:
+                            continue
+
+                        subtitle = Subtitle(
+                            id=f"subdl_{sub.get('sd_id', '')}",
+                            language=lang_code,
+                            language_name=self._get_language_name(lang_code),
+                            release_name=sub.get("release_name", "")[:100],
+                            download_url=sub.get("url", ""),
+                            upload_date=sub.get("upload_date", ""),
+                            ratings=float(sub.get("rating", 0) or 0),
+                            download_count=int(sub.get("download_count", 0) or 0),
+                            hearing_impaired=sub.get("hi", False),
+                            ai_translated=False,
+                            source="subdl"
+                        )
+                        subtitles.append(subtitle)
+                    except Exception as e:
+                        logger.debug(f"Error parsejant subtítol subdl: {e}")
+                        continue
+
+        except httpx.RequestError as e:
+            logger.error(f"Error connectant amb Subdl: {e}")
+        except Exception as e:
+            logger.error(f"Error buscant a Subdl: {e}")
+
+        return subtitles
+
+    def _subdl_lang_to_code(self, lang_name: str) -> str:
+        """Converteix nom d'idioma subdl a codi ISO"""
+        mapping = {
+            "catalan": "ca",
+            "spanish": "es",
+            "english": "en",
+            "french": "fr",
+            "german": "de",
+            "italian": "it",
+            "portuguese": "pt",
+            "japanese": "ja",
+            "korean": "ko",
+            "chinese": "zh",
+            "russian": "ru",
+            "arabic": "ar"
+        }
+        return mapping.get(lang_name.lower(), lang_name[:2].lower())
+
+    async def download_subtitle(self, subtitle_id: str) -> Optional[str]:
+        """
+        Descarrega un subtítol i retorna el contingut en format VTT
+
+        Args:
+            subtitle_id: ID del subtítol (format: source_id)
+
+        Returns:
+            Contingut del subtítol en format VTT o None si hi ha error
+        """
+        # Comprovar cache
+        if subtitle_id in self._download_cache:
+            return self._download_cache[subtitle_id]
+
+        try:
+            # Parsejar source i id
+            if subtitle_id.startswith("subdl_"):
+                content = await self._download_subdl(subtitle_id[6:])
+            else:
+                logger.error(f"Font de subtítol desconeguda: {subtitle_id}")
+                return None
+
+            if content:
+                # Convertir a VTT si és necessari
+                if self._is_srt(content):
+                    content = self._srt_to_vtt(content)
+
+                # Guardar a cache
+                self._download_cache[subtitle_id] = content
+
+            return content
+
+        except Exception as e:
+            logger.error(f"Error descarregant subtítol: {e}")
+            return None
+
+    async def _download_subdl(self, sd_id: str) -> Optional[str]:
+        """Descarrega subtítol de subdl.com"""
+        try:
+            download_url = f"https://dl.subdl.com/subtitle/{sd_id}"
+
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                response = await client.get(
+                    download_url,
+                    headers={"User-Agent": self.user_agent}
+                )
+
+                if response.status_code != 200:
+                    logger.error(f"Error descarregant de Subdl: {response.status_code}")
+                    return None
+
+                content_type = response.headers.get("content-type", "")
+
+                # Si és un ZIP, extreure el primer arxiu .srt/.vtt
+                if "zip" in content_type or response.content[:4] == b'PK\x03\x04':
+                    return self._extract_subtitle_from_zip(response.content)
+
+                # Si no és ZIP, assumir que és text
+                return response.text
+
+        except Exception as e:
+            logger.error(f"Error descarregant de Subdl: {e}")
+            return None
+
+    def _extract_subtitle_from_zip(self, zip_content: bytes) -> Optional[str]:
+        """Extreu el primer subtítol d'un arxiu ZIP"""
+        try:
+            with zipfile.ZipFile(io.BytesIO(zip_content)) as zf:
+                # Buscar arxius de subtítols
+                subtitle_files = [
+                    f for f in zf.namelist()
+                    if f.lower().endswith(('.srt', '.vtt', '.sub', '.ass'))
+                ]
+
+                if not subtitle_files:
+                    logger.warning("No s'han trobat subtítols al ZIP")
+                    return None
+
+                # Preferir .srt, després .vtt
+                for ext in ['.srt', '.vtt', '.ass', '.sub']:
+                    for f in subtitle_files:
+                        if f.lower().endswith(ext):
+                            content = zf.read(f)
+                            # Intentar decodificar amb diferents encodings
+                            for encoding in ['utf-8', 'latin-1', 'cp1252', 'iso-8859-1']:
+                                try:
+                                    return content.decode(encoding)
+                                except UnicodeDecodeError:
+                                    continue
+                            # Fallback amb errors='replace'
+                            return content.decode('utf-8', errors='replace')
+
+        except Exception as e:
+            logger.error(f"Error extraient subtítol del ZIP: {e}")
+
+        return None
+
+    def _is_srt(self, content: str) -> bool:
+        """Comprova si el contingut és format SRT"""
+        first_lines = content.strip().split('\n')[:5]
+        for line in first_lines:
+            line = line.strip()
+            if line.isdigit():
+                return True
+            if line.upper().startswith("WEBVTT"):
+                return False
+        return True
+
+    def _srt_to_vtt(self, srt_content: str) -> str:
+        """Converteix SRT a VTT"""
+        vtt_content = "WEBVTT\n\n"
+
+        lines = srt_content.strip().split('\n')
+
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+
+            # Saltar números de seqüència
+            if line.isdigit():
+                i += 1
+                continue
+
+            # Processar línia de temps
+            if '-->' in line:
+                # Convertir format de temps (comes a punts)
+                line = line.replace(',', '.')
+                vtt_content += line + '\n'
+                i += 1
+
+                # Afegir text fins línia buida
+                while i < len(lines) and lines[i].strip():
+                    vtt_content += lines[i] + '\n'
+                    i += 1
+                vtt_content += '\n'
+            else:
+                i += 1
+
+        return vtt_content
+
     def is_configured(self) -> bool:
-        """Comprova si l'API està configurada"""
-        return bool(self.api_key)
+        """Sempre configurat (usa API gratuïta)"""
+        return True
+
+
+# Alias per compatibilitat
+OpenSubtitlesClient = SubtitleClient
