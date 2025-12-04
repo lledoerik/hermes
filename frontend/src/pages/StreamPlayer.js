@@ -115,6 +115,10 @@ function StreamPlayer() {
   const [isWatched, setIsWatched] = useState(false);
   const [watchStartTime, setWatchStartTime] = useState(Date.now());
 
+  // Popup "Següent capítol" estil Netflix
+  const [showNextEpisodePopup, setShowNextEpisodePopup] = useState(false);
+  const [nextEpisodeCountdown, setNextEpisodeCountdown] = useState(15);
+
   const mediaType = type === 'movie' ? 'movie' : 'tv';
 
   // Detectar si és anime
@@ -247,6 +251,7 @@ function StreamPlayer() {
       loadWatchStatus();
       setWatchStartTime(Date.now());
       setIsWatched(false);
+      setShowNextEpisodePopup(false); // Reset popup quan canvia d'episodi
     }
   }, [tmdbId, season, episode, loadWatchStatus]);
 
@@ -300,6 +305,51 @@ function StreamPlayer() {
     }
     return () => clearTimeout(timeout);
   }, [showControls, showEpisodesMenu, hasStartedPlaying, loading]);
+
+  // Mostrar popup "Següent capítol" després d'un temps (estil Netflix)
+  useEffect(() => {
+    if (type === 'movie' || !season || !episode || episodes.length === 0 || showStartOverlay || loading) {
+      return;
+    }
+
+    // Temps estimat fins mostrar el popup (en minuts)
+    // Anime: 18 min, Sèries normals: 35 min
+    const showAfterMinutes = isAnime ? 18 : 35;
+
+    const timer = setTimeout(() => {
+      // Comprovar si hi ha següent episodi
+      const currentIndex = episodes.findIndex(ep => ep.episode_number === episode);
+      if (currentIndex >= 0 && currentIndex < episodes.length - 1) {
+        setShowNextEpisodePopup(true);
+        setNextEpisodeCountdown(15);
+      }
+    }, showAfterMinutes * 60 * 1000);
+
+    return () => clearTimeout(timer);
+  }, [type, season, episode, episodes, isAnime, showStartOverlay, loading]);
+
+  // Countdown per auto-play del següent episodi
+  useEffect(() => {
+    if (!showNextEpisodePopup) return;
+
+    const interval = setInterval(() => {
+      setNextEpisodeCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          // Navegar al següent episodi
+          const currentIndex = episodes.findIndex(ep => ep.episode_number === episode);
+          if (currentIndex >= 0 && currentIndex < episodes.length - 1) {
+            const nextEp = episodes[currentIndex + 1];
+            window.location.href = `/stream/tv/${tmdbId}?s=${season}&e=${nextEp.episode_number}`;
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [showNextEpisodePopup, episodes, episode, tmdbId, season]);
 
   // Mostrar controls quan mous el ratolí
   const handleMouseMove = useCallback(() => {
@@ -622,16 +672,36 @@ function StreamPlayer() {
         </button>
       </div>
 
-      {/* Botó flotant per passar al següent capítol */}
-      {type !== 'movie' && season && episode && episodes.length > 0 && (
-        <button
-          className={`stream-next-episode-btn ${showControls ? 'visible' : ''}`}
-          onClick={goToNextEpisode}
-          title="Següent capítol (N)"
-        >
-          <span className="next-episode-text">Següent capítol</span>
-          <NextIcon />
-        </button>
+      {/* Popup "Següent capítol" estil Netflix - apareix quan l'episodi està a punt d'acabar */}
+      {showNextEpisodePopup && (
+        <div className="stream-next-episode-popup">
+          <div className="next-episode-info">
+            <span className="next-episode-label">Següent capítol en {nextEpisodeCountdown}s</span>
+            <span className="next-episode-title">
+              {episodes.find(ep => ep.episode_number === episode + 1)?.name || `Capítol ${episode + 1}`}
+            </span>
+          </div>
+          <div className="next-episode-actions">
+            <button
+              className="next-episode-cancel"
+              onClick={() => setShowNextEpisodePopup(false)}
+            >
+              Cancel·lar
+            </button>
+            <button
+              className="next-episode-play"
+              onClick={goToNextEpisode}
+            >
+              <NextIcon /> Reproduir ara
+            </button>
+          </div>
+          <div className="next-episode-progress">
+            <div
+              className="next-episode-progress-bar"
+              style={{ width: `${((15 - nextEpisodeCountdown) / 15) * 100}%` }}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
