@@ -2,94 +2,21 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import { API_URL, getPosterUrl, getBackdropUrl, getTmdbBackdropUrl, getTmdbPosterUrl } from '../config/api';
+import {
+  MovieIcon,
+  SeriesIcon,
+  BookIcon,
+  AudiobookIcon,
+  ProgramsIcon,
+  TvIcon,
+  PlayIcon,
+  InfoIcon,
+  StarIcon
+} from '../components/icons';
 import './Home.css';
 
-const API_URL = window.location.hostname === 'localhost'
-  ? 'http://localhost:8000'
-  : '';
-
 axios.defaults.baseURL = API_URL;
-
-// Icons as SVG components - Modern design
-const MovieIcon = () => (
-  <svg className="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M19.82 2H4.18C2.97 2 2 2.97 2 4.18v15.64C2 21.03 2.97 22 4.18 22h15.64c1.21 0 2.18-.97 2.18-2.18V4.18C22 2.97 21.03 2 19.82 2z"/>
-    <path d="M7 2v20"/>
-    <path d="M17 2v20"/>
-    <path d="M2 12h20"/>
-    <path d="M2 7h5"/>
-    <path d="M2 17h5"/>
-    <path d="M17 17h5"/>
-    <path d="M17 7h5"/>
-    <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/>
-  </svg>
-);
-
-const SeriesIcon = () => (
-  <svg className="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="4" y="6" width="16" height="12" rx="2"/>
-    <path d="M2 8v8"/>
-    <path d="M22 8v8"/>
-    <polygon points="10 9 10 15 15 12 10 9" fill="currentColor" stroke="none"/>
-  </svg>
-);
-
-const BookIcon = () => (
-  <svg className="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 6.25278C12 6.25278 10.5 3 6.5 3C4 3 2 4.5 2 7V19C2 19 4 17.5 6.5 17.5C9 17.5 10.5 18.5 12 20"/>
-    <path d="M12 6.25278C12 6.25278 13.5 3 17.5 3C20 3 22 4.5 22 7V19C22 19 20 17.5 17.5 17.5C15 17.5 13.5 18.5 12 20"/>
-    <path d="M12 6.25278V20"/>
-  </svg>
-);
-
-const AudiobookIcon = () => (
-  <svg className="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
-    <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3v5z"/>
-    <path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3v5z"/>
-    <circle cx="12" cy="13" r="2"/>
-    <path d="M12 15v3"/>
-    <path d="M9.5 5.5a4 4 0 0 1 5 0"/>
-  </svg>
-);
-
-const ProgramsIcon = () => (
-  <svg className="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="2" y="3" width="20" height="14" rx="2"/>
-    <path d="M8 21h8"/>
-    <path d="M12 17v4"/>
-    <path d="M7 8h2"/>
-    <path d="M7 11h4"/>
-    <rect x="13" y="7" width="5" height="5" rx="1" fill="currentColor" opacity="0.3"/>
-  </svg>
-);
-
-const TvIcon = () => (
-  <svg className="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="2" y="7" width="20" height="14" rx="2"/>
-    <path d="M17 2l-5 5-5-5"/>
-    <circle cx="12" cy="14" r="3"/>
-    <path d="M12 11v0"/>
-  </svg>
-);
-
-const PlayIcon = () => (
-  <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor">
-    <polygon points="5 3 19 12 5 21 5 3"></polygon>
-  </svg>
-);
-
-const InfoIcon = () => (
-  <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
-  </svg>
-);
-
-const StarIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-  </svg>
-);
 
 // Component per mostrar imatge amb fallback a placeholder
 const PosterImage = ({ src, alt, type }) => {
