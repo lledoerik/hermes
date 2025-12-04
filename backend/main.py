@@ -8196,6 +8196,240 @@ async def run_sync_now(background_tasks: BackgroundTasks):
     return {"status": "started", "message": "Sincronització iniciada en segon pla"}
 
 
+# =============================================================================
+# REAL-DEBRID & TORRENT STREAMING
+# =============================================================================
+
+def get_rd_api_key():
+    """Obtenir API key de Real-Debrid des de settings o DB"""
+    # Primer, mirar a settings (variable d'entorn)
+    if settings.REAL_DEBRID_API_KEY:
+        return settings.REAL_DEBRID_API_KEY
+
+    # Si no, mirar a la base de dades
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM app_settings WHERE key = 'realdebrid_api_key'")
+        row = cursor.fetchone()
+        if row and row[0]:
+            return row[0]
+    return None
+
+
+@app.get("/api/debrid/status")
+async def get_debrid_status():
+    """Comprovar estat de Real-Debrid (si està configurat i vàlid)"""
+    api_key = get_rd_api_key()
+    if not api_key:
+        return {
+            "configured": False,
+            "valid": False,
+            "message": "Real-Debrid no configurat"
+        }
+
+    from backend.debrid import RealDebridClient
+
+    client = RealDebridClient(api_key)
+    try:
+        user = await client.get_user()
+        return {
+            "configured": True,
+            "valid": True,
+            "username": user.get("username"),
+            "email": user.get("email"),
+            "premium": user.get("premium", 0) > 0,
+            "expiration": user.get("expiration")
+        }
+    except Exception as e:
+        return {
+            "configured": True,
+            "valid": False,
+            "message": str(e)
+        }
+
+
+@app.post("/api/debrid/configure")
+async def configure_debrid(api_key: str = Query(..., description="Real-Debrid API Key")):
+    """Configurar/guardar API key de Real-Debrid"""
+    from backend.debrid import RealDebridClient
+
+    # Validar API key
+    client = RealDebridClient(api_key)
+    try:
+        user = await client.get_user()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"API key invàlida: {str(e)}")
+
+    # Guardar a la base de dades
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO app_settings (key, value, updated_at)
+            VALUES ('realdebrid_api_key', ?, datetime('now'))
+        """, (api_key,))
+        conn.commit()
+
+    return {
+        "status": "success",
+        "message": "Real-Debrid configurat correctament",
+        "username": user.get("username"),
+        "premium": user.get("premium", 0) > 0
+    }
+
+
+@app.get("/api/debrid/torrents/{media_type}/{tmdb_id}")
+async def search_torrents(
+    media_type: str,
+    tmdb_id: int,
+    season: Optional[int] = None,
+    episode: Optional[int] = None
+):
+    """
+    Buscar torrents per un contingut
+
+    - media_type: 'movie' o 'tv'
+    - tmdb_id: ID de TMDB
+    - season/episode: només per series
+    """
+    # Obtenir IMDB ID des de TMDB
+    api_key = get_tmdb_api_key()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
+
+    from backend.metadata.tmdb import TMDBClient
+
+    client = TMDBClient(api_key)
+    try:
+        # Obtenir external IDs per aconseguir IMDB ID
+        endpoint = f"/{media_type}/{tmdb_id}/external_ids"
+        external_ids = await client._request(endpoint)
+        if not external_ids or not external_ids.get("imdb_id"):
+            raise HTTPException(status_code=404, detail="No s'ha trobat IMDB ID per aquest contingut")
+
+        imdb_id = external_ids["imdb_id"]
+    finally:
+        await client.close()
+
+    # Buscar torrents via Torrentio
+    from backend.debrid import TorrentioClient
+
+    torrentio = TorrentioClient(settings.TORRENTIO_URL)
+
+    if media_type == "movie":
+        streams = await torrentio.search_movie(imdb_id)
+    else:
+        if season is None or episode is None:
+            raise HTTPException(status_code=400, detail="Season i episode són requerits per series")
+        streams = await torrentio.search_series(imdb_id, season, episode)
+
+    # Comprovar disponibilitat instantània a Real-Debrid
+    rd_api_key = get_rd_api_key()
+    cached_hashes = set()
+
+    if rd_api_key and streams:
+        from backend.debrid import RealDebridClient
+        rd_client = RealDebridClient(rd_api_key)
+
+        try:
+            hashes = [s.info_hash for s in streams if s.info_hash]
+            if hashes:
+                availability = await rd_client.check_instant_availability(hashes)
+                cached_hashes = set(availability.keys()) if availability else set()
+        except Exception as e:
+            logger.warning(f"Error comprovant cache RD: {e}")
+
+    # Retornar streams amb info de cache
+    return {
+        "imdb_id": imdb_id,
+        "tmdb_id": tmdb_id,
+        "media_type": media_type,
+        "season": season,
+        "episode": episode,
+        "streams": [
+            {
+                **s.to_dict(),
+                "cached": s.info_hash.lower() in cached_hashes if s.info_hash else False
+            }
+            for s in streams
+        ],
+        "total": len(streams),
+        "cached_count": len([s for s in streams if s.info_hash and s.info_hash.lower() in cached_hashes])
+    }
+
+
+@app.post("/api/debrid/stream")
+async def get_debrid_stream(
+    info_hash: str = Query(..., description="Hash del torrent"),
+    magnet: str = Query(..., description="Magnet link complet")
+):
+    """
+    Obtenir URL de streaming directa de Real-Debrid
+
+    Retorna una URL directa que es pot usar en un <video> HTML5
+    """
+    rd_api_key = get_rd_api_key()
+    if not rd_api_key:
+        raise HTTPException(status_code=400, detail="Real-Debrid no configurat")
+
+    from backend.debrid import RealDebridClient
+
+    client = RealDebridClient(rd_api_key)
+
+    try:
+        result = await client.get_streaming_url(magnet)
+        if not result:
+            raise HTTPException(status_code=500, detail="No s'ha pogut obtenir URL de streaming")
+
+        return {
+            "status": "success",
+            "url": result["url"],
+            "filename": result.get("filename"),
+            "filesize": result.get("filesize"),
+            "mimetype": result.get("mimetype")
+        }
+    except Exception as e:
+        logger.error(f"Error obtenint stream de RD: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/debrid/stream/cached")
+async def get_cached_stream(
+    info_hash: str = Query(..., description="Hash del torrent"),
+    magnet: str = Query(..., description="Magnet link complet")
+):
+    """
+    Obtenir URL de streaming només si el torrent està en cache (instantani)
+    """
+    rd_api_key = get_rd_api_key()
+    if not rd_api_key:
+        raise HTTPException(status_code=400, detail="Real-Debrid no configurat")
+
+    from backend.debrid import RealDebridClient
+
+    client = RealDebridClient(rd_api_key)
+
+    try:
+        result = await client.get_cached_streaming_url(info_hash, magnet)
+        if not result:
+            return {
+                "status": "not_cached",
+                "cached": False,
+                "message": "El torrent no està en cache"
+            }
+
+        return {
+            "status": "success",
+            "cached": True,
+            "url": result["url"],
+            "filename": result.get("filename"),
+            "filesize": result.get("filesize"),
+            "mimetype": result.get("mimetype")
+        }
+    except Exception as e:
+        logger.error(f"Error obtenint stream cached: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
