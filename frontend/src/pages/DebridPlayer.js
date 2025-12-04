@@ -429,39 +429,6 @@ function DebridPlayer() {
   const currentQuality = selectedTorrent ? parseQuality(selectedTorrent.name) : null;
   const currentLanguage = selectedTorrent ? parseLanguage(selectedTorrent.name, selectedTorrent.title) : null;
 
-  // Change language filter
-  const changeLanguage = useCallback((langCode) => {
-    setSelectedLanguage(langCode);
-    localStorage.setItem('hermes_stream_lang', langCode);
-    setShowLanguageMenu(false);
-
-    // Auto-select best torrent for new language
-    const langTorrents = langCode === 'ALL' ? torrents : torrents.filter(t =>
-      parseLanguage(t.name, t.title) === langCode
-    );
-
-    if (langTorrents.length > 0) {
-      // Prefer cached torrents
-      const cachedInLang = langTorrents.filter(t => t.cached);
-      if (cachedInLang.length > 0) {
-        // Sort by quality
-        const qualityOrder = { '4K': 0, '1080p': 1, '720p': 2, 'WEB': 3, 'HDTV': 4, '480p': 5, 'SD': 6 };
-        cachedInLang.sort((a, b) => {
-          const qA = qualityOrder[parseQuality(a.name)] ?? 99;
-          const qB = qualityOrder[parseQuality(b.name)] ?? 99;
-          return qA - qB;
-        });
-        setSelectedTorrent(cachedInLang[0]);
-        setStreamUrl(null);
-        getStreamUrl(cachedInLang[0], true);
-      } else {
-        setSelectedTorrent(langTorrents[0]);
-        setStreamUrl(null);
-        getStreamUrl(langTorrents[0], true);
-      }
-    }
-  }, [torrents, getStreamUrl]);
-
   // Check Real-Debrid status
   const checkDebridStatus = useCallback(async () => {
     try {
@@ -656,6 +623,39 @@ function DebridPlayer() {
     setShowQualityMenu(false);
   }, [groupedTorrents, selectedTorrent, getStreamUrl]);
 
+  // Change language filter
+  const changeLanguage = useCallback((langCode) => {
+    setSelectedLanguage(langCode);
+    localStorage.setItem('hermes_stream_lang', langCode);
+    setShowLanguageMenu(false);
+
+    // Auto-select best torrent for new language
+    const langTorrents = langCode === 'ALL' ? torrents : torrents.filter(t =>
+      parseLanguage(t.name, t.title) === langCode
+    );
+
+    if (langTorrents.length > 0) {
+      // Prefer cached torrents
+      const cachedInLang = langTorrents.filter(t => t.cached);
+      if (cachedInLang.length > 0) {
+        // Sort by quality
+        const qualityOrder = { '4K': 0, '1080p': 1, '720p': 2, 'WEB': 3, 'HDTV': 4, '480p': 5, 'SD': 6 };
+        cachedInLang.sort((a, b) => {
+          const qA = qualityOrder[parseQuality(a.name)] ?? 99;
+          const qB = qualityOrder[parseQuality(b.name)] ?? 99;
+          return qA - qB;
+        });
+        setSelectedTorrent(cachedInLang[0]);
+        setStreamUrl(null);
+        getStreamUrl(cachedInLang[0], true);
+      } else {
+        setSelectedTorrent(langTorrents[0]);
+        setStreamUrl(null);
+        getStreamUrl(langTorrents[0], true);
+      }
+    }
+  }, [torrents, getStreamUrl]);
+
   // Video event handlers
   const handleTimeUpdate = useCallback(() => {
     if (!videoRef.current) return;
@@ -750,27 +750,6 @@ function DebridPlayer() {
     setShowSubtitleMenu(false);
   }, []);
 
-  // Toggle subtitles on/off
-  const toggleSubtitles = useCallback(() => {
-    if (currentSubtitleTrack >= 0 || selectedOpenSubtitle) {
-      // Turn off
-      if (videoRef.current && videoRef.current.textTracks) {
-        for (let i = 0; i < videoRef.current.textTracks.length; i++) {
-          videoRef.current.textTracks[i].mode = 'hidden';
-        }
-      }
-      setCurrentSubtitleTrack(-1);
-      setSelectedOpenSubtitle(null);
-      setSubtitleUrl(null);
-    } else if (subtitleTracks.length > 0) {
-      // Turn on first track
-      changeSubtitleTrack(0);
-    } else if (openSubtitles.length > 0) {
-      // Use first OpenSubtitles track
-      selectOpenSubtitle(openSubtitles[0]);
-    }
-  }, [currentSubtitleTrack, subtitleTracks, changeSubtitleTrack, openSubtitles, selectedOpenSubtitle]);
-
   // Search for subtitles from OpenSubtitles
   const searchOpenSubtitles = useCallback(async () => {
     setLoadingSubtitles(true);
@@ -831,6 +810,27 @@ function DebridPlayer() {
       console.error('Error carregant subtítol:', err);
     }
   }, []);
+
+  // Toggle subtitles on/off
+  const toggleSubtitles = useCallback(() => {
+    if (currentSubtitleTrack >= 0 || selectedOpenSubtitle) {
+      // Turn off
+      if (videoRef.current && videoRef.current.textTracks) {
+        for (let i = 0; i < videoRef.current.textTracks.length; i++) {
+          videoRef.current.textTracks[i].mode = 'hidden';
+        }
+      }
+      setCurrentSubtitleTrack(-1);
+      setSelectedOpenSubtitle(null);
+      setSubtitleUrl(null);
+    } else if (subtitleTracks.length > 0) {
+      // Turn on first track
+      changeSubtitleTrack(0);
+    } else if (openSubtitles.length > 0) {
+      // Use first OpenSubtitles track
+      selectOpenSubtitle(openSubtitles[0]);
+    }
+  }, [currentSubtitleTrack, subtitleTracks, changeSubtitleTrack, openSubtitles, selectedOpenSubtitle, selectOpenSubtitle]);
 
   const handleEnded = useCallback(() => {
     setIsPlaying(false);
