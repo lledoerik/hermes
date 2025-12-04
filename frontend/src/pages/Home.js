@@ -337,14 +337,6 @@ function Home() {
     }
   };
 
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    if (mins < 60) return `${mins} min`;
-    const hours = Math.floor(mins / 60);
-    const remainMins = mins % 60;
-    return `${hours}h ${remainMins}m`;
-  };
-
   // Component per files de contingut estil Netflix
   const ContentRow = ({ title, items, type }) => {
     if (!items || items.length === 0) return null;
@@ -479,9 +471,6 @@ function Home() {
                     </div>
                     <div className="continue-info">
                       <h3 className="continue-title">{item.series_name || item.title}</h3>
-                      <span className="continue-time">
-                        {formatTime(item.total_seconds - item.progress_seconds)} restants
-                      </span>
                     </div>
                   </div>
                 );
@@ -557,9 +546,6 @@ function Home() {
                       <p className="continue-episode">
                         T{item.season_number} E{item.episode_number}
                       </p>
-                      <span className="continue-time">
-                        {formatTime(item.total_seconds - item.progress_seconds)} restants
-                      </span>
                     </div>
                   </div>
                 );
@@ -604,9 +590,6 @@ function Home() {
                   </div>
                   <div className="continue-info">
                     <h3 className="continue-title">{item.series_name || item.title}</h3>
-                    <span className="continue-time">
-                      {formatTime(item.total_seconds - item.progress_seconds)} restants
-                    </span>
                   </div>
                 </div>
               ))}
@@ -698,9 +681,6 @@ function Home() {
                   </div>
                   <div className="continue-info">
                     <h3 className="continue-title">{item.title}</h3>
-                    <span className="continue-time">
-                      {formatTime(item.total_seconds - item.progress_seconds)} restants
-                    </span>
                   </div>
                 </div>
               ))}
