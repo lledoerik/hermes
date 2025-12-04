@@ -6215,15 +6215,9 @@ async def scrape_letterboxd_watchlist(username: str) -> List[Dict]:
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9,ca;q=0.8,es;q=0.7',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'Cache-Control': 'max-age=0',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': 'https://letterboxd.com/',
+        'DNT': '1',
     }
 
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
@@ -6246,60 +6240,101 @@ async def scrape_letterboxd_watchlist(username: str) -> List[Dict]:
 
                 if response.status_code != 200:
                     logger.warning(f"Letterboxd returned status {response.status_code}")
+                    if page == 1:
+                        raise HTTPException(status_code=response.status_code, detail=f"Error accedint a Letterboxd: {response.status_code}")
                     break
 
                 soup = BeautifulSoup(response.text, 'lxml')
 
-                # Buscar els elements de pel·lícules - múltiples selectors
-                film_items = soup.select('li.poster-container')
+                # Debug: guardar fragment HTML si no trobem res
+                html_sample = response.text[:2000] if len(response.text) > 2000 else response.text
 
-                # Fallback: buscar per altres selectors comuns de Letterboxd
-                if not film_items:
-                    film_items = soup.select('ul.poster-list li')
+                # Mètode 1: Buscar posters amb data-film-slug (selector més fiable)
+                posters = soup.select('[data-film-slug]')
 
-                if not film_items:
-                    film_items = soup.select('.film-poster')
+                if not posters:
+                    # Mètode 2: Buscar li.poster-container
+                    posters = soup.select('li.poster-container')
 
-                if not film_items:
-                    # Debug: log per veure què rebem
-                    logger.warning(f"No film items found on page {page}. HTML length: {len(response.text)}")
-                    # Última pàgina o llista buida
+                if not posters:
+                    # Mètode 3: Buscar divs amb classe que conté 'poster'
+                    posters = soup.select('div.film-poster, div.poster')
+
+                if not posters:
+                    # Mètode 4: Buscar qualsevol element amb data-target-link que contingui /film/
+                    posters = soup.select('[data-target-link*="/film/"]')
+
+                logger.info(f"Letterboxd page {page}: found {len(posters)} poster elements")
+
+                if not posters:
+                    # Comprovar si és una pàgina buida o hi ha error
+                    if 'watchlist' not in response.text.lower():
+                        logger.warning(f"Letterboxd: No watchlist content found. HTML start: {html_sample[:500]}")
                     break
 
-                for item in film_items:
-                    # Buscar el div.poster o directament l'element amb data attributes
-                    poster = item.select_one('div.poster, div.film-poster') or item
-                    if poster:
-                        # El títol pot estar en diversos llocs
-                        title = (
-                            poster.get('data-film-name') or
-                            poster.get('data-target-link-title') or
-                            ''
-                        )
-                        year_str = poster.get('data-film-release-year') or ''
-                        film_slug = poster.get('data-film-slug') or poster.get('data-target-link') or ''
+                page_movies = 0
+                for poster in posters:
+                    # Extreure dades de l'element o els seus fills
+                    film_slug = (
+                        poster.get('data-film-slug') or
+                        poster.get('data-target-link', '').replace('/film/', '').rstrip('/') or
+                        ''
+                    )
 
-                        # Si no tenim el títol, intentar obtenir-lo de la imatge
-                        if not title:
-                            img = item.select_one('img')
-                            if img:
-                                title = img.get('alt', '')
+                    # Buscar div.poster dins l'element si no és ja el poster
+                    inner_poster = poster.select_one('div[data-film-slug]') if not poster.get('data-film-slug') else poster
+                    if inner_poster:
+                        film_slug = film_slug or inner_poster.get('data-film-slug', '')
 
-                        # Netejar el slug si és un path complet
-                        if film_slug and film_slug.startswith('/film/'):
-                            film_slug = film_slug.replace('/film/', '').rstrip('/')
+                    # Buscar títol - pot estar en diversos llocs
+                    title = ''
 
-                        if title:
-                            year = int(year_str) if year_str and year_str.isdigit() else None
-                            movies.append({
-                                'title': title,
-                                'year': year,
-                                'slug': film_slug,
-                                'source': 'letterboxd'
-                            })
+                    # 1. data-film-name
+                    title = poster.get('data-film-name', '')
+
+                    # 2. Buscar en elements fills
+                    if not title and inner_poster:
+                        title = inner_poster.get('data-film-name', '')
+
+                    # 3. Alt de la imatge
+                    if not title:
+                        img = poster.select_one('img')
+                        if img:
+                            title = img.get('alt', '')
+
+                    # 4. Títol del frame-title o similar
+                    if not title:
+                        title_elem = poster.select_one('.frame-title, .headline-3, span.title')
+                        if title_elem:
+                            title = title_elem.get_text(strip=True)
+
+                    # Any
+                    year_str = poster.get('data-film-release-year', '')
+                    if not year_str and inner_poster:
+                        year_str = inner_poster.get('data-film-release-year', '')
+
+                    year = int(year_str) if year_str and year_str.isdigit() else None
+
+                    if title or film_slug:
+                        # Si no tenim títol, usar el slug com a fallback
+                        if not title and film_slug:
+                            title = film_slug.replace('-', ' ').title()
+
+                        movies.append({
+                            'title': title,
+                            'year': year,
+                            'slug': film_slug,
+                            'source': 'letterboxd'
+                        })
+                        page_movies += 1
+
+                logger.info(f"Letterboxd page {page}: extracted {page_movies} movies")
+
+                if page_movies == 0:
+                    break
 
                 # Comprovar si hi ha més pàgines
-                pagination = soup.select_one('.pagination .next, .paginate-nextprev .next')
+                pagination = soup.select_one('.paginate-nextprev a.next, .pagination a.next')
                 if not pagination:
                     break
 
@@ -6307,6 +6342,8 @@ async def scrape_letterboxd_watchlist(username: str) -> List[Dict]:
 
             except httpx.RequestError as e:
                 logger.error(f"Error fent scraping de Letterboxd: {e}")
+                if page == 1:
+                    raise HTTPException(status_code=500, detail=f"Error de connexió amb Letterboxd: {str(e)}")
                 break
 
     logger.info(f"Letterboxd scraping complete: {len(movies)} movies found for {username}")
