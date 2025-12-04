@@ -727,11 +727,7 @@ function DebridPlayer() {
 
   const handlePlay = useCallback(() => {
     setIsPlaying(true);
-    // Try fullscreen on play (mobile)
-    if (!isFullscreen && containerRef.current) {
-      enterFullscreenMobile();
-    }
-  }, [isFullscreen, enterFullscreenMobile]);
+  }, []);
   const handlePause = useCallback(() => setIsPlaying(false), []);
 
   // Change audio track
