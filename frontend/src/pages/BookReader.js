@@ -1,11 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_URL } from '../config/api';
 import './BookReader.css';
-
-const API_URL = window.location.hostname === 'localhost'
-  ? 'http://localhost:8000'
-  : '';
 
 axios.defaults.baseURL = API_URL;
 

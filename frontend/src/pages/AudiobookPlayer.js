@@ -1,11 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_URL } from '../config/api';
 import './AudiobookPlayer.css';
-
-const API_URL = window.location.hostname === 'localhost'
-  ? 'http://localhost:8000'
-  : '';
 
 // SVG Icons
 const PlayIcon = () => (

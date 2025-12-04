@@ -3,11 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Hls from 'hls.js';
 import { useAuth } from '../context/AuthContext';
+import { API_URL } from '../config/api';
 import './Player.css';
-
-const API_URL = window.location.hostname === 'localhost'
-  ? 'http://localhost:8000'
-  : '';
 
 axios.defaults.baseURL = API_URL;
 

@@ -2,11 +2,8 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import { API_URL } from '../config/api';
 import './DebridPlayer.css';
-
-const API_URL = window.location.hostname === 'localhost'
-  ? 'http://localhost:8000'
-  : '';
 
 // SVG Icons
 const BackIcon = () => (
