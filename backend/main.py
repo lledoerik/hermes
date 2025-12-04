@@ -8455,8 +8455,8 @@ async def search_torrents(
         except Exception as e:
             logger.warning(f"Error comprovant cache RD: {e}")
 
-    # Filtrar i prioritzar streams (màxim 2 per qualitat, cached primer)
-    filtered_streams = _filter_and_prioritize_streams(streams, cached_hashes, max_per_quality=2)
+    # Filtrar i prioritzar streams (màxim 4 per qualitat, cached primer)
+    filtered_streams = _filter_and_prioritize_streams(streams, cached_hashes, max_per_quality=4)
 
     # Preparar resposta
     result_streams = [
