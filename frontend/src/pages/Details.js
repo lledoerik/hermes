@@ -349,13 +349,13 @@ function Details() {
   const handlePlay = () => {
     if (type === 'movies') {
       if (item?.tmdb_id) {
-        navigate(`/stream/movie/${item.tmdb_id}`);
+        navigate(`/debrid/movie/${item.tmdb_id}`);
       }
     } else {
       if (item?.tmdb_id) {
         const firstSeason = seasons[0]?.season_number || 1;
         const firstEpisode = episodes[0]?.episode_number || 1;
-        navigate(`/stream/series/${item.tmdb_id}?s=${firstSeason}&e=${firstEpisode}`);
+        navigate(`/debrid/tv/${item.tmdb_id}?s=${firstSeason}&e=${firstEpisode}`);
       }
     }
   };
@@ -844,7 +844,7 @@ function Details() {
                   style={{ cursor: isPremium && item?.tmdb_id ? 'pointer' : 'default' }}
                   onClick={() => {
                     if (isPremium && item?.tmdb_id) {
-                      navigate(`/stream/series/${item.tmdb_id}?s=${selectedSeason}&e=${episode.episode_number}`);
+                      navigate(`/debrid/tv/${item.tmdb_id}?s=${selectedSeason}&e=${episode.episode_number}`);
                     }
                   }}
                 >

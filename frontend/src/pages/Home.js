@@ -445,7 +445,7 @@ function Home() {
                     onClick={() => {
                       // Sempre navegar a streaming
                       if (item.tmdb_id) {
-                        navigate(`/stream/movie/${item.tmdb_id}`);
+                        navigate(`/debrid/movie/${item.tmdb_id}`);
                       } else {
                         navigate(`/movies/${item.series_id || item.id}`);
                       }
@@ -517,7 +517,7 @@ function Home() {
                     className="continue-card"
                     onClick={() => {
                       if (item.tmdb_id) {
-                        navigate(`/stream/tv/${item.tmdb_id}?s=${item.season_number || 1}&e=${item.episode_number || 1}`);
+                        navigate(`/debrid/tv/${item.tmdb_id}?s=${item.season_number || 1}&e=${item.episode_number || 1}`);
                       } else {
                         navigate(`/series/${item.series_id}`);
                       }
@@ -728,9 +728,9 @@ function Home() {
                           e.stopPropagation();
                           if (isPremium) {
                             if (item.media_type === 'movie') {
-                              navigate(`/stream/movie/${item.tmdb_id}`);
+                              navigate(`/debrid/movie/${item.tmdb_id}`);
                             } else {
-                              navigate(`/stream/tv/${item.tmdb_id}?s=1&e=1`);
+                              navigate(`/debrid/tv/${item.tmdb_id}?s=1&e=1`);
                             }
                           } else {
                             // Per no premium, anar a la pàgina de detalls
