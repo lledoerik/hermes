@@ -114,6 +114,9 @@ function StreamPlayer() {
   // Estat de progrés de visualització
   const [isWatched, setIsWatched] = useState(false);
   const [watchStartTime, setWatchStartTime] = useState(Date.now());
+  const [watchedSeconds, setWatchedSeconds] = useState(0);
+  const [isPageActive, setIsPageActive] = useState(true);
+  const watchedSecondsRef = useRef(0); // Ref per accedir al valor actual en callbacks
 
   // Popup "Següent capítol" estil Netflix
   const [showNextEpisodePopup, setShowNextEpisodePopup] = useState(false);
@@ -168,8 +171,7 @@ function StreamPlayer() {
         ? episodes.find(ep => ep.episode_number === parseInt(episode || 1))
         : null;
 
-      // Calcular segons totals i de progrés
-      // Per pel·lícules usar runtime de mediaInfo, per sèries usar runtime de l'episodi
+      // Calcular segons totals
       let runtimeMinutes = 0;
       if (type === 'movie' && mediaInfo?.runtime) {
         runtimeMinutes = mediaInfo.runtime;
@@ -180,7 +182,10 @@ function StreamPlayer() {
       }
 
       const totalSeconds = runtimeMinutes * 60;
-      const progressSeconds = Math.round((progressPercent / 100) * totalSeconds);
+      // Usar segons reals vistos si disponibles, si no calcular del percentatge
+      const progressSeconds = watchedSecondsRef.current > 0
+        ? watchedSecondsRef.current
+        : Math.round((progressPercent / 100) * totalSeconds);
 
       await axios.post('/api/streaming/progress', {
         tmdb_id: parseInt(tmdbId),
@@ -266,26 +271,73 @@ function StreamPlayer() {
     if (tmdbId) {
       loadWatchStatus();
       setWatchStartTime(Date.now());
+      setWatchedSeconds(0);
+      watchedSecondsRef.current = 0;
       setIsWatched(false);
       setShowNextEpisodePopup(false); // Reset popup quan canvia d'episodi
     }
   }, [tmdbId, season, episode, loadWatchStatus]);
 
-  // Auto-guardar progrés després de 30 segons de visualització
+  // Detectar quan la pàgina perd/guanya focus o visibilitat
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsPageActive(!document.hidden);
+    };
+    const handleFocus = () => setIsPageActive(true);
+    const handleBlur = () => setIsPageActive(false);
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
+
+  // Comptador de segons mentre la pàgina està activa
+  useEffect(() => {
+    if (showStartOverlay || loading || isWatched) return;
+
+    const interval = setInterval(() => {
+      if (isPageActive) {
+        setWatchedSeconds(prev => {
+          const newValue = prev + 1;
+          watchedSecondsRef.current = newValue;
+          return newValue;
+        });
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isPageActive, showStartOverlay, loading, isWatched]);
+
+  // Auto-guardar progrés cada 30 segons
   useEffect(() => {
     if (!watchStartTime || showStartOverlay || loading) return;
 
-    const timer = setTimeout(() => {
-      saveStreamingProgress(50, false);
+    const timer = setInterval(() => {
+      if (watchedSecondsRef.current > 30) {
+        // Calcular percentatge real basat en segons vistos
+        const currentEpisode = type !== 'movie'
+          ? episodes.find(ep => ep.episode_number === parseInt(episode || 1))
+          : null;
+        let runtimeMinutes = mediaInfo?.runtime || currentEpisode?.runtime || 45;
+        const totalSecs = runtimeMinutes * 60;
+        const percent = Math.min(95, Math.round((watchedSecondsRef.current / totalSecs) * 100));
+        saveStreamingProgress(percent, false);
+      }
     }, 30000);
 
-    return () => clearTimeout(timer);
-  }, [watchStartTime, showStartOverlay, loading, saveStreamingProgress]);
+    return () => clearInterval(timer);
+  }, [watchStartTime, showStartOverlay, loading, saveStreamingProgress, mediaInfo, episodes, type, episode]);
 
   // Guardar progrés quan l'usuari surt
   useEffect(() => {
     const handleBeforeUnload = () => {
-      if (!isWatched && !showStartOverlay) {
+      if (!isWatched && !showStartOverlay && watchedSecondsRef.current > 10) {
         // Trobar l'episodi actual per obtenir still_path i runtime
         const currentEpisode = type !== 'movie'
           ? episodes.find(ep => ep.episode_number === parseInt(episode || 1))
@@ -301,14 +353,16 @@ function StreamPlayer() {
           runtimeMinutes = 45;
         }
         const totalSeconds = runtimeMinutes * 60;
-        const progressSeconds = Math.round(0.5 * totalSeconds); // 50%
+        // Usar segons reals vistos
+        const progressSeconds = watchedSecondsRef.current;
+        const progressPercent = Math.min(95, Math.round((progressSeconds / totalSeconds) * 100));
 
         const data = JSON.stringify({
           tmdb_id: parseInt(tmdbId),
           media_type: type === 'movie' ? 'movie' : 'series',
           season_number: type !== 'movie' ? (season || 1) : null,
           episode_number: type !== 'movie' ? (episode || 1) : null,
-          progress_percent: 50,
+          progress_percent: progressPercent,
           progress_seconds: progressSeconds,
           total_seconds: totalSeconds,
           completed: false,
