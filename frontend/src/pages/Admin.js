@@ -57,25 +57,6 @@ const ClipboardIcon = () => (
   </svg>
 );
 
-const VolumeIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-    <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-  </svg>
-);
-
-const SubtitlesIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-  </svg>
-);
-
-const PlayIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <polygon points="5 3 19 12 5 21 5 3"></polygon>
-  </svg>
-);
-
 const KeyIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
@@ -445,13 +426,11 @@ function Admin() {
 
           <div className="sync-description">
             <p>
-              La sincronització automàtica s'executa diàriament a les <strong>2:30 AM</strong> i importa:
+              La sincronització automàtica s'executa diàriament a les <strong>2:30 AM</strong> i importa contingut destacat.
             </p>
-            <ul>
-              <li>Pel·lícules populars, millor valorades, en cartellera i pròximament de TMDB</li>
-              <li>Sèries populars, millor valorades i en emissió de TMDB</li>
-              <li>Llibres de diverses categories d'Open Library</li>
-            </ul>
+            <p style={{ marginTop: '0.5rem', fontSize: '0.9rem', opacity: 0.8 }}>
+              💡 <strong>Nota:</strong> Pots cercar i veure qualsevol contingut de TMDB en temps real des de la cerca, sense necessitat de sincronitzar.
+            </p>
           </div>
 
           <button
@@ -652,74 +631,6 @@ function Admin() {
                 </div>
               ))
             )}
-          </div>
-        </div>
-      </div>
-
-      {/* Preferences Section */}
-      <div className="admin-section">
-        <div className="section-header">
-          <h2><SettingsIcon /> Preferències de Reproducció</h2>
-        </div>
-        <div className="section-content">
-          <div className="paths-list">
-            <div className="path-item">
-              <div className="path-info">
-                <div className="path-icon"><VolumeIcon /></div>
-                <div className="path-details">
-                  <h4>Idioma d'àudio preferit</h4>
-                  <p>Quan estigui disponible</p>
-                </div>
-              </div>
-              <select
-                className="admin-select"
-                defaultValue={localStorage.getItem('hermes_audio_lang') || 'cat'}
-                onChange={(e) => localStorage.setItem('hermes_audio_lang', e.target.value)}
-              >
-                <option value="cat">Català</option>
-                <option value="spa">Castellà</option>
-                <option value="eng">Anglès</option>
-                <option value="jpn">Japonès</option>
-              </select>
-            </div>
-
-            <div className="path-item">
-              <div className="path-info">
-                <div className="path-icon"><SubtitlesIcon /></div>
-                <div className="path-details">
-                  <h4>Subtítols per defecte</h4>
-                  <p>Quan estiguin disponibles</p>
-                </div>
-              </div>
-              <select
-                className="admin-select"
-                defaultValue={localStorage.getItem('hermes_subtitle_lang') || 'off'}
-                onChange={(e) => localStorage.setItem('hermes_subtitle_lang', e.target.value)}
-              >
-                <option value="off">Desactivats</option>
-                <option value="cat">Català</option>
-                <option value="spa">Castellà</option>
-                <option value="eng">Anglès</option>
-              </select>
-            </div>
-
-            <div className="path-item">
-              <div className="path-info">
-                <div className="path-icon"><PlayIcon /></div>
-                <div className="path-details">
-                  <h4>Reproducció automàtica</h4>
-                  <p>Reproduir següent episodi automàticament</p>
-                </div>
-              </div>
-              <label className="toggle-container">
-                <input
-                  type="checkbox"
-                  defaultChecked={localStorage.getItem('hermes_autoplay') !== 'false'}
-                  onChange={(e) => localStorage.setItem('hermes_autoplay', e.target.checked)}
-                />
-                <span className="toggle-label">Activat</span>
-              </label>
-            </div>
           </div>
         </div>
       </div>
