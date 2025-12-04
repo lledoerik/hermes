@@ -1126,22 +1126,16 @@ function DebridPlayer() {
         </div>
       )}
 
-      {/* Video ended overlay with next episode */}
+      {/* Video ended overlay with next episode - corner popup */}
       {showEndedOverlay && nextEpisode && (
         <div className="ended-overlay" onClick={(e) => e.stopPropagation()}>
           <div className="ended-content">
-            <p className="ended-label">Següent episodi</p>
-            <h3>E{nextEpisode.episode_number}: {nextEpisode.name || `Episodi ${nextEpisode.episode_number}`}</h3>
-            {nextEpisode.overview && (
-              <p className="ended-overview">{nextEpisode.overview.substring(0, 150)}...</p>
-            )}
+            <p className="ended-label">Següent</p>
+            <h3>{nextEpisode.name || `Episodi ${nextEpisode.episode_number}`}</h3>
             <div className="ended-buttons">
               <button className="next-episode-btn" onClick={goToNextEpisode}>
                 <NextEpisodeIcon />
-                <span>Reproduir ara</span>
-              </button>
-              <button className="replay-btn" onClick={() => { setShowEndedOverlay(false); seek(0); togglePlay(); }}>
-                Tornar a veure
+                <span>Reproduir</span>
               </button>
             </div>
           </div>
