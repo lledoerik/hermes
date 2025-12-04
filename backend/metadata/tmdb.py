@@ -308,6 +308,43 @@ class TMDBClient:
             return None
         return f"{self.IMAGE_BASE_URL}/{size}{backdrop_path}"
 
+    async def get_movies_now_playing(self, region: str = "ES") -> List[int]:
+        """Get list of TMDB IDs for movies currently in theaters."""
+        tmdb_ids = []
+        # Fetch up to 3 pages (60 movies) to get a good coverage
+        for page in range(1, 4):
+            data = await self._request("/movie/now_playing", {"region": region, "page": page})
+            if data and data.get("results"):
+                for movie in data["results"]:
+                    tmdb_ids.append(movie["id"])
+            else:
+                break
+        return tmdb_ids
+
+    async def get_tv_on_the_air(self) -> List[int]:
+        """Get list of TMDB IDs for TV series currently on the air."""
+        tmdb_ids = []
+        for page in range(1, 4):
+            data = await self._request("/tv/on_the_air", {"page": page})
+            if data and data.get("results"):
+                for tv in data["results"]:
+                    tmdb_ids.append(tv["id"])
+            else:
+                break
+        return tmdb_ids
+
+    async def get_tv_airing_today(self) -> List[int]:
+        """Get list of TMDB IDs for TV series airing today."""
+        tmdb_ids = []
+        for page in range(1, 4):
+            data = await self._request("/tv/airing_today", {"page": page})
+            if data and data.get("results"):
+                for tv in data["results"]:
+                    tmdb_ids.append(tv["id"])
+            else:
+                break
+        return tmdb_ids
+
     async def get_external_ids(self, media_type: str, tmdb_id: int) -> Optional[Dict[str, Any]]:
         """
         Get external IDs (IMDB, TVDB, etc.) for a movie or TV series.
@@ -588,6 +625,7 @@ async def fetch_movie_by_tmdb_id(api_key: str, tmdb_id: int,
         result["overview"] = movie.get("overview")
         result["tagline"] = movie.get("tagline")
         result["rating"] = movie.get("vote_average")
+        result["vote_count"] = movie.get("vote_count")
         result["runtime"] = movie.get("runtime")
         result["original_language"] = movie.get("original_language")
         result["popularity"] = movie.get("popularity")
@@ -673,6 +711,7 @@ async def fetch_tv_by_tmdb_id(api_key: str, tmdb_id: int,
         result["overview"] = tv.get("overview")
         result["tagline"] = tv.get("tagline")
         result["rating"] = tv.get("vote_average")
+        result["vote_count"] = tv.get("vote_count")
         result["seasons"] = tv.get("number_of_seasons")
         result["episodes"] = tv.get("number_of_episodes")
         result["original_language"] = tv.get("original_language")
