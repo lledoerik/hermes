@@ -993,6 +993,107 @@
   font-style: italic;
 }
 
+/* Double tap indicators */
+.double-tap-indicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 30%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 15;
+  animation: doubleTapFade 0.5s ease-out forwards;
+}
+
+.double-tap-indicator.left {
+  left: 0;
+  background: radial-gradient(circle at left center, rgba(255, 255, 255, 0.15), transparent 70%);
+}
+
+.double-tap-indicator.right {
+  right: 0;
+  background: radial-gradient(circle at right center, rgba(255, 255, 255, 0.15), transparent 70%);
+}
+
+.double-tap-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.double-tap-icon svg {
+  width: 48px;
+  height: 48px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+}
+
+.double-tap-icon span {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+@keyframes doubleTapFade {
+  0% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Mobile fullscreen styles */
+.debrid-player.fullscreen {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 9999 !important;
+}
+
+/* Touch-friendly controls on mobile */
+@media (hover: none) and (pointer: coarse) {
+  .debrid-player {
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .controls-row button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .control-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .volume-control {
+    display: none; /* Hide volume on mobile - use device volume */
+  }
+
+  .progress-bar {
+    height: 8px;
+  }
+
+  .progress-container {
+    height: 32px;
+    padding: 12px 0;
+  }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .controls-row button svg {
