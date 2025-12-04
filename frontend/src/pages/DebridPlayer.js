@@ -906,9 +906,9 @@ function DebridPlayer() {
       }
 
       // Lock to landscape on mobile (if supported)
-      if (screen.orientation && screen.orientation.lock) {
+      if (window.screen.orientation && window.screen.orientation.lock) {
         try {
-          await screen.orientation.lock('landscape');
+          await window.screen.orientation.lock('landscape');
         } catch (e) {
           // Orientation lock not supported or denied
           console.log('Orientation lock not supported');
@@ -1141,9 +1141,9 @@ function DebridPlayer() {
       setIsFullscreen(isNowFullscreen);
 
       // Unlock orientation when exiting fullscreen
-      if (!isNowFullscreen && screen.orientation && screen.orientation.unlock) {
+      if (!isNowFullscreen && window.screen.orientation && window.screen.orientation.unlock) {
         try {
-          screen.orientation.unlock();
+          window.screen.orientation.unlock();
         } catch (e) {
           // Ignore
         }
