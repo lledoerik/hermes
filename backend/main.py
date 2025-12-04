@@ -356,6 +356,14 @@ def init_all_tables():
         except:
             pass  # L'índex ja existeix o la taula no existeix encara
 
+        # Taula settings (configuració del sistema)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        """)
+
         conn.commit()
         logger.info("Totes les taules inicialitzades correctament")
 
