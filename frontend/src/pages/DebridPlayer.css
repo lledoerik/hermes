@@ -721,33 +721,46 @@
   border-radius: 3px;
 }
 
-.season-selector {
+.season-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.season-nav-btn {
   background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 4px;
-  color: #fff;
-  font-size: 12px;
-  padding: 4px 8px;
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  outline: none;
-}
-
-.season-selector:hover {
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.season-selector:focus {
-  border-color: #328492;
-}
-
-.season-selector option {
-  background: #1a1a1a;
   color: #fff;
+  transition: background 0.2s, opacity 0.2s;
+}
+
+.season-nav-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.season-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.season-nav-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
 .season-title {
-  color: #888;
-  font-size: 12px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  min-width: 100px;
+  text-align: center;
 }
 
 .episodes-loading {
