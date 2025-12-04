@@ -239,6 +239,11 @@ function DebridPlayer() {
   const progressSaveTimeoutRef = useRef(null);
   const resumeTimeRef = useRef(0);
 
+  // Touch/tap handling refs
+  const lastTapTimeRef = useRef(0);
+  const tapTimeoutRef = useRef(null);
+  const tapZoneRef = useRef(null); // 'left', 'center', 'right'
+
   // URL params
   const searchParams = new URLSearchParams(location.search);
   const season = searchParams.get('s') ? parseInt(searchParams.get('s')) : null;
@@ -889,6 +894,122 @@ function DebridPlayer() {
   const skipBack = useCallback(() => seek(currentTime - 10), [currentTime, seek]);
   const skipForward = useCallback(() => seek(currentTime + 30), [currentTime, seek]);
 
+  // Enter fullscreen and lock to landscape on mobile
+  const enterFullscreenMobile = useCallback(async () => {
+    if (!containerRef.current) return;
+
+    try {
+      // Request fullscreen
+      if (!document.fullscreenElement) {
+        await containerRef.current.requestFullscreen();
+        setIsFullscreen(true);
+      }
+
+      // Lock to landscape on mobile (if supported)
+      if (screen.orientation && screen.orientation.lock) {
+        try {
+          await screen.orientation.lock('landscape');
+        } catch (e) {
+          // Orientation lock not supported or denied
+          console.log('Orientation lock not supported');
+        }
+      }
+    } catch (e) {
+      console.log('Fullscreen not supported:', e);
+    }
+  }, []);
+
+  // Handle tap zones for double tap (left = -10s, center = play/pause, right = +30s)
+  const getTapZone = useCallback((e) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return 'center';
+
+    const x = e.clientX || (e.touches && e.touches[0]?.clientX) || 0;
+    const relativeX = x - rect.left;
+    const width = rect.width;
+
+    if (relativeX < width * 0.3) return 'left';
+    if (relativeX > width * 0.7) return 'right';
+    return 'center';
+  }, []);
+
+  // Handle touch/click on video area
+  const handleVideoAreaTap = useCallback((e) => {
+    // Ignore if any menu is open
+    if (showQualityMenu || showLanguageMenu || showEpisodesList || showSubtitleMenu || showAudioMenu || showEndedOverlay) {
+      return;
+    }
+
+    // Ignore if clicking on controls
+    if (e.target.closest('.controls-container') || e.target.closest('.top-bar')) {
+      return;
+    }
+
+    const now = Date.now();
+    const tapZone = getTapZone(e);
+    const timeSinceLastTap = now - lastTapTimeRef.current;
+
+    // Check for double tap (within 300ms and same zone)
+    if (timeSinceLastTap < 300 && tapZoneRef.current === tapZone) {
+      // Double tap detected
+      if (tapTimeoutRef.current) {
+        clearTimeout(tapTimeoutRef.current);
+        tapTimeoutRef.current = null;
+      }
+
+      // Execute double tap action
+      if (tapZone === 'left') {
+        skipBack();
+        // Show visual feedback
+        showDoubleTapFeedback('left');
+      } else if (tapZone === 'right') {
+        skipForward();
+        showDoubleTapFeedback('right');
+      } else {
+        // Center double tap = toggle play
+        if (streamUrl) togglePlay();
+      }
+
+      lastTapTimeRef.current = 0;
+      tapZoneRef.current = null;
+    } else {
+      // Single tap - wait to see if it becomes double tap
+      lastTapTimeRef.current = now;
+      tapZoneRef.current = tapZone;
+
+      if (tapTimeoutRef.current) {
+        clearTimeout(tapTimeoutRef.current);
+      }
+
+      tapTimeoutRef.current = setTimeout(() => {
+        // Single tap confirmed - toggle controls visibility
+        if (showControls) {
+          setShowControls(false);
+        } else {
+          setShowControls(true);
+          // Auto-hide after 3 seconds if playing
+          if (isPlaying) {
+            if (controlsTimeoutRef.current) {
+              clearTimeout(controlsTimeoutRef.current);
+            }
+            controlsTimeoutRef.current = setTimeout(() => {
+              setShowControls(false);
+            }, 3000);
+          }
+        }
+        tapTimeoutRef.current = null;
+      }, 300);
+    }
+  }, [showQualityMenu, showLanguageMenu, showEpisodesList, showSubtitleMenu, showAudioMenu, showEndedOverlay, getTapZone, skipBack, skipForward, togglePlay, streamUrl, showControls, isPlaying]);
+
+  // Visual feedback for double tap
+  const [doubleTapIndicator, setDoubleTapIndicator] = useState(null);
+
+  const showDoubleTapFeedback = useCallback((side) => {
+    setDoubleTapIndicator(side);
+    setTimeout(() => setDoubleTapIndicator(null), 500);
+  }, []);
+
   // Hide controls after inactivity
   const handleMouseMove = useCallback(() => {
     setShowControls(true);
@@ -1002,10 +1123,31 @@ function DebridPlayer() {
     }
   }, [selectedTorrent, streamUrl, loadingStream, getStreamUrl]);
 
-  // Fullscreen change detection
+  // Auto-enter fullscreen when video starts playing on mobile
+  useEffect(() => {
+    if (streamUrl && !isFullscreen) {
+      // Small delay to ensure video is ready
+      const timeout = setTimeout(() => {
+        enterFullscreenMobile();
+      }, 500);
+      return () => clearTimeout(timeout);
+    }
+  }, [streamUrl, isFullscreen, enterFullscreenMobile]);
+
+  // Fullscreen change detection and orientation unlock
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      const isNowFullscreen = !!document.fullscreenElement;
+      setIsFullscreen(isNowFullscreen);
+
+      // Unlock orientation when exiting fullscreen
+      if (!isNowFullscreen && screen.orientation && screen.orientation.unlock) {
+        try {
+          screen.orientation.unlock();
+        } catch (e) {
+          // Ignore
+        }
+      }
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
@@ -1065,8 +1207,31 @@ function DebridPlayer() {
       ref={containerRef}
       className={`debrid-player ${isFullscreen ? 'fullscreen' : ''} ${showControls ? 'show-controls' : ''}`}
       onMouseMove={handleMouseMove}
-      onClick={() => !showQualityMenu && streamUrl && togglePlay()}
+      onClick={handleVideoAreaTap}
+      onTouchEnd={handleVideoAreaTap}
     >
+      {/* Double tap indicators */}
+      {doubleTapIndicator === 'left' && (
+        <div className="double-tap-indicator left">
+          <div className="double-tap-icon">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/>
+            </svg>
+            <span>-10s</span>
+          </div>
+        </div>
+      )}
+      {doubleTapIndicator === 'right' && (
+        <div className="double-tap-indicator right">
+          <div className="double-tap-icon">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/>
+            </svg>
+            <span>+30s</span>
+          </div>
+        </div>
+      )}
+
       {/* Video element */}
       {streamUrl && (
         <video
@@ -1081,7 +1246,6 @@ function DebridPlayer() {
           onEnded={handleEnded}
           autoPlay
           playsInline
-          onClick={(e) => e.stopPropagation()}
         />
       )}
 
