@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LibraryProvider, useLibrary } from './context/LibraryContext';
-import { StreamCacheProvider } from './context/StreamCacheContext';
+import { StreamCacheProvider, useStreamCache } from './context/StreamCacheContext';
 import Navbar from './components/Navbar';
 import LoadingScreen from './components/LoadingScreen';
 import Home from './pages/Home';
@@ -41,11 +41,25 @@ function StreamRedirect() {
 // Main app content with loading screen
 function AppContent() {
   const { initialLoading, loadingProgress, preloadData } = useLibrary();
+  const { isPremium } = useAuth();
+  const { initializeBackgroundPreload } = useStreamCache();
 
   // Preload data on mount
   useEffect(() => {
     preloadData();
   }, [preloadData]);
+
+  // Inicialitzar precàrrega en segon pla del contingut "Continue Watching"
+  // quan l'app carrega i l'usuari és premium
+  useEffect(() => {
+    if (!initialLoading && isPremium) {
+      // Petit delay per no interferir amb la càrrega inicial
+      const timeout = setTimeout(() => {
+        initializeBackgroundPreload();
+      }, 2000);
+      return () => clearTimeout(timeout);
+    }
+  }, [initialLoading, isPremium, initializeBackgroundPreload]);
 
   if (initialLoading) {
     return <LoadingScreen progress={loadingProgress} />;
