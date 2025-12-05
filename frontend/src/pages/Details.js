@@ -966,7 +966,7 @@ function Details() {
                   ) : null}
                   <span className="episode-number" style={{ display: !episode.still_path ? 'flex' : 'none' }}>{episode.episode_number}</span>
                   {isPremium && item?.tmdb_id && (
-                    <div className="episode-play-icon"><PauseIcon size={20} /></div>
+                    <div className="episode-play-icon"><PlayIcon size={20} /></div>
                   )}
                   {episode.watch_progress > 0 && (
                     <div className="episode-progress">

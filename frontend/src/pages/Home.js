@@ -375,7 +375,7 @@ function Home() {
                       />
                       <div className="continue-overlay">
                         <button className="play-btn">
-                          <PauseIcon />
+                          <PlayIcon />
                         </button>
                       </div>
                       <div className="progress-bar">
@@ -460,7 +460,7 @@ function Home() {
                       />
                       <div className="continue-overlay">
                         <button className="play-btn">
-                          <PauseIcon />
+                          <PlayIcon />
                         </button>
                       </div>
                       <div className="progress-bar">
@@ -517,7 +517,7 @@ function Home() {
                     )}
                     <div className="continue-overlay">
                       <button className="play-btn">
-                        <PauseIcon />
+                        <PlayIcon />
                       </button>
                     </div>
                     <div className="progress-bar">
@@ -608,7 +608,7 @@ function Home() {
                     )}
                     <div className="continue-overlay">
                       <button className="play-btn">
-                        <PauseIcon />
+                        <PlayIcon />
                       </button>
                     </div>
                     <div className="progress-bar">
