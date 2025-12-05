@@ -136,26 +136,24 @@ function Navbar() {
         </div>
 
         <div className="navbar-right">
-          {/* Barra de cerca - només per usuaris autenticats */}
-          {isAuthenticated && (
-            <form className={`navbar-search-box ${searchExpanded ? 'expanded' : ''}`} onSubmit={handleSearch}>
-              <SearchIcon size={18} />
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder={getSearchPlaceholder()}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => setSearchExpanded(true)}
-                onBlur={() => !searchQuery && setSearchExpanded(false)}
-              />
-              {searchQuery && (
-                <button type="button" className="clear-search" onClick={clearSearch}>
-                  <CloseIcon size={14} />
-                </button>
-              )}
-            </form>
-          )}
+          {/* Barra de cerca - sempre visible */}
+          <form className={`navbar-search-box ${searchExpanded ? 'expanded' : ''}`} onSubmit={handleSearch}>
+            <SearchIcon size={18} />
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder={getSearchPlaceholder()}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setSearchExpanded(true)}
+              onBlur={() => !searchQuery && setSearchExpanded(false)}
+            />
+            {searchQuery && (
+              <button type="button" className="clear-search" onClick={clearSearch}>
+                <CloseIcon size={14} />
+              </button>
+            )}
+          </form>
 
           {isAuthenticated ? (
             <div
