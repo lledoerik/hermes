@@ -6,10 +6,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import MediaCard from './MediaCard';
-import { MovieIcon, TvIcon, SearchIcon, ClearIcon, ChevronLeftIcon, ChevronRightIcon } from './Icons';
+import { MovieIcon, TvIcon, SearchIcon, ClearIcon, ChevronLeftIcon, ChevronRightIcon } from './icons';
 import { useAuth } from '../context/AuthContext';
 import { useLibrary } from '../context/LibraryContext';
-import API_URL from '../config/api';
 
 // Configuració per tipus de contingut
 const LIBRARY_CONFIG = {
