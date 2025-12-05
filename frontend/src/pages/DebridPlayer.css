@@ -404,18 +404,29 @@
 }
 
 .controls-row button {
-  background: none;
+  background: transparent;
   border: none;
+  border-radius: 0;
   padding: 8px;
   cursor: pointer;
   color: #fff;
   opacity: 0.8;
   transition: opacity 0.2s, transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+  box-shadow: none;
 }
 
 .controls-row button:hover {
   opacity: 1;
   transform: scale(1.1);
+}
+
+.controls-row button:focus,
+.controls-row button:active {
+  background: transparent;
+  outline: none;
+  box-shadow: none;
 }
 
 .controls-row button svg {
@@ -487,18 +498,29 @@
 
 /* Control buttons */
 .control-btn {
-  background: none;
+  background: transparent;
   border: none;
+  border-radius: 0;
   padding: 8px;
   cursor: pointer;
   color: #fff;
   opacity: 0.8;
   transition: opacity 0.2s, transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+  box-shadow: none;
 }
 
 .control-btn:hover {
   opacity: 1;
   transform: scale(1.1);
+}
+
+.control-btn:focus,
+.control-btn:active {
+  background: transparent;
+  outline: none;
+  box-shadow: none;
 }
 
 .control-btn.disabled {
