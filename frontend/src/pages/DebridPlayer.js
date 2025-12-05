@@ -296,6 +296,13 @@ function DebridPlayer() {
   const episodesListRef = useRef(null);
   const episodesCacheRef = useRef({}); // Cache d'episodis per temporada
 
+  // Scrubbing state (progress bar dragging)
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const [scrubTime, setScrubTime] = useState(0);
+  const [scrubPosition, setScrubPosition] = useState(0); // Position for tooltip
+  const progressContainerRef = useRef(null);
+  const previewVideoRef = useRef(null); // For desktop preview frame
+
   const mediaType = type === 'movie' ? 'movie' : 'tv';
 
   // Determine next episode
@@ -820,6 +827,16 @@ function DebridPlayer() {
 
   const handlePlay = useCallback(() => {
     setIsPlaying(true);
+    // Auto-enter fullscreen and lock orientation when video starts
+    if (!document.fullscreenElement && containerRef.current) {
+      containerRef.current.requestFullscreen().then(() => {
+        setIsFullscreen(true);
+        // Lock to landscape on mobile
+        if (window.screen.orientation && window.screen.orientation.lock) {
+          window.screen.orientation.lock('landscape').catch(() => {});
+        }
+      }).catch(() => {});
+    }
   }, []);
   const handlePause = useCallback(() => setIsPlaying(false), []);
 
@@ -859,11 +876,81 @@ function DebridPlayer() {
     videoRef.current.currentTime = Math.max(0, Math.min(time, duration));
   }, [duration]);
 
+  // Calculate time from position on progress bar
+  const getTimeFromPosition = useCallback((clientX) => {
+    if (!progressContainerRef.current || !duration) return 0;
+    const rect = progressContainerRef.current.getBoundingClientRect();
+    const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    return percent * duration;
+  }, [duration]);
+
+  // Handle scrubbing start (mouse/touch)
+  const handleScrubStart = useCallback((e) => {
+    e.stopPropagation();
+    const clientX = e.clientX || e.touches?.[0]?.clientX || 0;
+    const time = getTimeFromPosition(clientX);
+    setIsScrubbing(true);
+    setScrubTime(time);
+    setScrubPosition(clientX);
+    // Keep controls visible while scrubbing
+    setShowControls(true);
+    if (controlsTimeoutRef.current) {
+      clearTimeout(controlsTimeoutRef.current);
+    }
+  }, [getTimeFromPosition]);
+
+  // Handle scrubbing move
+  const handleScrubMove = useCallback((e) => {
+    if (!isScrubbing) return;
+    e.preventDefault();
+    const clientX = e.clientX || e.touches?.[0]?.clientX || 0;
+    const time = getTimeFromPosition(clientX);
+    setScrubTime(time);
+    setScrubPosition(clientX);
+    // Update preview video position for desktop
+    if (previewVideoRef.current) {
+      previewVideoRef.current.currentTime = time;
+    }
+  }, [isScrubbing, getTimeFromPosition]);
+
+  // Handle scrubbing end
+  const handleScrubEnd = useCallback((e) => {
+    if (!isScrubbing) return;
+    e.stopPropagation();
+    const clientX = e.clientX || e.changedTouches?.[0]?.clientX || scrubPosition;
+    const time = getTimeFromPosition(clientX);
+    seek(time);
+    setIsScrubbing(false);
+    setScrubTime(0);
+  }, [isScrubbing, scrubPosition, getTimeFromPosition, seek]);
+
+  // Handle simple click on progress bar (no drag)
   const handleProgressClick = useCallback((e) => {
+    if (isScrubbing) return; // Ignore if we're scrubbing
     const rect = e.currentTarget.getBoundingClientRect();
     const percent = (e.clientX - rect.left) / rect.width;
     seek(percent * duration);
-  }, [duration, seek]);
+  }, [duration, seek, isScrubbing]);
+
+  // Add global mouse/touch event listeners for scrubbing
+  useEffect(() => {
+    if (isScrubbing) {
+      const handleGlobalMove = (e) => handleScrubMove(e);
+      const handleGlobalEnd = (e) => handleScrubEnd(e);
+
+      window.addEventListener('mousemove', handleGlobalMove);
+      window.addEventListener('mouseup', handleGlobalEnd);
+      window.addEventListener('touchmove', handleGlobalMove, { passive: false });
+      window.addEventListener('touchend', handleGlobalEnd);
+
+      return () => {
+        window.removeEventListener('mousemove', handleGlobalMove);
+        window.removeEventListener('mouseup', handleGlobalEnd);
+        window.removeEventListener('touchmove', handleGlobalMove);
+        window.removeEventListener('touchend', handleGlobalEnd);
+      };
+    }
+  }, [isScrubbing, handleScrubMove, handleScrubEnd]);
 
   const handleVolumeChange = useCallback((e) => {
     const newVolume = parseFloat(e.target.value);
@@ -894,7 +981,7 @@ function DebridPlayer() {
   }, []);
 
   const skipBack = useCallback(() => seek(currentTime - 10), [currentTime, seek]);
-  const skipForward = useCallback(() => seek(currentTime + 30), [currentTime, seek]);
+  const skipForward = useCallback(() => seek(currentTime + 10), [currentTime, seek]);
 
   // Enter fullscreen and lock to landscape on mobile
   const enterFullscreenMobile = useCallback(async () => {
@@ -921,12 +1008,14 @@ function DebridPlayer() {
     }
   }, []);
 
-  // Handle tap zones for double tap (left = -10s, center = play/pause, right = +30s)
+  // Handle tap zones for double tap (left = -10s, center = play/pause, right = +10s)
   const getTapZone = useCallback((e) => {
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return 'center';
 
-    const x = e.clientX || (e.touches && e.touches[0]?.clientX) || 0;
+    // For touchEnd, use changedTouches instead of touches (touches is empty on touchEnd)
+    const touch = e.changedTouches?.[0] || e.touches?.[0];
+    const x = e.clientX || touch?.clientX || 0;
     const relativeX = x - rect.left;
     const width = rect.width;
 
@@ -1308,7 +1397,7 @@ function DebridPlayer() {
             <svg viewBox="0 0 24 24" fill="currentColor">
               <path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/>
             </svg>
-            <span>+30s</span>
+            <span>+10s</span>
           </div>
         </div>
       )}
@@ -1451,8 +1540,39 @@ function DebridPlayer() {
             <span className="time-duration">{formatTime(duration)}</span>
           </div>
 
-          {/* Progress bar */}
-          <div className="progress-container" onClick={handleProgressClick}>
+          {/* Progress bar with scrubbing */}
+          <div
+            className={`progress-container ${isScrubbing ? 'scrubbing' : ''}`}
+            ref={progressContainerRef}
+            onClick={handleProgressClick}
+            onMouseDown={handleScrubStart}
+            onTouchStart={handleScrubStart}
+          >
+            {/* Scrub preview tooltip */}
+            {isScrubbing && (
+              <div
+                className="scrub-preview"
+                style={{
+                  left: `${progressContainerRef.current ?
+                    Math.max(40, Math.min(
+                      progressContainerRef.current.getBoundingClientRect().width - 40,
+                      scrubPosition - progressContainerRef.current.getBoundingClientRect().left
+                    )) : 0}px`
+                }}
+              >
+                {/* Desktop: Preview frame (using hidden video) */}
+                <div className="scrub-preview-frame">
+                  <video
+                    ref={previewVideoRef}
+                    src={streamUrl}
+                    muted
+                    preload="metadata"
+                  />
+                </div>
+                {/* Time display */}
+                <span className="scrub-preview-time">{formatTime(scrubTime)}</span>
+              </div>
+            )}
             <div className="progress-bar">
               <div
                 className="progress-buffered"
@@ -1460,7 +1580,12 @@ function DebridPlayer() {
               />
               <div
                 className="progress-played"
-                style={{ width: `${(currentTime / duration) * 100}%` }}
+                style={{ width: `${((isScrubbing ? scrubTime : currentTime) / duration) * 100}%` }}
+              />
+              {/* Scrub handle */}
+              <div
+                className="progress-handle"
+                style={{ left: `${((isScrubbing ? scrubTime : currentTime) / duration) * 100}%` }}
               />
             </div>
           </div>
@@ -1474,7 +1599,7 @@ function DebridPlayer() {
               <button onClick={(e) => { e.stopPropagation(); skipBack(); }} title="-10s">
                 <SkipBackIcon />
               </button>
-              <button onClick={(e) => { e.stopPropagation(); skipForward(); }} title="+30s">
+              <button onClick={(e) => { e.stopPropagation(); skipForward(); }} title="+10s">
                 <SkipForwardIcon />
               </button>
               <div className="volume-control" onClick={(e) => e.stopPropagation()}>

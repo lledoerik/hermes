@@ -11,6 +11,7 @@ import {
   ProgramsIcon,
   TvIcon,
   PlayIcon,
+  PauseIcon,
   InfoIcon,
   StarIcon
 } from '../components/icons';
@@ -374,7 +375,7 @@ function Home() {
                       />
                       <div className="continue-overlay">
                         <button className="play-btn">
-                          <PlayIcon />
+                          <PauseIcon />
                         </button>
                       </div>
                       <div className="progress-bar">
@@ -459,7 +460,7 @@ function Home() {
                       />
                       <div className="continue-overlay">
                         <button className="play-btn">
-                          <PlayIcon />
+                          <PauseIcon />
                         </button>
                       </div>
                       <div className="progress-bar">
@@ -516,7 +517,7 @@ function Home() {
                     )}
                     <div className="continue-overlay">
                       <button className="play-btn">
-                        <PlayIcon />
+                        <PauseIcon />
                       </button>
                     </div>
                     <div className="progress-bar">
@@ -607,7 +608,7 @@ function Home() {
                     )}
                     <div className="continue-overlay">
                       <button className="play-btn">
-                        <PlayIcon />
+                        <PauseIcon />
                       </button>
                     </div>
                     <div className="progress-bar">
