@@ -1072,10 +1072,9 @@ function DebridPlayer() {
         skipForward();
         showDoubleTapFeedback('right');
       } else {
-        // Center double tap = toggle play
+        // Center double tap = toggle play (sense indicador visual)
         if (streamUrl) {
           togglePlay();
-          showDoubleTapFeedback('center');
         }
       }
 
@@ -1401,22 +1400,6 @@ function DebridPlayer() {
           </div>
         </div>
       )}
-      {doubleTapIndicator === 'center' && (
-        <div className="double-tap-indicator center">
-          <div className="double-tap-icon">
-            {isPlaying ? (
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
-              </svg>
-            ) : (
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M8 5v14l11-7z"/>
-              </svg>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Video element */}
       {streamUrl && (
         <video

@@ -1166,13 +1166,6 @@
   background: radial-gradient(circle at right center, rgba(255, 255, 255, 0.15), transparent 70%);
 }
 
-.double-tap-indicator.center {
-  left: 50%;
-  transform: translateX(-50%);
-  width: 40%;
-  background: radial-gradient(circle at center, rgba(255, 255, 255, 0.2), transparent 70%);
-}
-
 .double-tap-icon {
   display: flex;
   flex-direction: column;
