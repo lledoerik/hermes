@@ -110,10 +110,49 @@ function Details() {
             .map(s => ({ ...s, hasLocalEpisodes: false }));
 
           setSeasons(tmdbSeasons);
-          if (tmdbSeasons.length > 0) {
-            setSelectedSeason(tmdbSeasons[0].season_number);
-          }
           setUsingTmdbSeasons(true);
+
+          // Carregar episodis de la primera temporada ABANS de treure el loading
+          if (tmdbSeasons.length > 0) {
+            const firstSeasonNum = tmdbSeasons[0].season_number;
+            setSelectedSeason(firstSeasonNum);
+
+            // Comprovar cache primer
+            const cacheKey = `hermes_episodes_v2_${realTmdbId}_s${firstSeasonNum}`;
+            let episodesLoaded = false;
+            try {
+              const cached = sessionStorage.getItem(cacheKey);
+              if (cached) {
+                const { data, timestamp } = JSON.parse(cached);
+                const oneHour = 60 * 60 * 1000;
+                if (Date.now() - timestamp < oneHour && data.length > 0) {
+                  setEpisodes(data);
+                  episodesLoaded = true;
+                }
+              }
+            } catch (e) { /* Cache error */ }
+
+            // Si no hi ha cache, carregar de TMDB
+            if (!episodesLoaded) {
+              try {
+                const episodesRes = await axios.get(`/api/tmdb/tv/${realTmdbId}/season/${firstSeasonNum}`);
+                if (episodesRes.data.episodes) {
+                  const episodes = episodesRes.data.episodes.map(ep => ({
+                    ...ep,
+                    isLocal: false,
+                    duration: ep.runtime ? ep.runtime * 60 : null
+                  }));
+                  setEpisodes(episodes);
+                  // Guardar al cache
+                  try {
+                    sessionStorage.setItem(cacheKey, JSON.stringify({ data: episodes, timestamp: Date.now() }));
+                  } catch (e) { /* sessionStorage ple */ }
+                }
+              } catch (e) {
+                console.error('Error carregant episodis inicials:', e);
+              }
+            }
+          }
         } else {
           // Carregar detalls de pel·lícula des de TMDB
           const response = await axios.get(`/api/tmdb/movie/${realTmdbId}`);
