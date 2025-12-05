@@ -60,6 +60,10 @@ function Details() {
   const [isInWatchlist, setIsInWatchlist] = useState(false);
   const [watchlistLoading, setWatchlistLoading] = useState(false);
 
+  // Preloading state - per mostrar estat al botó de reproducció
+  const [streamPreloading, setStreamPreloading] = useState(false);
+  const [streamReady, setStreamReady] = useState(false);
+
   const checkScrollButtons = useCallback(() => {
     const container = seasonsScrollRef.current;
     if (container) {
@@ -397,14 +401,22 @@ function Details() {
       const tmdbIdToUse = isTmdbOnly ? realTmdbId : item?.tmdb_id;
       if (!isPremium || !tmdbIdToUse) return;
 
+      // Reset estat quan canvia el contingut
+      setStreamReady(false);
+      setStreamPreloading(true);
+
       try {
         if (type === 'movies') {
           // Per pel·lícules, precarregar directament
           console.log('[Details] Precarregant torrents per pel·lícula...');
           const torrents = await preloadTorrents('movie', tmdbIdToUse);
           if (torrents?.length > 0) {
-            // Precarregar qualitat automàtica primer, resta en background
-            preloadAutoQualityFirst(torrents);
+            // AWAIT per assegurar que el stream estigui llest abans de permetre reproduir
+            const result = await preloadAutoQualityFirst(torrents);
+            if (result?.autoUrl) {
+              console.log('[Details] Stream preparat per reproducció instantània!');
+              setStreamReady(true);
+            }
           }
         } else if (type === 'series' && episodes.length > 0) {
           // Per sèries, precarregar el primer episodi visible
@@ -413,13 +425,19 @@ function Details() {
             console.log(`[Details] Precarregant torrents per S${selectedSeason}E${firstEpisode.episode_number}...`);
             const torrents = await preloadTorrents('tv', tmdbIdToUse, selectedSeason, firstEpisode.episode_number);
             if (torrents?.length > 0) {
-              // Precarregar qualitat automàtica primer, resta en background
-              preloadAutoQualityFirst(torrents);
+              // AWAIT per assegurar que el stream estigui llest abans de permetre reproduir
+              const result = await preloadAutoQualityFirst(torrents);
+              if (result?.autoUrl) {
+                console.log('[Details] Stream preparat per reproducció instantània!');
+                setStreamReady(true);
+              }
             }
           }
         }
       } catch (err) {
         console.error('[Details] Error precarregant:', err);
+      } finally {
+        setStreamPreloading(false);
       }
     };
 
@@ -684,8 +702,21 @@ function Details() {
             <div className="details-actions">
               {/* Botó de reproducció només visible per usuaris premium */}
               {isPremium && item?.tmdb_id && (
-                <button className="play-btn" onClick={handlePlay}>
-                  <PlayIcon /> Reproduir
+                <button
+                  className={`play-btn ${streamReady ? 'ready' : ''} ${streamPreloading ? 'loading' : ''}`}
+                  onClick={handlePlay}
+                >
+                  {streamPreloading ? (
+                    <>
+                      <span className="play-btn-spinner"></span>
+                      Preparant...
+                    </>
+                  ) : (
+                    <>
+                      <PlayIcon />
+                      {streamReady ? 'Reproduir' : 'Reproduir'}
+                    </>
+                  )}
                 </button>
               )}
               {/* Botó de watchlist */}
