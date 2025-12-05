@@ -22,7 +22,7 @@ function Details() {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAdmin, isPremium, isAuthenticated } = useAuth();
-  const { preloadTorrents, preloadAutoQualityFirst } = useStreamCache();
+  const { preloadWithHighPriority, getCachedStreamUrl } = useStreamCache();
 
   // Determinar el tipus segons la ruta
   const type = location.pathname.startsWith('/movies') ? 'movies' : 'series';
@@ -441,8 +441,8 @@ function Details() {
     }
   }, [item, checkWatchlist]);
 
-  // Precarregar torrents en background quan es carrega la pàgina de detalls
-  // Prioritza la qualitat automàtica primer, i després carrega la resta en background
+  // Precarregar torrents amb prioritat alta quan es carrega la pàgina de detalls
+  // Usa el sistema de cua amb prioritats per no bloquejar altres precàrregues
   // IMPORTANT: Usem nextEpisode?.season i nextEpisode?.episode com a dependències
   // (valors primitius) en lloc de l'objecte nextEpisode per evitar reruns infinits
   const nextSeason = nextEpisode?.season;
@@ -460,29 +460,25 @@ function Details() {
 
       try {
         if (type === 'movies') {
-          // Per pel·lícules, precarregar directament
-          console.log('[Details] Precarregant torrents per pel·lícula...');
-          const torrents = await preloadTorrents('movie', tmdbIdToUse);
-          if (torrents?.length > 0) {
-            // AWAIT per assegurar que el stream estigui llest abans de permetre reproduir
-            const result = await preloadAutoQualityFirst(torrents);
-            if (result?.autoUrl) {
-              console.log('[Details] Stream preparat per reproducció instantània!');
-              setStreamReady(true);
-            }
+          // Per pel·lícules, precarregar amb prioritat alta
+          console.log('[Details] Precarregant pel·lícula amb prioritat alta...');
+          const result = await preloadWithHighPriority('movie', tmdbIdToUse);
+          if (result?.success && result?.url) {
+            console.log('[Details] Stream preparat per reproducció instantània!');
+            setStreamReady(true);
           }
-        } else if (type === 'series' && nextSeason && nextEpisodeNum) {
-          // Per sèries, precarregar l'episodi que es reproduirà
-          console.log(`[Details] Precarregant torrents per S${nextSeason}E${nextEpisodeNum}...`);
-          const torrents = await preloadTorrents('tv', tmdbIdToUse, nextSeason, nextEpisodeNum);
-          if (torrents?.length > 0) {
-            // AWAIT per assegurar que el stream estigui llest abans de permetre reproduir
-            // Passar season i episode per assegurar que es selecciona el fitxer correcte
-            const result = await preloadAutoQualityFirst(torrents, nextSeason, nextEpisodeNum);
-            if (result?.autoUrl) {
-              console.log('[Details] Stream preparat per reproducció instantània!');
-              setStreamReady(true);
-            }
+        } else if (type === 'series') {
+          // Per sèries, determinar quin episodi carregar:
+          // - Si l'usuari té progrés, carregar l'episodi on s'ha quedat (nextEpisode)
+          // - Si no té progrés, carregar episodi 1 de la temporada seleccionada
+          const seasonToLoad = nextSeason || selectedSeason;
+          const episodeToLoad = nextEpisodeNum || 1;
+
+          console.log(`[Details] Precarregant S${seasonToLoad}E${episodeToLoad} amb prioritat alta...`);
+          const result = await preloadWithHighPriority('tv', tmdbIdToUse, seasonToLoad, episodeToLoad);
+          if (result?.success && result?.url) {
+            console.log('[Details] Stream preparat per reproducció instantània!');
+            setStreamReady(true);
           }
         }
       } catch (err) {
@@ -493,7 +489,7 @@ function Details() {
     };
 
     preloadStreams();
-  }, [item?.tmdb_id, nextSeason, nextEpisodeNum, type, isPremium, isTmdbOnly, realTmdbId, preloadTorrents, preloadAutoQualityFirst]);
+  }, [item?.tmdb_id, nextSeason, nextEpisodeNum, selectedSeason, type, isPremium, isTmdbOnly, realTmdbId, preloadWithHighPriority]);
 
   const handleUpdateByTmdbId = async () => {
     if (!tmdbId.trim()) {
