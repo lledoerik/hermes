@@ -10,7 +10,7 @@ const CACHE_EXPIRATION = 5 * 60 * 1000;
 export function LibraryProvider({ children }) {
   // Loading state
   const [initialLoading, setInitialLoading] = useState(true);
-  const [loadingProgress, setLoadingProgress] = useState({ current: 0, total: 6, message: 'Inicialitzant...' });
+  const [loadingProgress, setLoadingProgress] = useState({ current: 0, total: 6 });
 
   // Cached data
   const [moviesCache, setMoviesCache] = useState({ data: null, timestamp: null, pages: {} });
@@ -32,86 +32,86 @@ export function LibraryProvider({ children }) {
     const total = 6;
     let current = 0;
 
+    // Helper per actualitzar progrés
+    const updateProgress = () => {
+      current++;
+      setLoadingProgress({ current, total });
+    };
+
     try {
-      // 1. Load movies (first page)
-      setLoadingProgress({ current: ++current, total, message: 'Carregant pel·lícules...' });
-      try {
-        const moviesRes = await axios.get(`${API_URL}/api/library/movies`, {
-          params: { page: 1, limit: 50, sort_by: 'name' }
-        });
-        setMoviesCache({
-          data: moviesRes.data,
-          timestamp: Date.now(),
-          pages: { 1: { data: moviesRes.data.items, timestamp: Date.now() } }
-        });
-      } catch (e) {
-        console.error('Error loading movies:', e);
-      }
+      // Carregar tot en PARAL·LEL per més velocitat
+      const promises = [
+        // 1. Movies
+        axios.get(`${API_URL}/api/library/movies`, { params: { page: 1, limit: 50, sort_by: 'name' } })
+          .then(res => {
+            setMoviesCache({
+              data: res.data,
+              timestamp: Date.now(),
+              pages: { 1: { data: res.data.items, timestamp: Date.now() } }
+            });
+            updateProgress();
+          })
+          .catch(() => updateProgress()),
 
-      // 2. Load series (first page)
-      setLoadingProgress({ current: ++current, total, message: 'Carregant sèries...' });
-      try {
-        const seriesRes = await axios.get(`${API_URL}/api/library/series`, {
-          params: { page: 1, limit: 50, sort_by: 'name' }
-        });
-        setSeriesCache({
-          data: seriesRes.data,
-          timestamp: Date.now(),
-          pages: { 1: { data: seriesRes.data.items, timestamp: Date.now() } }
-        });
-      } catch (e) {
-        console.error('Error loading series:', e);
-      }
+        // 2. Series
+        axios.get(`${API_URL}/api/library/series`, { params: { page: 1, limit: 50, sort_by: 'name' } })
+          .then(res => {
+            setSeriesCache({
+              data: res.data,
+              timestamp: Date.now(),
+              pages: { 1: { data: res.data.items, timestamp: Date.now() } }
+            });
+            updateProgress();
+          })
+          .catch(() => updateProgress()),
 
-      // 3. Load books (endpoint pot no existir encara)
-      setLoadingProgress({ current: ++current, total, message: 'Carregant llibres...' });
-      try {
-        const booksRes = await axios.get(`${API_URL}/api/library/books`);
-        setBooksCache({ data: booksRes.data, timestamp: Date.now() });
-      } catch (e) {
-        console.debug('Books endpoint no disponible');
-      }
+        // 3. Books
+        axios.get(`${API_URL}/api/library/books`)
+          .then(res => {
+            setBooksCache({ data: res.data, timestamp: Date.now() });
+            updateProgress();
+          })
+          .catch(() => updateProgress()),
 
-      // 4. Load audiobooks (endpoint pot no existir encara)
-      setLoadingProgress({ current: ++current, total, message: 'Carregant audiollibres...' });
-      try {
-        const audiobooksRes = await axios.get(`${API_URL}/api/library/audiobooks`);
-        setAudiobooksCache({ data: audiobooksRes.data, timestamp: Date.now() });
-      } catch (e) {
-        console.debug('Audiobooks endpoint no disponible');
-      }
+        // 4. Audiobooks
+        axios.get(`${API_URL}/api/library/audiobooks`)
+          .then(res => {
+            setAudiobooksCache({ data: res.data, timestamp: Date.now() });
+            updateProgress();
+          })
+          .catch(() => updateProgress()),
 
-      // 5. Load home data (recent, continue watching, etc.)
-      setLoadingProgress({ current: ++current, total, message: 'Carregant inici...' });
-      try {
-        const [recentRes, continueRes] = await Promise.all([
+        // 5. Home data (recent + continue watching)
+        Promise.all([
           axios.get(`${API_URL}/api/library/recent`).catch(() => ({ data: [] })),
           axios.get(`${API_URL}/api/user/continue-watching`).catch(() => ({ data: [] }))
-        ]);
-        setHomeCache({
-          data: { recent: recentRes.data, continueWatching: continueRes.data },
-          timestamp: Date.now()
-        });
-      } catch (e) {
-        console.error('Error loading home:', e);
-      }
+        ]).then(([recentRes, continueRes]) => {
+          setHomeCache({
+            data: { recent: recentRes.data, continueWatching: continueRes.data },
+            timestamp: Date.now()
+          });
+          updateProgress();
+        }).catch(() => updateProgress()),
 
-      // 6. Load stats
-      setLoadingProgress({ current: ++current, total, message: 'Finalitzant...' });
-      try {
-        const statsRes = await axios.get(`${API_URL}/api/library/stats`);
-        setStatsCache({ data: statsRes.data, timestamp: Date.now() });
-      } catch (e) {
-        console.error('Error loading stats:', e);
-      }
+        // 6. Stats
+        axios.get(`${API_URL}/api/library/stats`)
+          .then(res => {
+            setStatsCache({ data: res.data, timestamp: Date.now() });
+            updateProgress();
+          })
+          .catch(() => updateProgress())
+      ];
+
+      // Esperar que totes les promeses acabin
+      await Promise.all(promises);
 
     } catch (error) {
       console.error('Error preloading data:', error);
     } finally {
-      // Small delay to show completion
+      // Petit delay per mostrar 100%
       setTimeout(() => {
         setInitialLoading(false);
-      }, 300);
+      }, 200);
     }
   }, []);
 
