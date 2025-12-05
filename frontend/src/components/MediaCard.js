@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import TitleAudioPlayer from './TitleAudioPlayer';
 import { useAuth } from '../context/AuthContext';
-import { API_URL, getPosterUrl } from '../config/api';
+import { getPosterUrl } from '../config/api';
 import { TvIcon, MovieIcon, StarIcon, PlayIcon, InfoIcon } from './icons';
 
 const styles = {

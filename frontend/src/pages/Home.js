@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { API_URL, getPosterUrl, getBackdropUrl, getTmdbBackdropUrl, getTmdbPosterUrl } from '../config/api';
+import { API_URL } from '../config/api';
 import {
   MovieIcon,
   SeriesIcon,

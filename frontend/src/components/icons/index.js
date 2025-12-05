@@ -1024,3 +1024,6 @@ export const ExternalIcon = ({ size = 24, className = '' }) => (
     <line x1="10" y1="14" x2="21" y2="3"/>
   </svg>
 );
+
+// Alias for backwards compatibility
+export { CloseIcon as ClearIcon };
