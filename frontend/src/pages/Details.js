@@ -35,6 +35,12 @@ function Details() {
   const [seasons, setSeasons] = useState([]);
   const [episodes, setEpisodes] = useState([]);
   const [selectedSeason, setSelectedSeason] = useState(1);
+
+  // Handler per canviar de temporada
+  const handleSeasonSelect = useCallback((seasonNum) => {
+    setSelectedSeason(seasonNum);
+  }, []);
+
   const [loading, setLoading] = useState(true);
   const [loadingEpisodes, setLoadingEpisodes] = useState(false);
   const [showTmdbInput, setShowTmdbInput] = useState(false);
@@ -65,6 +71,19 @@ function Details() {
   // Inicialitzar a true perquè mostri "Preparant..." des del principi
   const [streamPreloading, setStreamPreloading] = useState(true);
   const [streamReady, setStreamReady] = useState(false);
+
+  // Guardar temporada seleccionada a localStorage quan canvia (després de la càrrega inicial)
+  useEffect(() => {
+    // Només guardar després de la càrrega inicial i per sèries
+    if (!loading && seasons.length > 0 && type === 'series') {
+      const storageKey = `hermes_selected_season_${id}`;
+      try {
+        localStorage.setItem(storageKey, selectedSeason.toString());
+      } catch (e) {
+        // localStorage no disponible o ple
+      }
+    }
+  }, [selectedSeason, loading, seasons.length, id, type]);
 
   const checkScrollButtons = useCallback(() => {
     const container = seasonsScrollRef.current;
@@ -113,7 +132,17 @@ function Details() {
           setSeasons(tmdbSeasons);
           setUsingTmdbSeasons(true);
           if (tmdbSeasons.length > 0) {
-            setSelectedSeason(tmdbSeasons[0].season_number);
+            // Comprovar si hi ha temporada guardada a localStorage
+            const storageKey = `hermes_selected_season_${id}`;
+            const savedSeason = localStorage.getItem(storageKey);
+            const savedSeasonNum = savedSeason ? parseInt(savedSeason) : null;
+
+            // Si hi ha temporada guardada i és vàlida, usar-la
+            if (savedSeasonNum && tmdbSeasons.some(s => s.season_number === savedSeasonNum)) {
+              setSelectedSeason(savedSeasonNum);
+            } else {
+              setSelectedSeason(tmdbSeasons[0].season_number);
+            }
           }
           // Episodis es carregaran via useEffect després de mostrar la pàgina
         } else {
@@ -165,31 +194,75 @@ function Details() {
                 });
 
               setSeasons(combinedSeasons);
-              // Seleccionar la primera temporada que tingui episodis locals, o la primera disponible
-              const firstLocalSeason = combinedSeasons.find(s => s.hasLocalEpisodes);
-              const selectedSeasonNum = firstLocalSeason ? firstLocalSeason.season_number : combinedSeasons[0].season_number;
-              setSelectedSeason(selectedSeasonNum);
+
+              // Comprovar si hi ha temporada guardada a localStorage
+              const storageKey = `hermes_selected_season_${id}`;
+              const savedSeason = localStorage.getItem(storageKey);
+              const savedSeasonNum = savedSeason ? parseInt(savedSeason) : null;
+
+              // Si hi ha temporada guardada i és vàlida, usar-la
+              if (savedSeasonNum && combinedSeasons.some(s => s.season_number === savedSeasonNum)) {
+                setSelectedSeason(savedSeasonNum);
+              } else {
+                // Seleccionar la primera temporada que tingui episodis locals, o la primera disponible
+                const firstLocalSeason = combinedSeasons.find(s => s.hasLocalEpisodes);
+                const selectedSeasonNum = firstLocalSeason ? firstLocalSeason.season_number : combinedSeasons[0].season_number;
+                setSelectedSeason(selectedSeasonNum);
+              }
               setUsingTmdbSeasons(true);
               // Episodis es carregaran via useEffect després de mostrar la pàgina
             } else if (localSeasons.length > 0) {
               // No hi ha TMDB, només locals
-              setSeasons(localSeasons.map(s => ({ ...s, hasLocalEpisodes: true })));
-              setSelectedSeason(localSeasons[0].season_number);
+              const mappedSeasons = localSeasons.map(s => ({ ...s, hasLocalEpisodes: true }));
+              setSeasons(mappedSeasons);
+
+              // Comprovar si hi ha temporada guardada a localStorage
+              const storageKey = `hermes_selected_season_${id}`;
+              const savedSeason = localStorage.getItem(storageKey);
+              const savedSeasonNum = savedSeason ? parseInt(savedSeason) : null;
+
+              if (savedSeasonNum && mappedSeasons.some(s => s.season_number === savedSeasonNum)) {
+                setSelectedSeason(savedSeasonNum);
+              } else {
+                setSelectedSeason(localSeasons[0].season_number);
+              }
               setUsingTmdbSeasons(false);
             }
           } catch (tmdbErr) {
             console.error('Error carregant temporades TMDB:', tmdbErr);
             // Si falla TMDB, usar només locals
             if (localSeasons.length > 0) {
-              setSeasons(localSeasons.map(s => ({ ...s, hasLocalEpisodes: true })));
-              setSelectedSeason(localSeasons[0].season_number);
+              const mappedSeasons = localSeasons.map(s => ({ ...s, hasLocalEpisodes: true }));
+              setSeasons(mappedSeasons);
+
+              // Comprovar si hi ha temporada guardada a localStorage
+              const storageKey = `hermes_selected_season_${id}`;
+              const savedSeason = localStorage.getItem(storageKey);
+              const savedSeasonNum = savedSeason ? parseInt(savedSeason) : null;
+
+              if (savedSeasonNum && mappedSeasons.some(s => s.season_number === savedSeasonNum)) {
+                setSelectedSeason(savedSeasonNum);
+              } else {
+                setSelectedSeason(localSeasons[0].season_number);
+              }
               setUsingTmdbSeasons(false);
             }
           }
         } else if (localSeasons.length > 0) {
           // No hi ha tmdb_id, només locals
-          setSeasons(localSeasons.map(s => ({ ...s, hasLocalEpisodes: true })));
-          setSelectedSeason(localSeasons[0].season_number);
+          const mappedSeasons = localSeasons.map(s => ({ ...s, hasLocalEpisodes: true }));
+          setSeasons(mappedSeasons);
+
+          // Comprovar si hi ha temporada guardada a localStorage
+          const storageKey = `hermes_selected_season_${id}`;
+          const savedSeason = localStorage.getItem(storageKey);
+          const savedSeasonNum = savedSeason ? parseInt(savedSeason) : null;
+
+          if (savedSeasonNum && mappedSeasons.some(s => s.season_number === savedSeasonNum)) {
+            setSelectedSeason(savedSeasonNum);
+          } else {
+            setSelectedSeason(localSeasons[0].season_number);
+          }
           setUsingTmdbSeasons(false);
         }
       } else {
@@ -914,7 +987,7 @@ function Details() {
                       <button
                         key={season.id || `tmdb-season-${season.season_number}`}
                         className={`season-btn ${selectedSeason === season.season_number ? 'active' : ''}`}
-                        onClick={() => setSelectedSeason(season.season_number)}
+                        onClick={() => handleSeasonSelect(season.season_number)}
                       >
                         Temporada {season.season_number}
                       </button>
