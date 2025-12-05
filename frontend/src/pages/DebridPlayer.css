@@ -165,6 +165,12 @@
   background: rgba(50, 132, 146, 0.15);
 }
 
+.quality-option.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .quality-label {
   display: flex;
   align-items: center;

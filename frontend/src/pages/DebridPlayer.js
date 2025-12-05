@@ -258,6 +258,7 @@ function DebridPlayer() {
   const [loadingStream, setLoadingStream] = useState(false);
   const [error, setError] = useState(null);
   const [debridConfigured, setDebridConfigured] = useState(null); // null = checking, true/false = result
+  const [disabledQualities, setDisabledQualities] = useState(new Set()); // Qualitats que han fallat
 
   // Abort controller ref per cancel·lar peticions anteriors
   const streamAbortControllerRef = useRef(null);
@@ -1144,6 +1145,8 @@ function DebridPlayer() {
     if (debridConfigured && type !== 'movie') {
       // Reset el flag de precàrrega del següent episodi
       nextEpisodePreloadedRef.current = false;
+      // Reset qualitats desactivades
+      setDisabledQualities(new Set());
       searchTorrents();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1173,20 +1176,20 @@ function DebridPlayer() {
     };
   }, []);
 
-  // Timeout automàtic de càrrega (15 segons)
+  // Timeout automàtic de càrrega (10 segons)
   useEffect(() => {
-    const isLoading = loadingTorrents || loadingStream;
-
-    if (isLoading) {
+    if (loadingStream && selectedTorrent) {
       loadingTimerRef.current = setTimeout(() => {
         // Cancel·lar la petició
         if (streamAbortControllerRef.current) {
           streamAbortControllerRef.current.abort();
         }
-        setLoadingTorrents(false);
+        // Desactivar la qualitat que ha fallat
+        const failedQuality = parseQuality(selectedTorrent.name);
+        setDisabledQualities(prev => new Set([...prev, failedQuality]));
         setLoadingStream(false);
-        setError('Temps d\'espera excedit. Prova amb una altra font.');
-      }, 15000); // 15 segons
+        setSelectedTorrent(null);
+      }, 10000); // 10 segons
     } else {
       // Netejar timeout
       if (loadingTimerRef.current) {
@@ -1200,7 +1203,7 @@ function DebridPlayer() {
         clearTimeout(loadingTimerRef.current);
       }
     };
-  }, [loadingTorrents, loadingStream]);
+  }, [loadingStream, selectedTorrent]);
 
   // Save progress on unmount
   useEffect(() => {
@@ -1338,18 +1341,21 @@ function DebridPlayer() {
                 <span className="quality-value">Automàtic ({autoSelectedQuality})</span>
               </div>
               {/* Qualitats manuals: 4K, 1080p, 720p */}
-              {groupedTorrents.map((group, index) => (
-                <div
-                  key={index}
-                  className={`quality-option ${
-                    !isAutoQuality && currentQuality === group.quality ? 'active' : ''
-                  } ${group.hasCached ? 'cached' : ''}`}
-                  onClick={() => changeTorrent(group.quality)}
-                >
-                  <span className="quality-value">{group.quality}</span>
-                  {group.hasCached && <span className="cached-icon">⚡</span>}
-                </div>
-              ))}
+              {groupedTorrents.map((group, index) => {
+                const isDisabled = disabledQualities.has(group.quality);
+                return (
+                  <div
+                    key={index}
+                    className={`quality-option ${
+                      !isAutoQuality && currentQuality === group.quality ? 'active' : ''
+                    } ${group.hasCached ? 'cached' : ''} ${isDisabled ? 'disabled' : ''}`}
+                    onClick={() => !isDisabled && changeTorrent(group.quality)}
+                  >
+                    <span className="quality-value">{group.quality}</span>
+                    {group.hasCached && <span className="cached-icon">⚡</span>}
+                  </div>
+                );
+              })}
               {groupedTorrents.length === 0 && !loadingTorrents && (
                 <div className="no-torrents">
                   No s'han trobat fonts disponibles
