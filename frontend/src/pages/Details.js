@@ -445,16 +445,36 @@ function Details() {
     }
   }, [type, selectedSeason, seasons, loadEpisodes, usingTmdbSeasons, item?.tmdb_id]);
 
+  // Trobar el proper episodi a reproduir (continuar o primer)
+  const getNextEpisode = () => {
+    if (type === 'movies' || !episodes.length) return null;
+
+    // Buscar episodi en progrés (0 < progress < 90)
+    const inProgressEp = episodes.find(ep => ep.watch_progress > 0 && ep.watch_progress < 90);
+    if (inProgressEp) {
+      return { season: selectedSeason, episode: inProgressEp.episode_number };
+    }
+
+    // Buscar primer episodi no vist completament
+    const unwatchedEp = episodes.find(ep => !ep.watch_progress || ep.watch_progress < 90);
+    if (unwatchedEp) {
+      return { season: selectedSeason, episode: unwatchedEp.episode_number };
+    }
+
+    // Si tots estan vistos, reproduir el primer
+    return { season: selectedSeason, episode: episodes[0]?.episode_number || 1 };
+  };
+
+  const nextEpisode = type === 'series' ? getNextEpisode() : null;
+
   const handlePlay = () => {
     if (type === 'movies') {
       if (item?.tmdb_id) {
         navigate(`/debrid/movie/${item.tmdb_id}`);
       }
     } else {
-      if (item?.tmdb_id) {
-        const firstSeason = seasons[0]?.season_number || 1;
-        const firstEpisode = episodes[0]?.episode_number || 1;
-        navigate(`/debrid/tv/${item.tmdb_id}?s=${firstSeason}&e=${firstEpisode}`);
+      if (item?.tmdb_id && nextEpisode) {
+        navigate(`/debrid/tv/${item.tmdb_id}?s=${nextEpisode.season}&e=${nextEpisode.episode}`);
       }
     }
   };
@@ -839,7 +859,9 @@ function Details() {
                   ) : (
                     <>
                       <PlayIcon />
-                      Reproduir
+                      {type === 'series' && nextEpisode
+                        ? `Capítol ${nextEpisode.episode}`
+                        : 'Reproduir'}
                     </>
                   )}
                 </button>
