@@ -355,16 +355,18 @@ function Home() {
                   <div
                     key={item.source === 'streaming' ? `stream-${item.tmdb_id}` : `local-${item.id}-${index}`}
                     className="continue-card"
-                    onClick={() => {
-                      // Sempre navegar a streaming
-                      if (item.tmdb_id) {
-                        navigate(`/debrid/movie/${item.tmdb_id}`);
-                      } else {
-                        navigate(`/movies/${item.series_id || item.id}`);
-                      }
-                    }}
                   >
-                    <div className="continue-thumbnail">
+                    <div
+                      className="continue-thumbnail"
+                      onClick={() => {
+                        // Reproduir directament
+                        if (item.tmdb_id) {
+                          navigate(`/debrid/movie/${item.tmdb_id}`);
+                        } else {
+                          navigate(`/movies/${item.series_id || item.id}`);
+                        }
+                      }}
+                    >
                       <ContinueThumbnail
                         item={item}
                         imageUrl={imageUrl}
@@ -382,7 +384,17 @@ function Home() {
                         />
                       </div>
                     </div>
-                    <div className="continue-info">
+                    <div
+                      className="continue-info"
+                      onClick={() => {
+                        // Anar a la pàgina de detalls
+                        if (item.tmdb_id) {
+                          navigate(`/movies/tmdb-${item.tmdb_id}`);
+                        } else {
+                          navigate(`/movies/${item.series_id || item.id}`);
+                        }
+                      }}
+                    >
                       <h3 className="continue-title">{item.series_name || item.title}</h3>
                     </div>
                   </div>
@@ -428,15 +440,18 @@ function Home() {
                   <div
                     key={item.source === 'streaming' ? `stream-${item.tmdb_id}-${item.season_number}-${item.episode_number}` : `local-${item.id}-${index}`}
                     className="continue-card"
-                    onClick={() => {
-                      if (item.tmdb_id) {
-                        navigate(`/debrid/tv/${item.tmdb_id}?s=${item.season_number || 1}&e=${item.episode_number || 1}`);
-                      } else {
-                        navigate(`/series/${item.series_id}`);
-                      }
-                    }}
                   >
-                    <div className="continue-thumbnail">
+                    <div
+                      className="continue-thumbnail"
+                      onClick={() => {
+                        // Reproduir directament
+                        if (item.tmdb_id) {
+                          navigate(`/debrid/tv/${item.tmdb_id}?s=${item.season_number || 1}&e=${item.episode_number || 1}`);
+                        } else {
+                          navigate(`/series/${item.series_id}`);
+                        }
+                      }}
+                    >
                       <ContinueThumbnail
                         item={item}
                         imageUrl={imageUrl}
@@ -454,11 +469,21 @@ function Home() {
                         />
                       </div>
                     </div>
-                    <div className="continue-info">
-                      <h3 className="continue-title">{item.series_name}</h3>
-                      <p className="continue-episode">
-                        T{item.season_number} E{item.episode_number}
-                      </p>
+                    <div
+                      className="continue-info"
+                      onClick={() => {
+                        // Anar a la pàgina de detalls amb la temporada
+                        if (item.tmdb_id) {
+                          navigate(`/series/tmdb-${item.tmdb_id}?season=${item.season_number || 1}`);
+                        } else {
+                          navigate(`/series/${item.series_id}`);
+                        }
+                      }}
+                    >
+                      <div className="continue-info-row">
+                        <h3 className="continue-title">{item.series_name}</h3>
+                        <span className="continue-episode">T{item.season_number} E{item.episode_number}</span>
+                      </div>
                     </div>
                   </div>
                 );
