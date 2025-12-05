@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import { useStreamCache } from '../context/StreamCacheContext';
 import TitleAudioPlayer from '../components/TitleAudioPlayer';
 import { API_URL, getBackdropUrl, getPosterUrl, formatDuration } from '../config/api';
 import {
@@ -21,6 +22,8 @@ function Details() {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAdmin, isPremium, isAuthenticated } = useAuth();
+  const { preloadTorrents, preloadBestStreams } = useStreamCache();
+
   // Determinar el tipus segons la ruta
   const type = location.pathname.startsWith('/movies') ? 'movies' : 'series';
 
@@ -385,6 +388,41 @@ function Details() {
       checkWatchlist();
     }
   }, [item, checkWatchlist]);
+
+  // Precarregar torrents en background quan es carrega la pàgina de detalls
+  useEffect(() => {
+    const preloadStreams = async () => {
+      // Només precarregar si l'usuari és premium i tenim tmdb_id
+      const tmdbIdToUse = isTmdbOnly ? realTmdbId : item?.tmdb_id;
+      if (!isPremium || !tmdbIdToUse) return;
+
+      try {
+        if (type === 'movies') {
+          // Per pel·lícules, precarregar directament
+          console.log('[Details] Precarregant torrents per pel·lícula...');
+          const torrents = await preloadTorrents('movie', tmdbIdToUse);
+          if (torrents?.length > 0) {
+            // Precarregar les URLs de stream dels millors torrents cached
+            preloadBestStreams(torrents);
+          }
+        } else if (type === 'series' && episodes.length > 0) {
+          // Per sèries, precarregar el primer episodi visible
+          const firstEpisode = episodes[0];
+          if (firstEpisode) {
+            console.log(`[Details] Precarregant torrents per S${selectedSeason}E${firstEpisode.episode_number}...`);
+            const torrents = await preloadTorrents('tv', tmdbIdToUse, selectedSeason, firstEpisode.episode_number);
+            if (torrents?.length > 0) {
+              preloadBestStreams(torrents);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[Details] Error precarregant:', err);
+      }
+    };
+
+    preloadStreams();
+  }, [item, episodes, selectedSeason, type, isPremium, isTmdbOnly, realTmdbId, preloadTorrents, preloadBestStreams]);
 
   const handleUpdateByTmdbId = async () => {
     if (!tmdbId.trim()) {

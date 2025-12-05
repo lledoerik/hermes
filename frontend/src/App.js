@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LibraryProvider, useLibrary } from './context/LibraryContext';
+import { StreamCacheProvider } from './context/StreamCacheContext';
 import Navbar from './components/Navbar';
 import LoadingScreen from './components/LoadingScreen';
 import Home from './pages/Home';
@@ -115,7 +116,9 @@ function App() {
   return (
     <AuthProvider>
       <LibraryProvider>
-        <AppContent />
+        <StreamCacheProvider>
+          <AppContent />
+        </StreamCacheProvider>
       </LibraryProvider>
     </AuthProvider>
   );
