@@ -343,7 +343,6 @@ function MediaLibrary({ type = 'series' }) {
         <div className="library-title">
           <span className="icon"><Icon size={28} /></span>
           <h1>{config.title}</h1>
-          <span className="library-count">({totalItems})</span>
         </div>
       </div>
 
