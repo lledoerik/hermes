@@ -593,27 +593,49 @@
   background: linear-gradient(90deg, var(--color-primary), var(--color-primary-light));
 }
 
+.continue-thumbnail {
+  cursor: pointer;
+}
+
 .continue-info {
-  padding: 1rem;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.continue-info:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.continue-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .continue-title {
-  margin: 0 0 0.25rem 0;
-  font-size: 1rem;
+  margin: 0;
+  font-size: 0.95rem;
   font-weight: 600;
   color: #fff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
 }
 
 .continue-episode {
-  margin: 0 0 0.5rem 0;
-  font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.7);
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-primary-light);
+  background: rgba(var(--color-primary-rgb), 0.15);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .continue-time {
