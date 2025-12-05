@@ -22,7 +22,7 @@ function Details() {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAdmin, isPremium, isAuthenticated } = useAuth();
-  const { preloadWithHighPriority, getCachedStreamUrl } = useStreamCache();
+  const { preloadWithHighPriority } = useStreamCache();
 
   // Determinar el tipus segons la ruta
   const type = location.pathname.startsWith('/movies') ? 'movies' : 'series';
@@ -449,28 +449,38 @@ function Details() {
   const nextEpisodeNum = nextEpisode?.episode;
 
   useEffect(() => {
+    // Timeout de seguretat: permetre reproducció després de 15s encara que no estigui preparat
+    let safetyTimeout;
+
     const preloadStreams = async () => {
       // Només precarregar si l'usuari és premium i tenim tmdb_id
       const tmdbIdToUse = isTmdbOnly ? realTmdbId : item?.tmdb_id;
-      if (!isPremium || !tmdbIdToUse) return;
+      if (!isPremium || !tmdbIdToUse) {
+        setStreamPreloading(false);
+        setStreamReady(true); // Permetre reproduir sense precàrrega
+        return;
+      }
 
       // Reset estat quan canvia el contingut
       setStreamReady(false);
       setStreamPreloading(true);
 
+      // Timeout de seguretat: si el preload triga massa, permetre reproducció igualment
+      safetyTimeout = setTimeout(() => {
+        console.log('[Details] Timeout de seguretat - permetent reproducció');
+        setStreamReady(true);
+        setStreamPreloading(false);
+      }, 15000);
+
       try {
         if (type === 'movies') {
-          // Per pel·lícules, precarregar amb prioritat alta
           console.log('[Details] Precarregant pel·lícula amb prioritat alta...');
           const result = await preloadWithHighPriority('movie', tmdbIdToUse);
           if (result?.success && result?.url) {
             console.log('[Details] Stream preparat per reproducció instantània!');
-            setStreamReady(true);
           }
+          setStreamReady(true);
         } else if (type === 'series') {
-          // Per sèries, determinar quin episodi carregar:
-          // - Si l'usuari té progrés, carregar l'episodi on s'ha quedat (nextEpisode)
-          // - Si no té progrés, carregar episodi 1 de la temporada seleccionada
           const seasonToLoad = nextSeason || selectedSeason;
           const episodeToLoad = nextEpisodeNum || 1;
 
@@ -478,17 +488,23 @@ function Details() {
           const result = await preloadWithHighPriority('tv', tmdbIdToUse, seasonToLoad, episodeToLoad);
           if (result?.success && result?.url) {
             console.log('[Details] Stream preparat per reproducció instantània!');
-            setStreamReady(true);
           }
+          setStreamReady(true);
         }
       } catch (err) {
         console.error('[Details] Error precarregant:', err);
+        setStreamReady(true); // Permetre reproduir encara que falli
       } finally {
+        clearTimeout(safetyTimeout);
         setStreamPreloading(false);
       }
     };
 
     preloadStreams();
+
+    return () => {
+      if (safetyTimeout) clearTimeout(safetyTimeout);
+    };
   }, [item?.tmdb_id, nextSeason, nextEpisodeNum, selectedSeason, type, isPremium, isTmdbOnly, realTmdbId, preloadWithHighPriority]);
 
   const handleUpdateByTmdbId = async () => {
