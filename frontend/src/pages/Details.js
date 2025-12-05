@@ -22,7 +22,7 @@ function Details() {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAdmin, isPremium, isAuthenticated } = useAuth();
-  const { preloadTorrents, preloadAutoQualityFirst } = useStreamCache();
+  const { preloadWithHighPriority } = useStreamCache();
 
   // Determinar el tipus segons la ruta
   const type = location.pathname.startsWith('/movies') ? 'movies' : 'series';
@@ -441,59 +441,71 @@ function Details() {
     }
   }, [item, checkWatchlist]);
 
-  // Precarregar torrents en background quan es carrega la pàgina de detalls
-  // Prioritza la qualitat automàtica primer, i després carrega la resta en background
+  // Precarregar torrents amb prioritat alta quan es carrega la pàgina de detalls
+  // Usa el sistema de cua amb prioritats per no bloquejar altres precàrregues
   // IMPORTANT: Usem nextEpisode?.season i nextEpisode?.episode com a dependències
   // (valors primitius) en lloc de l'objecte nextEpisode per evitar reruns infinits
   const nextSeason = nextEpisode?.season;
   const nextEpisodeNum = nextEpisode?.episode;
 
   useEffect(() => {
+    // Timeout de seguretat: permetre reproducció després de 15s encara que no estigui preparat
+    let safetyTimeout;
+
     const preloadStreams = async () => {
       // Només precarregar si l'usuari és premium i tenim tmdb_id
       const tmdbIdToUse = isTmdbOnly ? realTmdbId : item?.tmdb_id;
-      if (!isPremium || !tmdbIdToUse) return;
+      if (!isPremium || !tmdbIdToUse) {
+        setStreamPreloading(false);
+        setStreamReady(true); // Permetre reproduir sense precàrrega
+        return;
+      }
 
       // Reset estat quan canvia el contingut
       setStreamReady(false);
       setStreamPreloading(true);
 
+      // Timeout de seguretat: si el preload triga massa, permetre reproducció igualment
+      safetyTimeout = setTimeout(() => {
+        console.log('[Details] Timeout de seguretat - permetent reproducció');
+        setStreamReady(true);
+        setStreamPreloading(false);
+      }, 15000);
+
       try {
         if (type === 'movies') {
-          // Per pel·lícules, precarregar directament
-          console.log('[Details] Precarregant torrents per pel·lícula...');
-          const torrents = await preloadTorrents('movie', tmdbIdToUse);
-          if (torrents?.length > 0) {
-            // AWAIT per assegurar que el stream estigui llest abans de permetre reproduir
-            const result = await preloadAutoQualityFirst(torrents);
-            if (result?.autoUrl) {
-              console.log('[Details] Stream preparat per reproducció instantània!');
-              setStreamReady(true);
-            }
+          console.log('[Details] Precarregant pel·lícula amb prioritat alta...');
+          const result = await preloadWithHighPriority('movie', tmdbIdToUse);
+          if (result?.success && result?.url) {
+            console.log('[Details] Stream preparat per reproducció instantània!');
           }
-        } else if (type === 'series' && nextSeason && nextEpisodeNum) {
-          // Per sèries, precarregar l'episodi que es reproduirà
-          console.log(`[Details] Precarregant torrents per S${nextSeason}E${nextEpisodeNum}...`);
-          const torrents = await preloadTorrents('tv', tmdbIdToUse, nextSeason, nextEpisodeNum);
-          if (torrents?.length > 0) {
-            // AWAIT per assegurar que el stream estigui llest abans de permetre reproduir
-            // Passar season i episode per assegurar que es selecciona el fitxer correcte
-            const result = await preloadAutoQualityFirst(torrents, nextSeason, nextEpisodeNum);
-            if (result?.autoUrl) {
-              console.log('[Details] Stream preparat per reproducció instantània!');
-              setStreamReady(true);
-            }
+          setStreamReady(true);
+        } else if (type === 'series') {
+          const seasonToLoad = nextSeason || selectedSeason;
+          const episodeToLoad = nextEpisodeNum || 1;
+
+          console.log(`[Details] Precarregant S${seasonToLoad}E${episodeToLoad} amb prioritat alta...`);
+          const result = await preloadWithHighPriority('tv', tmdbIdToUse, seasonToLoad, episodeToLoad);
+          if (result?.success && result?.url) {
+            console.log('[Details] Stream preparat per reproducció instantània!');
           }
+          setStreamReady(true);
         }
       } catch (err) {
         console.error('[Details] Error precarregant:', err);
+        setStreamReady(true); // Permetre reproduir encara que falli
       } finally {
+        clearTimeout(safetyTimeout);
         setStreamPreloading(false);
       }
     };
 
     preloadStreams();
-  }, [item?.tmdb_id, nextSeason, nextEpisodeNum, type, isPremium, isTmdbOnly, realTmdbId, preloadTorrents, preloadAutoQualityFirst]);
+
+    return () => {
+      if (safetyTimeout) clearTimeout(safetyTimeout);
+    };
+  }, [item?.tmdb_id, nextSeason, nextEpisodeNum, selectedSeason, type, isPremium, isTmdbOnly, realTmdbId, preloadWithHighPriority]);
 
   const handleUpdateByTmdbId = async () => {
     if (!tmdbId.trim()) {
