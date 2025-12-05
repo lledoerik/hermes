@@ -115,8 +115,10 @@ export function StreamCacheProvider({ children }) {
 
   /**
    * Precarrega la URL de stream per un torrent específic
+   * @param {Object} torrent - El torrent a precarregar
+   * @param {boolean} isBackground - Si és precàrrega en background (timeout més curt)
    */
-  const preloadStreamUrl = useCallback(async (torrent) => {
+  const preloadStreamUrl = useCallback(async (torrent, isBackground = false) => {
     if (!torrent?.info_hash || !torrent?.magnet) return null;
 
     // Si ja està en cache, retornar
@@ -142,9 +144,12 @@ export function StreamCacheProvider({ children }) {
         params.file_idx = torrent.file_idx;
       }
 
+      // Timeout més curt per background (10s) vs principal (30s)
+      const timeout = isBackground ? 10000 : 30000;
+
       const response = await axios.post(`${API_URL}/api/debrid/stream`, null, {
         params,
-        timeout: 30000
+        timeout
       });
 
       if (response.data.status === 'success') {
@@ -157,7 +162,12 @@ export function StreamCacheProvider({ children }) {
         return url;
       }
     } catch (error) {
-      console.error(`[StreamCache] Error preloading stream:`, error);
+      // No mostrar errors per precàrrega en background - és normal que alguns fallin
+      if (!isBackground) {
+        console.error(`[StreamCache] Error preloading stream:`, error);
+      } else {
+        console.log(`[StreamCache] Background preload cancelled/failed per ${torrent.info_hash.slice(0, 8)}`);
+      }
     }
 
     return null;
@@ -303,7 +313,8 @@ export function StreamCacheProvider({ children }) {
     if (otherTorrents.length > 0) {
       setTimeout(async () => {
         console.log(`[StreamCache] Carregant ${otherTorrents.length} torrents més en background...`);
-        const promises = otherTorrents.map(t => preloadStreamUrl(t));
+        // Passar isBackground=true per usar timeout curt i no bloquejar
+        const promises = otherTorrents.map(t => preloadStreamUrl(t, true));
         await Promise.all(promises);
         console.log(`[StreamCache] Torrents addicionals carregats en background`);
       }, 100);
