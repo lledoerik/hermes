@@ -301,8 +301,8 @@ export function StreamCacheProvider({ children }) {
     if (!hasCacheInfo) {
       // Si no hi ha cap torrent marcat com a cached, l'endpoint instantAvailability
       // probablement està desactivat. No podem saber quins torrents són ràpids.
-      // Precarreguem NOMÉS el millor torrent (el que el player seleccionaria).
-      console.log('[StreamCache] Sense info de cache fiable - només precarregant el millor torrent');
+      // Precarreguem el millor torrent primer, després els altres en background.
+      console.log('[StreamCache] Sense info de cache fiable - precarregant millor torrent primer');
 
       // Ordenar tots els torrents per preferència
       const sortedTorrents = [...torrents].sort((a, b) => scoreTorrent(a) - scoreTorrent(b));
@@ -335,6 +335,45 @@ export function StreamCacheProvider({ children }) {
               timestamp: Date.now()
             };
             console.log(`[StreamCache] Torrent precarregat amb èxit (sense cache info)`);
+
+            // BACKGROUND: Precarregar altres qualitats silenciosament
+            // Agafar un torrent de cada qualitat diferent
+            const otherQualities = sortedTorrents
+              .slice(1)
+              .filter(t => parseQuality(t.name) !== bestQuality)
+              .slice(0, 3); // Màxim 3 més (altres qualitats)
+
+            if (otherQualities.length > 0) {
+              setTimeout(async () => {
+                console.log(`[StreamCache] Background: precarregant ${otherQualities.length} qualitats addicionals...`);
+                for (const torrent of otherQualities) {
+                  try {
+                    const bgParams = {
+                      info_hash: torrent.info_hash,
+                      magnet: torrent.magnet
+                    };
+                    if (torrent.file_idx !== undefined && torrent.file_idx !== null) {
+                      bgParams.file_idx = torrent.file_idx;
+                    }
+                    const bgResponse = await axios.post(`${API_URL}/api/debrid/stream`, null, {
+                      params: bgParams,
+                      timeout: 10000 // Timeout més curt per background
+                    });
+                    if (bgResponse.data.status === 'success') {
+                      streamUrlCache.current[torrent.info_hash] = {
+                        url: bgResponse.data.url,
+                        timestamp: Date.now()
+                      };
+                      console.log(`[StreamCache] Background: ${parseQuality(torrent.name)} precarregat`);
+                    }
+                  } catch {
+                    // Silenci - és background, no importa si falla
+                  }
+                }
+                console.log(`[StreamCache] Background: preload completat`);
+              }, 500); // Petit delay per no saturar
+            }
+
             return { autoTorrent: bestTorrent, autoUrl: url };
           }
         } catch (error) {
