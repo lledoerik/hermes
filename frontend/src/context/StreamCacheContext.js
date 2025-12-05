@@ -362,52 +362,8 @@ export function StreamCacheProvider({ children }) {
             };
             console.log(`[StreamCache] Torrent precarregat amb èxit (sense cache info)`);
 
-            // BACKGROUND: Precarregar altres qualitats silenciosament
-            // Agafar un torrent de cada qualitat diferent
-            const otherQualities = sortedTorrents
-              .slice(1)
-              .filter(t => parseQuality(t.name) !== bestQuality)
-              .slice(0, 3); // Màxim 3 més (altres qualitats)
-
-            if (otherQualities.length > 0) {
-              setTimeout(async () => {
-                console.log(`[StreamCache] Background: precarregant ${otherQualities.length} qualitats addicionals...`);
-                for (const torrent of otherQualities) {
-                  try {
-                    const bgParams = {
-                      info_hash: torrent.info_hash,
-                      magnet: torrent.magnet
-                    };
-                    if (torrent.file_idx !== undefined && torrent.file_idx !== null) {
-                      bgParams.file_idx = torrent.file_idx;
-                    }
-                    // Afegir season i episode per ajudar a trobar el fitxer correcte
-                    if (season && episode) {
-                      bgParams.season = season;
-                      bgParams.episode = episode;
-                    }
-                    const bgResponse = await axios.post(`${API_URL}/api/debrid/stream`, null, {
-                      params: bgParams,
-                      timeout: 10000 // Timeout més curt per background
-                    });
-                    // Clau de cache única per hash + season + episode
-                    const bgCacheKey = season && episode
-                      ? `${torrent.info_hash}_s${season}_e${episode}`
-                      : torrent.info_hash;
-                    if (bgResponse.data.status === 'success') {
-                      streamUrlCache.current[bgCacheKey] = {
-                        url: bgResponse.data.url,
-                        timestamp: Date.now()
-                      };
-                      console.log(`[StreamCache] Background: ${parseQuality(torrent.name)} precarregat`);
-                    }
-                  } catch {
-                    // Silenci - és background, no importa si falla
-                  }
-                }
-                console.log(`[StreamCache] Background: preload completat`);
-              }, 500); // Petit delay per no saturar
-            }
+            // BACKGROUND PRELOAD DESACTIVAT: Causa massa peticions a Real-Debrid
+            // L'usuari pot canviar qualitat manualment si vol
 
             return { autoTorrent: bestTorrent, autoUrl: url };
           }
@@ -430,22 +386,9 @@ export function StreamCacheProvider({ children }) {
     console.log(`[StreamCache] Torrent preferit llest! (${autoTorrent.info_hash.slice(0, 8)})`);
 
     // DESPRÉS: Carregar altres torrents cached en background (no bloquejar)
-    // NOMÉS si tenim info de cache fiable (almenys 2 torrents cached)
-    if (cachedTorrents.length >= 2) {
-      const otherTorrents = cachedTorrents.slice(1, 4); // Màxim 3 més
-
-      if (otherTorrents.length > 0) {
-        setTimeout(async () => {
-          console.log(`[StreamCache] Carregant ${otherTorrents.length} torrents més en background...`);
-          // Passar isBackground=true per usar timeout curt i no bloquejar
-          const promises = otherTorrents.map(t => preloadStreamUrl(t, true, season, episode));
-          await Promise.all(promises);
-          console.log(`[StreamCache] Torrents addicionals carregats en background`);
-        }, 100);
-      }
-    } else {
-      console.log(`[StreamCache] Només 1 torrent cached - no fem preload de background`);
-    }
+    // DESACTIVAT: Causa massa peticions a Real-Debrid i ens bloqueja
+    // Només precarreguem el torrent principal, l'usuari pot canviar qualitat manualment
+    console.log(`[StreamCache] Preload completat (només torrent principal per evitar rate limits)`);
 
     return { autoTorrent, autoUrl };
   }, [preloadStreamUrl]);
