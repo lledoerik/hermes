@@ -706,6 +706,7 @@ function Details() {
                 <button
                   className={`play-btn ${streamPreloading ? 'loading' : ''}`}
                   onClick={handlePlay}
+                  disabled={streamPreloading}
                 >
                   {streamPreloading ? (
                     <>
