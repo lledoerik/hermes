@@ -8490,7 +8490,9 @@ async def search_torrents(
 async def get_debrid_stream(
     info_hash: str = Query(..., description="Hash del torrent"),
     magnet: str = Query(..., description="Magnet link complet"),
-    file_idx: Optional[int] = Query(None, description="Índex del fitxer (per season packs)")
+    file_idx: Optional[int] = Query(None, description="Índex del fitxer (per season packs)"),
+    season: Optional[int] = Query(None, description="Número de temporada (per sèries)"),
+    episode: Optional[int] = Query(None, description="Número d'episodi (per sèries)")
 ):
     """
     Obtenir URL de streaming directa de Real-Debrid
@@ -8498,8 +8500,8 @@ async def get_debrid_stream(
     Retorna una URL directa que es pot usar en un <video> HTML5.
     Les URLs es guarden en cache durant 4 hores per evitar crides repetides.
     """
-    # Crear clau de cache única (hash + file_idx)
-    cache_key = f"stream_{info_hash}_{file_idx if file_idx is not None else 'auto'}"
+    # Crear clau de cache única (hash + season + episode per assegurar correcte)
+    cache_key = f"stream_{info_hash}_s{season}_e{episode}" if season and episode else f"stream_{info_hash}_{file_idx if file_idx is not None else 'auto'}"
 
     # Comprovar cache primer (instantani!)
     cached_result = stream_url_cache.get(cache_key)
@@ -8517,7 +8519,7 @@ async def get_debrid_stream(
     client = RealDebridClient(rd_api_key)
 
     try:
-        result = await client.get_streaming_url(magnet, file_idx=file_idx)
+        result = await client.get_streaming_url(magnet, file_idx=file_idx, season=season, episode=episode)
         if not result:
             raise HTTPException(status_code=500, detail="No s'ha pogut obtenir URL de streaming")
 

@@ -135,7 +135,48 @@ class RealDebridClient:
         logger.info(f"Link unrestricted: {result.get('filename')}")
         return result
 
-    async def get_streaming_url(self, magnet: str, file_idx: Optional[int] = None) -> Optional[Dict]:
+    def _parse_episode_from_filename(self, filename: str, target_season: int, target_episode: int) -> bool:
+        """
+        Comprovar si un nom de fitxer correspon a un episodi específic.
+
+        Patrons suportats:
+        - S01E16, s01e16
+        - 1x16
+        - E16 (quan ja sabem la temporada)
+        - .116. (temporada 1, episodi 16)
+        - Episode 16, Ep16
+        """
+        import re
+        filename_lower = filename.lower()
+
+        # Patró S01E16
+        match = re.search(r's(\d{1,2})e(\d{1,3})', filename_lower)
+        if match:
+            s, e = int(match.group(1)), int(match.group(2))
+            return s == target_season and e == target_episode
+
+        # Patró 1x16
+        match = re.search(r'(\d{1,2})x(\d{1,3})', filename_lower)
+        if match:
+            s, e = int(match.group(1)), int(match.group(2))
+            return s == target_season and e == target_episode
+
+        # Patró .116. o -116- (temporada 1, episodi 16)
+        match = re.search(r'[.\-_](\d)(\d{2})[.\-_]', filename_lower)
+        if match:
+            s, e = int(match.group(1)), int(match.group(2))
+            return s == target_season and e == target_episode
+
+        # Patró E16 o EP16 o Episode 16 (assumim temporada correcta)
+        match = re.search(r'(?:e|ep|episode)[.\s]?(\d{1,3})\b', filename_lower)
+        if match:
+            e = int(match.group(1))
+            return e == target_episode
+
+        return False
+
+    async def get_streaming_url(self, magnet: str, file_idx: Optional[int] = None,
+                                 season: Optional[int] = None, episode: Optional[int] = None) -> Optional[Dict]:
         """
         Mètode convenient per obtenir URL de streaming d'un magnet
 
@@ -143,6 +184,8 @@ class RealDebridClient:
             magnet: Magnet link
             file_idx: Índex del fitxer a reproduir (de Torrentio, per season packs).
                       Si és None, selecciona el fitxer de vídeo més gran.
+            season: Número de temporada (per sèries, ajuda a trobar el fitxer correcte)
+            episode: Número d'episodi (per sèries, ajuda a trobar el fitxer correcte)
 
         Returns:
             Dict amb 'url' (streaming URL), 'filename', 'filesize'
@@ -173,8 +216,22 @@ class RealDebridClient:
 
                     selected_id = None
 
-                    # Si tenim file_idx de Torrentio, usar-lo directament
-                    if file_idx is not None:
+                    # PRIORITAT 1: Si tenim season i episode, buscar per nom de fitxer
+                    # Això és el mètode més fiable per season packs
+                    if season is not None and episode is not None and video_files:
+                        logger.info(f"Buscant episodi S{season:02d}E{episode:02d} per nom de fitxer...")
+                        for f in video_files:
+                            filepath = f.get("path", "")
+                            if self._parse_episode_from_filename(filepath, season, episode):
+                                selected_id = f["id"]
+                                logger.info(f"Trobat episodi per nom: {filepath}")
+                                break
+
+                        if selected_id is None:
+                            logger.warning(f"No s'ha trobat S{season:02d}E{episode:02d} per nom, usant file_idx o fallback")
+
+                    # PRIORITAT 2: Si tenim file_idx de Torrentio, usar-lo
+                    if selected_id is None and file_idx is not None:
                         # Buscar el fitxer amb aquest índex
                         for f in files:
                             if f.get("id") == file_idx + 1:  # RD usa ids basats en 1
@@ -186,7 +243,7 @@ class RealDebridClient:
                             selected_id = files[file_idx]["id"]
                             logger.info(f"Seleccionant fitxer per posició {file_idx}: {files[file_idx].get('path')}")
 
-                    # Si no tenim file_idx o no l'hem trobat, seleccionar el vídeo més gran
+                    # PRIORITAT 3: Si no tenim file_idx o no l'hem trobat, seleccionar el vídeo més gran
                     if selected_id is None and video_files:
                         video_files.sort(key=lambda x: x.get("bytes", 0), reverse=True)
                         selected_id = video_files[0]["id"]
