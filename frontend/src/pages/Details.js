@@ -359,17 +359,19 @@ function Details() {
     // Buscar episodi en progrés (0 < progress < 90)
     const inProgressEp = episodes.find(ep => ep.watch_progress > 0 && ep.watch_progress < 90);
     if (inProgressEp) {
-      return { season: selectedSeason, episode: inProgressEp.episode_number };
+      return { season: selectedSeason, episode: inProgressEp.episode_number, hasProgress: true };
     }
 
     // Buscar primer episodi no vist completament
     const unwatchedEp = episodes.find(ep => !ep.watch_progress || ep.watch_progress < 90);
     if (unwatchedEp) {
-      return { season: selectedSeason, episode: unwatchedEp.episode_number };
+      // Comprovar si hi ha algun episodi amb progrés (per saber si és "continuar" o "reproduir")
+      const anyProgress = episodes.some(ep => ep.watch_progress > 0);
+      return { season: selectedSeason, episode: unwatchedEp.episode_number, hasProgress: anyProgress };
     }
 
     // Si tots estan vistos, reproduir el primer
-    return { season: selectedSeason, episode: episodes[0]?.episode_number || 1 };
+    return { season: selectedSeason, episode: episodes[0]?.episode_number || 1, hasProgress: true };
   }, [type, episodes, selectedSeason]);
 
   const handlePlay = () => {
@@ -779,8 +781,8 @@ function Details() {
                   ) : (
                     <>
                       <PlayIcon />
-                      {type === 'series' && nextEpisode
-                        ? `Capítol ${nextEpisode.episode}`
+                      {type === 'series' && nextEpisode?.hasProgress
+                        ? 'Continuar'
                         : 'Reproduir'}
                     </>
                   )}
