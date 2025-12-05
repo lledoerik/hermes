@@ -301,7 +301,7 @@ function DebridPlayer() {
   const [openSubtitles, setOpenSubtitles] = useState([]);
   const [selectedOpenSubtitle, setSelectedOpenSubtitle] = useState(null);
   const [loadingSubtitles, setLoadingSubtitles] = useState(false);
-  const [subtitleUrl, setSubtitleUrl] = useState(null);
+  const [, setSubtitleUrl] = useState(null);
 
   // Episode navigation state
   const [showEpisodesList, setShowEpisodesList] = useState(false);
@@ -439,7 +439,6 @@ function DebridPlayer() {
 
   // Current selection info
   const currentQuality = selectedTorrent ? parseQuality(selectedTorrent.name) : null;
-  const currentLanguage = selectedTorrent ? parseLanguage(selectedTorrent.name, selectedTorrent.title) : null;
 
   // Check Real-Debrid status
   const checkDebridStatus = useCallback(async () => {
@@ -920,7 +919,8 @@ function DebridPlayer() {
     }
   }, []);
 
-  // Toggle subtitles on/off
+  // Toggle subtitles on/off (available for keyboard shortcuts)
+  // eslint-disable-next-line no-unused-vars
   const toggleSubtitles = useCallback(() => {
     if (currentSubtitleTrack >= 0 || selectedOpenSubtitle) {
       // Turn off
@@ -1042,6 +1042,14 @@ function DebridPlayer() {
     return 'center';
   }, []);
 
+  // Visual feedback for double tap
+  const [doubleTapIndicator, setDoubleTapIndicator] = useState(null);
+
+  const showDoubleTapFeedback = useCallback((side) => {
+    setDoubleTapIndicator(side);
+    setTimeout(() => setDoubleTapIndicator(null), 500);
+  }, []);
+
   // Handle touch/click on video area
   const handleVideoAreaTap = useCallback((e) => {
     // Ignore if any menu is open
@@ -1114,15 +1122,7 @@ function DebridPlayer() {
         tapTimeoutRef.current = null;
       }, 300);
     }
-  }, [showQualityMenu, showLanguageMenu, showEpisodesList, showSubtitleMenu, showAudioMenu, showEndedOverlay, getTapZone, skipBack, skipForward, togglePlay, streamUrl, showControls, isPlaying, isFullscreen, enterFullscreenMobile]);
-
-  // Visual feedback for double tap
-  const [doubleTapIndicator, setDoubleTapIndicator] = useState(null);
-
-  const showDoubleTapFeedback = useCallback((side) => {
-    setDoubleTapIndicator(side);
-    setTimeout(() => setDoubleTapIndicator(null), 500);
-  }, []);
+  }, [showQualityMenu, showLanguageMenu, showEpisodesList, showSubtitleMenu, showAudioMenu, showEndedOverlay, getTapZone, skipBack, skipForward, togglePlay, streamUrl, showControls, isPlaying, isFullscreen, enterFullscreenMobile, showDoubleTapFeedback]);
 
   // Hide controls after inactivity
   const handleMouseMove = useCallback(() => {

@@ -76,6 +76,7 @@ class SimpleCache:
 # Instàncies de cache globals
 tmdb_cache = SimpleCache(default_ttl=86400)  # 24h per episodis/detalls
 torrents_cache = SimpleCache(default_ttl=1800)  # 30min per torrents
+stream_url_cache = SimpleCache(default_ttl=14400)  # 4h per URLs de Real-Debrid
 
 # Lifespan per gestionar startup/shutdown
 @asynccontextmanager
@@ -8494,8 +8495,18 @@ async def get_debrid_stream(
     """
     Obtenir URL de streaming directa de Real-Debrid
 
-    Retorna una URL directa que es pot usar en un <video> HTML5
+    Retorna una URL directa que es pot usar en un <video> HTML5.
+    Les URLs es guarden en cache durant 4 hores per evitar crides repetides.
     """
+    # Crear clau de cache única (hash + file_idx)
+    cache_key = f"stream_{info_hash}_{file_idx if file_idx is not None else 'auto'}"
+
+    # Comprovar cache primer (instantani!)
+    cached_result = stream_url_cache.get(cache_key)
+    if cached_result:
+        logger.info(f"[StreamCache] Hit per {info_hash[:8]}... (instantani)")
+        return cached_result
+
     rd_api_key = get_rd_api_key()
     if not rd_api_key:
         raise HTTPException(status_code=400, detail="Real-Debrid no configurat")
@@ -8510,13 +8521,19 @@ async def get_debrid_stream(
         if not result:
             raise HTTPException(status_code=500, detail="No s'ha pogut obtenir URL de streaming")
 
-        return {
+        response = {
             "status": "success",
             "url": result["url"],
             "filename": result.get("filename"),
             "filesize": result.get("filesize"),
             "mimetype": result.get("mimetype")
         }
+
+        # Guardar al cache per futures peticions
+        stream_url_cache.set(cache_key, response)
+        logger.info(f"[StreamCache] Cached URL per {info_hash[:8]}...")
+
+        return response
     except RealDebridError as e:
         # Errors específics de Real-Debrid amb missatges descriptius
         logger.warning(f"Error de Real-Debrid: {e.message}")
