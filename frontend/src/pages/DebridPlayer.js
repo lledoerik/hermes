@@ -80,13 +80,6 @@ const AudioIcon = () => (
   </svg>
 );
 
-// Subtitles icon
-const SubtitlesIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 12h4v2H4v-2zm10 6H4v-2h10v2zm6 0h-4v-2h4v2zm0-4H10v-2h10v2z"/>
-  </svg>
-);
-
 // Next episode icon
 const NextEpisodeIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor">
@@ -289,19 +282,10 @@ function DebridPlayer() {
   });
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);
 
-  // Audio and subtitles state
+  // Audio state
   const [audioTracks, setAudioTracks] = useState([]);
   const [currentAudioTrack, setCurrentAudioTrack] = useState(0);
-  const [subtitleTracks, setSubtitleTracks] = useState([]);
-  const [currentSubtitleTrack, setCurrentSubtitleTrack] = useState(-1); // -1 = off
   const [showAudioMenu, setShowAudioMenu] = useState(false);
-  const [showSubtitleMenu, setShowSubtitleMenu] = useState(false);
-
-  // OpenSubtitles state
-  const [openSubtitles, setOpenSubtitles] = useState([]);
-  const [selectedOpenSubtitle, setSelectedOpenSubtitle] = useState(null);
-  const [loadingSubtitles, setLoadingSubtitles] = useState(false);
-  const [, setSubtitleUrl] = useState(null);
 
   // Episode navigation state
   const [showEpisodesList, setShowEpisodesList] = useState(false);
@@ -814,21 +798,6 @@ function DebridPlayer() {
       setAudioTracks(tracks);
     }
 
-    // Detect text/subtitle tracks
-    if (video.textTracks && video.textTracks.length > 0) {
-      const tracks = [];
-      for (let i = 0; i < video.textTracks.length; i++) {
-        const track = video.textTracks[i];
-        tracks.push({
-          id: i,
-          label: track.label || track.language || `Subtítols ${i + 1}`,
-          language: track.language || '',
-          mode: track.mode
-        });
-        if (track.mode === 'showing') setCurrentSubtitleTrack(i);
-      }
-      setSubtitleTracks(tracks);
-    }
   }, [volume]);
 
   const handlePlay = useCallback(() => {
@@ -846,100 +815,6 @@ function DebridPlayer() {
     setCurrentAudioTrack(trackId);
     setShowAudioMenu(false);
   }, []);
-
-  // Change subtitle track
-  const changeSubtitleTrack = useCallback((trackId) => {
-    if (!videoRef.current || !videoRef.current.textTracks) return;
-    const textTracks = videoRef.current.textTracks;
-    for (let i = 0; i < textTracks.length; i++) {
-      textTracks[i].mode = (i === trackId) ? 'showing' : 'hidden';
-    }
-    setCurrentSubtitleTrack(trackId);
-    setShowSubtitleMenu(false);
-  }, []);
-
-  // Search for subtitles from OpenSubtitles
-  const searchOpenSubtitles = useCallback(async () => {
-    setLoadingSubtitles(true);
-    try {
-      let url = `${API_URL}/api/subtitles/search/${mediaType}/${tmdbId}`;
-      const params = new URLSearchParams();
-      if (mediaType === 'tv' && season && episode) {
-        params.append('season', season);
-        params.append('episode', episode);
-      }
-      params.append('languages', 'ca,es,en');
-
-      const response = await axios.get(`${url}?${params.toString()}`);
-      const subs = response.data.subtitles || [];
-      setOpenSubtitles(subs);
-    } catch (err) {
-      console.error('Error cercant subtítols:', err);
-    } finally {
-      setLoadingSubtitles(false);
-    }
-  }, [mediaType, tmdbId, season, episode]);
-
-  // Select and load an OpenSubtitles subtitle
-  const selectOpenSubtitle = useCallback(async (subtitle) => {
-    if (!subtitle) return;
-
-    setSelectedOpenSubtitle(subtitle);
-    setShowSubtitleMenu(false);
-
-    try {
-      // Generate the VTT URL
-      const vttUrl = `${API_URL}/api/subtitles/download/${subtitle.id}`;
-      setSubtitleUrl(vttUrl);
-
-      // Remove existing track if any
-      if (videoRef.current) {
-        const video = videoRef.current;
-        const existingTracks = video.querySelectorAll('track');
-        existingTracks.forEach(track => track.remove());
-
-        // Add new track
-        const track = document.createElement('track');
-        track.kind = 'subtitles';
-        track.label = subtitle.language_name;
-        track.srclang = subtitle.language;
-        track.src = vttUrl;
-        track.default = true;
-        video.appendChild(track);
-
-        // Enable the track
-        setTimeout(() => {
-          if (video.textTracks && video.textTracks.length > 0) {
-            video.textTracks[0].mode = 'showing';
-          }
-        }, 100);
-      }
-    } catch (err) {
-      console.error('Error carregant subtítol:', err);
-    }
-  }, []);
-
-  // Toggle subtitles on/off (available for keyboard shortcuts)
-  // eslint-disable-next-line no-unused-vars
-  const toggleSubtitles = useCallback(() => {
-    if (currentSubtitleTrack >= 0 || selectedOpenSubtitle) {
-      // Turn off
-      if (videoRef.current && videoRef.current.textTracks) {
-        for (let i = 0; i < videoRef.current.textTracks.length; i++) {
-          videoRef.current.textTracks[i].mode = 'hidden';
-        }
-      }
-      setCurrentSubtitleTrack(-1);
-      setSelectedOpenSubtitle(null);
-      setSubtitleUrl(null);
-    } else if (subtitleTracks.length > 0) {
-      // Turn on first track
-      changeSubtitleTrack(0);
-    } else if (openSubtitles.length > 0) {
-      // Use first OpenSubtitles track
-      selectOpenSubtitle(openSubtitles[0]);
-    }
-  }, [currentSubtitleTrack, subtitleTracks, changeSubtitleTrack, openSubtitles, selectedOpenSubtitle, selectOpenSubtitle]);
 
   const handleEnded = useCallback(() => {
     setIsPlaying(false);
@@ -1053,7 +928,7 @@ function DebridPlayer() {
   // Handle touch/click on video area
   const handleVideoAreaTap = useCallback((e) => {
     // Ignore if any menu is open
-    if (showQualityMenu || showLanguageMenu || showEpisodesList || showSubtitleMenu || showAudioMenu || showEndedOverlay) {
+    if (showQualityMenu || showLanguageMenu || showEpisodesList || showAudioMenu || showEndedOverlay) {
       return;
     }
 
@@ -1122,7 +997,7 @@ function DebridPlayer() {
         tapTimeoutRef.current = null;
       }, 300);
     }
-  }, [showQualityMenu, showLanguageMenu, showEpisodesList, showSubtitleMenu, showAudioMenu, showEndedOverlay, getTapZone, skipBack, skipForward, togglePlay, streamUrl, showControls, isPlaying, isFullscreen, enterFullscreenMobile, showDoubleTapFeedback]);
+  }, [showQualityMenu, showLanguageMenu, showEpisodesList, showAudioMenu, showEndedOverlay, getTapZone, skipBack, skipForward, togglePlay, streamUrl, showControls, isPlaying, isFullscreen, enterFullscreenMobile, showDoubleTapFeedback]);
 
   // Hide controls after inactivity
   const handleMouseMove = useCallback(() => {
@@ -1223,12 +1098,9 @@ function DebridPlayer() {
       } else {
         setLoadingTorrents(false);
       }
-
-      // Search for subtitles
-      searchOpenSubtitles();
     };
     init();
-  }, [mediaInfo, loadMediaInfo, loadEpisodes, searchTorrents, checkDebridStatus, searchOpenSubtitles]);
+  }, [mediaInfo, loadMediaInfo, loadEpisodes, searchTorrents, checkDebridStatus]);
 
   // Auto-get stream when torrent is selected
   useEffect(() => {
@@ -1369,7 +1241,6 @@ function DebridPlayer() {
       {(loadingTorrents || loadingStream) && (
         <div className="loading-overlay">
           <div className="spinner"></div>
-          <p>{loadingTorrents ? 'Buscant fonts...' : 'Preparant stream...'}</p>
         </div>
       )}
 
@@ -1525,21 +1396,6 @@ function DebridPlayer() {
                 <AudioIcon />
               </button>
 
-              {/* Subtitles & Language button */}
-              <button
-                className={`control-btn ${(currentSubtitleTrack >= 0 || selectedOpenSubtitle || selectedLanguage !== 'ALL') ? 'active' : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowSubtitleMenu(!showSubtitleMenu);
-                }}
-                title="Subtítols i Idioma"
-              >
-                <SubtitlesIcon />
-                {selectedLanguage !== 'ALL' && (
-                  <span className="lang-badge">{selectedLanguage}</span>
-                )}
-              </button>
-
               {/* Episodes list button (only for series) */}
               {type !== 'movie' && episodes.length > 0 && (
                 <button
@@ -1585,105 +1441,6 @@ function DebridPlayer() {
           ))}
         </div>
       )}
-
-      {/* Subtitle menu */}
-      {showSubtitleMenu && (
-        <div className="track-menu subtitle-menu-extended" onClick={(e) => e.stopPropagation()}>
-          <div className="track-menu-header">
-            <h4>Idioma i Subtítols</h4>
-            <button onClick={() => setShowSubtitleMenu(false)}><CloseIcon /></button>
-          </div>
-
-          {/* Secció d'Idioma */}
-          <div className="subtitle-section-header">Idioma d'àudio</div>
-          <div className="language-options-grid">
-            {LANGUAGE_OPTIONS.map((lang) => {
-              const isAvailable = lang.code === 'ALL' || availableLanguages.has(lang.code);
-              const count = lang.code === 'ALL'
-                ? torrents.length
-                : torrents.filter(t => parseLanguage(t.name, t.title) === lang.code).length;
-
-              return (
-                <div
-                  key={lang.code}
-                  className={`language-option-compact ${selectedLanguage === lang.code ? 'active' : ''} ${!isAvailable ? 'unavailable' : ''}`}
-                  onClick={() => isAvailable && changeLanguage(lang.code)}
-                >
-                  <span className="lang-flag">{lang.flag}</span>
-                  <span className="lang-label">{lang.label}</span>
-                  {count > 0 && <span className="lang-count">{count}</span>}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Secció de Subtítols */}
-          <div className="subtitle-section-header">Subtítols</div>
-
-          {/* Desactivar opció */}
-          <div
-            className={`track-option ${currentSubtitleTrack === -1 && !selectedOpenSubtitle ? 'active' : ''}`}
-            onClick={() => {
-              if (videoRef.current && videoRef.current.textTracks) {
-                for (let i = 0; i < videoRef.current.textTracks.length; i++) {
-                  videoRef.current.textTracks[i].mode = 'hidden';
-                }
-              }
-              setCurrentSubtitleTrack(-1);
-              setSelectedOpenSubtitle(null);
-              setSubtitleUrl(null);
-            }}
-          >
-            Desactivats
-          </div>
-
-          {/* Subtítols embeguts al vídeo */}
-          {subtitleTracks.length > 0 && (
-            <>
-              {subtitleTracks.map((track) => (
-                <div
-                  key={`embedded-${track.id}`}
-                  className={`track-option ${currentSubtitleTrack === track.id ? 'active' : ''}`}
-                  onClick={() => {
-                    setSelectedOpenSubtitle(null);
-                    changeSubtitleTrack(track.id);
-                  }}
-                >
-                  {track.label} <span className="sub-source">Embegut</span>
-                </div>
-              ))}
-            </>
-          )}
-
-          {/* Subtítols d'OpenSubtitles */}
-          {openSubtitles.length > 0 && (
-            <>
-              {openSubtitles.slice(0, 10).map((sub) => (
-                <div
-                  key={`os-${sub.id}`}
-                  className={`track-option ${selectedOpenSubtitle?.id === sub.id ? 'active' : ''}`}
-                  onClick={() => {
-                    setCurrentSubtitleTrack(-1);
-                    selectOpenSubtitle(sub);
-                  }}
-                >
-                  <span className="sub-language">{sub.language_name}</span>
-                  {sub.hearing_impaired && <span className="sub-badge">CC</span>}
-                </div>
-              ))}
-            </>
-          )}
-
-          {loadingSubtitles && (
-            <div className="track-option loading">Cercant subtítols...</div>
-          )}
-
-          {!loadingSubtitles && subtitleTracks.length === 0 && openSubtitles.length === 0 && (
-            <div className="track-option disabled">No hi ha subtítols disponibles</div>
-          )}
-        </div>
-      )}
-
 
       {/* Video ended overlay with next episode - corner popup */}
       {showEndedOverlay && nextEpisode && (

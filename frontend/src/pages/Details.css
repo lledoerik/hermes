@@ -244,19 +244,6 @@
   cursor: wait;
 }
 
-.details-actions .play-btn.ready {
-  background: #4CAF50;
-  color: #fff;
-}
-
-.details-actions .play-btn.ready:hover {
-  background: #45a049;
-}
-
-.details-actions .play-btn.ready svg {
-  fill: #fff;
-}
-
 .play-btn-spinner {
   width: 20px;
   height: 20px;

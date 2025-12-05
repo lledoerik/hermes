@@ -61,7 +61,8 @@ function Details() {
   const [watchlistLoading, setWatchlistLoading] = useState(false);
 
   // Preloading state - per mostrar estat al botó de reproducció
-  const [streamPreloading, setStreamPreloading] = useState(false);
+  // Inicialitzar a true perquè mostri "Preparant..." des del principi
+  const [streamPreloading, setStreamPreloading] = useState(true);
   const [streamReady, setStreamReady] = useState(false);
 
   const checkScrollButtons = useCallback(() => {
@@ -703,7 +704,7 @@ function Details() {
               {/* Botó de reproducció només visible per usuaris premium */}
               {isPremium && item?.tmdb_id && (
                 <button
-                  className={`play-btn ${streamReady ? 'ready' : ''} ${streamPreloading ? 'loading' : ''}`}
+                  className={`play-btn ${streamPreloading ? 'loading' : ''}`}
                   onClick={handlePlay}
                 >
                   {streamPreloading ? (
@@ -714,7 +715,7 @@ function Details() {
                   ) : (
                     <>
                       <PlayIcon />
-                      {streamReady ? 'Reproduir' : 'Reproduir'}
+                      Reproduir
                     </>
                   )}
                 </button>
