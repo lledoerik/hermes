@@ -126,18 +126,18 @@ const formatTime = (seconds) => {
   return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
-// Parse quality from torrent name
+// Parse quality from torrent name - Only returns 4K, 1080p, or 720p
 const parseQuality = (name) => {
-  if (!name) return 'Desconeguda';
+  if (!name) return '720p'; // Default fallback
   const lower = name.toLowerCase();
   if (lower.includes('2160p') || lower.includes('4k') || lower.includes('uhd')) return '4K';
   if (lower.includes('1080p')) return '1080p';
-  if (lower.includes('720p')) return '720p';
-  if (lower.includes('480p')) return '480p';
-  if (lower.includes('hdtv')) return 'HDTV';
-  if (lower.includes('web')) return 'WEB';
-  return 'SD';
+  // Tot el que no sigui 4K o 1080p es considera 720p o inferior
+  return '720p';
 };
+
+// Qualitats disponibles ordenades de major a menor
+const QUALITY_ORDER = ['4K', '1080p', '720p'];
 
 // Language codes for the filter system
 // VO = Versió Original (qualsevol idioma no reconegut: japonès, italià, francès, etc.)
@@ -268,6 +268,9 @@ function DebridPlayer() {
   const [showControls, setShowControls] = useState(true);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
 
+  // Quality mode state - true = automàtic, false = manual
+  const [isAutoQuality, setIsAutoQuality] = useState(true);
+
   // Language filter state
   const [selectedLanguage, setSelectedLanguage] = useState(() => {
     return localStorage.getItem('hermes_stream_lang') || 'ALL';
@@ -382,41 +385,45 @@ function DebridPlayer() {
     return langs;
   }, [torrents]);
 
-  // Group torrents by quality only (not language)
+  // Group torrents by quality only (not language) - Only 4K, 1080p, 720p
   const groupedTorrents = useMemo(() => {
     const groups = {};
 
     filteredTorrents.forEach(torrent => {
       const quality = parseQuality(torrent.name);
-      const key = quality;
 
-      if (!groups[key]) {
-        groups[key] = {
+      if (!groups[quality]) {
+        groups[quality] = {
           quality,
           torrents: [],
           hasCached: false
         };
       }
 
-      groups[key].torrents.push(torrent);
+      groups[quality].torrents.push(torrent);
       if (torrent.cached) {
-        groups[key].hasCached = true;
+        groups[quality].hasCached = true;
       }
     });
 
-    // Sort groups by quality
-    const qualityOrder = { '4K': 0, '1080p': 1, '720p': 2, 'WEB': 3, 'HDTV': 4, '480p': 5, 'SD': 6, 'Desconeguda': 7 };
-
-    return Object.values(groups).sort((a, b) => {
-      // By quality (highest first)
-      const qualityDiff = (qualityOrder[a.quality] || 99) - (qualityOrder[b.quality] || 99);
-      if (qualityDiff !== 0) return qualityDiff;
-      // Then by cached status
-      if (a.hasCached && !b.hasCached) return -1;
-      if (!a.hasCached && b.hasCached) return 1;
-      return 0;
-    });
+    // Ordenar per QUALITY_ORDER (4K primer, després 1080p, després 720p)
+    return QUALITY_ORDER
+      .filter(q => groups[q]) // Només qualitats que existeixen
+      .map(q => groups[q]);
   }, [filteredTorrents]);
+
+  // Determinar la qualitat automàtica (la millor amb cache, o la millor disponible)
+  const autoSelectedQuality = useMemo(() => {
+    // Prioritat: la millor qualitat que tingui algun torrent cached
+    for (const quality of QUALITY_ORDER) {
+      const group = groupedTorrents.find(g => g.quality === quality);
+      if (group?.hasCached) {
+        return quality;
+      }
+    }
+    // Si no hi ha cap cached, retornar la millor disponible
+    return groupedTorrents[0]?.quality || '1080p';
+  }, [groupedTorrents]);
 
   // Current selection info
   const currentQuality = selectedTorrent ? parseQuality(selectedTorrent.name) : null;
@@ -514,9 +521,6 @@ function DebridPlayer() {
 
       const preferredLangLabel = langCodeToLabel[preferredAudioLang] || 'Anglès';
 
-      // Quality order based on preference
-      const baseQualityOrder = { '4K': 0, '2160p': 0, '1080p': 1, '720p': 2, 'WEB': 3, 'HDTV': 4, '480p': 5, 'SD': 6 };
-
       // Function to check if torrent matches preferred language
       const matchesPreferredLang = (t) => {
         const lang = parseLanguage(t.name, t.title);
@@ -526,14 +530,15 @@ function DebridPlayer() {
         return 3; // Other languages
       };
 
-      // Function to get quality score
+      // Function to get quality score (uses QUALITY_ORDER: 4K > 1080p > 720p)
       const getQualityScore = (t) => {
         const q = parseQuality(t.name);
         if (preferredQuality !== 'auto') {
           // If user has a preference, prioritize that quality
           if (q === preferredQuality || (preferredQuality === '2160p' && q === '4K')) return 0;
         }
-        return baseQualityOrder[q] ?? 99;
+        const idx = QUALITY_ORDER.indexOf(q);
+        return idx >= 0 ? idx : 99;
       };
 
       // Sort function
@@ -635,20 +640,36 @@ function DebridPlayer() {
     }
   }, []);
 
-  // Change quality
+  // Change quality - 'auto' per mode automàtic o '4K'/'1080p'/'720p' per manual
   const changeTorrent = useCallback((quality) => {
-    const group = groupedTorrents.find(g => g.quality === quality);
-    if (!group) return;
+    if (quality === 'auto') {
+      // Mode automàtic - seleccionar la millor qualitat disponible
+      setIsAutoQuality(true);
+      const targetQuality = autoSelectedQuality;
+      const group = groupedTorrents.find(g => g.quality === targetQuality);
+      if (group) {
+        const torrent = group.torrents.find(t => t.cached) || group.torrents[0];
+        if (torrent && torrent.info_hash !== selectedTorrent?.info_hash) {
+          setSelectedTorrent(torrent);
+          setStreamUrl(null);
+          getStreamUrl(torrent, true);
+        }
+      }
+    } else {
+      // Mode manual - seleccionar qualitat específica
+      setIsAutoQuality(false);
+      const group = groupedTorrents.find(g => g.quality === quality);
+      if (!group) return;
 
-    // Prefer cached torrent from the group
-    const torrent = group.torrents.find(t => t.cached) || group.torrents[0];
-    if (torrent && torrent.info_hash !== selectedTorrent?.info_hash) {
-      setSelectedTorrent(torrent);
-      setStreamUrl(null); // Reset to trigger new stream fetch
-      getStreamUrl(torrent, true); // Keep current time
+      const torrent = group.torrents.find(t => t.cached) || group.torrents[0];
+      if (torrent && torrent.info_hash !== selectedTorrent?.info_hash) {
+        setSelectedTorrent(torrent);
+        setStreamUrl(null);
+        getStreamUrl(torrent, true);
+      }
     }
     setShowQualityMenu(false);
-  }, [groupedTorrents, selectedTorrent, getStreamUrl]);
+  }, [groupedTorrents, selectedTorrent, getStreamUrl, autoSelectedQuality]);
 
   // Change language filter
   const changeLanguage = useCallback((langCode) => {
@@ -665,11 +686,10 @@ function DebridPlayer() {
       // Prefer cached torrents
       const cachedInLang = langTorrents.filter(t => t.cached);
       if (cachedInLang.length > 0) {
-        // Sort by quality
-        const qualityOrder = { '4K': 0, '1080p': 1, '720p': 2, 'WEB': 3, 'HDTV': 4, '480p': 5, 'SD': 6 };
+        // Sort by quality using QUALITY_ORDER (4K > 1080p > 720p)
         cachedInLang.sort((a, b) => {
-          const qA = qualityOrder[parseQuality(a.name)] ?? 99;
-          const qB = qualityOrder[parseQuality(b.name)] ?? 99;
+          const qA = QUALITY_ORDER.indexOf(parseQuality(a.name));
+          const qB = QUALITY_ORDER.indexOf(parseQuality(b.name));
           return qA - qB;
         });
         setSelectedTorrent(cachedInLang[0]);
@@ -1336,11 +1356,19 @@ function DebridPlayer() {
               </button>
             </div>
             <div className="quality-menu-content">
+              {/* Opció Automàtic sempre primer */}
+              <div
+                className={`quality-option ${isAutoQuality ? 'active' : ''}`}
+                onClick={() => changeTorrent('auto')}
+              >
+                <span className="quality-value">Automàtic ({autoSelectedQuality})</span>
+              </div>
+              {/* Qualitats manuals: 4K, 1080p, 720p */}
               {groupedTorrents.map((group, index) => (
                 <div
                   key={index}
                   className={`quality-option ${
-                    currentQuality === group.quality ? 'active' : ''
+                    !isAutoQuality && currentQuality === group.quality ? 'active' : ''
                   } ${group.hasCached ? 'cached' : ''}`}
                   onClick={() => changeTorrent(group.quality)}
                 >
