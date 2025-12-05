@@ -111,48 +111,10 @@ function Details() {
 
           setSeasons(tmdbSeasons);
           setUsingTmdbSeasons(true);
-
-          // Carregar episodis de la primera temporada ABANS de treure el loading
           if (tmdbSeasons.length > 0) {
-            const firstSeasonNum = tmdbSeasons[0].season_number;
-            setSelectedSeason(firstSeasonNum);
-
-            // Comprovar cache primer
-            const cacheKey = `hermes_episodes_v2_${realTmdbId}_s${firstSeasonNum}`;
-            let episodesLoaded = false;
-            try {
-              const cached = sessionStorage.getItem(cacheKey);
-              if (cached) {
-                const { data, timestamp } = JSON.parse(cached);
-                const oneHour = 60 * 60 * 1000;
-                if (Date.now() - timestamp < oneHour && data.length > 0) {
-                  setEpisodes(data);
-                  episodesLoaded = true;
-                }
-              }
-            } catch (e) { /* Cache error */ }
-
-            // Si no hi ha cache, carregar de TMDB
-            if (!episodesLoaded) {
-              try {
-                const episodesRes = await axios.get(`/api/tmdb/tv/${realTmdbId}/season/${firstSeasonNum}`);
-                if (episodesRes.data.episodes) {
-                  const episodes = episodesRes.data.episodes.map(ep => ({
-                    ...ep,
-                    isLocal: false,
-                    duration: ep.runtime ? ep.runtime * 60 : null
-                  }));
-                  setEpisodes(episodes);
-                  // Guardar al cache
-                  try {
-                    sessionStorage.setItem(cacheKey, JSON.stringify({ data: episodes, timestamp: Date.now() }));
-                  } catch (e) { /* sessionStorage ple */ }
-                }
-              } catch (e) {
-                console.error('Error carregant episodis inicials:', e);
-              }
-            }
+            setSelectedSeason(tmdbSeasons[0].season_number);
           }
+          // Episodis es carregaran via useEffect després de mostrar la pàgina
         } else {
           // Carregar detalls de pel·lícula des de TMDB
           const response = await axios.get(`/api/tmdb/movie/${realTmdbId}`);
@@ -207,64 +169,7 @@ function Details() {
               const selectedSeasonNum = firstLocalSeason ? firstLocalSeason.season_number : combinedSeasons[0].season_number;
               setSelectedSeason(selectedSeasonNum);
               setUsingTmdbSeasons(true);
-
-              // PRELOAD: Carregar episodis de la primera temporada ABANS de treure loading
-              const episodeCacheKey = `hermes_episodes_v2_${seriesData.tmdb_id}_s${selectedSeasonNum}`;
-              let episodesPreloaded = false;
-              try {
-                const cached = sessionStorage.getItem(episodeCacheKey);
-                if (cached) {
-                  const { data, timestamp } = JSON.parse(cached);
-                  const oneHour = 60 * 60 * 1000;
-                  if (Date.now() - timestamp < oneHour && data.length > 0) {
-                    setEpisodes(data);
-                    episodesPreloaded = true;
-                  }
-                }
-              } catch (e) { /* Cache error */ }
-
-              if (!episodesPreloaded) {
-                try {
-                  // Carregar locals i TMDB en paral·lel
-                  const [localEpsRes, tmdbEpsRes] = await Promise.all([
-                    axios.get(`/api/library/series/${id}/seasons/${selectedSeasonNum}/episodes`).catch(() => ({ data: [] })),
-                    axios.get(`/api/tmdb/tv/${seriesData.tmdb_id}/season/${selectedSeasonNum}`).catch(() => ({ data: { episodes: [] } }))
-                  ]);
-                  const localEps = localEpsRes.data || [];
-                  const tmdbEps = tmdbEpsRes.data.episodes || [];
-
-                  const localEpMap = {};
-                  localEps.forEach(ep => { localEpMap[ep.episode_number] = ep; });
-
-                  if (tmdbEps.length > 0) {
-                    const combinedEps = tmdbEps.map(tmdbEp => {
-                      const localEp = localEpMap[tmdbEp.episode_number];
-                      return {
-                        ...tmdbEp,
-                        isLocal: !!localEp,
-                        localId: localEp?.id,
-                        localData: localEp,
-                        audio_tracks: localEp?.audio_tracks,
-                        subtitles: localEp?.subtitles || localEp?.subtitle_tracks,
-                        duration: localEp?.duration || (tmdbEp.runtime ? tmdbEp.runtime * 60 : null),
-                        watch_progress: localEp?.watch_progress || 0
-                      };
-                    });
-                    setEpisodes(combinedEps);
-                    try {
-                      sessionStorage.setItem(episodeCacheKey, JSON.stringify({ data: combinedEps, timestamp: Date.now() }));
-                    } catch (e) { /* sessionStorage ple */ }
-                  } else if (localEps.length > 0) {
-                    const localOnlyEps = localEps.map(ep => ({ ...ep, isLocal: true, localId: ep.id, localData: ep }));
-                    setEpisodes(localOnlyEps);
-                    try {
-                      sessionStorage.setItem(episodeCacheKey, JSON.stringify({ data: localOnlyEps, timestamp: Date.now() }));
-                    } catch (e) { /* sessionStorage ple */ }
-                  }
-                } catch (e) {
-                  console.error('Error precarregant episodis:', e);
-                }
-              }
+              // Episodis es carregaran via useEffect després de mostrar la pàgina
             } else if (localSeasons.length > 0) {
               // No hi ha TMDB, només locals
               setSeasons(localSeasons.map(s => ({ ...s, hasLocalEpisodes: true })));
