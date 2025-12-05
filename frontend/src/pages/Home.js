@@ -626,12 +626,6 @@ function Home() {
           </section>
         )}
 
-        {/* Per a tu (mix aleatori) */}
-        <ContentRow
-          title="Per a tu"
-          items={recentlyAdded}
-        />
-
         {/* La meva llista (Watchlist) */}
         {watchlist.length > 0 && (
           <section className="content-row">
@@ -696,6 +690,12 @@ function Home() {
             </div>
           </section>
         )}
+
+        {/* Per a tu (mix aleatori) */}
+        <ContentRow
+          title="Per a tu"
+          items={recentlyAdded}
+        />
 
         {/* Sèries */}
         <ContentRow
