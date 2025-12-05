@@ -8441,20 +8441,25 @@ async def search_torrents(
         streams = await torrentio.search_series(imdb_id, season, episode)
 
     # Comprovar disponibilitat instantània a Real-Debrid
-    rd_api_key = get_rd_api_key()
+    # NOTA: L'endpoint instantAvailability de RD està desactivat (error 403, code 37)
+    # Així que no comprovem cache - tots els torrents es tracten com no-cached
+    # Això millora el rendiment significativament (evita peticions fallides)
     cached_hashes = set()
 
-    if rd_api_key and streams:
-        from backend.debrid import RealDebridClient
-        rd_client = RealDebridClient(rd_api_key)
-
-        try:
-            hashes = [s.info_hash for s in streams if s.info_hash]
-            if hashes:
-                availability = await rd_client.check_instant_availability(hashes)
-                cached_hashes = set(availability.keys()) if availability else set()
-        except Exception as e:
-            logger.warning(f"Error comprovant cache RD: {e}")
+    # Desactivat temporalment - l'endpoint instantAvailability no funciona
+    # Si Real-Debrid el reactiva, es pot descomentar aquest bloc
+    # rd_api_key = get_rd_api_key()
+    # if rd_api_key and streams:
+    #     from backend.debrid import RealDebridClient
+    #     rd_client = RealDebridClient(rd_api_key)
+    #     try:
+    #         # IMPORTANT: Eliminar duplicats i limitar a 100 hashes màxim
+    #         unique_hashes = list(set(s.info_hash for s in streams if s.info_hash))[:100]
+    #         if unique_hashes:
+    #             availability = await rd_client.check_instant_availability(unique_hashes)
+    #             cached_hashes = set(availability.keys()) if availability else set()
+    #     except Exception as e:
+    #         logger.warning(f"Error comprovant cache RD: {e}")
 
     # Filtrar i prioritzar streams (màxim 4 per qualitat, cached primer)
     filtered_streams = _filter_and_prioritize_streams(streams, cached_hashes, max_per_quality=4)
