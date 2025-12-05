@@ -348,23 +348,6 @@ function MediaLibrary({ type = 'series' }) {
           </div>
         </div>
 
-        <div className="library-filters">
-          <div className="search-box">
-            <SearchIcon />
-            <input
-              type="text"
-              placeholder={config.searchPlaceholder}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            {searchQuery && (
-              <button className="clear-search" onClick={clearSearch}>
-                <ClearIcon />
-              </button>
-            )}
-            {searchLoading && <div className="search-spinner"></div>}
-          </div>
-        </div>
 
         {/* Filtres de tipus */}
         <div className="content-type-filters">

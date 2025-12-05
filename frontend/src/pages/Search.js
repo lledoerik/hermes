@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import MediaCard from '../components/MediaCard';
 import { API_URL } from '../config/api';
@@ -11,13 +11,11 @@ axios.defaults.baseURL = API_URL;
 
 function Search() {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const query = searchParams.get('q') || '';
   const typeFilter = searchParams.get('type') || ''; // 'movies', 'series', o '' per tot
 
   const [results, setResults] = useState({ series: [], movies: [] });
   const [loading, setLoading] = useState(true);
-  const [searchInput, setSearchInput] = useState(query);
 
   useEffect(() => {
     if (query) {
@@ -46,33 +44,10 @@ function Search() {
     }
   };
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    if (searchInput.trim()) {
-      const params = new URLSearchParams();
-      params.set('q', searchInput.trim());
-      if (typeFilter) {
-        params.set('type', typeFilter);
-      }
-      navigate(`/search?${params.toString()}`);
-    }
-  };
-
   // Filtrar resultats segons el tipus seleccionat
   const filteredResults = {
     series: typeFilter === 'movies' ? [] : results.series,
     movies: typeFilter === 'series' ? [] : results.movies
-  };
-
-  const getSearchPlaceholder = () => {
-    switch (typeFilter) {
-      case 'movies':
-        return 'Cerca pel·lícules...';
-      case 'series':
-        return 'Cerca sèries...';
-      default:
-        return 'Cercar pel·lícules, sèries...';
-    }
   };
 
   const getPageTitle = () => {
@@ -106,30 +81,6 @@ function Search() {
           <span className="library-count">({totalFilteredResults})</span>
         </div>
 
-        <form className="search-form" onSubmit={handleSearch}>
-          <div className="search-box">
-            <SearchIcon />
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder={getSearchPlaceholder()}
-              autoFocus
-            />
-            {searchInput && (
-              <button
-                type="button"
-                className="clear-search"
-                onClick={() => setSearchInput('')}
-              >
-                ×
-              </button>
-            )}
-          </div>
-          <button type="submit" className="filter-btn primary">
-            Cercar
-          </button>
-        </form>
       </div>
 
       {query && totalFilteredResults === 0 ? (
