@@ -146,7 +146,13 @@ class RealDebridClient:
 
         Returns:
             Dict amb 'url' (streaming URL), 'filename', 'filesize'
+
+        Raises:
+            RealDebridError: Si hi ha un error específic de Real-Debrid
         """
+        import asyncio
+        torrent_id = None
+
         try:
             # 1. Afegir magnet
             add_result = await self.add_magnet(magnet)
@@ -194,11 +200,23 @@ class RealDebridClient:
                     await self.select_files(torrent_id, "all")
 
             # 4. Esperar que estigui llest i obtenir links
-            import asyncio
-            for _ in range(30):  # Max 30 segons d'espera
-                info = await self.get_torrent_info(torrent_id)
+            # Max 40 segons d'espera (per torrents no cached pot trigar més)
+            max_wait_seconds = 40
+            last_status = None
+            last_progress = 0
 
-                if info.get("status") == "downloaded":
+            for i in range(max_wait_seconds):
+                info = await self.get_torrent_info(torrent_id)
+                status = info.get("status")
+                progress = info.get("progress", 0)
+
+                # Log només quan canvia l'estat o cada 5 segons
+                if status != last_status or i % 5 == 0:
+                    logger.info(f"Torrent {torrent_id}: status={status}, progress={progress}%")
+                    last_status = status
+                    last_progress = progress
+
+                if status == "downloaded":
                     links = info.get("links", [])
                     if links:
                         # Obtenir URL directa del primer link
@@ -210,24 +228,42 @@ class RealDebridClient:
                             "mimetype": unrestricted.get("mimeType"),
                             "torrent_id": torrent_id
                         }
-                    break
-                elif info.get("status") in ("error", "dead", "magnet_error"):
-                    logger.error(f"Error amb torrent: {info.get('status')}")
-                    await self.delete_torrent(torrent_id)
-                    return None
+                    else:
+                        # Descarregat però sense links - error
+                        logger.error(f"Torrent {torrent_id} descarregat però sense links")
+                        raise RealDebridError("Torrent descarregat però sense links disponibles")
+
+                elif status in ("error", "dead", "magnet_error", "virus"):
+                    logger.error(f"Error amb torrent: {status}")
+                    try:
+                        await self.delete_torrent(torrent_id)
+                    except Exception:
+                        pass
+                    raise RealDebridError(f"Error del torrent: {status}")
+
+                elif status == "queued":
+                    # En cua, esperar més temps
+                    if i > 20:
+                        raise RealDebridError("El torrent està en cua. Prova amb una font en cache (⚡)")
+
+                elif status == "downloading":
+                    # Descarregant, si no és cached pot trigar molt
+                    if i > 30 and progress < 50:
+                        logger.warning(f"Descarrega lenta: {progress}% després de {i}s")
+                        raise RealDebridError(f"Descàrrega lenta ({progress}%). Prova amb una font en cache (⚡)")
 
                 await asyncio.sleep(1)
 
-            # Si arriba aquí, timeout
-            logger.warning(f"Timeout esperant torrent {torrent_id}")
-            return None
+            # Timeout
+            logger.warning(f"Timeout esperant torrent {torrent_id} (últim estat: {last_status}, progrés: {last_progress}%)")
+            raise RealDebridError(f"Temps d'espera excedit. Últim estat: {last_status}")
 
-        except RealDebridError as e:
-            logger.error(f"Error obtenint streaming URL: {e.message}")
-            return None
+        except RealDebridError:
+            # Re-llançar errors de Real-Debrid
+            raise
         except Exception as e:
-            logger.error(f"Error inesperat: {e}")
-            return None
+            logger.error(f"Error inesperat obtenint stream: {e}")
+            raise RealDebridError(f"Error inesperat: {str(e)}")
 
     async def get_cached_streaming_url(self, info_hash: str, magnet: str) -> Optional[Dict]:
         """
