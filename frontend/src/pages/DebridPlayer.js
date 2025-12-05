@@ -758,16 +758,18 @@ function DebridPlayer() {
       !nextEpisodePreloadedRef.current
     ) {
       nextEpisodePreloadedRef.current = true;
-      console.log(`[Player] Precarregant següent episodi (S${nextEpisode.season_number}E${nextEpisode.episode_number})...`);
+      // Usar season actual (nextEpisode pot no tenir season_number)
+      const nextSeason = nextEpisode.season_number || season;
+      const nextEp = nextEpisode.episode_number;
+      console.log(`[Player] Precarregant següent episodi (S${nextSeason}E${nextEp})...`);
 
       // Precarregar en background - prioritzar qualitat automàtica
-      preloadTorrents('tv', tmdbId, nextEpisode.season_number, nextEpisode.episode_number)
+      preloadTorrents('tv', tmdbId, nextSeason, nextEp)
         .then(torrents => {
           if (torrents?.length > 0) {
             console.log(`[Player] ${torrents.length} fonts precarregades pel següent episodi`);
             // Prioritzar qualitat automàtica, resta en background
-            // Passar season i episode per assegurar que es selecciona el fitxer correcte
-            preloadAutoQualityFirst(torrents, nextEpisode.season_number, nextEpisode.episode_number);
+            preloadAutoQualityFirst(torrents, nextSeason, nextEp);
           }
         })
         .catch(err => console.error('[Player] Error precarregant següent episodi:', err));
@@ -781,7 +783,7 @@ function DebridPlayer() {
       const percent = Math.round((video.currentTime / video.duration) * 100);
       saveProgress(percent, false);
     }, 30000);
-  }, [saveProgress, nextEpisode, tmdbId, preloadTorrents, preloadAutoQualityFirst]);
+  }, [saveProgress, nextEpisode, tmdbId, season, preloadTorrents, preloadAutoQualityFirst]);
 
   const handleLoadedMetadata = useCallback(() => {
     if (!videoRef.current) return;
