@@ -1190,6 +1190,49 @@
   .episodes-overlay {
     width: 100%;
     left: 0;
+    top: auto;
+    bottom: 0;
+    max-height: 60vh;
+    border-radius: 16px 16px 0 0;
+    animation: slideInUp 0.2s ease-out;
+  }
+
+  @keyframes slideInUp {
+    from {
+      opacity: 0;
+      transform: translateY(100%);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .episodes-modal {
+    max-height: 60vh;
+  }
+
+  .episodes-list {
+    max-height: calc(60vh - 100px);
+    overflow-y: auto;
+  }
+
+  .episode-item {
+    padding: 10px 12px;
+  }
+
+  .episode-number {
+    min-width: 28px;
+    height: 28px;
+    font-size: 11px;
+  }
+
+  .episode-name {
+    font-size: 13px;
+  }
+
+  .episode-runtime {
+    font-size: 11px;
   }
 
   .language-menu {
