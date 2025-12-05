@@ -943,17 +943,20 @@ function DebridPlayer() {
     setTimeout(() => setDoubleTapIndicator(null), 500);
   }, []);
 
-  // Handle touch/click on video area
-  const handleVideoAreaTap = useCallback((e) => {
+  // Handle touch events (mobile) - double tap detection
+  const handleTouchTap = useCallback((e) => {
     // Ignore if any menu is open
     if (showQualityMenu || showLanguageMenu || showEpisodesList || showAudioMenu || showEndedOverlay) {
       return;
     }
 
-    // Ignore if clicking on controls
+    // Ignore if touching controls
     if (e.target.closest('.controls-container') || e.target.closest('.top-bar')) {
       return;
     }
+
+    // Prevent default to avoid click event firing after touch
+    e.preventDefault();
 
     // Enter fullscreen on first tap (requires user gesture)
     if (!isFullscreen && streamUrl) {
@@ -966,23 +969,25 @@ function DebridPlayer() {
 
     // Check for double tap (within 300ms and same zone)
     if (timeSinceLastTap < 300 && tapZoneRef.current === tapZone) {
-      // Double tap detected
+      // Double tap detected - clear single tap timeout
       if (tapTimeoutRef.current) {
         clearTimeout(tapTimeoutRef.current);
         tapTimeoutRef.current = null;
       }
 
-      // Execute double tap action
+      // Execute double tap action WITHOUT showing controls
       if (tapZone === 'left') {
         skipBack();
-        // Show visual feedback
         showDoubleTapFeedback('left');
       } else if (tapZone === 'right') {
         skipForward();
         showDoubleTapFeedback('right');
       } else {
         // Center double tap = toggle play
-        if (streamUrl) togglePlay();
+        if (streamUrl) {
+          togglePlay();
+          showDoubleTapFeedback('center');
+        }
       }
 
       lastTapTimeRef.current = 0;
@@ -997,7 +1002,7 @@ function DebridPlayer() {
       }
 
       tapTimeoutRef.current = setTimeout(() => {
-        // Single tap confirmed - toggle controls visibility
+        // Single tap confirmed - toggle controls visibility only
         if (showControls) {
           setShowControls(false);
         } else {
@@ -1016,6 +1021,34 @@ function DebridPlayer() {
       }, 300);
     }
   }, [showQualityMenu, showLanguageMenu, showEpisodesList, showAudioMenu, showEndedOverlay, getTapZone, skipBack, skipForward, togglePlay, streamUrl, showControls, isPlaying, isFullscreen, enterFullscreenMobile, showDoubleTapFeedback]);
+
+  // Handle click events (desktop) - immediate pause/play
+  const handleVideoClick = useCallback((e) => {
+    // Ignore if any menu is open
+    if (showQualityMenu || showLanguageMenu || showEpisodesList || showAudioMenu || showEndedOverlay) {
+      return;
+    }
+
+    // Ignore if clicking on controls
+    if (e.target.closest('.controls-container') || e.target.closest('.top-bar')) {
+      return;
+    }
+
+    // Toggle play/pause immediately on click
+    if (streamUrl) {
+      togglePlay();
+    }
+
+    // Show controls
+    setShowControls(true);
+    if (controlsTimeoutRef.current) {
+      clearTimeout(controlsTimeoutRef.current);
+    }
+    // Auto-hide after 3 seconds
+    controlsTimeoutRef.current = setTimeout(() => {
+      setShowControls(false);
+    }, 3000);
+  }, [showQualityMenu, showLanguageMenu, showEpisodesList, showAudioMenu, showEndedOverlay, togglePlay, streamUrl]);
 
   // Hide controls after inactivity
   const handleMouseMove = useCallback(() => {
@@ -1255,8 +1288,8 @@ function DebridPlayer() {
       ref={containerRef}
       className={`debrid-player ${isFullscreen ? 'fullscreen' : ''} ${showControls ? 'show-controls' : ''}`}
       onMouseMove={handleMouseMove}
-      onClick={handleVideoAreaTap}
-      onTouchEnd={handleVideoAreaTap}
+      onClick={handleVideoClick}
+      onTouchEnd={handleTouchTap}
     >
       {/* Double tap indicators */}
       {doubleTapIndicator === 'left' && (
@@ -1276,6 +1309,21 @@ function DebridPlayer() {
               <path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/>
             </svg>
             <span>+30s</span>
+          </div>
+        </div>
+      )}
+      {doubleTapIndicator === 'center' && (
+        <div className="double-tap-indicator center">
+          <div className="double-tap-icon">
+            {isPlaying ? (
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
+            )}
           </div>
         </div>
       )}
