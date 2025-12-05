@@ -18,10 +18,6 @@ function LoadingScreen({ progress }) {
               style={{ width: `${percentage}%` }}
             />
           </div>
-          <div className="startup-progress-text">
-            <span className="startup-progress-message">{progress?.message || 'Carregant...'}</span>
-            <span className="startup-progress-percentage">{percentage}%</span>
-          </div>
         </div>
 
         <div className="startup-loading-dots">
