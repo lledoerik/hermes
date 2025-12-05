@@ -254,6 +254,9 @@ function DebridPlayer() {
   const [error, setError] = useState(null);
   const [debridConfigured, setDebridConfigured] = useState(null); // null = checking, true/false = result
 
+  // Abort controller ref per cancel·lar peticions anteriors
+  const streamAbortControllerRef = useRef(null);
+
   // Player state
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -565,6 +568,15 @@ function DebridPlayer() {
   const getStreamUrl = useCallback(async (torrent, keepTime = false) => {
     if (!torrent) return;
 
+    // Cancel·lar petició anterior si n'hi ha una en curs
+    if (streamAbortControllerRef.current) {
+      streamAbortControllerRef.current.abort();
+    }
+
+    // Crear nou AbortController per aquesta petició
+    const abortController = new AbortController();
+    streamAbortControllerRef.current = abortController;
+
     // Save current time if switching streams
     if (keepTime && videoRef.current) {
       resumeTimeRef.current = videoRef.current.currentTime;
@@ -583,7 +595,17 @@ function DebridPlayer() {
       if (torrent.file_idx !== undefined && torrent.file_idx !== null) {
         params.file_idx = torrent.file_idx;
       }
-      const response = await axios.post(`${API_URL}/api/debrid/stream`, null, { params });
+
+      const response = await axios.post(`${API_URL}/api/debrid/stream`, null, {
+        params,
+        signal: abortController.signal,
+        timeout: 45000 // 45 segons de timeout màxim
+      });
+
+      // Verificar que no s'ha cancel·lat la petició
+      if (abortController.signal.aborted) {
+        return;
+      }
 
       if (response.data.status === 'success') {
         setStreamUrl(response.data.url);
@@ -591,10 +613,25 @@ function DebridPlayer() {
         setError('No s\'ha pogut obtenir el stream');
       }
     } catch (err) {
+      // Ignorar errors d'abort (cancel·lació voluntària)
+      if (axios.isCancel(err) || err.name === 'AbortError' || err.code === 'ERR_CANCELED') {
+        console.log('Petició cancel·lada');
+        return;
+      }
+
       console.error('Error obtenint stream:', err);
-      setError(err.response?.data?.detail || 'Error obtenint stream');
+
+      // Missatges d'error més descriptius
+      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+        setError('Temps d\'espera excedit. Prova amb una altra font.');
+      } else {
+        setError(err.response?.data?.detail || 'Error obtenint stream');
+      }
     } finally {
-      setLoadingStream(false);
+      // Només actualitzar loadingStream si no s'ha cancel·lat
+      if (!abortController.signal.aborted) {
+        setLoadingStream(false);
+      }
     }
   }, []);
 
@@ -1160,6 +1197,15 @@ function DebridPlayer() {
       }
     }
   }, [showEpisodesList, episodes]);
+
+  // Cancel·lar peticions pendents quan es desmunta el component
+  useEffect(() => {
+    return () => {
+      if (streamAbortControllerRef.current) {
+        streamAbortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   // Save progress on unmount
   useEffect(() => {
