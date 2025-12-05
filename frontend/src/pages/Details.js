@@ -220,15 +220,18 @@ function Details() {
         return;
       }
 
-      // Carregar episodis locals per aquesta temporada
-      let localEpisodes = [];
-      try {
-        const response = await axios.get(`/api/library/series/${id}/seasons/${seasonNum}/episodes`);
-        localEpisodes = response.data || [];
-      } catch (e) {
-        // No hi ha episodis locals per aquesta temporada
-        localEpisodes = [];
-      }
+      // PARAL·LELITZAR: Carregar episodis locals i TMDB alhora
+      const localPromise = axios.get(`/api/library/series/${id}/seasons/${seasonNum}/episodes`)
+        .then(res => res.data || [])
+        .catch(() => []); // No hi ha episodis locals per aquesta temporada
+
+      const tmdbPromise = effectiveTmdbId
+        ? axios.get(`/api/tmdb/tv/${effectiveTmdbId}/season/${seasonNum}`)
+            .then(res => res.data.episodes || [])
+            .catch(() => [])
+        : Promise.resolve([]);
+
+      const [localEpisodes, tmdbEpisodes] = await Promise.all([localPromise, tmdbPromise]);
 
       // Crear mapa d'episodis locals per número d'episodi
       const localEpMap = {};
@@ -236,35 +239,27 @@ function Details() {
         localEpMap[ep.episode_number] = ep;
       });
 
-      // Si tenim TMDB, carregar episodis de TMDB i combinar
-      if (effectiveTmdbId) {
-        try {
-          const tmdbRes = await axios.get(`/api/tmdb/tv/${effectiveTmdbId}/season/${seasonNum}`);
-          if (tmdbRes.data.episodes) {
-            // Combinar: episodis TMDB amb informació de si són locals
-            const combinedEpisodes = tmdbRes.data.episodes.map(tmdbEp => {
-              const localEp = localEpMap[tmdbEp.episode_number];
-              return {
-                ...tmdbEp,
-                isLocal: !!localEp,
-                localId: localEp?.id,
-                localData: localEp,
-                // Mantenir audio_tracks i subtitles del local si existeix
-                audio_tracks: localEp?.audio_tracks,
-                subtitles: localEp?.subtitles || localEp?.subtitle_tracks,
-                duration: localEp?.duration || (tmdbEp.runtime ? tmdbEp.runtime * 60 : null),
-                watch_progress: localEp?.watch_progress || 0
-              };
-            });
-            setEpisodes(combinedEpisodes);
-            return;
-          }
-        } catch (e) {
-          console.error('Error carregant episodis TMDB:', e);
-        }
+      // Si tenim episodis TMDB, combinar amb locals
+      if (tmdbEpisodes.length > 0) {
+        const combinedEpisodes = tmdbEpisodes.map(tmdbEp => {
+          const localEp = localEpMap[tmdbEp.episode_number];
+          return {
+            ...tmdbEp,
+            isLocal: !!localEp,
+            localId: localEp?.id,
+            localData: localEp,
+            // Mantenir audio_tracks i subtitles del local si existeix
+            audio_tracks: localEp?.audio_tracks,
+            subtitles: localEp?.subtitles || localEp?.subtitle_tracks,
+            duration: localEp?.duration || (tmdbEp.runtime ? tmdbEp.runtime * 60 : null),
+            watch_progress: localEp?.watch_progress || 0
+          };
+        });
+        setEpisodes(combinedEpisodes);
+        return;
       }
 
-      // Si no hi ha TMDB o ha fallat, mostrar només locals (marcats com a locals)
+      // Si no hi ha TMDB, mostrar només locals (marcats com a locals)
       setEpisodes(localEpisodes.map(ep => ({
         ...ep,
         isLocal: true,
@@ -704,11 +699,11 @@ function Details() {
               {/* Botó de reproducció només visible per usuaris premium */}
               {isPremium && item?.tmdb_id && (
                 <button
-                  className={`play-btn ${streamPreloading ? 'loading' : ''}`}
+                  className={`play-btn ${!streamReady ? 'loading' : ''}`}
                   onClick={handlePlay}
-                  disabled={streamPreloading}
+                  disabled={!streamReady}
                 >
-                  {streamPreloading ? (
+                  {!streamReady ? (
                     <>
                       <span className="play-btn-spinner"></span>
                       Preparant...
