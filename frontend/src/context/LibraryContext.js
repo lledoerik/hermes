@@ -29,14 +29,7 @@ export function LibraryProvider({ children }) {
   // Preload all data at startup
   const preloadData = useCallback(async () => {
     setInitialLoading(true);
-    const total = 6;
-    let current = 0;
-
-    // Helper per actualitzar progrés
-    const updateProgress = () => {
-      current++;
-      setLoadingProgress({ current, total });
-    };
+    setLoadingProgress({ current: 0, total: 6 });
 
     try {
       // Carregar tot en PARAL·LEL per més velocitat
@@ -49,9 +42,9 @@ export function LibraryProvider({ children }) {
               timestamp: Date.now(),
               pages: { 1: { data: res.data.items, timestamp: Date.now() } }
             });
-            updateProgress();
+            setLoadingProgress(prev => ({ ...prev, current: prev.current + 1 }));
           })
-          .catch(() => updateProgress()),
+          .catch(() => setLoadingProgress(prev => ({ ...prev, current: prev.current + 1 }))),
 
         // 2. Series
         axios.get(`${API_URL}/api/library/series`, { params: { page: 1, limit: 50, sort_by: 'name' } })
@@ -61,25 +54,25 @@ export function LibraryProvider({ children }) {
               timestamp: Date.now(),
               pages: { 1: { data: res.data.items, timestamp: Date.now() } }
             });
-            updateProgress();
+            setLoadingProgress(prev => ({ ...prev, current: prev.current + 1 }));
           })
-          .catch(() => updateProgress()),
+          .catch(() => setLoadingProgress(prev => ({ ...prev, current: prev.current + 1 }))),
 
         // 3. Books
         axios.get(`${API_URL}/api/library/books`)
           .then(res => {
             setBooksCache({ data: res.data, timestamp: Date.now() });
-            updateProgress();
+            setLoadingProgress(prev => ({ ...prev, current: prev.current + 1 }));
           })
-          .catch(() => updateProgress()),
+          .catch(() => setLoadingProgress(prev => ({ ...prev, current: prev.current + 1 }))),
 
         // 4. Audiobooks
         axios.get(`${API_URL}/api/library/audiobooks`)
           .then(res => {
             setAudiobooksCache({ data: res.data, timestamp: Date.now() });
-            updateProgress();
+            setLoadingProgress(prev => ({ ...prev, current: prev.current + 1 }));
           })
-          .catch(() => updateProgress()),
+          .catch(() => setLoadingProgress(prev => ({ ...prev, current: prev.current + 1 }))),
 
         // 5. Home data (recent + continue watching)
         Promise.all([
@@ -90,16 +83,16 @@ export function LibraryProvider({ children }) {
             data: { recent: recentRes.data, continueWatching: continueRes.data },
             timestamp: Date.now()
           });
-          updateProgress();
-        }).catch(() => updateProgress()),
+          setLoadingProgress(prev => ({ ...prev, current: prev.current + 1 }));
+        }).catch(() => setLoadingProgress(prev => ({ ...prev, current: prev.current + 1 }))),
 
         // 6. Stats
         axios.get(`${API_URL}/api/library/stats`)
           .then(res => {
             setStatsCache({ data: res.data, timestamp: Date.now() });
-            updateProgress();
+            setLoadingProgress(prev => ({ ...prev, current: prev.current + 1 }));
           })
-          .catch(() => updateProgress())
+          .catch(() => setLoadingProgress(prev => ({ ...prev, current: prev.current + 1 })))
       ];
 
       // Esperar que totes les promeses acabin
