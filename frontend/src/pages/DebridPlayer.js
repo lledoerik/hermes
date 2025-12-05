@@ -1369,7 +1369,6 @@ function DebridPlayer() {
       {(loadingTorrents || loadingStream) && (
         <div className="loading-overlay">
           <div className="spinner"></div>
-          <p>{loadingTorrents ? 'Buscant fonts...' : 'Preparant stream...'}</p>
         </div>
       )}
 
