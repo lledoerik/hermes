@@ -467,19 +467,16 @@ function Details() {
               setStreamReady(true);
             }
           }
-        } else if (type === 'series' && episodes.length > 0) {
-          // Per sèries, precarregar el primer episodi visible
-          const firstEpisode = episodes[0];
-          if (firstEpisode) {
-            console.log(`[Details] Precarregant torrents per S${selectedSeason}E${firstEpisode.episode_number}...`);
-            const torrents = await preloadTorrents('tv', tmdbIdToUse, selectedSeason, firstEpisode.episode_number);
-            if (torrents?.length > 0) {
-              // AWAIT per assegurar que el stream estigui llest abans de permetre reproduir
-              const result = await preloadAutoQualityFirst(torrents);
-              if (result?.autoUrl) {
-                console.log('[Details] Stream preparat per reproducció instantània!');
-                setStreamReady(true);
-              }
+        } else if (type === 'series' && nextEpisode) {
+          // Per sèries, precarregar l'episodi que es reproduirà (nextEpisode, no sempre el primer!)
+          console.log(`[Details] Precarregant torrents per S${nextEpisode.season}E${nextEpisode.episode}...`);
+          const torrents = await preloadTorrents('tv', tmdbIdToUse, nextEpisode.season, nextEpisode.episode);
+          if (torrents?.length > 0) {
+            // AWAIT per assegurar que el stream estigui llest abans de permetre reproduir
+            const result = await preloadAutoQualityFirst(torrents);
+            if (result?.autoUrl) {
+              console.log('[Details] Stream preparat per reproducció instantània!');
+              setStreamReady(true);
             }
           }
         }
@@ -491,7 +488,7 @@ function Details() {
     };
 
     preloadStreams();
-  }, [item, episodes, selectedSeason, type, isPremium, isTmdbOnly, realTmdbId, preloadTorrents, preloadAutoQualityFirst]);
+  }, [item, nextEpisode, type, isPremium, isTmdbOnly, realTmdbId, preloadTorrents, preloadAutoQualityFirst]);
 
   const handleUpdateByTmdbId = async () => {
     if (!tmdbId.trim()) {
