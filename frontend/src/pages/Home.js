@@ -163,7 +163,7 @@ function Home() {
   const [recentMovies, setRecentMovies] = useState([]);
   const [watchlist, setWatchlist] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(''); // Només per landing page (no autenticat)
   const navigate = useNavigate();
 
   const loadData = useCallback(async () => {
@@ -321,26 +321,12 @@ function Home() {
   if (isAuthenticated) {
     return (
       <div className="home-container authenticated">
-        {/* Header amb salutació i cerca */}
+        {/* Header amb salutació */}
         <div className="home-header">
           <h1 className="home-greeting">
             <span>Hola{user?.display_name ? `, ${user.display_name}` : ''}!</span>
             <span className="greeting-subtitle">Què et ve de gust veure avui?</span>
           </h1>
-          <form className="search-bar compact" onSubmit={handleSearch}>
-            <input
-              type="text"
-              placeholder="Cercar..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            <button type="submit">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              </svg>
-            </button>
-          </form>
         </div>
 
         {/* Continue Watching - Pel·lícules */}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -7,16 +7,72 @@ import {
   PreferencesIcon,
   LogoutIcon,
   LoginIcon,
-  WatchlistIcon
+  WatchlistIcon,
+  SearchIcon,
+  CloseIcon
 } from './icons';
 import './Navbar.css';
 
 function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const searchInputRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
+
+  // Determinar el tipus de cerca segons la pàgina actual
+  const getSearchType = () => {
+    if (location.pathname === '/movies' || location.pathname.startsWith('/movies/')) {
+      return 'movies';
+    }
+    if (location.pathname === '/series' || location.pathname.startsWith('/series/')) {
+      return 'series';
+    }
+    return 'all'; // Inici o altres pàgines
+  };
+
+  const searchType = getSearchType();
+
+  const getSearchPlaceholder = () => {
+    switch (searchType) {
+      case 'movies':
+        return 'Cerca pel·lícules...';
+      case 'series':
+        return 'Cerca sèries...';
+      default:
+        return 'Cercar...';
+    }
+  };
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      // Navegar a la pàgina de cerca amb el tipus
+      const searchParams = new URLSearchParams();
+      searchParams.set('q', searchQuery.trim());
+      if (searchType !== 'all') {
+        searchParams.set('type', searchType);
+      }
+      navigate(`/search?${searchParams.toString()}`);
+      setSearchQuery('');
+      setSearchExpanded(false);
+    }
+  };
+
+  const handleSearchToggle = () => {
+    setSearchExpanded(!searchExpanded);
+    if (!searchExpanded) {
+      setTimeout(() => searchInputRef.current?.focus(), 100);
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    searchInputRef.current?.focus();
+  };
 
   const handleLogout = () => {
     logout();
@@ -80,6 +136,27 @@ function Navbar() {
         </div>
 
         <div className="navbar-right">
+          {/* Barra de cerca - només per usuaris autenticats */}
+          {isAuthenticated && (
+            <form className={`navbar-search-box ${searchExpanded ? 'expanded' : ''}`} onSubmit={handleSearch}>
+              <SearchIcon size={18} />
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder={getSearchPlaceholder()}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => setSearchExpanded(true)}
+                onBlur={() => !searchQuery && setSearchExpanded(false)}
+              />
+              {searchQuery && (
+                <button type="button" className="clear-search" onClick={clearSearch}>
+                  <CloseIcon size={14} />
+                </button>
+              )}
+            </form>
+          )}
+
           {isAuthenticated ? (
             <div
               className="profile-menu-container"
