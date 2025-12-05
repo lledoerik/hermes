@@ -2,96 +2,24 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import { API_URL } from '../config/api';
+import {
+  BookmarkIcon,
+  PlayIcon,
+  TrashIcon,
+  StarIcon,
+  MovieIcon,
+  SeriesIcon,
+  DownloadIcon,
+  CloseIcon,
+  CheckIcon,
+  AlertIcon,
+  SearchIcon,
+  BookIcon
+} from '../components/icons';
 import './Watchlist.css';
 
-const API_URL = window.location.hostname === 'localhost'
-  ? 'http://localhost:8000'
-  : '';
-
-// SVG Icons
-const BookmarkIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor" strokeWidth="2">
-    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-  </svg>
-);
-
-const PlayIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <polygon points="5 3 19 12 5 21 5 3"></polygon>
-  </svg>
-);
-
-const TrashIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <polyline points="3 6 5 6 21 6"></polyline>
-    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-  </svg>
-);
-
-const StarIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
-    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-  </svg>
-);
-
-const MovieIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-    <rect x="2" y="2" width="20" height="20" rx="2.18"/>
-    <path d="M7 2v20"/>
-    <path d="M17 2v20"/>
-    <path d="M2 12h20"/>
-    <path d="M2 7h5"/>
-    <path d="M2 17h5"/>
-    <path d="M17 17h5"/>
-    <path d="M17 7h5"/>
-  </svg>
-);
-
-const SeriesIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-    <rect x="4" y="6" width="16" height="12" rx="2"/>
-    <path d="M2 8v8"/>
-    <path d="M22 8v8"/>
-  </svg>
-);
-
-const DownloadIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-    <polyline points="7 10 12 15 17 10"/>
-    <line x1="12" y1="15" x2="12" y2="3"/>
-  </svg>
-);
-
-const CloseIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <line x1="18" y1="6" x2="6" y2="18"/>
-    <line x1="6" y1="6" x2="18" y2="18"/>
-  </svg>
-);
-
-const CheckIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <polyline points="20 6 9 17 4 12"/>
-  </svg>
-);
-
-const AlertIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <circle cx="12" cy="12" r="10"/>
-    <line x1="12" y1="8" x2="12" y2="12"/>
-    <line x1="12" y1="16" x2="12.01" y2="16"/>
-  </svg>
-);
-
-const SearchIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <circle cx="11" cy="11" r="8"/>
-    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-  </svg>
-);
-
-// Platform logos
+// Platform logos (specific to this component)
 const LetterboxdLogo = () => (
   <svg viewBox="0 0 500 500" fill="currentColor">
     <path d="M250 500C111.93 500 0 388.07 0 250S111.93 0 250 0s250 111.93 250 250-111.93 250-250 250zm0-450C139.54 50 50 139.54 50 250s89.54 200 200 200 200-89.54 200-200S360.46 50 250 50z"/>
@@ -110,13 +38,6 @@ const MALLogo = () => (
 const GoodreadsLogo = () => (
   <svg viewBox="0 0 24 24" fill="currentColor">
     <path d="M12.027 11.573c-.545.178-1.09.267-1.635.267-1.363 0-2.534-.534-3.512-1.602-.979-1.068-1.468-2.424-1.468-4.068 0-1.644.489-3 1.468-4.068.978-1.068 2.149-1.602 3.512-1.602.544 0 1.09.089 1.635.267V0h1.635v11.573h-1.635zm0-8.673c-.545-.178-1.09-.267-1.635-.267-.817 0-1.507.356-2.07 1.068-.563.712-.844 1.602-.844 2.67s.281 1.958.844 2.67c.563.712 1.253 1.068 2.07 1.068.544 0 1.09-.089 1.635-.267V2.9zM19.591 24h-1.635v-5.8c-.545.178-1.09.267-1.635.267-1.363 0-2.534-.534-3.512-1.602-.979-1.068-1.468-2.424-1.468-4.068 0-1.644.489-3 1.468-4.068.978-1.068 2.149-1.602 3.512-1.602.544 0 1.09.089 1.635.267V7.127h1.635V24zm-1.635-15.1c-.545-.178-1.09-.267-1.635-.267-.817 0-1.507.356-2.07 1.068-.563.712-.844 1.602-.844 2.67s.281 1.958.844 2.67c.563.712 1.253 1.068 2.07 1.068.544 0 1.09-.089 1.635-.267V8.9z"/>
-  </svg>
-);
-
-const BookIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
   </svg>
 );
 

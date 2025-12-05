@@ -3,51 +3,18 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import TitleAudioPlayer from '../components/TitleAudioPlayer';
+import { API_URL, getBackdropUrl, getPosterUrl, formatDuration } from '../config/api';
+import {
+  StarIcon,
+  PlayIcon,
+  EditIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  BookmarkIcon
+} from '../components/icons';
 import './Details.css';
 
-const API_URL = window.location.hostname === 'localhost'
-  ? 'http://localhost:8000'
-  : '';
-
 axios.defaults.baseURL = API_URL;
-
-// SVG Icons
-const StarIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1">
-    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-  </svg>
-);
-
-const PlayIcon = ({ size = 18 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-    <polygon points="5 3 19 12 5 21 5 3"></polygon>
-  </svg>
-);
-
-const EditIcon = ({ size = 18 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-  </svg>
-);
-
-const ChevronLeftIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <polyline points="15 18 9 12 15 6"></polyline>
-  </svg>
-);
-
-const ChevronRightIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <polyline points="9 18 15 12 9 6"></polyline>
-  </svg>
-);
-
-const BookmarkIcon = ({ filled = false }) => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
-    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-  </svg>
-);
 
 function Details() {
   const { id } = useParams();
@@ -513,15 +480,7 @@ function Details() {
     }
   };
 
-  const formatDuration = (seconds) => {
-    if (!seconds) return '';
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) {
-      return `${hours}h ${minutes}min`;
-    }
-    return `${minutes} min`;
-  };
+  // formatDuration is now imported from config/api.js
 
   if (loading) {
     return (
@@ -552,9 +511,9 @@ function Details() {
             backgroundImage: isTmdbOnly
               ? (item.backdrop ? `url(${item.backdrop})` : item.poster ? `url(${item.poster})` : 'none')
               : (item.backdrop
-                ? `url(${API_URL}/api/image/backdrop/${item.id}${imageCacheBust})`
+                ? `url(${getBackdropUrl(item.id, imageCacheBust)})`
                 : item.poster
-                ? `url(${API_URL}/api/image/poster/${item.id}${imageCacheBust})`
+                ? `url(${getPosterUrl(item.id, imageCacheBust)})`
                 : 'none')
           }}
         />
