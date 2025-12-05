@@ -185,138 +185,129 @@ export function StreamCacheProvider({ children }) {
   }, []);
 
   /**
-   * Determina la qualitat automàtica (millor cached disponible)
+   * Determina el torrent preferit segons les preferències d'usuari
    */
   const getAutoQuality = useCallback((torrents) => {
     if (!torrents?.length) return null;
 
     const QUALITY_ORDER = ['4K', '1080p', '720p'];
-    const qualityGroups = {};
+    const preferredAudioLang = localStorage.getItem('hermes_audio_lang') || 'en';
+    const langCodeToLabel = { 'ca': 'CAT', 'es': 'ESP', 'en': 'ENG' };
+    const preferredLangCode = langCodeToLabel[preferredAudioLang] || 'ENG';
 
-    torrents.forEach(t => {
-      const name = t.name?.toLowerCase() || '';
-      let quality = '720p';
-      if (name.includes('2160p') || name.includes('4k') || name.includes('uhd')) {
-        quality = '4K';
-      } else if (name.includes('1080p')) {
-        quality = '1080p';
-      }
+    const parseQuality = (name) => {
+      const lower = (name || '').toLowerCase();
+      if (lower.includes('2160p') || lower.includes('4k') || lower.includes('uhd')) return '4K';
+      if (lower.includes('1080p')) return '1080p';
+      return '720p';
+    };
 
-      if (!qualityGroups[quality]) {
-        qualityGroups[quality] = [];
-      }
-      qualityGroups[quality].push(t);
+    const parseLanguage = (name, title) => {
+      const text = `${name} ${title}`.toLowerCase();
+      if (text.includes('catala') || text.includes('català')) return 'CAT';
+      if (text.includes('castellano') || text.includes('español') || text.includes('spanish')) return 'ESP';
+      if (text.includes('english') || text.includes('multi')) return 'ENG';
+      return 'ENG';
+    };
+
+    const cachedTorrents = torrents.filter(t => t.cached);
+    if (cachedTorrents.length === 0) return null;
+
+    // Ordenar per preferències
+    cachedTorrents.sort((a, b) => {
+      const langA = parseLanguage(a.name, a.title) === preferredLangCode ? 0 : 1;
+      const langB = parseLanguage(b.name, b.title) === preferredLangCode ? 0 : 1;
+      if (langA !== langB) return langA - langB;
+
+      const qualA = QUALITY_ORDER.indexOf(parseQuality(a.name));
+      const qualB = QUALITY_ORDER.indexOf(parseQuality(b.name));
+      return qualA - qualB;
     });
 
-    // Retornar la millor qualitat amb torrent cached
-    for (const quality of QUALITY_ORDER) {
-      const group = qualityGroups[quality];
-      if (group) {
-        const cachedTorrent = group.find(t => t.cached);
-        if (cachedTorrent) {
-          return { quality, torrent: cachedTorrent };
-        }
-      }
-    }
-
-    // Si no hi ha cap cached, retornar el primer disponible
-    for (const quality of QUALITY_ORDER) {
-      const group = qualityGroups[quality];
-      if (group?.length > 0) {
-        return { quality, torrent: group[0] };
-      }
-    }
-
-    return null;
+    const best = cachedTorrents[0];
+    return { quality: parseQuality(best.name), torrent: best };
   }, []);
 
   /**
-   * Precarrega PRIMER la qualitat automàtica, retorna immediatament quan estigui llesta,
-   * i després continua carregant les altres qualitats en background.
+   * Precarrega PRIMER el torrent que el player seleccionarà (respectant preferències d'usuari),
+   * retorna immediatament quan estigui llesta, i després continua carregant altres en background.
    *
-   * @returns {Promise<{autoTorrent: Object, autoUrl: string|null}>} - Torrent i URL de la qualitat automàtica
+   * @returns {Promise<{autoTorrent: Object, autoUrl: string|null}>} - Torrent i URL del torrent seleccionat
    */
   const preloadAutoQualityFirst = useCallback(async (torrents) => {
     if (!torrents?.length) return { autoTorrent: null, autoUrl: null };
 
     const QUALITY_ORDER = ['4K', '1080p', '720p'];
-    const qualityGroups = {};
 
-    torrents.forEach(t => {
-      const name = t.name?.toLowerCase() || '';
-      let quality = '720p';
-      if (name.includes('2160p') || name.includes('4k') || name.includes('uhd')) {
-        quality = '4K';
-      } else if (name.includes('1080p')) {
-        quality = '1080p';
-      }
+    // Obtenir preferències d'usuari (MATEIXA lògica que DebridPlayer)
+    const preferredAudioLang = localStorage.getItem('hermes_audio_lang') || 'en';
+    const preferredQuality = localStorage.getItem('hermes_quality') || 'auto';
 
-      if (!qualityGroups[quality]) {
-        qualityGroups[quality] = [];
-      }
-      qualityGroups[quality].push(t);
-    });
+    // Map language codes
+    const langCodeToLabel = {
+      'ca': 'CAT', 'es': 'ESP', 'en': 'ENG', 'fr': 'VO', 'de': 'VO',
+      'it': 'VO', 'pt': 'VO', 'ja': 'VO', 'ko': 'VO', 'zh': 'VO', 'ru': 'VO'
+    };
+    const preferredLangCode = langCodeToLabel[preferredAudioLang] || 'ENG';
 
-    // Trobar la qualitat automàtica (millor cached)
-    let autoQuality = null;
-    let autoTorrent = null;
+    // Parse language from torrent name (simplified version)
+    const parseLanguage = (name, title) => {
+      const text = `${name} ${title}`.toLowerCase();
+      if (text.includes('catala') || text.includes('català')) return 'CAT';
+      if (text.includes('latino') || text.includes('lat ')) return 'LAT';
+      if (text.includes('castellano') || text.includes('español') || text.includes('spanish')) return 'ESP';
+      if (text.includes('english') || text.includes('eng ') || text.includes('multi')) return 'ENG';
+      return 'ENG'; // Default
+    };
 
-    for (const quality of QUALITY_ORDER) {
-      const group = qualityGroups[quality];
-      if (group) {
-        const cachedTorrent = group.find(t => t.cached);
-        if (cachedTorrent) {
-          autoQuality = quality;
-          autoTorrent = cachedTorrent;
-          break;
-        }
-      }
-    }
+    // Parse quality
+    const parseQuality = (name) => {
+      const lower = (name || '').toLowerCase();
+      if (lower.includes('2160p') || lower.includes('4k') || lower.includes('uhd')) return '4K';
+      if (lower.includes('1080p')) return '1080p';
+      return '720p';
+    };
 
-    // Si no hi ha cap cached, usar la millor disponible
-    if (!autoTorrent) {
-      for (const quality of QUALITY_ORDER) {
-        const group = qualityGroups[quality];
-        if (group?.length > 0) {
-          autoQuality = quality;
-          autoTorrent = group[0];
-          break;
-        }
-      }
-    }
+    // Scoring function (same as DebridPlayer)
+    const scoreTorrent = (t) => {
+      const lang = parseLanguage(t.name, t.title);
+      const quality = parseQuality(t.name);
 
-    if (!autoTorrent) {
+      let langScore = lang === preferredLangCode ? 0 : (lang === 'ENG' ? 1 : 2);
+      let qualityScore = QUALITY_ORDER.indexOf(quality);
+      if (qualityScore < 0) qualityScore = 99;
+      if (preferredQuality !== 'auto' && quality === preferredQuality) qualityScore = 0;
+
+      return langScore * 100 + qualityScore; // Lang has priority
+    };
+
+    // Sort cached torrents by score
+    const cachedTorrents = torrents.filter(t => t.cached);
+    if (cachedTorrents.length === 0) {
+      console.log('[StreamCache] No hi ha torrents cached per precarregar');
       return { autoTorrent: null, autoUrl: null };
     }
 
-    // PRIMER: Carregar només la qualitat automàtica
-    console.log(`[StreamCache] Carregant qualitat automàtica (${autoQuality}) primer...`);
+    cachedTorrents.sort((a, b) => scoreTorrent(a) - scoreTorrent(b));
+    const autoTorrent = cachedTorrents[0];
+    const autoQuality = parseQuality(autoTorrent.name);
+
+    // PRIMER: Carregar el torrent que el player seleccionarà
+    console.log(`[StreamCache] Precarregant torrent preferit (${autoQuality}, ${parseLanguage(autoTorrent.name, autoTorrent.title)})...`);
     const autoUrl = await preloadStreamUrl(autoTorrent);
-    console.log(`[StreamCache] Qualitat automàtica (${autoQuality}) llesta!`);
+    console.log(`[StreamCache] Torrent preferit llest! (${autoTorrent.info_hash.slice(0, 8)})`);
 
-    // DESPRÉS: Carregar les altres qualitats en background (no bloquejar)
-    const otherQualities = QUALITY_ORDER.filter(q => q !== autoQuality);
+    // DESPRÉS: Carregar altres torrents cached en background (no bloquejar)
+    const otherTorrents = cachedTorrents.slice(1, 4); // Màxim 3 més
 
-    // No esperem - deixem que es carreguin en background
-    setTimeout(async () => {
-      console.log(`[StreamCache] Carregant altres qualitats en background: ${otherQualities.join(', ')}`);
-      const otherPromises = [];
-
-      for (const quality of otherQualities) {
-        const group = qualityGroups[quality];
-        if (group) {
-          const cachedTorrent = group.find(t => t.cached);
-          if (cachedTorrent) {
-            otherPromises.push(preloadStreamUrl(cachedTorrent));
-          }
-        }
-      }
-
-      if (otherPromises.length > 0) {
-        await Promise.all(otherPromises);
-        console.log(`[StreamCache] Totes les qualitats carregades en background`);
-      }
-    }, 100); // Petit delay per assegurar que la UI s'ha actualitzat
+    if (otherTorrents.length > 0) {
+      setTimeout(async () => {
+        console.log(`[StreamCache] Carregant ${otherTorrents.length} torrents més en background...`);
+        const promises = otherTorrents.map(t => preloadStreamUrl(t));
+        await Promise.all(promises);
+        console.log(`[StreamCache] Torrents addicionals carregats en background`);
+      }, 100);
+    }
 
     return { autoTorrent, autoUrl };
   }, [preloadStreamUrl]);
