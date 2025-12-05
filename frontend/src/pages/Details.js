@@ -97,11 +97,10 @@ function Details() {
       // Si és contingut només de TMDB, carregar directament des de TMDB
       if (isTmdbOnly && realTmdbId) {
         if (type === 'series') {
-          // Carregar detalls, temporades i episodis de la temporada 1 en PARAL·LEL
-          const [detailsRes, seasonsRes, season1Res] = await Promise.all([
+          // Carregar detalls i temporades des de TMDB en paral·lel
+          const [detailsRes, seasonsRes] = await Promise.all([
             axios.get(`/api/tmdb/tv/${realTmdbId}`),
-            axios.get(`/api/tmdb/tv/${realTmdbId}/seasons`),
-            axios.get(`/api/tmdb/tv/${realTmdbId}/season/1`).catch(() => ({ data: { episodes: [] } }))
+            axios.get(`/api/tmdb/tv/${realTmdbId}/seasons`)
           ]);
 
           setItem(detailsRes.data);
@@ -111,25 +110,8 @@ function Details() {
             .map(s => ({ ...s, hasLocalEpisodes: false }));
 
           setSeasons(tmdbSeasons);
-
-          // Si la primera temporada és la 1 i tenim episodis, establir-los directament
-          const firstSeasonNum = tmdbSeasons.length > 0 ? tmdbSeasons[0].season_number : 1;
-          if (firstSeasonNum === 1 && season1Res.data.episodes?.length > 0) {
-            const episodes = season1Res.data.episodes.map(ep => ({
-              ...ep,
-              isLocal: false,
-              duration: ep.runtime ? ep.runtime * 60 : null
-            }));
-            setEpisodes(episodes);
-            // Guardar al cache
-            const cacheKey = `hermes_episodes_${realTmdbId}_s1`;
-            try {
-              sessionStorage.setItem(cacheKey, JSON.stringify({ data: episodes, timestamp: Date.now() }));
-            } catch (e) { /* sessionStorage ple */ }
-          }
-
           if (tmdbSeasons.length > 0) {
-            setSelectedSeason(firstSeasonNum);
+            setSelectedSeason(tmdbSeasons[0].season_number);
           }
           setUsingTmdbSeasons(true);
         } else {
@@ -219,7 +201,7 @@ function Details() {
 
   const loadEpisodes = useCallback(async (seasonNum, isTmdb = false, tmdbIdParam = null) => {
     const effectiveTmdbId = isTmdbOnly ? realTmdbId : tmdbIdParam;
-    const cacheKey = `hermes_episodes_${effectiveTmdbId || id}_s${seasonNum}`;
+    const cacheKey = `hermes_episodes_v2_${effectiveTmdbId || id}_s${seasonNum}`;
 
     // Comprovar cache del frontend (1 hora)
     try {
