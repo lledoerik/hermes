@@ -263,6 +263,7 @@ function DebridPlayer() {
   // Abort controller ref per cancel·lar peticions anteriors
   const streamAbortControllerRef = useRef(null);
   const loadingTimerRef = useRef(null);
+  const previousTorrentRef = useRef(null); // Torrent anterior per recuperar si falla
 
   // Player state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -671,6 +672,11 @@ function DebridPlayer() {
 
   // Change quality - 'auto' per mode automàtic o '4K'/'1080p'/'720p' per manual
   const changeTorrent = useCallback((quality) => {
+    // Guardar torrent actual abans de canviar (per recuperar si falla)
+    if (selectedTorrent && streamUrl) {
+      previousTorrentRef.current = { torrent: selectedTorrent, url: streamUrl };
+    }
+
     if (quality === 'auto') {
       // Mode automàtic - seleccionar la millor qualitat disponible
       setIsAutoQuality(true);
@@ -698,7 +704,7 @@ function DebridPlayer() {
       }
     }
     setShowQualityMenu(false);
-  }, [groupedTorrents, selectedTorrent, getStreamUrl, autoSelectedQuality]);
+  }, [groupedTorrents, selectedTorrent, streamUrl, getStreamUrl, autoSelectedQuality]);
 
   // Change language filter
   const changeLanguage = useCallback((langCode) => {
@@ -1188,7 +1194,15 @@ function DebridPlayer() {
         const failedQuality = parseQuality(selectedTorrent.name);
         setDisabledQualities(prev => new Set([...prev, failedQuality]));
         setLoadingStream(false);
-        setSelectedTorrent(null);
+
+        // Restaurar torrent anterior si n'hi ha
+        if (previousTorrentRef.current) {
+          setSelectedTorrent(previousTorrentRef.current.torrent);
+          setStreamUrl(previousTorrentRef.current.url);
+          previousTorrentRef.current = null;
+        } else {
+          setSelectedTorrent(null);
+        }
       }, 10000); // 10 segons
     } else {
       // Netejar timeout
