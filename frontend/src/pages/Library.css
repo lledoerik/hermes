@@ -495,12 +495,21 @@
   animation: spin 0.8s linear infinite;
 }
 
+/* Library Filters Row - contenidor per category tabs i filtres de tipus */
+.library-filters-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-lg);
+  max-width: 1800px;
+  margin: 0 auto var(--space-lg);
+  flex-wrap: wrap;
+}
+
 /* Content Type Filter Switches */
 .content-type-filters {
   display: flex;
   gap: var(--space-xs);
-  max-width: 1800px;
-  margin: 0 auto var(--space-md);
   padding: var(--space-xs);
   background: var(--surface-elevated);
   border-radius: var(--radius-lg);
@@ -544,8 +553,6 @@
 .category-tabs {
   display: flex;
   gap: var(--space-sm);
-  max-width: 1800px;
-  margin: 0 auto var(--space-lg);
   padding: var(--space-sm);
   background: var(--surface-elevated);
   border-radius: var(--radius-lg);
