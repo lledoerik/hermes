@@ -136,8 +136,8 @@ function Navbar() {
         </div>
 
         <div className="navbar-right">
-          {/* Barra de cerca - visible a totes les pàgines excepte inici */}
-          {location.pathname !== '/' && (
+          {/* Barra de cerca - visible excepte a l'inici sense sessió */}
+          {(location.pathname !== '/' || isAuthenticated) && (
             <form className={`navbar-search-box ${searchExpanded ? 'expanded' : ''}`} onSubmit={handleSearch}>
               <SearchIcon size={18} />
               <input
