@@ -54,42 +54,6 @@
   to { transform: rotate(360deg); }
 }
 
-/* Loading overlay info */
-.loading-info {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.loading-text {
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.loading-timer {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
-  font-variant-numeric: tabular-nums;
-}
-
-.loading-cancel-btn {
-  padding: 8px 20px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 4px;
-  color: #fff;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.loading-cancel-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.5);
-}
-
 .error-overlay p {
   margin-bottom: 16px;
   color: #f87171;
