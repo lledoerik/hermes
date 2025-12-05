@@ -200,12 +200,29 @@ function Details() {
   }, [type, id, isTmdbOnly, realTmdbId]);
 
   const loadEpisodes = useCallback(async (seasonNum, isTmdb = false, tmdbIdParam = null) => {
+    const effectiveTmdbId = isTmdbOnly ? realTmdbId : tmdbIdParam;
+    const cacheKey = `hermes_episodes_${effectiveTmdbId || id}_s${seasonNum}`;
+
+    // Comprovar cache del frontend (1 hora)
+    try {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached);
+        const oneHour = 60 * 60 * 1000;
+        if (Date.now() - timestamp < oneHour && data.length > 0) {
+          setEpisodes(data);
+          setLoadingEpisodes(false);
+          return;
+        }
+      }
+    } catch (e) {
+      // Cache error, continuar amb fetch
+    }
+
     setLoadingEpisodes(true);
     setEpisodes([]); // Clear episodes while loading
     try {
       // Per contingut TMDB-only, carregar directament des de TMDB
-      const effectiveTmdbId = isTmdbOnly ? realTmdbId : tmdbIdParam;
-
       if (isTmdbOnly && realTmdbId) {
         // Contingut només TMDB - carregar directament
         const tmdbRes = await axios.get(`/api/tmdb/tv/${realTmdbId}/season/${seasonNum}`);
@@ -216,6 +233,10 @@ function Details() {
             duration: ep.runtime ? ep.runtime * 60 : null
           }));
           setEpisodes(episodes);
+          // Guardar al cache
+          try {
+            sessionStorage.setItem(cacheKey, JSON.stringify({ data: episodes, timestamp: Date.now() }));
+          } catch (e) { /* sessionStorage ple */ }
         }
         return;
       }
@@ -256,16 +277,25 @@ function Details() {
           };
         });
         setEpisodes(combinedEpisodes);
+        // Guardar al cache
+        try {
+          sessionStorage.setItem(cacheKey, JSON.stringify({ data: combinedEpisodes, timestamp: Date.now() }));
+        } catch (e) { /* sessionStorage ple */ }
         return;
       }
 
       // Si no hi ha TMDB, mostrar només locals (marcats com a locals)
-      setEpisodes(localEpisodes.map(ep => ({
+      const localOnlyEpisodes = localEpisodes.map(ep => ({
         ...ep,
         isLocal: true,
         localId: ep.id,
         localData: ep
-      })));
+      }));
+      setEpisodes(localOnlyEpisodes);
+      // Guardar al cache
+      try {
+        sessionStorage.setItem(cacheKey, JSON.stringify({ data: localOnlyEpisodes, timestamp: Date.now() }));
+      } catch (e) { /* sessionStorage ple */ }
     } catch (error) {
       console.error('Error carregant episodis:', error);
       setEpisodes([]);
