@@ -229,7 +229,7 @@ function DebridPlayer() {
     preloadTorrents,
     getCachedStreamUrl,
     cacheStreamUrl,
-    preloadBestStreams
+    preloadAutoQualityFirst
   } = useStreamCache();
 
   const videoRef = useRef(null);
@@ -762,12 +762,13 @@ function DebridPlayer() {
       nextEpisodePreloadedRef.current = true;
       console.log(`[Player] Precarregant següent episodi (S${nextEpisode.season_number}E${nextEpisode.episode_number})...`);
 
-      // Precarregar en background
+      // Precarregar en background - prioritzar qualitat automàtica
       preloadTorrents('tv', tmdbId, nextEpisode.season_number, nextEpisode.episode_number)
         .then(torrents => {
           if (torrents?.length > 0) {
             console.log(`[Player] ${torrents.length} fonts precarregades pel següent episodi`);
-            preloadBestStreams(torrents);
+            // Prioritzar qualitat automàtica, resta en background
+            preloadAutoQualityFirst(torrents);
           }
         })
         .catch(err => console.error('[Player] Error precarregant següent episodi:', err));
@@ -781,7 +782,7 @@ function DebridPlayer() {
       const percent = Math.round((video.currentTime / video.duration) * 100);
       saveProgress(percent, false);
     }, 30000);
-  }, [saveProgress, nextEpisode, tmdbId, preloadTorrents, preloadBestStreams]);
+  }, [saveProgress, nextEpisode, tmdbId, preloadTorrents, preloadAutoQualityFirst]);
 
   const handleLoadedMetadata = useCallback(() => {
     if (!videoRef.current) return;

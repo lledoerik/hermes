@@ -185,7 +185,145 @@ export function StreamCacheProvider({ children }) {
   }, []);
 
   /**
-   * Precarrega el millor torrent (primer cached de cada qualitat)
+   * Determina la qualitat automàtica (millor cached disponible)
+   */
+  const getAutoQuality = useCallback((torrents) => {
+    if (!torrents?.length) return null;
+
+    const QUALITY_ORDER = ['4K', '1080p', '720p'];
+    const qualityGroups = {};
+
+    torrents.forEach(t => {
+      const name = t.name?.toLowerCase() || '';
+      let quality = '720p';
+      if (name.includes('2160p') || name.includes('4k') || name.includes('uhd')) {
+        quality = '4K';
+      } else if (name.includes('1080p')) {
+        quality = '1080p';
+      }
+
+      if (!qualityGroups[quality]) {
+        qualityGroups[quality] = [];
+      }
+      qualityGroups[quality].push(t);
+    });
+
+    // Retornar la millor qualitat amb torrent cached
+    for (const quality of QUALITY_ORDER) {
+      const group = qualityGroups[quality];
+      if (group) {
+        const cachedTorrent = group.find(t => t.cached);
+        if (cachedTorrent) {
+          return { quality, torrent: cachedTorrent };
+        }
+      }
+    }
+
+    // Si no hi ha cap cached, retornar el primer disponible
+    for (const quality of QUALITY_ORDER) {
+      const group = qualityGroups[quality];
+      if (group?.length > 0) {
+        return { quality, torrent: group[0] };
+      }
+    }
+
+    return null;
+  }, []);
+
+  /**
+   * Precarrega PRIMER la qualitat automàtica, retorna immediatament quan estigui llesta,
+   * i després continua carregant les altres qualitats en background.
+   *
+   * @returns {Promise<{autoTorrent: Object, autoUrl: string|null}>} - Torrent i URL de la qualitat automàtica
+   */
+  const preloadAutoQualityFirst = useCallback(async (torrents) => {
+    if (!torrents?.length) return { autoTorrent: null, autoUrl: null };
+
+    const QUALITY_ORDER = ['4K', '1080p', '720p'];
+    const qualityGroups = {};
+
+    torrents.forEach(t => {
+      const name = t.name?.toLowerCase() || '';
+      let quality = '720p';
+      if (name.includes('2160p') || name.includes('4k') || name.includes('uhd')) {
+        quality = '4K';
+      } else if (name.includes('1080p')) {
+        quality = '1080p';
+      }
+
+      if (!qualityGroups[quality]) {
+        qualityGroups[quality] = [];
+      }
+      qualityGroups[quality].push(t);
+    });
+
+    // Trobar la qualitat automàtica (millor cached)
+    let autoQuality = null;
+    let autoTorrent = null;
+
+    for (const quality of QUALITY_ORDER) {
+      const group = qualityGroups[quality];
+      if (group) {
+        const cachedTorrent = group.find(t => t.cached);
+        if (cachedTorrent) {
+          autoQuality = quality;
+          autoTorrent = cachedTorrent;
+          break;
+        }
+      }
+    }
+
+    // Si no hi ha cap cached, usar la millor disponible
+    if (!autoTorrent) {
+      for (const quality of QUALITY_ORDER) {
+        const group = qualityGroups[quality];
+        if (group?.length > 0) {
+          autoQuality = quality;
+          autoTorrent = group[0];
+          break;
+        }
+      }
+    }
+
+    if (!autoTorrent) {
+      return { autoTorrent: null, autoUrl: null };
+    }
+
+    // PRIMER: Carregar només la qualitat automàtica
+    console.log(`[StreamCache] Carregant qualitat automàtica (${autoQuality}) primer...`);
+    const autoUrl = await preloadStreamUrl(autoTorrent);
+    console.log(`[StreamCache] Qualitat automàtica (${autoQuality}) llesta!`);
+
+    // DESPRÉS: Carregar les altres qualitats en background (no bloquejar)
+    const otherQualities = QUALITY_ORDER.filter(q => q !== autoQuality);
+
+    // No esperem - deixem que es carreguin en background
+    setTimeout(async () => {
+      console.log(`[StreamCache] Carregant altres qualitats en background: ${otherQualities.join(', ')}`);
+      const otherPromises = [];
+
+      for (const quality of otherQualities) {
+        const group = qualityGroups[quality];
+        if (group) {
+          const cachedTorrent = group.find(t => t.cached);
+          if (cachedTorrent) {
+            otherPromises.push(preloadStreamUrl(cachedTorrent));
+          }
+        }
+      }
+
+      if (otherPromises.length > 0) {
+        await Promise.all(otherPromises);
+        console.log(`[StreamCache] Totes les qualitats carregades en background`);
+      }
+    }, 100); // Petit delay per assegurar que la UI s'ha actualitzat
+
+    return { autoTorrent, autoUrl };
+  }, [preloadStreamUrl]);
+
+  /**
+   * Precarrega el millor torrent (primer cached de cada qualitat) - versió original
+   * (manté compatibilitat amb codi existent)
    */
   const preloadBestStreams = useCallback(async (torrents) => {
     if (!torrents?.length) return;
@@ -263,6 +401,10 @@ export function StreamCacheProvider({ children }) {
     cacheStreamUrl,
     preloadStreamUrl,
     preloadBestStreams,
+
+    // Prioritzar qualitat automàtica
+    getAutoQuality,
+    preloadAutoQualityFirst,
 
     // Estat
     preloadingStatus
