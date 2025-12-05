@@ -242,6 +242,9 @@ export function StreamCacheProvider({ children }) {
    * Precarrega PRIMER el torrent que el player seleccionarà (respectant preferències d'usuari),
    * retorna immediatament quan estigui llesta, i després continua carregant altres en background.
    *
+   * IMPORTANT: Si no hi ha cap torrent marcat com a cached, no fem preloading perquè
+   * l'endpoint instantAvailability podria estar desactivat i no sabem quins són realment ràpids.
+   *
    * @returns {Promise<{autoTorrent: Object, autoUrl: string|null}>} - Torrent i URL del torrent seleccionat
    */
   const preloadAutoQualityFirst = useCallback(async (torrents) => {
@@ -291,13 +294,58 @@ export function StreamCacheProvider({ children }) {
       return langScore * 100 + qualityScore; // Lang has priority
     };
 
-    // Sort cached torrents by score
+    // Comprovar si tenim info de cache fiable
     const cachedTorrents = torrents.filter(t => t.cached);
-    if (cachedTorrents.length === 0) {
-      console.log('[StreamCache] No hi ha torrents cached per precarregar');
+    const hasCacheInfo = cachedTorrents.length > 0;
+
+    if (!hasCacheInfo) {
+      // Si no hi ha cap torrent marcat com a cached, l'endpoint instantAvailability
+      // probablement està desactivat. No podem saber quins torrents són ràpids.
+      // Precarreguem NOMÉS el millor torrent (el que el player seleccionaria).
+      console.log('[StreamCache] Sense info de cache fiable - només precarregant el millor torrent');
+
+      // Ordenar tots els torrents per preferència
+      const sortedTorrents = [...torrents].sort((a, b) => scoreTorrent(a) - scoreTorrent(b));
+      const bestTorrent = sortedTorrents[0];
+
+      if (bestTorrent) {
+        const bestQuality = parseQuality(bestTorrent.name);
+        console.log(`[StreamCache] Intentant precarregar millor torrent (${bestQuality})...`);
+
+        // Forçar preload ignorant el flag cached (ja que és incorrecte)
+        try {
+          const params = {
+            info_hash: bestTorrent.info_hash,
+            magnet: bestTorrent.magnet
+          };
+          if (bestTorrent.file_idx !== undefined && bestTorrent.file_idx !== null) {
+            params.file_idx = bestTorrent.file_idx;
+          }
+
+          // Timeout curt (15s) per no bloquejar si no està realment cached
+          const response = await axios.post(`${API_URL}/api/debrid/stream`, null, {
+            params,
+            timeout: 15000
+          });
+
+          if (response.data.status === 'success') {
+            const url = response.data.url;
+            streamUrlCache.current[bestTorrent.info_hash] = {
+              url,
+              timestamp: Date.now()
+            };
+            console.log(`[StreamCache] Torrent precarregat amb èxit (sense cache info)`);
+            return { autoTorrent: bestTorrent, autoUrl: url };
+          }
+        } catch (error) {
+          console.log(`[StreamCache] No s'ha pogut precarregar (pot ser que no estigui en cache)`);
+        }
+      }
+
       return { autoTorrent: null, autoUrl: null };
     }
 
+    // Cas normal: tenim info de cache fiable
     cachedTorrents.sort((a, b) => scoreTorrent(a) - scoreTorrent(b));
     const autoTorrent = cachedTorrents[0];
     const autoQuality = parseQuality(autoTorrent.name);
@@ -308,16 +356,21 @@ export function StreamCacheProvider({ children }) {
     console.log(`[StreamCache] Torrent preferit llest! (${autoTorrent.info_hash.slice(0, 8)})`);
 
     // DESPRÉS: Carregar altres torrents cached en background (no bloquejar)
-    const otherTorrents = cachedTorrents.slice(1, 4); // Màxim 3 més
+    // NOMÉS si tenim info de cache fiable (almenys 2 torrents cached)
+    if (cachedTorrents.length >= 2) {
+      const otherTorrents = cachedTorrents.slice(1, 4); // Màxim 3 més
 
-    if (otherTorrents.length > 0) {
-      setTimeout(async () => {
-        console.log(`[StreamCache] Carregant ${otherTorrents.length} torrents més en background...`);
-        // Passar isBackground=true per usar timeout curt i no bloquejar
-        const promises = otherTorrents.map(t => preloadStreamUrl(t, true));
-        await Promise.all(promises);
-        console.log(`[StreamCache] Torrents addicionals carregats en background`);
-      }, 100);
+      if (otherTorrents.length > 0) {
+        setTimeout(async () => {
+          console.log(`[StreamCache] Carregant ${otherTorrents.length} torrents més en background...`);
+          // Passar isBackground=true per usar timeout curt i no bloquejar
+          const promises = otherTorrents.map(t => preloadStreamUrl(t, true));
+          await Promise.all(promises);
+          console.log(`[StreamCache] Torrents addicionals carregats en background`);
+        }, 100);
+      }
+    } else {
+      console.log(`[StreamCache] Només 1 torrent cached - no fem preload de background`);
     }
 
     return { autoTorrent, autoUrl };
