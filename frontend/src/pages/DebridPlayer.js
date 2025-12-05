@@ -592,7 +592,8 @@ function DebridPlayer() {
     }
 
     // Primer comprovar si tenim la URL en cache (canvi de qualitat instantani!)
-    const cachedUrl = getCachedStreamUrl(torrent.info_hash);
+    // IMPORTANT: Passar season i episode per evitar confondre episodis amb el mateix hash
+    const cachedUrl = getCachedStreamUrl(torrent.info_hash, season, episode);
     if (cachedUrl) {
       console.log('[Player] Usant stream URL del cache (instantani!)');
       setStreamUrl(cachedUrl);
@@ -638,7 +639,8 @@ function DebridPlayer() {
         const url = response.data.url;
         setStreamUrl(url);
         // Guardar al cache per futures vegades
-        cacheStreamUrl(torrent.info_hash, url);
+        // IMPORTANT: Passar season i episode per identificar correctament l'episodi
+        cacheStreamUrl(torrent.info_hash, url, season, episode);
       } else {
         setError('No s\'ha pogut obtenir el stream');
       }
