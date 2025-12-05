@@ -6,6 +6,7 @@ import { API_URL } from '../config/api';
 import {
   BookmarkIcon,
   PlayIcon,
+  PauseIcon,
   TrashIcon,
   StarIcon,
   MovieIcon,
@@ -352,7 +353,7 @@ function Watchlist() {
                       handlePlay(item);
                     }}
                   >
-                    <PlayIcon />
+                    <PauseIcon />
                   </button>
                 </div>
                 <div className="media-type-badge">
