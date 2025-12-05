@@ -256,7 +256,6 @@ function DebridPlayer() {
   const [streamUrl, setStreamUrl] = useState(null);
   const [loadingTorrents, setLoadingTorrents] = useState(true);
   const [loadingStream, setLoadingStream] = useState(false);
-  const [loadingSeconds, setLoadingSeconds] = useState(0); // Comptador de segons carregant
   const [error, setError] = useState(null);
   const [debridConfigured, setDebridConfigured] = useState(null); // null = checking, true/false = result
 
@@ -1174,43 +1173,31 @@ function DebridPlayer() {
     };
   }, []);
 
-  // Comptador de temps de càrrega amb timeout automàtic
+  // Timeout automàtic de càrrega (15 segons)
   useEffect(() => {
     const isLoading = loadingTorrents || loadingStream;
 
     if (isLoading) {
-      // Iniciar comptador
-      setLoadingSeconds(0);
-      loadingTimerRef.current = setInterval(() => {
-        setLoadingSeconds(prev => {
-          const newValue = prev + 1;
-          // Timeout automàtic després de 30 segons
-          if (newValue >= 30) {
-            // Cancel·lar la petició
-            if (streamAbortControllerRef.current) {
-              streamAbortControllerRef.current.abort();
-            }
-            setLoadingTorrents(false);
-            setLoadingStream(false);
-            setError('Temps d\'espera excedit (30s). La font pot no estar disponible.');
-            clearInterval(loadingTimerRef.current);
-            return 0;
-          }
-          return newValue;
-        });
-      }, 1000);
+      loadingTimerRef.current = setTimeout(() => {
+        // Cancel·lar la petició
+        if (streamAbortControllerRef.current) {
+          streamAbortControllerRef.current.abort();
+        }
+        setLoadingTorrents(false);
+        setLoadingStream(false);
+        setError('Temps d\'espera excedit. Prova amb una altra font.');
+      }, 15000); // 15 segons
     } else {
-      // Parar comptador
+      // Netejar timeout
       if (loadingTimerRef.current) {
-        clearInterval(loadingTimerRef.current);
+        clearTimeout(loadingTimerRef.current);
         loadingTimerRef.current = null;
       }
-      setLoadingSeconds(0);
     }
 
     return () => {
       if (loadingTimerRef.current) {
-        clearInterval(loadingTimerRef.current);
+        clearTimeout(loadingTimerRef.current);
       }
     };
   }, [loadingTorrents, loadingStream]);
@@ -1295,25 +1282,6 @@ function DebridPlayer() {
       {(loadingTorrents || loadingStream) && (
         <div className="loading-overlay">
           <div className="spinner"></div>
-          <div className="loading-info">
-            <span className="loading-text">
-              {loadingTorrents ? 'Buscant fonts...' : 'Carregant stream...'}
-            </span>
-            <span className="loading-timer">{loadingSeconds}s</span>
-          </div>
-          <button
-            className="loading-cancel-btn"
-            onClick={() => {
-              if (streamAbortControllerRef.current) {
-                streamAbortControllerRef.current.abort();
-              }
-              setLoadingTorrents(false);
-              setLoadingStream(false);
-              setError('Càrrega cancel·lada. Prova amb una altra font.');
-            }}
-          >
-            Cancel·lar
-          </button>
         </div>
       )}
 
