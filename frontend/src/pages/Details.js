@@ -473,7 +473,8 @@ function Details() {
           const torrents = await preloadTorrents('tv', tmdbIdToUse, nextEpisode.season, nextEpisode.episode);
           if (torrents?.length > 0) {
             // AWAIT per assegurar que el stream estigui llest abans de permetre reproduir
-            const result = await preloadAutoQualityFirst(torrents);
+            // Passar season i episode per assegurar que es selecciona el fitxer correcte
+            const result = await preloadAutoQualityFirst(torrents, nextEpisode.season, nextEpisode.episode);
             if (result?.autoUrl) {
               console.log('[Details] Stream preparat per reproducció instantània!');
               setStreamReady(true);
