@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -351,8 +351,9 @@ function Details() {
   }, [type, selectedSeason, seasons, loadEpisodes, usingTmdbSeasons, item?.tmdb_id]);
 
   // Trobar el proper episodi a reproduir (continuar o primer)
-  const getNextEpisode = () => {
-    if (type === 'movies' || !episodes.length) return null;
+  // Memoitzat per evitar recrear l'objecte cada renderització (causava infinite loop)
+  const nextEpisode = useMemo(() => {
+    if (type !== 'series' || !episodes.length) return null;
 
     // Buscar episodi en progrés (0 < progress < 90)
     const inProgressEp = episodes.find(ep => ep.watch_progress > 0 && ep.watch_progress < 90);
@@ -368,9 +369,7 @@ function Details() {
 
     // Si tots estan vistos, reproduir el primer
     return { season: selectedSeason, episode: episodes[0]?.episode_number || 1 };
-  };
-
-  const nextEpisode = type === 'series' ? getNextEpisode() : null;
+  }, [type, episodes, selectedSeason]);
 
   const handlePlay = () => {
     if (type === 'movies') {
@@ -444,6 +443,11 @@ function Details() {
 
   // Precarregar torrents en background quan es carrega la pàgina de detalls
   // Prioritza la qualitat automàtica primer, i després carrega la resta en background
+  // IMPORTANT: Usem nextEpisode?.season i nextEpisode?.episode com a dependències
+  // (valors primitius) en lloc de l'objecte nextEpisode per evitar reruns infinits
+  const nextSeason = nextEpisode?.season;
+  const nextEpisodeNum = nextEpisode?.episode;
+
   useEffect(() => {
     const preloadStreams = async () => {
       // Només precarregar si l'usuari és premium i tenim tmdb_id
@@ -467,14 +471,14 @@ function Details() {
               setStreamReady(true);
             }
           }
-        } else if (type === 'series' && nextEpisode) {
-          // Per sèries, precarregar l'episodi que es reproduirà (nextEpisode, no sempre el primer!)
-          console.log(`[Details] Precarregant torrents per S${nextEpisode.season}E${nextEpisode.episode}...`);
-          const torrents = await preloadTorrents('tv', tmdbIdToUse, nextEpisode.season, nextEpisode.episode);
+        } else if (type === 'series' && nextSeason && nextEpisodeNum) {
+          // Per sèries, precarregar l'episodi que es reproduirà
+          console.log(`[Details] Precarregant torrents per S${nextSeason}E${nextEpisodeNum}...`);
+          const torrents = await preloadTorrents('tv', tmdbIdToUse, nextSeason, nextEpisodeNum);
           if (torrents?.length > 0) {
             // AWAIT per assegurar que el stream estigui llest abans de permetre reproduir
             // Passar season i episode per assegurar que es selecciona el fitxer correcte
-            const result = await preloadAutoQualityFirst(torrents, nextEpisode.season, nextEpisode.episode);
+            const result = await preloadAutoQualityFirst(torrents, nextSeason, nextEpisodeNum);
             if (result?.autoUrl) {
               console.log('[Details] Stream preparat per reproducció instantània!');
               setStreamReady(true);
@@ -489,7 +493,7 @@ function Details() {
     };
 
     preloadStreams();
-  }, [item, nextEpisode, type, isPremium, isTmdbOnly, realTmdbId, preloadTorrents, preloadAutoQualityFirst]);
+  }, [item?.tmdb_id, nextSeason, nextEpisodeNum, type, isPremium, isTmdbOnly, realTmdbId, preloadTorrents, preloadAutoQualityFirst]);
 
   const handleUpdateByTmdbId = async () => {
     if (!tmdbId.trim()) {
