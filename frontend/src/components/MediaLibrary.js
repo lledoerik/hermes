@@ -340,14 +340,30 @@ function MediaLibrary({ type = 'series' }) {
   return (
     <div className="library-container">
       <div className="library-header">
-        <div className="library-title-row">
-          <div className="library-title">
-            <span className="icon"><Icon size={28} /></span>
-            <h1>{config.title}</h1>
-            <span className="library-count">({totalItems})</span>
-          </div>
+        <div className="library-title">
+          <span className="icon"><Icon size={28} /></span>
+          <h1>{config.title}</h1>
+          <span className="library-count">({totalItems})</span>
         </div>
+      </div>
 
+      {/* Filtres: Category tabs + Filtres de tipus */}
+      <div className="library-filters-row">
+        {/* Category tabs - per tothom */}
+        {!isSearching && (
+          <div className="category-tabs">
+            {Object.entries(config.categories).map(([key, label]) => (
+              <button
+                key={key}
+                className={`category-tab ${activeCategory === key ? 'active' : ''}`}
+                onClick={() => handleCategoryChange(key)}
+                disabled={autoImporting}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Filtres de tipus */}
         <div className="content-type-filters">
@@ -362,22 +378,6 @@ function MediaLibrary({ type = 'series' }) {
           ))}
         </div>
       </div>
-
-      {/* Category tabs - per tothom */}
-      {!isSearching && (
-        <div className="category-tabs">
-          {Object.entries(config.categories).map(([key, label]) => (
-            <button
-              key={key}
-              className={`category-tab ${activeCategory === key ? 'active' : ''}`}
-              onClick={() => handleCategoryChange(key)}
-              disabled={autoImporting}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* Auto-import progress - només admin */}
       {isAdmin && autoImporting && (
