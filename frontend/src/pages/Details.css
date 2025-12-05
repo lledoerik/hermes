@@ -805,19 +805,18 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%) scale(0);
-  width: 40px;
-  height: 40px;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: transform 0.2s ease;
+  color: white;
 }
 
 .episode-play-icon svg {
-  fill: #0f172a;
-  margin-left: 3px;
+  width: 40px;
+  height: 40px;
+  fill: white;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
 }
 
 .episode-card:hover .episode-play-icon {
