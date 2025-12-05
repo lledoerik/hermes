@@ -1594,7 +1594,8 @@ function DebridPlayer() {
             {/* Left controls */}
             <div className="controls-left">
               <button onClick={(e) => { e.stopPropagation(); togglePlay(); }}>
-                {isPlaying ? <PauseIcon /> : <PlayIcon />}
+                {/* Mostrar Pause mentre carrega per donar sensació de fluïdesa */}
+                {(isPlaying || loadingStream || loadingTorrents) ? <PauseIcon /> : <PlayIcon />}
               </button>
               <button onClick={(e) => { e.stopPropagation(); skipBack(); }} title="-10s">
                 <SkipBackIcon />
