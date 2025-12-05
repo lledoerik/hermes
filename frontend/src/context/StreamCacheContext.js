@@ -5,7 +5,6 @@
  * - Sistema de cua amb prioritats (HIGH > NORMAL > LOW)
  * - Precàrrega en segon pla del contingut "Continue Watching"
  * - Primera passada: qualitat automàtica
- * - Segona passada: altres qualitats (quan totes les primeres estiguin fetes)
  * - Peticions de reproducció tenen màxima prioritat
  */
 
@@ -28,6 +27,9 @@ const PRIORITY = {
 // Delay entre peticions per evitar rate limits (ms)
 const REQUEST_DELAY = 1500;
 
+// Màxim d'entrades a l'estat de preloadingStatus (per evitar memory leaks)
+const MAX_STATUS_ENTRIES = 50;
+
 export function StreamCacheProvider({ children }) {
   // Cache de torrents per media (key: "movie_{tmdbId}" o "tv_{tmdbId}_s{season}_e{episode}")
   const torrentsCache = useRef({});
@@ -38,20 +40,30 @@ export function StreamCacheProvider({ children }) {
   // Cua de tasques de precàrrega
   const preloadQueue = useRef([]);
 
-  // Tasca actual en processament
-  const currentTask = useRef(null);
+  // ID de la tasca actual en processament
+  const currentTaskId = useRef(null);
 
   // Flag per indicar si el worker està actiu
   const isProcessing = useRef(false);
 
-  // Flag per cancel·lar tasques de baixa prioritat
-  const cancelLowPriority = useRef(false);
+  // Comptador de peticions HIGH priority pendents
+  const highPriorityCount = useRef(0);
 
-  // Estat de precàrrega en curs (per UI)
+  // Estat de precàrrega en curs (per UI) - limitat per evitar memory leaks
   const [preloadingStatus, setPreloadingStatus] = useState({});
 
   // Estat d'inicialització del background preload
   const [backgroundInitialized, setBackgroundInitialized] = useState(false);
+
+  // Ref per controlar si el component està muntat
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   /**
    * Genera la clau de cache per un media
@@ -79,7 +91,6 @@ export function StreamCacheProvider({ children }) {
     const cached = torrentsCache.current[key];
 
     if (isCacheValid(cached)) {
-      console.log(`[StreamCache] Hit per ${key}`);
       return cached.data;
     }
 
@@ -95,7 +106,6 @@ export function StreamCacheProvider({ children }) {
       data: torrents,
       timestamp: Date.now()
     };
-    console.log(`[StreamCache] Cached ${torrents.length} torrents per ${key}`);
   }, [getCacheKey]);
 
   /**
@@ -139,7 +149,7 @@ export function StreamCacheProvider({ children }) {
    * Parse language from torrent name
    */
   const parseLanguage = useCallback((name, title) => {
-    const text = `${name} ${title}`.toLowerCase();
+    const text = `${name || ''} ${title || ''}`.toLowerCase();
     if (text.includes('catala') || text.includes('català')) return 'CAT';
     if (text.includes('latino') || text.includes('lat ')) return 'LAT';
     if (text.includes('castellano') || text.includes('español') || text.includes('spanish')) return 'ESP';
@@ -179,7 +189,6 @@ export function StreamCacheProvider({ children }) {
     if (!torrents?.length) return null;
     const cachedTorrents = torrents.filter(t => t.cached);
     if (cachedTorrents.length === 0) {
-      // Si no hi ha cached, agafar el millor general
       const sorted = [...torrents].sort((a, b) => scoreTorrent(a) - scoreTorrent(b));
       return sorted[0];
     }
@@ -188,28 +197,92 @@ export function StreamCacheProvider({ children }) {
   }, [scoreTorrent]);
 
   /**
+   * Actualitza l'estat de preloadingStatus amb límit de mida
+   */
+  const updatePreloadingStatus = useCallback((taskId, status) => {
+    if (!isMounted.current) return;
+
+    setPreloadingStatus(prev => {
+      const newStatus = { ...prev, [taskId]: status };
+
+      // Limitar mida per evitar memory leaks
+      const keys = Object.keys(newStatus);
+      if (keys.length > MAX_STATUS_ENTRIES) {
+        // Eliminar les entrades més antigues (assumint ordre d'inserció)
+        const keysToRemove = keys.slice(0, keys.length - MAX_STATUS_ENTRIES);
+        keysToRemove.forEach(key => delete newStatus[key]);
+      }
+
+      return newStatus;
+    });
+  }, []);
+
+  /**
+   * Obté els torrents per un media (cache o API)
+   */
+  const fetchTorrents = useCallback(async (type, tmdbId, season, episode) => {
+    // Primer comprovar cache
+    let torrents = getCachedTorrents(type, tmdbId, season, episode);
+    if (torrents) return torrents;
+
+    // Obtenir de l'API
+    const mediaType = type === 'movie' ? 'movie' : 'tv';
+    let url = `${API_URL}/api/debrid/torrents/${mediaType}/${tmdbId}`;
+    if (mediaType === 'tv' && season && episode) {
+      url += `?season=${season}&episode=${episode}`;
+    }
+
+    const response = await axios.get(url, { timeout: 15000 });
+    torrents = response.data.streams || [];
+    cacheTorrents(type, tmdbId, season, episode, torrents);
+    return torrents;
+  }, [getCachedTorrents, cacheTorrents]);
+
+  /**
+   * Obté l'stream URL per un torrent
+   */
+  const fetchStreamUrl = useCallback(async (torrent, season, episode) => {
+    // Primer comprovar cache
+    const cachedUrl = getCachedStreamUrl(torrent.info_hash, season, episode);
+    if (cachedUrl) return cachedUrl;
+
+    // Obtenir de l'API
+    const params = {
+      info_hash: torrent.info_hash,
+      magnet: torrent.magnet
+    };
+    if (torrent.file_idx !== undefined && torrent.file_idx !== null) {
+      params.file_idx = torrent.file_idx;
+    }
+    if (season && episode) {
+      params.season = season;
+      params.episode = episode;
+    }
+
+    const response = await axios.post(`${API_URL}/api/debrid/stream`, null, {
+      params,
+      timeout: 20000
+    });
+
+    if (response.data.status === 'success') {
+      const url = response.data.url;
+      cacheStreamUrl(torrent.info_hash, url, season, episode);
+      return url;
+    }
+
+    return null;
+  }, [getCachedStreamUrl, cacheStreamUrl]);
+
+  /**
    * Processa una tasca individual de precàrrega
    */
-  const processTask = async (task) => {
-    const { type, tmdbId, season, episode, onlyAutoQuality } = task;
+  const processTask = useCallback(async (task) => {
+    const { type, tmdbId, season, episode } = task;
     const mediaKey = getCacheKey(type, tmdbId, season, episode);
 
     try {
-      // 1. Obtenir torrents (del cache o API)
-      let torrents = getCachedTorrents(type, tmdbId, season, episode);
-
-      if (!torrents) {
-        const mediaType = type === 'movie' ? 'movie' : 'tv';
-        let url = `${API_URL}/api/debrid/torrents/${mediaType}/${tmdbId}`;
-        if (mediaType === 'tv' && season && episode) {
-          url += `?season=${season}&episode=${episode}`;
-        }
-
-        console.log(`[StreamQueue] Carregant torrents per ${mediaKey}...`);
-        const response = await axios.get(url, { timeout: 15000 });
-        torrents = response.data.streams || [];
-        cacheTorrents(type, tmdbId, season, episode, torrents);
-      }
+      // 1. Obtenir torrents
+      const torrents = await fetchTorrents(type, tmdbId, season, episode);
 
       if (!torrents.length) {
         console.log(`[StreamQueue] No hi ha torrents per ${mediaKey}`);
@@ -223,35 +296,10 @@ export function StreamCacheProvider({ children }) {
         return { success: false, torrents };
       }
 
-      // Comprovar si ja tenim la URL al cache
-      const cachedUrl = getCachedStreamUrl(bestTorrent.info_hash, season, episode);
-      if (cachedUrl) {
-        console.log(`[StreamQueue] Stream ja en cache per ${mediaKey}`);
-        return { success: true, torrents, url: cachedUrl, torrent: bestTorrent };
-      }
-
       // 3. Obtenir stream URL
-      const params = {
-        info_hash: bestTorrent.info_hash,
-        magnet: bestTorrent.magnet
-      };
-      if (bestTorrent.file_idx !== undefined && bestTorrent.file_idx !== null) {
-        params.file_idx = bestTorrent.file_idx;
-      }
-      if (season && episode) {
-        params.season = season;
-        params.episode = episode;
-      }
+      const url = await fetchStreamUrl(bestTorrent, season, episode);
 
-      console.log(`[StreamQueue] Obtenint stream per ${mediaKey} (${parseQuality(bestTorrent.name)})...`);
-      const response = await axios.post(`${API_URL}/api/debrid/stream`, null, {
-        params,
-        timeout: 20000
-      });
-
-      if (response.data.status === 'success') {
-        const url = response.data.url;
-        cacheStreamUrl(bestTorrent.info_hash, url, season, episode);
+      if (url) {
         console.log(`[StreamQueue] ✓ Stream preparat per ${mediaKey}`);
         return { success: true, torrents, url, torrent: bestTorrent };
       }
@@ -263,7 +311,7 @@ export function StreamCacheProvider({ children }) {
       }
       return { success: false, error: error.message };
     }
-  };
+  }, [getCacheKey, fetchTorrents, getBestTorrent, fetchStreamUrl]);
 
   /**
    * Worker que processa la cua de manera seqüencial
@@ -272,21 +320,32 @@ export function StreamCacheProvider({ children }) {
     if (isProcessing.current) return;
     isProcessing.current = true;
 
-    while (preloadQueue.current.length > 0) {
+    while (preloadQueue.current.length > 0 && isMounted.current) {
       // Ordenar per prioritat (menor número = major prioritat)
       preloadQueue.current.sort((a, b) => a.priority - b.priority);
+
+      // Si hi ha tasques HIGH priority pendents, saltar les LOW
+      const hasHighPriority = highPriorityCount.current > 0;
 
       const task = preloadQueue.current.shift();
       if (!task) break;
 
-      // Si hi ha una tasca HIGH priority i la tasca actual és LOW, saltar
-      if (cancelLowPriority.current && task.priority === PRIORITY.LOW) {
+      // Saltar tasques LOW si hi ha HIGH pendents
+      if (hasHighPriority && task.priority === PRIORITY.LOW) {
         console.log(`[StreamQueue] Saltant tasca LOW priority: ${task.id}`);
+        if (task.resolve) {
+          task.resolve({ success: false, skipped: true });
+        }
         continue;
       }
 
-      currentTask.current = task;
-      setPreloadingStatus(prev => ({ ...prev, [task.id]: 'processing' }));
+      currentTaskId.current = task.id;
+      updatePreloadingStatus(task.id, 'processing');
+
+      // Decrementar comptador si és HIGH priority
+      if (task.priority === PRIORITY.HIGH) {
+        highPriorityCount.current = Math.max(0, highPriorityCount.current - 1);
+      }
 
       try {
         const result = await processTask(task);
@@ -295,41 +354,72 @@ export function StreamCacheProvider({ children }) {
           task.resolve(result);
         }
 
-        setPreloadingStatus(prev => ({ ...prev, [task.id]: result.success ? 'done' : 'failed' }));
+        updatePreloadingStatus(task.id, result.success ? 'done' : 'failed');
       } catch (error) {
         if (task.reject) {
           task.reject(error);
         }
-        setPreloadingStatus(prev => ({ ...prev, [task.id]: 'failed' }));
+        updatePreloadingStatus(task.id, 'failed');
       }
 
-      currentTask.current = null;
-      cancelLowPriority.current = false;
+      currentTaskId.current = null;
 
       // Delay entre peticions per evitar rate limits
-      if (preloadQueue.current.length > 0) {
+      if (preloadQueue.current.length > 0 && isMounted.current) {
         await new Promise(resolve => setTimeout(resolve, REQUEST_DELAY));
       }
     }
 
     isProcessing.current = false;
-  }, [getCacheKey, getCachedTorrents, getCachedStreamUrl, cacheTorrents, cacheStreamUrl, getBestTorrent, parseQuality]);
+  }, [processTask, updatePreloadingStatus]);
 
   /**
    * Afegeix una tasca a la cua
    */
   const addToQueue = useCallback((task) => {
-    const taskId = `${task.type}_${task.tmdbId}_s${task.season || 0}_e${task.episode || 0}_q${task.onlyAutoQuality ? 'auto' : 'all'}`;
+    const taskId = `${task.type}_${task.tmdbId}_s${task.season || 0}_e${task.episode || 0}`;
+
+    // Comprovar si ja està en processament
+    if (currentTaskId.current === taskId) {
+      // Retornar una promesa que esperarà al resultat
+      return new Promise((resolve) => {
+        const checkInterval = setInterval(() => {
+          if (currentTaskId.current !== taskId) {
+            clearInterval(checkInterval);
+            // Comprovar cache després de processament
+            const cachedTorrents = getCachedTorrents(task.type, task.tmdbId, task.season, task.episode);
+            if (cachedTorrents) {
+              const bestTorrent = getBestTorrent(cachedTorrents);
+              if (bestTorrent) {
+                const url = getCachedStreamUrl(bestTorrent.info_hash, task.season, task.episode);
+                resolve({ success: !!url, torrents: cachedTorrents, url, torrent: bestTorrent });
+                return;
+              }
+            }
+            resolve({ success: false });
+          }
+        }, 100);
+
+        // Timeout de seguretat
+        setTimeout(() => {
+          clearInterval(checkInterval);
+          resolve({ success: false, timeout: true });
+        }, 30000);
+      });
+    }
 
     // Comprovar si ja existeix a la cua
     const existingIndex = preloadQueue.current.findIndex(t => t.id === taskId);
     if (existingIndex !== -1) {
+      const existingTask = preloadQueue.current[existingIndex];
       // Si la nova prioritat és més alta, actualitzar
-      if (task.priority < preloadQueue.current[existingIndex].priority) {
-        preloadQueue.current[existingIndex].priority = task.priority;
-        console.log(`[StreamQueue] Prioritat actualitzada per ${taskId}`);
+      if (task.priority < existingTask.priority) {
+        existingTask.priority = task.priority;
+        if (task.priority === PRIORITY.HIGH) {
+          highPriorityCount.current++;
+        }
       }
-      return preloadQueue.current[existingIndex].promise;
+      return existingTask.promise;
     }
 
     // Crear promesa per aquesta tasca
@@ -348,65 +438,39 @@ export function StreamCacheProvider({ children }) {
     };
 
     preloadQueue.current.push(queueTask);
+
+    if (task.priority === PRIORITY.HIGH) {
+      highPriorityCount.current++;
+    }
+
     console.log(`[StreamQueue] Afegit a la cua: ${taskId} (prioritat: ${task.priority})`);
 
     // Iniciar processament si no està actiu
     processQueue();
 
     return promise;
-  }, [processQueue]);
+  }, [processQueue, getCachedTorrents, getBestTorrent, getCachedStreamUrl]);
 
   /**
-   * Precarrega torrents per un media (afegeix a la cua)
+   * Precarrega torrents per un media (sense cua, directe)
    */
   const preloadTorrents = useCallback(async (type, tmdbId, season = null, episode = null) => {
-    const key = getCacheKey(type, tmdbId, season, episode);
-
-    // Si ja està en cache vàlid, retornar
-    if (isCacheValid(torrentsCache.current[key])) {
-      return torrentsCache.current[key].data;
-    }
-
-    try {
-      const mediaType = type === 'movie' ? 'movie' : 'tv';
-      let url = `${API_URL}/api/debrid/torrents/${mediaType}/${tmdbId}`;
-
-      if (mediaType === 'tv' && season && episode) {
-        url += `?season=${season}&episode=${episode}`;
-      }
-
-      console.log(`[StreamCache] Preloading torrents per ${key}...`);
-      const response = await axios.get(url);
-      const streams = response.data.streams || [];
-
-      cacheTorrents(type, tmdbId, season, episode, streams);
-      return streams;
-    } catch (error) {
-      console.error(`[StreamCache] Error preloading ${key}:`, error);
-      return null;
-    }
-  }, [getCacheKey, isCacheValid, cacheTorrents]);
+    return fetchTorrents(type, tmdbId, season, episode);
+  }, [fetchTorrents]);
 
   /**
    * Precàrrega amb prioritat ALTA (per quan l'usuari vol reproduir)
-   * Retorna immediatament quan el stream estigui llest
    */
   const preloadWithHighPriority = useCallback(async (type, tmdbId, season = null, episode = null) => {
     console.log(`[StreamQueue] ⚡ Petició HIGH PRIORITY per ${type}/${tmdbId} S${season}E${episode}`);
 
-    // Cancel·lar tasques de baixa prioritat
-    cancelLowPriority.current = true;
-
-    const result = await addToQueue({
+    return addToQueue({
       type,
       tmdbId,
       season,
       episode,
-      priority: PRIORITY.HIGH,
-      onlyAutoQuality: true
+      priority: PRIORITY.HIGH
     });
-
-    return result;
   }, [addToQueue]);
 
   /**
@@ -418,13 +482,12 @@ export function StreamCacheProvider({ children }) {
       tmdbId,
       season,
       episode,
-      priority: PRIORITY.NORMAL,
-      onlyAutoQuality: true
+      priority: PRIORITY.NORMAL
     });
   }, [addToQueue]);
 
   /**
-   * Precarrega amb prioritat BAIXA (altres qualitats, contingut secundari)
+   * Precarrega amb prioritat BAIXA
    */
   const preloadWithLowPriority = useCallback((type, tmdbId, season = null, episode = null) => {
     return addToQueue({
@@ -432,8 +495,7 @@ export function StreamCacheProvider({ children }) {
       tmdbId,
       season,
       episode,
-      priority: PRIORITY.LOW,
-      onlyAutoQuality: false
+      priority: PRIORITY.LOW
     });
   }, [addToQueue]);
 
@@ -442,50 +504,39 @@ export function StreamCacheProvider({ children }) {
    */
   const initializeBackgroundPreload = useCallback(async () => {
     if (backgroundInitialized) return;
+    setBackgroundInitialized(true); // Marcar immediatament per evitar crides duplicades
 
     try {
-      // Obtenir contingut que l'usuari està veient
       const response = await axios.get(`${API_URL}/api/user/continue-watching`, { timeout: 10000 });
       const items = response.data || [];
 
       if (items.length === 0) {
         console.log('[StreamQueue] No hi ha contingut "Continue Watching"');
-        setBackgroundInitialized(true);
         return;
       }
 
       console.log(`[StreamQueue] Iniciant precàrrega de ${items.length} items "Continue Watching"`);
 
-      // Afegir cada item a la cua amb prioritat NORMAL
       for (const item of items) {
-        // type pot ser "movie", "series" o "episode"
-        const isMovie = item.type === 'movie';
+        if (!item.tmdb_id) continue;
 
-        if (!item.tmdb_id) {
-          console.log(`[StreamQueue] Saltant item sense tmdb_id: ${item.title || item.series_name}`);
-          continue;
-        }
+        const isMovie = item.type === 'movie';
 
         if (isMovie) {
           preloadWithNormalPriority('movie', item.tmdb_id);
         } else {
-          // Per sèries/episodis, precarregar l'episodi on s'ha quedat
           const season = item.season_number || 1;
           const episode = item.episode_number || 1;
           preloadWithNormalPriority('tv', item.tmdb_id, season, episode);
         }
       }
-
-      setBackgroundInitialized(true);
     } catch (error) {
       console.log('[StreamQueue] Error obtenint continue watching:', error.message);
-      setBackgroundInitialized(true);
     }
   }, [backgroundInitialized, preloadWithNormalPriority]);
 
   /**
-   * Precarrega PRIMER el torrent que el player seleccionarà
-   * Compatibilitat amb el codi existent de Details.js
+   * Precarrega el millor torrent d'una llista (compatibilitat)
    */
   const preloadAutoQualityFirst = useCallback(async (torrents, season = null, episode = null) => {
     if (!torrents?.length) return { autoTorrent: null, autoUrl: null };
@@ -493,45 +544,14 @@ export function StreamCacheProvider({ children }) {
     const bestTorrent = getBestTorrent(torrents);
     if (!bestTorrent) return { autoTorrent: null, autoUrl: null };
 
-    // Comprovar cache primer
-    const cachedUrl = getCachedStreamUrl(bestTorrent.info_hash, season, episode);
-    if (cachedUrl) {
-      console.log(`[StreamCache] Stream ja en cache!`);
-      return { autoTorrent: bestTorrent, autoUrl: cachedUrl };
-    }
-
-    // Obtenir stream URL
     try {
-      const params = {
-        info_hash: bestTorrent.info_hash,
-        magnet: bestTorrent.magnet
-      };
-      if (bestTorrent.file_idx !== undefined && bestTorrent.file_idx !== null) {
-        params.file_idx = bestTorrent.file_idx;
-      }
-      if (season && episode) {
-        params.season = season;
-        params.episode = episode;
-      }
-
-      console.log(`[StreamCache] Precarregant stream (${parseQuality(bestTorrent.name)})...`);
-      const response = await axios.post(`${API_URL}/api/debrid/stream`, null, {
-        params,
-        timeout: 20000
-      });
-
-      if (response.data.status === 'success') {
-        const url = response.data.url;
-        cacheStreamUrl(bestTorrent.info_hash, url, season, episode);
-        console.log(`[StreamCache] Stream preparat!`);
-        return { autoTorrent: bestTorrent, autoUrl: url };
-      }
+      const url = await fetchStreamUrl(bestTorrent, season, episode);
+      return { autoTorrent: bestTorrent, autoUrl: url };
     } catch (error) {
       console.log(`[StreamCache] Error precarregant:`, error.message);
+      return { autoTorrent: bestTorrent, autoUrl: null };
     }
-
-    return { autoTorrent: bestTorrent, autoUrl: null };
-  }, [getBestTorrent, getCachedStreamUrl, cacheStreamUrl, parseQuality]);
+  }, [getBestTorrent, fetchStreamUrl]);
 
   /**
    * Determina el torrent preferit segons les preferències d'usuari
@@ -543,60 +563,25 @@ export function StreamCacheProvider({ children }) {
   }, [getBestTorrent, parseQuality]);
 
   /**
-   * Precarrega la URL de stream per un torrent específic
+   * Precarrega la URL de stream per un torrent específic (compatibilitat)
    */
   const preloadStreamUrl = useCallback(async (torrent, isBackground = false, season = null, episode = null) => {
     if (!torrent?.info_hash || !torrent?.magnet) return null;
 
-    const cacheKey = season && episode
-      ? `${torrent.info_hash}_s${season}_e${episode}`
-      : torrent.info_hash;
-
-    const cached = streamUrlCache.current[cacheKey];
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-      return cached.url;
-    }
-
+    // Si no és cached i no és background, no carregar
     if (!torrent.cached && !isBackground) {
       return null;
     }
 
     try {
-      const params = {
-        info_hash: torrent.info_hash,
-        magnet: torrent.magnet
-      };
-
-      if (torrent.file_idx !== undefined && torrent.file_idx !== null) {
-        params.file_idx = torrent.file_idx;
-      }
-      if (season && episode) {
-        params.season = season;
-        params.episode = episode;
-      }
-
-      const timeout = isBackground ? 10000 : 30000;
-      const response = await axios.post(`${API_URL}/api/debrid/stream`, null, {
-        params,
-        timeout
-      });
-
-      if (response.data.status === 'success') {
-        const url = response.data.url;
-        streamUrlCache.current[cacheKey] = {
-          url,
-          timestamp: Date.now()
-        };
-        return url;
-      }
+      return await fetchStreamUrl(torrent, season, episode);
     } catch (error) {
       if (!isBackground) {
         console.error(`[StreamCache] Error preloading stream:`, error);
       }
+      return null;
     }
-
-    return null;
-  }, []);
+  }, [fetchStreamUrl]);
 
   /**
    * Neteja cache expirat
