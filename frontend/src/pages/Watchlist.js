@@ -353,7 +353,7 @@ function Watchlist() {
                       handlePlay(item);
                     }}
                   >
-                    <PauseIcon />
+                    <PlayIcon />
                   </button>
                 </div>
                 <div className="media-type-badge">
