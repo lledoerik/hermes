@@ -117,12 +117,19 @@ export function StreamCacheProvider({ children }) {
    * Precarrega la URL de stream per un torrent específic
    * @param {Object} torrent - El torrent a precarregar
    * @param {boolean} isBackground - Si és precàrrega en background (timeout més curt)
+   * @param {number} season - Número de temporada (per sèries)
+   * @param {number} episode - Número d'episodi (per sèries)
    */
-  const preloadStreamUrl = useCallback(async (torrent, isBackground = false) => {
+  const preloadStreamUrl = useCallback(async (torrent, isBackground = false, season = null, episode = null) => {
     if (!torrent?.info_hash || !torrent?.magnet) return null;
 
+    // Clau de cache única per hash + season + episode
+    const cacheKey = season && episode
+      ? `${torrent.info_hash}_s${season}_e${episode}`
+      : torrent.info_hash;
+
     // Si ja està en cache, retornar
-    const cached = streamUrlCache.current[torrent.info_hash];
+    const cached = streamUrlCache.current[cacheKey];
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
       return cached.url;
     }
@@ -144,6 +151,12 @@ export function StreamCacheProvider({ children }) {
         params.file_idx = torrent.file_idx;
       }
 
+      // Afegir season i episode per ajudar a trobar el fitxer correcte
+      if (season && episode) {
+        params.season = season;
+        params.episode = episode;
+      }
+
       // Timeout més curt per background (10s) vs principal (30s)
       const timeout = isBackground ? 10000 : 30000;
 
@@ -154,7 +167,7 @@ export function StreamCacheProvider({ children }) {
 
       if (response.data.status === 'success') {
         const url = response.data.url;
-        streamUrlCache.current[torrent.info_hash] = {
+        streamUrlCache.current[cacheKey] = {
           url,
           timestamp: Date.now()
         };
@@ -245,9 +258,12 @@ export function StreamCacheProvider({ children }) {
    * IMPORTANT: Si no hi ha cap torrent marcat com a cached, no fem preloading perquè
    * l'endpoint instantAvailability podria estar desactivat i no sabem quins són realment ràpids.
    *
+   * @param {Array} torrents - Llista de torrents
+   * @param {number} season - Número de temporada (per sèries)
+   * @param {number} episode - Número d'episodi (per sèries)
    * @returns {Promise<{autoTorrent: Object, autoUrl: string|null}>} - Torrent i URL del torrent seleccionat
    */
-  const preloadAutoQualityFirst = useCallback(async (torrents) => {
+  const preloadAutoQualityFirst = useCallback(async (torrents, season = null, episode = null) => {
     if (!torrents?.length) return { autoTorrent: null, autoUrl: null };
 
     const QUALITY_ORDER = ['4K', '1080p', '720p'];
@@ -321,6 +337,11 @@ export function StreamCacheProvider({ children }) {
           if (bestTorrent.file_idx !== undefined && bestTorrent.file_idx !== null) {
             params.file_idx = bestTorrent.file_idx;
           }
+          // Afegir season i episode per ajudar a trobar el fitxer correcte
+          if (season && episode) {
+            params.season = season;
+            params.episode = episode;
+          }
 
           // Timeout curt (15s) per no bloquejar si no està realment cached
           const response = await axios.post(`${API_URL}/api/debrid/stream`, null, {
@@ -328,9 +349,14 @@ export function StreamCacheProvider({ children }) {
             timeout: 15000
           });
 
+          // Clau de cache única per hash + season + episode
+          const cacheKey = season && episode
+            ? `${bestTorrent.info_hash}_s${season}_e${episode}`
+            : bestTorrent.info_hash;
+
           if (response.data.status === 'success') {
             const url = response.data.url;
-            streamUrlCache.current[bestTorrent.info_hash] = {
+            streamUrlCache.current[cacheKey] = {
               url,
               timestamp: Date.now()
             };
@@ -355,12 +381,21 @@ export function StreamCacheProvider({ children }) {
                     if (torrent.file_idx !== undefined && torrent.file_idx !== null) {
                       bgParams.file_idx = torrent.file_idx;
                     }
+                    // Afegir season i episode per ajudar a trobar el fitxer correcte
+                    if (season && episode) {
+                      bgParams.season = season;
+                      bgParams.episode = episode;
+                    }
                     const bgResponse = await axios.post(`${API_URL}/api/debrid/stream`, null, {
                       params: bgParams,
                       timeout: 10000 // Timeout més curt per background
                     });
+                    // Clau de cache única per hash + season + episode
+                    const bgCacheKey = season && episode
+                      ? `${torrent.info_hash}_s${season}_e${episode}`
+                      : torrent.info_hash;
                     if (bgResponse.data.status === 'success') {
-                      streamUrlCache.current[torrent.info_hash] = {
+                      streamUrlCache.current[bgCacheKey] = {
                         url: bgResponse.data.url,
                         timestamp: Date.now()
                       };
@@ -391,7 +426,7 @@ export function StreamCacheProvider({ children }) {
 
     // PRIMER: Carregar el torrent que el player seleccionarà
     console.log(`[StreamCache] Precarregant torrent preferit (${autoQuality}, ${parseLanguage(autoTorrent.name, autoTorrent.title)})...`);
-    const autoUrl = await preloadStreamUrl(autoTorrent);
+    const autoUrl = await preloadStreamUrl(autoTorrent, false, season, episode);
     console.log(`[StreamCache] Torrent preferit llest! (${autoTorrent.info_hash.slice(0, 8)})`);
 
     // DESPRÉS: Carregar altres torrents cached en background (no bloquejar)
@@ -403,7 +438,7 @@ export function StreamCacheProvider({ children }) {
         setTimeout(async () => {
           console.log(`[StreamCache] Carregant ${otherTorrents.length} torrents més en background...`);
           // Passar isBackground=true per usar timeout curt i no bloquejar
-          const promises = otherTorrents.map(t => preloadStreamUrl(t, true));
+          const promises = otherTorrents.map(t => preloadStreamUrl(t, true, season, episode));
           await Promise.all(promises);
           console.log(`[StreamCache] Torrents addicionals carregats en background`);
         }, 100);

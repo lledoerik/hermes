@@ -617,6 +617,11 @@ function DebridPlayer() {
       if (torrent.file_idx !== undefined && torrent.file_idx !== null) {
         params.file_idx = torrent.file_idx;
       }
+      // Afegir season i episode per ajudar a trobar el fitxer correcte
+      if (type !== 'movie' && season && episode) {
+        params.season = season;
+        params.episode = episode;
+      }
 
       const response = await axios.post(`${API_URL}/api/debrid/stream`, null, {
         params,
@@ -658,7 +663,7 @@ function DebridPlayer() {
         setLoadingStream(false);
       }
     }
-  }, [getCachedStreamUrl, cacheStreamUrl]);
+  }, [getCachedStreamUrl, cacheStreamUrl, type, season, episode]);
 
   // Change quality - 'auto' per mode automàtic o '4K'/'1080p'/'720p' per manual
   const changeTorrent = useCallback((quality) => {
@@ -751,7 +756,8 @@ function DebridPlayer() {
           if (torrents?.length > 0) {
             console.log(`[Player] ${torrents.length} fonts precarregades pel següent episodi`);
             // Prioritzar qualitat automàtica, resta en background
-            preloadAutoQualityFirst(torrents);
+            // Passar season i episode per assegurar que es selecciona el fitxer correcte
+            preloadAutoQualityFirst(torrents, nextEpisode.season_number, nextEpisode.episode_number);
           }
         })
         .catch(err => console.error('[Player] Error precarregant següent episodi:', err));
