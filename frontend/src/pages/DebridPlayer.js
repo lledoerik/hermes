@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import { useStreamCache } from '../context/StreamCacheContext';
 import { API_URL } from '../config/api';
 import './DebridPlayer.css';
 
@@ -222,12 +223,23 @@ function DebridPlayer() {
   const location = useLocation();
   const navigate = useNavigate();
   useAuth(); // Per verificar autenticació
+  const {
+    getCachedTorrents,
+    cacheTorrents,
+    preloadTorrents,
+    getCachedStreamUrl,
+    cacheStreamUrl,
+    preloadBestStreams
+  } = useStreamCache();
 
   const videoRef = useRef(null);
   const containerRef = useRef(null);
   const controlsTimeoutRef = useRef(null);
   const progressSaveTimeoutRef = useRef(null);
   const resumeTimeRef = useRef(0);
+
+  // Ref per controlar si ja s'ha iniciat la precàrrega del següent episodi
+  const nextEpisodePreloadedRef = useRef(false);
 
   // Touch/tap handling refs
   const lastTapTimeRef = useRef(0);
@@ -492,12 +504,25 @@ function DebridPlayer() {
     setLoadingTorrents(true);
     setError(null);
     try {
-      let url = `${API_URL}/api/debrid/torrents/${mediaType}/${tmdbId}`;
-      if (mediaType === 'tv' && season && episode) {
-        url += `?season=${season}&episode=${episode}`;
+      // Primer comprovar si tenim cache
+      const cacheType = type === 'movie' ? 'movie' : 'tv';
+      let streams = getCachedTorrents(cacheType, tmdbId, season, episode);
+
+      if (!streams) {
+        // No hi ha cache, fer petició a l'API
+        let url = `${API_URL}/api/debrid/torrents/${mediaType}/${tmdbId}`;
+        if (mediaType === 'tv' && season && episode) {
+          url += `?season=${season}&episode=${episode}`;
+        }
+        const response = await axios.get(url);
+        streams = response.data.streams || [];
+
+        // Guardar al cache
+        cacheTorrents(cacheType, tmdbId, season, episode, streams);
+      } else {
+        console.log('[Player] Usant torrents del cache');
       }
-      const response = await axios.get(url);
-      const streams = response.data.streams || [];
+
       setTorrents(streams);
 
       // Get user preferences from localStorage
@@ -567,7 +592,7 @@ function DebridPlayer() {
     } finally {
       setLoadingTorrents(false);
     }
-  }, [mediaType, tmdbId, season, episode]);
+  }, [mediaType, tmdbId, season, episode, type, getCachedTorrents, cacheTorrents]);
 
   // Get stream URL from selected torrent
   const getStreamUrl = useCallback(async (torrent, keepTime = false) => {
@@ -578,14 +603,23 @@ function DebridPlayer() {
       streamAbortControllerRef.current.abort();
     }
 
-    // Crear nou AbortController per aquesta petició
-    const abortController = new AbortController();
-    streamAbortControllerRef.current = abortController;
-
     // Save current time if switching streams
     if (keepTime && videoRef.current) {
       resumeTimeRef.current = videoRef.current.currentTime;
     }
+
+    // Primer comprovar si tenim la URL en cache (canvi de qualitat instantani!)
+    const cachedUrl = getCachedStreamUrl(torrent.info_hash);
+    if (cachedUrl) {
+      console.log('[Player] Usant stream URL del cache (instantani!)');
+      setStreamUrl(cachedUrl);
+      setShowQualityMenu(false);
+      return;
+    }
+
+    // Crear nou AbortController per aquesta petició
+    const abortController = new AbortController();
+    streamAbortControllerRef.current = abortController;
 
     setLoadingStream(true);
     setError(null);
@@ -613,7 +647,10 @@ function DebridPlayer() {
       }
 
       if (response.data.status === 'success') {
-        setStreamUrl(response.data.url);
+        const url = response.data.url;
+        setStreamUrl(url);
+        // Guardar al cache per futures vegades
+        cacheStreamUrl(torrent.info_hash, url);
       } else {
         setError('No s\'ha pogut obtenir el stream');
       }
@@ -638,7 +675,7 @@ function DebridPlayer() {
         setLoadingStream(false);
       }
     }
-  }, []);
+  }, [getCachedStreamUrl, cacheStreamUrl]);
 
   // Change quality - 'auto' per mode automàtic o '4K'/'1080p'/'720p' per manual
   const changeTorrent = useCallback((quality) => {
@@ -714,6 +751,28 @@ function DebridPlayer() {
       setBuffered(video.buffered.end(video.buffered.length - 1));
     }
 
+    // Precarregar següent episodi quan faltin ~5 minuts (300 segons)
+    const timeRemaining = video.duration - video.currentTime;
+    if (
+      nextEpisode &&
+      timeRemaining > 0 &&
+      timeRemaining < 300 &&
+      !nextEpisodePreloadedRef.current
+    ) {
+      nextEpisodePreloadedRef.current = true;
+      console.log(`[Player] Precarregant següent episodi (S${nextEpisode.season_number}E${nextEpisode.episode_number})...`);
+
+      // Precarregar en background
+      preloadTorrents('tv', tmdbId, nextEpisode.season_number, nextEpisode.episode_number)
+        .then(torrents => {
+          if (torrents?.length > 0) {
+            console.log(`[Player] ${torrents.length} fonts precarregades pel següent episodi`);
+            preloadBestStreams(torrents);
+          }
+        })
+        .catch(err => console.error('[Player] Error precarregant següent episodi:', err));
+    }
+
     // Auto-save progress every 30 seconds
     if (progressSaveTimeoutRef.current) {
       clearTimeout(progressSaveTimeoutRef.current);
@@ -722,7 +781,7 @@ function DebridPlayer() {
       const percent = Math.round((video.currentTime / video.duration) * 100);
       saveProgress(percent, false);
     }, 30000);
-  }, [saveProgress]);
+  }, [saveProgress, nextEpisode, tmdbId, preloadTorrents, preloadBestStreams]);
 
   const handleLoadedMetadata = useCallback(() => {
     if (!videoRef.current) return;
@@ -1201,6 +1260,8 @@ function DebridPlayer() {
   // Re-fetch torrents when episode changes
   useEffect(() => {
     if (debridConfigured && type !== 'movie') {
+      // Reset el flag de precàrrega del següent episodi
+      nextEpisodePreloadedRef.current = false;
       searchTorrents();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
