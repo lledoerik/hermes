@@ -8501,6 +8501,7 @@ async def get_debrid_stream(
         raise HTTPException(status_code=400, detail="Real-Debrid no configurat")
 
     from backend.debrid import RealDebridClient
+    from backend.debrid.realdebrid import RealDebridError
 
     client = RealDebridClient(rd_api_key)
 
@@ -8516,9 +8517,16 @@ async def get_debrid_stream(
             "filesize": result.get("filesize"),
             "mimetype": result.get("mimetype")
         }
+    except RealDebridError as e:
+        # Errors específics de Real-Debrid amb missatges descriptius
+        logger.warning(f"Error de Real-Debrid: {e.message}")
+        raise HTTPException(status_code=500, detail=e.message)
+    except HTTPException:
+        # Re-llançar HTTPExceptions
+        raise
     except Exception as e:
-        logger.error(f"Error obtenint stream de RD: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error inesperat obtenint stream de RD: {e}")
+        raise HTTPException(status_code=500, detail="Error inesperat del servidor")
 
 
 @app.get("/api/debrid/stream/cached")
