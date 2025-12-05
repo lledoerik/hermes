@@ -97,10 +97,11 @@ function Details() {
       // Si és contingut només de TMDB, carregar directament des de TMDB
       if (isTmdbOnly && realTmdbId) {
         if (type === 'series') {
-          // Carregar detalls de sèrie i temporades des de TMDB
-          const [detailsRes, seasonsRes] = await Promise.all([
+          // Carregar detalls, temporades i episodis de la temporada 1 en PARAL·LEL
+          const [detailsRes, seasonsRes, season1Res] = await Promise.all([
             axios.get(`/api/tmdb/tv/${realTmdbId}`),
-            axios.get(`/api/tmdb/tv/${realTmdbId}/seasons`)
+            axios.get(`/api/tmdb/tv/${realTmdbId}/seasons`),
+            axios.get(`/api/tmdb/tv/${realTmdbId}/season/1`).catch(() => ({ data: { episodes: [] } }))
           ]);
 
           setItem(detailsRes.data);
@@ -110,8 +111,25 @@ function Details() {
             .map(s => ({ ...s, hasLocalEpisodes: false }));
 
           setSeasons(tmdbSeasons);
+
+          // Si la primera temporada és la 1 i tenim episodis, establir-los directament
+          const firstSeasonNum = tmdbSeasons.length > 0 ? tmdbSeasons[0].season_number : 1;
+          if (firstSeasonNum === 1 && season1Res.data.episodes?.length > 0) {
+            const episodes = season1Res.data.episodes.map(ep => ({
+              ...ep,
+              isLocal: false,
+              duration: ep.runtime ? ep.runtime * 60 : null
+            }));
+            setEpisodes(episodes);
+            // Guardar al cache
+            const cacheKey = `hermes_episodes_${realTmdbId}_s1`;
+            try {
+              sessionStorage.setItem(cacheKey, JSON.stringify({ data: episodes, timestamp: Date.now() }));
+            } catch (e) { /* sessionStorage ple */ }
+          }
+
           if (tmdbSeasons.length > 0) {
-            setSelectedSeason(tmdbSeasons[0].season_number);
+            setSelectedSeason(firstSeasonNum);
           }
           setUsingTmdbSeasons(true);
         } else {
