@@ -206,10 +206,11 @@ function Details() {
         return;
       }
 
-      // Contingut local (amb possible enriquiment TMDB)
+      // Contingut local (amb possible enriquiment TMDB i AniList)
       if (type === 'series') {
         const [seriesRes, seasonsRes] = await Promise.all([
-          api.get(`/api/library/series/${id}`),
+          // Usar endpoint enriquit per obtenir títols d'anime millorats i artwork fallback
+          api.get(`/api/library/series/${id}/enriched`).catch(() => api.get(`/api/library/series/${id}`)),
           api.get(`/api/library/series/${id}/seasons`)
         ]);
         const seriesData = seriesRes.data;
