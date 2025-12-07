@@ -1481,11 +1481,11 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
             where_conditions.append(f"s.content_type IN ({placeholders})")
             count_params.extend(content_types)
 
-        # Search filter
+        # Search filter (inclou títols alternatius per anime)
         if search:
-            where_conditions.append("(s.name LIKE ? OR s.title LIKE ?)")
+            where_conditions.append("(s.name LIKE ? OR s.title LIKE ? OR s.title_romaji LIKE ? OR s.title_native LIKE ? OR s.original_title LIKE ?)")
             search_pattern = f"%{search}%"
-            count_params.extend([search_pattern, search_pattern])
+            count_params.extend([search_pattern, search_pattern, search_pattern, search_pattern, search_pattern])
 
         # Category-specific filters
         if category == "popular":
@@ -1613,11 +1613,11 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
             where_conditions.append(f"s.content_type IN ({placeholders})")
             count_params.extend(content_types)
 
-        # Search filter
+        # Search filter (inclou títols alternatius)
         if search:
-            where_conditions.append("(s.name LIKE ? OR s.title LIKE ?)")
+            where_conditions.append("(s.name LIKE ? OR s.title LIKE ? OR s.title_romaji LIKE ? OR s.title_native LIKE ? OR s.original_title LIKE ?)")
             search_pattern = f"%{search}%"
-            count_params.extend([search_pattern, search_pattern])
+            count_params.extend([search_pattern, search_pattern, search_pattern, search_pattern, search_pattern])
 
         # Category-specific filters
         if category == "popular":
@@ -1970,12 +1970,37 @@ async def get_series_detail_enriched(series_id: int):
         if anilist_data:
             # Usar títol anglès d'AniList si existeix
             # IMPORTANT: Actualitzar tant "name" com "title" perquè el frontend comprova "title" primer
+            new_title = None
             if anilist_data.get("title_english"):
-                result["name"] = anilist_data["title_english"]
-                result["title"] = anilist_data["title_english"]
+                new_title = anilist_data["title_english"]
             elif anilist_data.get("title_romaji"):
-                result["name"] = anilist_data["title_romaji"]
-                result["title"] = anilist_data["title_romaji"]
+                new_title = anilist_data["title_romaji"]
+
+            if new_title:
+                result["name"] = new_title
+                result["title"] = new_title
+
+                # IMPORTANT: Actualitzar també la base de dades perquè la cerca funcioni
+                # Guardem el títol anglès/romaji com a nom principal i mantenim l'original com title_native
+                try:
+                    cursor.execute("""
+                        UPDATE series
+                        SET name = ?, title = ?,
+                            title_romaji = ?, title_native = ?,
+                            mal_id = ?
+                        WHERE id = ?
+                    """, (
+                        new_title,
+                        new_title,
+                        anilist_data.get("title_romaji"),
+                        anilist_data.get("title_native"),
+                        anilist_data.get("mal_id"),
+                        series_id
+                    ))
+                    conn.commit()
+                    logger.info(f"Títol d'anime actualitzat a la BD: {series['name']} -> {new_title}")
+                except Exception as e:
+                    logger.warning(f"Error actualitzant títol a BD: {e}")
 
             result["title_romaji"] = anilist_data.get("title_romaji")
             result["title_native"] = anilist_data.get("title_native")
