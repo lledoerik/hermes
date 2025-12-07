@@ -18,6 +18,50 @@ import './Details.css';
 
 axios.defaults.baseURL = API_URL;
 
+// Component LazyImage amb Intersection Observer i cache del navegador
+const LazyImage = ({ src, alt, onError, className }) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [isInView, setIsInView] = useState(false);
+  const imgRef = useRef(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+          observer.disconnect();
+        }
+      },
+      {
+        rootMargin: '100px', // Carrega 100px abans d'entrar al viewport
+        threshold: 0
+      }
+    );
+
+    if (imgRef.current) {
+      observer.observe(imgRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={imgRef} className={`lazy-image-container ${className || ''}`}>
+      {isInView ? (
+        <img
+          src={src}
+          alt={alt}
+          className={`lazy-image ${isLoaded ? 'loaded' : ''}`}
+          onLoad={() => setIsLoaded(true)}
+          onError={onError}
+        />
+      ) : (
+        <div className="lazy-image-placeholder" />
+      )}
+    </div>
+  );
+};
+
 function Details() {
   const { id } = useParams();
   const location = useLocation();
@@ -1030,12 +1074,13 @@ function Details() {
                   }}
                 >
                   {episode.still_path ? (
-                    <img
+                    <LazyImage
                       src={episode.still_path}
                       alt={episode.name}
                       onError={(e) => {
                         e.target.style.display = 'none';
-                        if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+                        const fallback = e.target.parentElement?.parentElement?.querySelector('.episode-number');
+                        if (fallback) fallback.style.display = 'flex';
                       }}
                     />
                   ) : null}
