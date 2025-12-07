@@ -1760,6 +1760,9 @@ async def get_series_detail(series_id: int):
             except (json_module.JSONDecodeError, TypeError):
                 cast_members = None
 
+        # Comprovar si té episodis locals
+        has_local_episodes = len(seasons) > 0
+
         return {
             "id": series["id"],
             "name": series["name"],
@@ -1782,7 +1785,8 @@ async def get_series_detail(series_id: int):
             "backdrop": series.get("backdrop"),
             "external_url": series.get("external_url"),
             "external_source": series.get("external_source"),
-            "seasons": seasons
+            "seasons": seasons,
+            "has_local_episodes": has_local_episodes
         }
 
 @app.patch("/api/series/{series_id}/external-url")
@@ -3890,7 +3894,8 @@ async def get_episode_detail(episode_id: int):
             "audio_tracks": episode["audio_tracks"],
             "subtitles": episode["subtitle_tracks"],
             "poster": episode["poster"],
-            "backdrop": episode["backdrop"]
+            "backdrop": episode["backdrop"],
+            "has_file": episode["file_path"] is not None
         }
 
 
