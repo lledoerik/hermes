@@ -2620,22 +2620,12 @@ async def get_tmdb_tv_seasons(tmdb_id: int):
 
 
 @app.get("/api/tmdb/tv/{tmdb_id}/season/{season_number}")
-async def get_tmdb_tv_season_details(tmdb_id: int, season_number: int, force_anilist: bool = False):
+async def get_tmdb_tv_season_details(tmdb_id: int, season_number: int):
     """
-    Obtenir tots els episodis d'una temporada específica.
-
-    LÒGICA HÍBRIDA PER ANIME:
-    1. Detectar si és anime (via BD o TMDB)
-    2. Per anime: provar TMDB en català primer
-       - Si TMDB no té català → usar AniList + traducció
-    3. Per no-anime: usar TMDB normal
-
+    Obtenir tots els episodis d'una temporada específica des de TMDB.
+    Retorna informació detallada de cada episodi.
     Utilitza cache en memòria (24h) per millorar rendiment.
     """
-    from backend.metadata.tmdb import TMDBClient, LANGUAGE_FALLBACK, translate_batch_to_catalan
-    from backend.metadata.anilist import AniListClient
-    import asyncio
-
     # Comprovar cache primer
     cache_key = f"tmdb:season:{tmdb_id}:{season_number}"
     cached_result = tmdb_cache.get(cache_key)
@@ -2647,197 +2637,11 @@ async def get_tmdb_tv_season_details(tmdb_id: int, season_number: int, force_ani
     if not api_key:
         raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
 
-    # Detectar si és anime (comprovar BD primer, després TMDB)
-    is_anime = force_anilist
-    anilist_id = None
-    mal_id = None
+    from backend.metadata.tmdb import TMDBClient
 
-    if not is_anime:
-        # Comprovar si tenim la sèrie a la BD amb content_type = anime
-        with get_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT content_type, anilist_id, mal_id
-                FROM series WHERE tmdb_id = ?
-            """, (tmdb_id,))
-            row = cursor.fetchone()
-            if row:
-                is_anime = row["content_type"] in ("anime", "anime_movie")
-                anilist_id = row["anilist_id"]
-                mal_id = row["mal_id"]
-
-    # Si no tenim info a la BD, comprovar TMDB per detectar anime
-    if not is_anime:
-        tmdb_client = TMDBClient(api_key)
-        try:
-            tv_details = await tmdb_client._request(f"/tv/{tmdb_id}", {"language": "en-US"})
-            if tv_details:
-                genres = tv_details.get("genres", [])
-                genre_ids = [g.get("id") for g in genres]
-                origin = tv_details.get("origin_country", [])
-                lang = tv_details.get("original_language", "")
-                # Anime = Animation (16) + Japan
-                is_animation = 16 in genre_ids
-                is_japanese = lang == "ja" or "JP" in origin
-                is_anime = is_animation and is_japanese
-        finally:
-            await tmdb_client.close()
-
-    # === FLUX PER ANIME ===
-    if is_anime:
-        logger.info(f"[ANIME] Detectat anime per tmdb_id={tmdb_id}")
-
-        # 1. Provar TMDB en català primer
-        tmdb_client = TMDBClient(api_key)
-        try:
-            tmdb_catalan = await tmdb_client._request(
-                f"/tv/{tmdb_id}/season/{season_number}",
-                {"language": "ca-ES"}
-            )
-
-            # Comprovar si té contingut en català
-            has_catalan = False
-            if tmdb_catalan and tmdb_catalan.get("episodes"):
-                eps_with_overview = sum(
-                    1 for ep in tmdb_catalan["episodes"]
-                    if ep.get("overview") and len(ep.get("overview", "")) > 20
-                )
-                has_catalan = eps_with_overview > 0
-                logger.info(f"[ANIME] TMDB català: {eps_with_overview}/{len(tmdb_catalan['episodes'])} episodis amb descripció")
-
-            if has_catalan:
-                # TMDB té català! Usar-lo directament
-                logger.info(f"[ANIME] Usant TMDB en català")
-                episodes = []
-                for ep in tmdb_catalan.get("episodes", []):
-                    episodes.append({
-                        "episode_number": ep.get("episode_number"),
-                        "name": ep.get("name"),
-                        "overview": ep.get("overview", ""),
-                        "air_date": ep.get("air_date"),
-                        "runtime": ep.get("runtime"),
-                        "still_path": f"https://image.tmdb.org/t/p/w300{ep.get('still_path')}" if ep.get("still_path") else None,
-                        "vote_average": ep.get("vote_average"),
-                        "source": "tmdb_catalan"
-                    })
-
-                result = {
-                    "tmdb_id": tmdb_id,
-                    "season_number": season_number,
-                    "name": tmdb_catalan.get("name"),
-                    "overview": tmdb_catalan.get("overview", ""),
-                    "air_date": tmdb_catalan.get("air_date"),
-                    "episodes": episodes,
-                    "source": "tmdb_catalan"
-                }
-                tmdb_cache.set(cache_key, result)
-                return result
-
-            # 2. TMDB no té català → Usar AniList
-            logger.info(f"[ANIME] TMDB sense català, provant AniList...")
-
-            # Buscar anilist_id si no el tenim
-            if not anilist_id:
-                anilist_client = AniListClient()
-                # Obtenir títol de TMDB per cercar a AniList
-                tv_info = await tmdb_client._request(f"/tv/{tmdb_id}", {"language": "en-US"})
-                if tv_info:
-                    search_title = tv_info.get("name") or tv_info.get("original_name")
-                    year = None
-                    if tv_info.get("first_air_date"):
-                        year = int(tv_info["first_air_date"][:4])
-
-                    anilist_result = await anilist_client.search_anime(search_title, year=year, is_adult=False)
-                    if anilist_result:
-                        anilist_id = anilist_result.get("anilist_id")
-                        mal_id = anilist_result.get("mal_id")
-                        logger.info(f"[ANIME] Trobat a AniList: {anilist_result.get('title')} (ID: {anilist_id})")
-
-                        # Guardar a la BD per futures consultes
-                        with get_db() as conn:
-                            conn.execute("""
-                                UPDATE series SET anilist_id = ?, mal_id = ?
-                                WHERE tmdb_id = ?
-                            """, (anilist_id, mal_id, tmdb_id))
-
-            if anilist_id:
-                # Obtenir info d'AniList
-                anilist_client = AniListClient()
-                anilist_details = await anilist_client.get_anime_details(anilist_id)
-
-                if anilist_details:
-                    # AniList no té episodis detallats, així que combinem:
-                    # - Estructura d'episodis de TMDB (per tenir still_path, air_date)
-                    # - Descripció general d'AniList (millor per anime)
-
-                    # Obtenir episodis de TMDB (sense traduir) per l'estructura
-                    tmdb_english = await tmdb_client._request(
-                        f"/tv/{tmdb_id}/season/{season_number}",
-                        {"language": "en-US"}
-                    )
-
-                    episodes = []
-                    overviews_to_translate = []
-
-                    if tmdb_english and tmdb_english.get("episodes"):
-                        for ep in tmdb_english.get("episodes", []):
-                            episodes.append({
-                                "episode_number": ep.get("episode_number"),
-                                "name": ep.get("name"),  # Títol original (no traduïm)
-                                "overview": ep.get("overview", ""),
-                                "air_date": ep.get("air_date"),
-                                "runtime": ep.get("runtime"),
-                                "still_path": f"https://image.tmdb.org/t/p/w300{ep.get('still_path')}" if ep.get("still_path") else None,
-                                "vote_average": ep.get("vote_average"),
-                                "source": "anilist"
-                            })
-                            overviews_to_translate.append(ep.get("overview", ""))
-
-                    # Traduir les descripcions en batch
-                    if overviews_to_translate and any(o for o in overviews_to_translate):
-                        logger.info(f"[ANIME] Traduint {len(overviews_to_translate)} descripcions des d'AniList/TMDB")
-                        translated = await asyncio.to_thread(
-                            translate_batch_to_catalan, overviews_to_translate, "en"
-                        )
-                        for i, ep in enumerate(episodes):
-                            if i < len(translated) and translated[i]:
-                                ep["overview"] = translated[i]
-
-                    # Descripció de la temporada des d'AniList (traduïda)
-                    season_overview = anilist_details.get("overview", "")
-                    if season_overview:
-                        translated_overview = await asyncio.to_thread(
-                            translate_batch_to_catalan, [season_overview], "en"
-                        )
-                        season_overview = translated_overview[0] if translated_overview else season_overview
-
-                    result = {
-                        "tmdb_id": tmdb_id,
-                        "anilist_id": anilist_id,
-                        "season_number": season_number,
-                        "name": tmdb_english.get("name") if tmdb_english else f"Temporada {season_number}",
-                        "overview": season_overview,
-                        "air_date": tmdb_english.get("air_date") if tmdb_english else None,
-                        "episodes": episodes,
-                        "source": "anilist",
-                        "anilist_info": {
-                            "title": anilist_details.get("title"),
-                            "studios": anilist_details.get("studios", []),
-                            "genres": anilist_details.get("genres", []),
-                            "rating": anilist_details.get("rating")
-                        }
-                    }
-                    tmdb_cache.set(cache_key, result)
-                    return result
-
-        finally:
-            await tmdb_client.close()
-
-    # === FLUX NORMAL (NO ANIME) ===
-    logger.info(f"[TMDB] Flux normal per tmdb_id={tmdb_id}")
-    tmdb_client = TMDBClient(api_key)
+    client = TMDBClient(api_key)
     try:
-        season_data = await tmdb_client.get_tv_season_details(tmdb_id, season_number)
+        season_data = await client.get_tv_season_details(tmdb_id, season_number)
         if not season_data:
             raise HTTPException(status_code=404, detail="Temporada no trobada")
 
@@ -2851,8 +2655,7 @@ async def get_tmdb_tv_season_details(tmdb_id: int, season_number: int, force_ani
                 "air_date": ep.get("air_date"),
                 "runtime": ep.get("runtime"),
                 "still_path": f"https://image.tmdb.org/t/p/w300{ep.get('still_path')}" if ep.get("still_path") else None,
-                "vote_average": ep.get("vote_average"),
-                "source": "tmdb"
+                "vote_average": ep.get("vote_average")
             })
 
         result = {
@@ -2861,8 +2664,7 @@ async def get_tmdb_tv_season_details(tmdb_id: int, season_number: int, force_ani
             "name": season_data.get("name"),
             "overview": season_data.get("overview", ""),
             "air_date": season_data.get("air_date"),
-            "episodes": episodes,
-            "source": "tmdb"
+            "episodes": episodes
         }
 
         # Guardar al cache
@@ -2871,7 +2673,7 @@ async def get_tmdb_tv_season_details(tmdb_id: int, season_number: int, force_ani
 
         return result
     finally:
-        await tmdb_client.close()
+        await client.close()
 
 
 # === ANILIST API ENDPOINTS ===
