@@ -4,11 +4,11 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useStreamCache } from '../context/StreamCacheContext';
 import TitleAudioPlayer from '../components/TitleAudioPlayer';
+import LazyImage from '../components/LazyImage';
 import { API_URL, getBackdropUrl, getPosterUrl, formatDuration } from '../config/api';
 import {
   StarIcon,
   PlayIcon,
-  PauseIcon,
   EditIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -17,50 +17,6 @@ import {
 import './Details.css';
 
 axios.defaults.baseURL = API_URL;
-
-// Component LazyImage amb Intersection Observer i cache del navegador
-const LazyImage = ({ src, alt, onError, className }) => {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [isInView, setIsInView] = useState(false);
-  const imgRef = useRef(null);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsInView(true);
-          observer.disconnect();
-        }
-      },
-      {
-        rootMargin: '100px', // Carrega 100px abans d'entrar al viewport
-        threshold: 0
-      }
-    );
-
-    if (imgRef.current) {
-      observer.observe(imgRef.current);
-    }
-
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <div ref={imgRef} className={`lazy-image-container ${className || ''}`}>
-      {isInView ? (
-        <img
-          src={src}
-          alt={alt}
-          className={`lazy-image ${isLoaded ? 'loaded' : ''}`}
-          onLoad={() => setIsLoaded(true)}
-          onError={onError}
-        />
-      ) : (
-        <div className="lazy-image-placeholder" />
-      )}
-    </div>
-  );
-};
 
 function Details() {
   const { id } = useParams();
@@ -112,8 +68,6 @@ function Details() {
   const [watchlistLoading, setWatchlistLoading] = useState(false);
 
   // Preloading state - per mostrar estat al botó de reproducció
-  // Inicialitzar a true perquè mostri "Preparant..." des del principi
-  const [streamPreloading, setStreamPreloading] = useState(true);
   const [streamReady, setStreamReady] = useState(false);
   const [earlyPreloadStarted, setEarlyPreloadStarted] = useState(false);
 
@@ -172,7 +126,6 @@ function Details() {
         if (result?.success) {
           console.log('[Details] Preload primerenc completat!');
           setStreamReady(true);
-          setStreamPreloading(false);
         }
       })
       .catch(err => {
@@ -542,6 +495,33 @@ function Details() {
     return { season: selectedSeason, episode: episodes[0]?.episode_number || 1, hasProgress: true };
   }, [type, episodes, selectedSeason]);
 
+  // PROGRÉS GLOBAL DE LA SÈRIE: Per al botó principal (estil Netflix)
+  // Busca el progrés de l'usuari a través de totes les temporades
+  // Si l'usuari no ha començat la sèrie: "Reproduir" → S1E1
+  // Si l'usuari té progrés: "Continuar T{X}:E{Y}" → Últim episodi vist
+  const seriesProgress = useMemo(() => {
+    if (type !== 'series') return null;
+
+    const effectiveTmdbId = isTmdbOnly ? realTmdbId : item?.tmdb_id;
+    if (!effectiveTmdbId) return null;
+
+    // Llegir l'últim episodi vist des de localStorage
+    const episodeKey = `hermes_last_episode_${effectiveTmdbId}`;
+    try {
+      const savedData = localStorage.getItem(episodeKey);
+      if (savedData) {
+        const { season, episode } = JSON.parse(savedData);
+        // L'usuari té progrés - mostrar "Continuar"
+        return { season, episode, hasProgress: true };
+      }
+    } catch (e) {
+      // Error llegint localStorage
+    }
+
+    // L'usuari no ha començat - mostrar "Reproduir" (S1E1)
+    return { season: 1, episode: 1, hasProgress: false };
+  }, [type, isTmdbOnly, realTmdbId, item?.tmdb_id]);
+
   // Guardar últim episodi vist per al preload primerenc
   const saveLastEpisode = useCallback((tmdbId, season, episode) => {
     try {
@@ -558,10 +538,12 @@ function Details() {
         navigate(`/debrid/movie/${item.tmdb_id}`);
       }
     } else {
-      if (item?.tmdb_id && nextEpisode) {
+      // Usar seriesProgress per al botó principal (progrés global de la sèrie)
+      const effectiveTmdbId = isTmdbOnly ? realTmdbId : item?.tmdb_id;
+      if (effectiveTmdbId && seriesProgress) {
         // Guardar per al preload primerenc de la pròxima visita
-        saveLastEpisode(item.tmdb_id, nextEpisode.season, nextEpisode.episode);
-        navigate(`/debrid/tv/${item.tmdb_id}?s=${nextEpisode.season}&e=${nextEpisode.episode}`);
+        saveLastEpisode(effectiveTmdbId, seriesProgress.season, seriesProgress.episode);
+        navigate(`/debrid/tv/${effectiveTmdbId}?s=${seriesProgress.season}&e=${seriesProgress.episode}`);
       }
     }
   };
@@ -660,7 +642,6 @@ function Details() {
       // Només precarregar si l'usuari és premium i tenim tmdb_id
       const tmdbIdToUse = isTmdbOnly ? realTmdbId : item?.tmdb_id;
       if (!isPremium || !tmdbIdToUse) {
-        setStreamPreloading(false);
         setStreamReady(true); // Permetre reproduir sense precàrrega
         return;
       }
@@ -668,14 +649,10 @@ function Details() {
       // Si ja està preparat (pel preload primerenc), no fer res
       if (streamReady) return;
 
-      // Reset estat quan canvia el contingut
-      setStreamPreloading(true);
-
       // Timeout de seguretat: si el preload triga massa, permetre reproducció igualment
       safetyTimeout = setTimeout(() => {
         console.log('[Details] Timeout de seguretat - permetent reproducció');
         setStreamReady(true);
-        setStreamPreloading(false);
       }, 15000);
 
       try {
@@ -702,7 +679,6 @@ function Details() {
         setStreamReady(true); // Permetre reproduir encara que falli
       } finally {
         clearTimeout(safetyTimeout);
-        setStreamPreloading(false);
       }
     };
 
@@ -972,7 +948,7 @@ function Details() {
               {/* Botó de reproducció només visible per usuaris premium */}
               {isPremium && item?.tmdb_id && (
                 <button
-                  className={`play-btn ${!streamReady ? 'loading' : ''}`}
+                  className={`play-btn ${!streamReady ? 'loading' : ''} ${type === 'series' && seriesProgress?.hasProgress ? 'continue-mode' : ''}`}
                   onClick={handlePlay}
                   disabled={!streamReady}
                 >
@@ -984,9 +960,14 @@ function Details() {
                   ) : (
                     <>
                       <PlayIcon />
-                      {type === 'series' && nextEpisode?.hasProgress
-                        ? 'Continuar'
-                        : 'Reproduir'}
+                      {type === 'series' && seriesProgress?.hasProgress ? (
+                        <span className="play-btn-text">
+                          <span className="play-btn-action">Continuar</span>
+                          <span className="play-btn-episode">T{seriesProgress.season}:E{seriesProgress.episode}</span>
+                        </span>
+                      ) : (
+                        'Reproduir'
+                      )}
                     </>
                   )}
                 </button>

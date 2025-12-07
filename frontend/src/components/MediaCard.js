@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import TitleAudioPlayer from './TitleAudioPlayer';
+import LazyImage from './LazyImage';
 import { useAuth } from '../context/AuthContext';
 import { getPosterUrl } from '../config/api';
 import { TvIcon, MovieIcon, StarIcon, PlayIcon, InfoIcon } from './icons';
@@ -215,11 +216,9 @@ function MediaCard({ item, type = 'series', width = 180, isTmdb = false }) {
     >
       <div style={styles.poster}>
         {posterUrl && !imageError ? (
-          <img
+          <LazyImage
             src={posterUrl}
             alt={item.name || item.title}
-            style={styles.image}
-            loading="lazy"
             onError={() => setImageError(true)}
           />
         ) : (
