@@ -790,6 +790,42 @@
   object-fit: cover;
 }
 
+/* Lazy loading image styles */
+.lazy-image-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.lazy-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+}
+
+.lazy-image.loaded {
+  opacity: 1;
+}
+
+.lazy-image-placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
 .episode-number {
   position: absolute;
   top: 50%;
