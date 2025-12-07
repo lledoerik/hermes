@@ -144,6 +144,23 @@ class HermesScanner:
             cursor.execute("ALTER TABLE series ADD COLUMN external_source TEXT")
         except sqlite3.OperationalError:
             pass
+        # Migracions per suport d'anime (AniList)
+        try:
+            cursor.execute("ALTER TABLE series ADD COLUMN anilist_id INTEGER")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE series ADD COLUMN mal_id INTEGER")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE series ADD COLUMN title_romaji TEXT")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            cursor.execute("ALTER TABLE series ADD COLUMN title_native TEXT")
+        except sqlite3.OperationalError:
+            pass
 
         # Taula media_files
         cursor.execute('''
