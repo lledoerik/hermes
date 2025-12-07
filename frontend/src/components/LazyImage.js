@@ -26,13 +26,17 @@ const LazyImage = ({
   const [isInView, setIsInView] = useState(false);
   const [hasError, setHasError] = useState(false);
   const imgRef = useRef(null);
+  const observerRef = useRef(null);
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
+    // Si ja està visible, no cal observar
+    if (isInView) return;
+
+    observerRef.current = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
           setIsInView(true);
-          observer.disconnect();
+          observerRef.current?.disconnect();
         }
       },
       {
@@ -42,17 +46,18 @@ const LazyImage = ({
     );
 
     if (imgRef.current) {
-      observer.observe(imgRef.current);
+      observerRef.current.observe(imgRef.current);
     }
 
-    return () => observer.disconnect();
-  }, [rootMargin]);
+    return () => observerRef.current?.disconnect();
+  }, [rootMargin, isInView]);
 
-  // Reset state when src changes
+  // Reset loading/error state when src changes, però mantenir isInView
+  // Això evita recalcular la visibilitat quan canvia la temporada
   useEffect(() => {
     setIsLoaded(false);
     setHasError(false);
-    setIsInView(false);
+    // NO resetejar isInView - si ja estava visible, continua visible
   }, [src]);
 
   const handleLoad = () => {
