@@ -184,33 +184,58 @@ class MetadataService:
         result = {}
         source = MetadataSource.TMDB
 
-        # Detectar si és anime
+        # === PASO 1: Detectar si és anime ===
+        # Primer fem una petició ràpida a TMDB per detectar si és anime
         is_anime = content_type == ContentType.ANIME or anilist_id is not None
+        tmdb_data = None
 
-        # Per anime, prioritzar AniList
+        if not is_anime and tmdb_id:
+            from config import settings
+            tmdb_client = TMDBClient(settings.TMDB_API_KEY)
+            try:
+                # Petició ràpida per detectar gènere i origen
+                tmdb_data = await tmdb_client.get_tv_details(tmdb_id)
+                if tmdb_data and self._is_anime(tmdb_data):
+                    is_anime = True
+                    logger.info(f"Auto-detectat anime: {tmdb_data.get('name')} (TMDB: {tmdb_id})")
+            finally:
+                await tmdb_client.close()
+
+        # === PASO 2: Per anime, buscar a AniList ===
         if is_anime and (anilist_id or tmdb_id):
             anilist_client = AniListClient()
 
-            # Si no tenim anilist_id, buscar per títol via TMDB
-            if not anilist_id and tmdb_id:
-                # Obtenir títol de TMDB primer
-                from config import settings
-                tmdb_client = TMDBClient(settings.TMDB_API_KEY)
-                try:
-                    tmdb_data = await tmdb_client.get_tv_details(tmdb_id)
-                    if tmdb_data:
-                        # Buscar a AniList
-                        search_result = await anilist_client.search_anime(
-                            tmdb_data.get("name") or tmdb_data.get("original_name"),
-                            year=tmdb_data.get("first_air_date", "")[:4] if tmdb_data.get("first_air_date") else None,
-                            is_adult=False
-                        )
-                        if search_result:
-                            anilist_id = search_result["anilist_id"]
-                finally:
-                    await tmdb_client.close()
+            # Si no tenim anilist_id, buscar per títol
+            if not anilist_id:
+                # Usar dades de TMDB si ja les tenim, sinó obtenir-les
+                if not tmdb_data and tmdb_id:
+                    from config import settings
+                    tmdb_client = TMDBClient(settings.TMDB_API_KEY)
+                    try:
+                        tmdb_data = await tmdb_client.get_tv_details(tmdb_id)
+                    finally:
+                        await tmdb_client.close()
 
-            # Obtenir dades d'AniList
+                if tmdb_data:
+                    # Buscar a AniList pel títol original (japonès) o anglès
+                    search_titles = [
+                        tmdb_data.get("original_name"),
+                        tmdb_data.get("name")
+                    ]
+
+                    for search_title in search_titles:
+                        if search_title:
+                            search_result = await anilist_client.search_anime(
+                                search_title,
+                                year=tmdb_data.get("first_air_date", "")[:4] if tmdb_data.get("first_air_date") else None,
+                                is_adult=False
+                            )
+                            if search_result:
+                                anilist_id = search_result["anilist_id"]
+                                logger.info(f"Trobat a AniList: {search_result.get('title')} (ID: {anilist_id})")
+                                break
+
+            # Obtenir dades completes d'AniList
             if anilist_id:
                 anilist_data = await anilist_client.get_anime_details(anilist_id)
                 if anilist_data:
@@ -234,47 +259,50 @@ class MetadataService:
                         "_source": MetadataSource.ANILIST
                     }
                     source = MetadataSource.ANILIST
+                    logger.info(f"Metadata AniList carregada: {result['title']}")
 
-        # Si no tenim dades d'AniList o no és anime, usar TMDB
+        # === PASO 3: Fallback a TMDB si no tenim dades d'AniList ===
         if not result and tmdb_id:
             from config import settings
-            tmdb_client = TMDBClient(settings.TMDB_API_KEY)
-            try:
-                # Intentar català primer
-                if prefer_catalan:
-                    tmdb_data = await tmdb_client.get_tv_details(tmdb_id, language="ca-ES")
 
-                    # Si no hi ha contingut en català, fallback
-                    if not tmdb_data or not tmdb_data.get("overview"):
-                        for lang in LANGUAGE_FALLBACK[1:]:
-                            tmdb_data = await tmdb_client.get_tv_details(tmdb_id, language=lang)
-                            if tmdb_data and tmdb_data.get("overview"):
-                                break
-                else:
-                    tmdb_data = await tmdb_client.get_tv_details(tmdb_id)
+            # Reutilitzar tmdb_data si ja el tenim, sinó obtenir amb idioma preferit
+            if not tmdb_data or prefer_catalan:
+                tmdb_client = TMDBClient(settings.TMDB_API_KEY)
+                try:
+                    if prefer_catalan:
+                        tmdb_data = await tmdb_client.get_tv_details(tmdb_id, language="ca-ES")
 
-                if tmdb_data:
-                    result = {
-                        "id": tmdb_id,
-                        "title": tmdb_data.get("name"),
-                        "title_original": tmdb_data.get("original_name"),
-                        "overview": tmdb_data.get("overview"),
-                        "poster_path": tmdb_data.get("poster_path"),
-                        "backdrop_path": tmdb_data.get("backdrop_path"),
-                        "genres": [g["name"] for g in tmdb_data.get("genres", [])],
-                        "rating": tmdb_data.get("vote_average"),
-                        "year": tmdb_data.get("first_air_date", "")[:4] if tmdb_data.get("first_air_date") else None,
-                        "status": tmdb_data.get("status"),
-                        "episodes_count": tmdb_data.get("number_of_episodes"),
-                        "seasons_count": tmdb_data.get("number_of_seasons"),
-                        "networks": [n["name"] for n in tmdb_data.get("networks", [])],
-                        "content_type": "anime" if self._is_anime(tmdb_data) else "series",
-                        "_source": MetadataSource.TMDB
-                    }
-            finally:
-                await tmdb_client.close()
+                        # Si no hi ha contingut en català, fallback
+                        if not tmdb_data or not tmdb_data.get("overview"):
+                            for lang in LANGUAGE_FALLBACK[1:]:
+                                tmdb_data = await tmdb_client.get_tv_details(tmdb_id, language=lang)
+                                if tmdb_data and tmdb_data.get("overview"):
+                                    break
+                    else:
+                        tmdb_data = await tmdb_client.get_tv_details(tmdb_id)
+                finally:
+                    await tmdb_client.close()
 
-        # Afegir artwork de Fanart.tv si falta poster o backdrop
+            if tmdb_data:
+                result = {
+                    "id": tmdb_id,
+                    "title": tmdb_data.get("name"),
+                    "title_original": tmdb_data.get("original_name"),
+                    "overview": tmdb_data.get("overview"),
+                    "poster_path": tmdb_data.get("poster_path"),
+                    "backdrop_path": tmdb_data.get("backdrop_path"),
+                    "genres": [g["name"] for g in tmdb_data.get("genres", [])],
+                    "rating": tmdb_data.get("vote_average"),
+                    "year": tmdb_data.get("first_air_date", "")[:4] if tmdb_data.get("first_air_date") else None,
+                    "status": tmdb_data.get("status"),
+                    "episodes_count": tmdb_data.get("number_of_episodes"),
+                    "seasons_count": tmdb_data.get("number_of_seasons"),
+                    "networks": [n["name"] for n in tmdb_data.get("networks", [])],
+                    "content_type": "anime" if self._is_anime(tmdb_data) else "series",
+                    "_source": MetadataSource.TMDB
+                }
+
+        # === PASO 4: Fallback artwork de Fanart.tv ===
         if result and (not result.get("poster_path") or not result.get("backdrop_path")):
             artwork = await self._get_fallback_artwork(tmdb_id, is_movie=False)
             if artwork:
