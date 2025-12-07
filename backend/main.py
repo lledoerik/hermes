@@ -223,6 +223,9 @@ def init_all_tables():
             ("popularity", "REAL"),
             # Nombre de vots per filtrar valoracions fiables
             ("vote_count", "INTEGER"),
+            # Camps per AniList (anime metadata)
+            ("anilist_id", "INTEGER"),
+            ("mal_id", "INTEGER"),  # MyAnimeList ID
         ]
         for col_name, col_type in series_columns:
             try:
@@ -2666,6 +2669,239 @@ async def get_tmdb_tv_season_details(tmdb_id: int, season_number: int):
         return result
     finally:
         await client.close()
+
+
+# === ANILIST API ENDPOINTS ===
+
+@app.get("/api/anilist/search")
+async def search_anilist(q: str, limit: int = 10):
+    """
+    Cerca anime a AniList (sense contingut adult).
+    Retorna múltiples resultats per selecció manual.
+    """
+    from backend.metadata.anilist import AniListClient
+
+    if not q or len(q) < 2:
+        raise HTTPException(status_code=400, detail="Cal un terme de cerca")
+
+    client = AniListClient()
+    results = await client.search_anime_list(q, limit=limit, is_adult=False)
+
+    return {
+        "query": q,
+        "results": results
+    }
+
+
+@app.get("/api/anilist/anime/{anilist_id}")
+async def get_anilist_anime(anilist_id: int):
+    """
+    Obté informació completa d'un anime d'AniList.
+    """
+    from backend.metadata.anilist import AniListClient
+
+    # Comprovar cache primer
+    cache_key = f"anilist:anime:{anilist_id}"
+    cached = tmdb_cache.get(cache_key)
+    if cached:
+        return cached
+
+    client = AniListClient()
+    result = await client.get_anime_details(anilist_id)
+
+    if not result:
+        raise HTTPException(status_code=404, detail="Anime no trobat a AniList")
+
+    # Guardar al cache (24h)
+    tmdb_cache.set(cache_key, result)
+
+    return result
+
+
+@app.get("/api/anilist/anime/{anilist_id}/episodes")
+async def get_anilist_episodes(anilist_id: int):
+    """
+    Obté informació dels episodis d'un anime.
+    Nota: AniList no té descripcions d'episodis com TMDB.
+    """
+    from backend.metadata.anilist import AniListClient
+
+    client = AniListClient()
+    episodes = await client.get_episodes_info(anilist_id)
+
+    return {
+        "anilist_id": anilist_id,
+        "episodes": episodes
+    }
+
+
+@app.post("/api/series/{series_id}/link-anilist")
+async def link_series_to_anilist(series_id: int, request: Request):
+    """
+    Vincula una sèrie existent amb un ID d'AniList.
+    Actualitza metadata amb dades d'AniList (millor per anime).
+    """
+    from backend.metadata.anilist import AniListClient
+
+    body = await request.json()
+    anilist_id = body.get("anilist_id")
+
+    if not anilist_id:
+        raise HTTPException(status_code=400, detail="Cal proporcionar anilist_id")
+
+    # Obtenir metadata d'AniList
+    client = AniListClient()
+    anilist_data = await client.get_anime_details(anilist_id)
+
+    if not anilist_data:
+        raise HTTPException(status_code=404, detail="Anime no trobat a AniList")
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Comprovar que la sèrie existeix
+        cursor.execute("SELECT id, name, content_type FROM series WHERE id = ?", (series_id,))
+        series = cursor.fetchone()
+        if not series:
+            raise HTTPException(status_code=404, detail="Sèrie no trobada")
+
+        # Actualitzar amb dades d'AniList
+        update_fields = {
+            "anilist_id": anilist_id,
+            "mal_id": anilist_data.get("mal_id"),
+        }
+
+        # Opcionalment actualitzar altres camps si no tenen dades
+        cursor.execute("SELECT overview, rating FROM series WHERE id = ?", (series_id,))
+        current = cursor.fetchone()
+
+        # Si no hi ha overview o és molt curt, usar el d'AniList
+        if not current["overview"] or len(current["overview"] or "") < 50:
+            if anilist_data.get("overview"):
+                update_fields["overview"] = anilist_data["overview"]
+
+        # Actualitzar rating si no n'hi ha
+        if not current["rating"] and anilist_data.get("rating"):
+            update_fields["rating"] = anilist_data["rating"] / 10  # AniList usa 0-100
+
+        # Si no és marcat com anime però ho és, actualitzar
+        if series["content_type"] not in ["anime", "anime_movie"]:
+            # Detectar si és anime
+            if anilist_data.get("country") == "JP":
+                content_type = "anime_movie" if anilist_data.get("format") == "MOVIE" else "anime"
+                update_fields["content_type"] = content_type
+
+        # Construir query d'actualització
+        set_clause = ", ".join([f"{k} = ?" for k in update_fields.keys()])
+        values = list(update_fields.values()) + [series_id]
+
+        cursor.execute(f"UPDATE series SET {set_clause}, updated_date = CURRENT_TIMESTAMP WHERE id = ?", values)
+
+    return {
+        "status": "success",
+        "series_id": series_id,
+        "anilist_id": anilist_id,
+        "mal_id": anilist_data.get("mal_id"),
+        "title": anilist_data.get("title"),
+        "updated_fields": list(update_fields.keys())
+    }
+
+
+@app.get("/api/series/{series_id}/anilist")
+async def get_series_anilist_info(series_id: int):
+    """
+    Obté info d'AniList per una sèrie (si està linkada).
+    """
+    from backend.metadata.anilist import AniListClient
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT anilist_id, mal_id, name FROM series WHERE id = ?", (series_id,))
+        series = cursor.fetchone()
+
+    if not series:
+        raise HTTPException(status_code=404, detail="Sèrie no trobada")
+
+    if not series["anilist_id"]:
+        # Intentar cercar automàticament
+        client = AniListClient()
+        result = await client.search_anime(series["name"], is_adult=False)
+        if result:
+            return {
+                "linked": False,
+                "suggested": result,
+                "message": "Sèrie no linkada. Suggeriment basat en el nom."
+            }
+        return {
+            "linked": False,
+            "suggested": None,
+            "message": "Sèrie no linkada a AniList"
+        }
+
+    # Obtenir info completa d'AniList
+    client = AniListClient()
+    anilist_data = await client.get_anime_details(series["anilist_id"])
+
+    return {
+        "linked": True,
+        "anilist_id": series["anilist_id"],
+        "mal_id": series["mal_id"],
+        "data": anilist_data
+    }
+
+
+@app.post("/api/series/{series_id}/auto-link-anilist")
+async def auto_link_anilist(series_id: int):
+    """
+    Intenta vincular automàticament una sèrie amb AniList.
+    Útil per anime detectat per TMDB.
+    """
+    from backend.metadata.anilist import AniListClient
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, name, title, year, content_type, anilist_id
+            FROM series WHERE id = ?
+        """, (series_id,))
+        series = cursor.fetchone()
+
+    if not series:
+        raise HTTPException(status_code=404, detail="Sèrie no trobada")
+
+    if series["anilist_id"]:
+        return {
+            "status": "already_linked",
+            "anilist_id": series["anilist_id"]
+        }
+
+    # Usar el títol o nom
+    search_title = series["title"] or series["name"]
+
+    client = AniListClient()
+    result = await client.search_anime(search_title, year=series["year"], is_adult=False)
+
+    if not result:
+        return {
+            "status": "not_found",
+            "searched": search_title
+        }
+
+    # Actualitzar la sèrie amb l'ID trobat
+    with get_db() as conn:
+        conn.execute("""
+            UPDATE series
+            SET anilist_id = ?, mal_id = ?, updated_date = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (result["anilist_id"], result.get("mal_id"), series_id))
+
+    return {
+        "status": "linked",
+        "anilist_id": result["anilist_id"],
+        "mal_id": result.get("mal_id"),
+        "matched_title": result["title"],
+        "searched": search_title
+    }
 
 
 @app.get("/api/embed-sources/{media_type}/{tmdb_id}")
