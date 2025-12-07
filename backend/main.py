@@ -1704,13 +1704,16 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
         }
 
 @app.get("/api/series/{series_id}")
-async def get_series_detail(series_id: int):
+async def get_series_detail(series_id: int, refresh: bool = False):
     """
     Retorna detalls d'una sèrie amb temporades.
-    Usa lazy loading per obtenir metadata fresca de les APIs.
+    Usa lazy loading per obtenir metadata fresca de les APIs (opcional).
+
+    Args:
+        series_id: ID de la sèrie
+        refresh: Si True, força refresh de metadata (per defecte False per rapidesa)
     """
     import json as json_module
-    from backend.metadata.service import metadata_service, ContentType
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -1741,17 +1744,37 @@ async def get_series_detail(series_id: int):
                 "episode_count": row["episode_count"]
             })
 
-    # === LAZY LOADING: Obtenir metadata fresca ===
-    # Si tenim tmdb_id o anilist_id, obtenir metadata actualitzada
+    # === LAZY LOADING: Només si es demana refresh o és anime sense títol traduït ===
     fresh_metadata = None
-    if series.get("tmdb_id") or series.get("anilist_id"):
+    should_fetch_fresh = refresh
+
+    # Auto-detectar si necessitem metadata fresca (títol en japonès)
+    current_title = series.get("title") or series.get("name") or ""
+    has_japanese_title = any('\u3040' <= c <= '\u9fff' for c in current_title)
+
+    if has_japanese_title and series.get("tmdb_id"):
+        should_fetch_fresh = True
+        logger.info(f"Detectat títol japonès, intentant obtenir metadata fresca: {current_title}")
+
+    if should_fetch_fresh and (series.get("tmdb_id") or series.get("anilist_id")):
         try:
+            from backend.metadata.service import metadata_service, ContentType
+            import asyncio
+
             content_type = ContentType.ANIME if series.get("content_type") == "anime" else ContentType.SERIES
-            fresh_metadata = await metadata_service.get_series_metadata(
-                tmdb_id=series.get("tmdb_id"),
-                anilist_id=series.get("anilist_id"),
-                content_type=content_type
+
+            # Timeout de 5 segons per no bloquejar
+            fresh_metadata = await asyncio.wait_for(
+                metadata_service.get_series_metadata(
+                    tmdb_id=series.get("tmdb_id"),
+                    anilist_id=series.get("anilist_id"),
+                    content_type=content_type
+                ),
+                timeout=5.0
             )
+        except asyncio.TimeoutError:
+            logger.warning(f"Timeout obtenint metadata fresca per series {series_id}")
+            fresh_metadata = None
         except Exception as e:
             logger.warning(f"Error fetching fresh metadata for series {series_id}: {e}")
             fresh_metadata = None
