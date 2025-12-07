@@ -226,6 +226,8 @@ def init_all_tables():
             # Camps per AniList (anime metadata)
             ("anilist_id", "INTEGER"),
             ("mal_id", "INTEGER"),  # MyAnimeList ID
+            # Camp per TheTVDB (sèries occidentals i Fanart.tv)
+            ("tvdb_id", "INTEGER"),
         ]
         for col_name, col_type in series_columns:
             try:
@@ -3099,6 +3101,269 @@ async def auto_link_anilist(series_id: int):
         "mal_id": result.get("mal_id"),
         "matched_title": result["title"],
         "searched": search_title
+    }
+
+
+# === FANART.TV / TVDB / ANIDB ENDPOINTS ===
+
+@app.get("/api/artwork/fallback/{media_type}/{tmdb_id}")
+async def get_fallback_artwork(media_type: str, tmdb_id: int):
+    """
+    Obté artwork alternatiu quan TMDB no té pòster/backdrop.
+    Usa Fanart.tv com a font alternativa.
+    """
+    from backend.metadata.fanart import FanartTVClient
+
+    is_movie = media_type == "movie"
+    client = FanartTVClient()
+
+    result = {
+        "tmdb_id": tmdb_id,
+        "media_type": media_type,
+        "poster": None,
+        "background": None,
+        "logo": None,
+        "banner": None,
+        "clearart": None
+    }
+
+    try:
+        if is_movie:
+            images = await client.get_movie_images(tmdb_id)
+        else:
+            # Per sèries, necessitem TVDB ID (intentem convertir)
+            # Primer buscar si tenim tvdb_id a la base de dades
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT tvdb_id FROM series WHERE tmdb_id = ?",
+                    (tmdb_id,)
+                )
+                row = cursor.fetchone()
+                tvdb_id = row["tvdb_id"] if row and row["tvdb_id"] else None
+
+            if tvdb_id:
+                images = await client.get_tv_images(tvdb_id)
+            else:
+                # Intentar buscar per IMDB ID via TMDB
+                from backend.metadata.tmdb import TMDBClient
+                tmdb_client = TMDBClient(settings.TMDB_API_KEY)
+                try:
+                    external_ids = await tmdb_client._request(f"/tv/{tmdb_id}/external_ids")
+                    if external_ids:
+                        tvdb_id = external_ids.get("tvdb_id")
+                        if tvdb_id:
+                            images = await client.get_tv_images(tvdb_id)
+                        else:
+                            images = None
+                    else:
+                        images = None
+                finally:
+                    await tmdb_client.close()
+
+        if images:
+            result["poster"] = client.get_best_image(images.get("posters", []))
+            result["background"] = client.get_best_image(images.get("backgrounds", []))
+            result["logo"] = client.get_best_image(images.get("logos", []))
+            result["banner"] = client.get_best_image(images.get("banners", []))
+            result["clearart"] = client.get_best_image(images.get("clearart", []))
+
+    except Exception as e:
+        logger.warning(f"Error getting fallback artwork: {e}")
+
+    return result
+
+
+@app.get("/api/artwork/logo/{media_type}/{tmdb_id}")
+async def get_media_logo(media_type: str, tmdb_id: int):
+    """
+    Obté el logo d'una sèrie o pel·lícula.
+    Útil per mostrar a sobre de backdrops estil Netflix.
+    """
+    result = await get_fallback_artwork(media_type, tmdb_id)
+    return {"logo": result.get("logo")}
+
+
+@app.get("/api/tvdb/search")
+async def search_tvdb(q: str, year: int = None):
+    """
+    Cerca sèries a TheTVDB.
+    Útil per sèries occidentals amb millor metadata.
+    """
+    from backend.metadata.tvdb import TVDBClient
+
+    if not q or len(q) < 2:
+        raise HTTPException(status_code=400, detail="Cal un terme de cerca")
+
+    client = TVDBClient()
+    results = await client.search_series(q, year=year)
+
+    return {
+        "query": q,
+        "results": results
+    }
+
+
+@app.get("/api/tvdb/series/{tvdb_id}")
+async def get_tvdb_series(tvdb_id: int):
+    """
+    Obté informació detallada d'una sèrie de TheTVDB.
+    """
+    from backend.metadata.tvdb import TVDBClient
+
+    cache_key = f"tvdb:series:{tvdb_id}"
+    cached = tmdb_cache.get(cache_key)
+    if cached:
+        return cached
+
+    client = TVDBClient()
+    result = await client.get_series(tvdb_id)
+
+    if not result:
+        raise HTTPException(status_code=404, detail="Sèrie no trobada a TheTVDB")
+
+    tmdb_cache.set(cache_key, result)
+    return result
+
+
+@app.get("/api/tvdb/series/{tvdb_id}/episodes")
+async def get_tvdb_episodes(tvdb_id: int, season: int = None):
+    """
+    Obté episodis d'una sèrie de TheTVDB.
+    Pot tenir millors descripcions que TMDB per sèries occidentals.
+    """
+    from backend.metadata.tvdb import TVDBClient
+
+    cache_key = f"tvdb:episodes:{tvdb_id}:{season}"
+    cached = tmdb_cache.get(cache_key)
+    if cached:
+        return cached
+
+    client = TVDBClient()
+    episodes = await client.get_series_episodes(tvdb_id, season=season)
+
+    result = {
+        "tvdb_id": tvdb_id,
+        "season": season,
+        "episodes": episodes
+    }
+
+    tmdb_cache.set(cache_key, result)
+    return result
+
+
+@app.post("/api/series/{series_id}/link-tvdb")
+async def link_series_to_tvdb(series_id: int, request: Request):
+    """
+    Vincula una sèrie amb un ID de TheTVDB.
+    Útil per obtenir artwork de Fanart.tv.
+    """
+    body = await request.json()
+    tvdb_id = body.get("tvdb_id")
+
+    if not tvdb_id:
+        raise HTTPException(status_code=400, detail="Cal proporcionar tvdb_id")
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Comprovar que la sèrie existeix
+        cursor.execute("SELECT id, name FROM series WHERE id = ?", (series_id,))
+        series = cursor.fetchone()
+        if not series:
+            raise HTTPException(status_code=404, detail="Sèrie no trobada")
+
+        # Assegurar que la columna tvdb_id existeix
+        try:
+            cursor.execute("SELECT tvdb_id FROM series LIMIT 1")
+        except sqlite3.OperationalError:
+            cursor.execute("ALTER TABLE series ADD COLUMN tvdb_id INTEGER")
+
+        # Actualitzar
+        conn.execute("""
+            UPDATE series
+            SET tvdb_id = ?, updated_date = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (tvdb_id, series_id))
+
+    return {
+        "status": "linked",
+        "series_id": series_id,
+        "tvdb_id": tvdb_id
+    }
+
+
+@app.get("/api/anidb/search")
+async def search_anidb(q: str, limit: int = 10):
+    """
+    Cerca anime a AniDB.
+    Té títols en més idiomes (incloent català a vegades).
+    """
+    from backend.metadata.anidb import AniDBClient
+
+    if not q or len(q) < 2:
+        raise HTTPException(status_code=400, detail="Cal un terme de cerca")
+
+    client = AniDBClient()
+    results = await client.search_anime(q, limit=limit)
+
+    return {
+        "query": q,
+        "results": results
+    }
+
+
+@app.get("/api/anidb/anime/{anidb_id}/titles")
+async def get_anidb_titles(anidb_id: int):
+    """
+    Obté tots els títols d'un anime en diferents idiomes.
+    Útil per trobar el títol en català si existeix.
+    """
+    from backend.metadata.anidb import AniDBClient
+
+    client = AniDBClient()
+    titles = await client.get_anime_titles(anidb_id)
+
+    if not titles:
+        raise HTTPException(status_code=404, detail="Anime no trobat a AniDB")
+
+    return titles
+
+
+@app.get("/api/anime/ids/convert")
+async def convert_anime_ids(
+    source: str = Query(..., description="Font: anilist, myanimelist, anidb, kitsu, thetvdb"),
+    id: int = Query(..., description="ID a convertir")
+):
+    """
+    Converteix IDs entre diferents bases de dades d'anime.
+    Útil per trobar contingut a través de múltiples fonts.
+    """
+    from backend.metadata.anidb import AniDBMappingClient
+
+    valid_sources = ["anilist", "myanimelist", "anidb", "kitsu", "thetvdb"]
+    if source not in valid_sources:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Font no vàlida. Usa: {', '.join(valid_sources)}"
+        )
+
+    mapper = AniDBMappingClient()
+    ids = await mapper.get_ids(source, id)
+
+    if not ids:
+        return {
+            "source": source,
+            "source_id": id,
+            "status": "not_found",
+            "ids": {}
+        }
+
+    return {
+        "source": source,
+        "source_id": id,
+        "status": "found",
+        "ids": ids
     }
 
 
