@@ -331,10 +331,20 @@ class TMDBClient:
                 if not result or (data.get("overview") and not result.get("overview")):
                     result = data
                     used_language = lang
-                    if data.get("overview"):
-                        break
+                    # Comprovar si els episodis tenen overview
+                    episodes_with_overview = sum(1 for ep in data.get("episodes", []) if ep.get("overview"))
+                    total_episodes = len(data.get("episodes", []))
+                    print(f"[TMDB] Temporada {season_number} en {lang}: {episodes_with_overview}/{total_episodes} episodis amb descripció")
+                    if episodes_with_overview > 0:
+                        break  # Tenim contingut, no cal provar més idiomes
 
         # Translate overview if not in Catalan
+        if result and used_language:
+            if used_language == "ca-ES":
+                print(f"[TMDB] Contingut en CATALÀ - No cal traduir!")
+            else:
+                print(f"[TMDB] Idioma final: {used_language} - Traduint al català...")
+
         if result and used_language and used_language != "ca-ES":
             # Collect all texts to translate in a single batch (MUCH faster!)
             texts_to_translate = []
