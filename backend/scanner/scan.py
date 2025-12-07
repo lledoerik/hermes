@@ -144,6 +144,11 @@ class HermesScanner:
             cursor.execute("ALTER TABLE series ADD COLUMN external_source TEXT")
         except sqlite3.OperationalError:
             pass
+        # Migracions per suport de títols alternatius (qualsevol idioma no-llatí)
+        try:
+            cursor.execute("ALTER TABLE series ADD COLUMN title_english TEXT")
+        except sqlite3.OperationalError:
+            pass
         # Migracions per suport d'anime (AniList)
         try:
             cursor.execute("ALTER TABLE series ADD COLUMN anilist_id INTEGER")
