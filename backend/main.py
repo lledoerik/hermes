@@ -3894,70 +3894,70 @@ async def get_episode_detail(episode_id: int):
         }
 
 
-# === ENDPOINTS DE STREAMING LOCAL (DESACTIVATS) - Episodis i Pel·lícules ===
-# @app.get("/api/stream/episode/{episode_id}")
-# async def stream_episode(episode_id: int, request: Request):
-#     """Streaming directe d'un episodi amb suport Range"""
-#     with get_db() as conn:
-#         cursor = conn.cursor()
-#         cursor.execute("SELECT file_path FROM media_files WHERE id = ?", (episode_id,))
-#         result = cursor.fetchone()
-#
-#         if not result:
-#             raise HTTPException(status_code=404, detail="Episodi no trobat")
-#
-#         file_path = Path(result["file_path"])
-#         if not file_path.exists():
-#             raise HTTPException(status_code=404, detail="Arxiu no existeix")
-#
-#         return await stream_video_with_range(file_path, request)
-#
-#
-# @app.get("/api/stream/movie/{movie_id}")
-# async def stream_movie(movie_id: int, request: Request):
-#     """Streaming directe d'una pel·lícula amb suport Range"""
-#     with get_db() as conn:
-#         cursor = conn.cursor()
-#
-#         # Primer verificar si la pel·lícula existeix
-#         cursor.execute("""
-#             SELECT s.id, s.name, s.is_imported FROM series s
-#             WHERE s.id = ? AND s.media_type = 'movie'
-#         """, (movie_id,))
-#         movie = cursor.fetchone()
-#
-#         if not movie:
-#             raise HTTPException(status_code=404, detail="Pel·lícula no trobada")
-#
-#         # Buscar el fitxer associat
-#         cursor.execute("""
-#             SELECT m.file_path FROM media_files m
-#             JOIN series s ON m.series_id = s.id
-#             WHERE s.id = ? AND s.media_type = 'movie'
-#         """, (movie_id,))
-#         result = cursor.fetchone()
-#
-#         # Si no trobat, intentar amb media_files.id directament
-#         if not result:
-#             cursor.execute("""
-#                 SELECT m.file_path FROM media_files m
-#                 JOIN series s ON m.series_id = s.id
-#                 WHERE m.id = ? AND s.media_type = 'movie'
-#             """, (movie_id,))
-#             result = cursor.fetchone()
-#
-#         if not result:
-#             # La pel·lícula existeix però no té fitxer (importada de TMDB)
-#             raise HTTPException(
-#                 status_code=404,
-#                 detail="NO_FILE:Aquesta pel·lícula no té cap fitxer de vídeo associat. És només metadades importades de TMDB."
-#             )
-#
-#         file_path = Path(result["file_path"])
-#         if not file_path.exists():
-#             raise HTTPException(status_code=404, detail="Arxiu no existeix")
-#
-#         return await stream_video_with_range(file_path, request)
+# === ENDPOINTS DE STREAMING LOCAL - Episodis i Pel·lícules ===
+@app.get("/api/stream/episode/{episode_id}")
+async def stream_episode(episode_id: int, request: Request):
+    """Streaming directe d'un episodi amb suport Range"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT file_path FROM media_files WHERE id = ?", (episode_id,))
+        result = cursor.fetchone()
+
+        if not result:
+            raise HTTPException(status_code=404, detail="Episodi no trobat")
+
+        file_path = Path(result["file_path"])
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="Arxiu no existeix")
+
+        return await stream_video_with_range(file_path, request)
+
+
+@app.get("/api/stream/movie/{movie_id}")
+async def stream_movie(movie_id: int, request: Request):
+    """Streaming directe d'una pel·lícula amb suport Range"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Primer verificar si la pel·lícula existeix
+        cursor.execute("""
+            SELECT s.id, s.name, s.is_imported FROM series s
+            WHERE s.id = ? AND s.media_type = 'movie'
+        """, (movie_id,))
+        movie = cursor.fetchone()
+
+        if not movie:
+            raise HTTPException(status_code=404, detail="Pel·lícula no trobada")
+
+        # Buscar el fitxer associat
+        cursor.execute("""
+            SELECT m.file_path FROM media_files m
+            JOIN series s ON m.series_id = s.id
+            WHERE s.id = ? AND s.media_type = 'movie'
+        """, (movie_id,))
+        result = cursor.fetchone()
+
+        # Si no trobat, intentar amb media_files.id directament
+        if not result:
+            cursor.execute("""
+                SELECT m.file_path FROM media_files m
+                JOIN series s ON m.series_id = s.id
+                WHERE m.id = ? AND s.media_type = 'movie'
+            """, (movie_id,))
+            result = cursor.fetchone()
+
+        if not result:
+            # La pel·lícula existeix però no té fitxer (importada de TMDB)
+            raise HTTPException(
+                status_code=404,
+                detail="NO_FILE:Aquesta pel·lícula no té cap fitxer de vídeo associat. És només metadades importades de TMDB."
+            )
+
+        file_path = Path(result["file_path"])
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="Arxiu no existeix")
+
+        return await stream_video_with_range(file_path, request)
 
 
 # === SEGMENTS (INTRO/RECAP/OUTRO) ===
