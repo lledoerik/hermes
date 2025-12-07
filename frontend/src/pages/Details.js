@@ -4,6 +4,7 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useStreamCache } from '../context/StreamCacheContext';
 import TitleAudioPlayer from '../components/TitleAudioPlayer';
+import LazyImage from '../components/LazyImage';
 import { API_URL, getBackdropUrl, getPosterUrl, formatDuration } from '../config/api';
 import {
   StarIcon,
@@ -16,50 +17,6 @@ import {
 import './Details.css';
 
 axios.defaults.baseURL = API_URL;
-
-// Component LazyImage amb Intersection Observer i cache del navegador
-const LazyImage = ({ src, alt, onError, className }) => {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [isInView, setIsInView] = useState(false);
-  const imgRef = useRef(null);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsInView(true);
-          observer.disconnect();
-        }
-      },
-      {
-        rootMargin: '100px', // Carrega 100px abans d'entrar al viewport
-        threshold: 0
-      }
-    );
-
-    if (imgRef.current) {
-      observer.observe(imgRef.current);
-    }
-
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <div ref={imgRef} className={`lazy-image-container ${className || ''}`}>
-      {isInView ? (
-        <img
-          src={src}
-          alt={alt}
-          className={`lazy-image ${isLoaded ? 'loaded' : ''}`}
-          onLoad={() => setIsLoaded(true)}
-          onError={onError}
-        />
-      ) : (
-        <div className="lazy-image-placeholder" />
-      )}
-    </div>
-  );
-};
 
 function Details() {
   const { id } = useParams();
