@@ -3104,6 +3104,190 @@ async def auto_link_anilist(series_id: int):
     }
 
 
+@app.post("/api/anime/refresh-metadata")
+async def refresh_anime_metadata(background_tasks: BackgroundTasks):
+    """
+    Actualitza la metadata de tots els animes existents.
+    - Vincula amb AniList si no ho està
+    - Actualitza títols amb el títol en anglès/romanitzat d'AniList
+    - Útil després d'integrar AniList per primera vegada
+    """
+    background_tasks.add_task(refresh_all_anime_metadata_task)
+    return {
+        "status": "started",
+        "message": "Actualització de metadata d'anime iniciada en segon pla"
+    }
+
+
+async def refresh_all_anime_metadata_task():
+    """Task en background per actualitzar tots els animes."""
+    from backend.metadata.anilist import AniListClient
+    from backend.metadata.tmdb import TMDBClient
+
+    logger.info("Iniciant actualització de metadata d'anime...")
+
+    # Obtenir totes les sèries que podrien ser anime
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, name, title, year, tmdb_id, content_type, anilist_id, genres
+            FROM series
+            WHERE content_type = 'anime'
+               OR genres LIKE '%Animation%'
+               OR origin_country = 'JP'
+        """)
+        series_list = cursor.fetchall()
+
+    logger.info(f"Trobades {len(series_list)} sèries potencialment anime")
+
+    anilist_client = AniListClient()
+    updated_count = 0
+    linked_count = 0
+
+    for series in series_list:
+        try:
+            series_id = series["id"]
+            anilist_id = series["anilist_id"]
+
+            # Si no té AniList ID, intentar vincular
+            if not anilist_id:
+                search_title = series["title"] or series["name"]
+                result = await anilist_client.search_anime(
+                    search_title,
+                    year=series["year"],
+                    is_adult=False
+                )
+
+                if result:
+                    anilist_id = result["anilist_id"]
+                    with get_db() as conn:
+                        conn.execute("""
+                            UPDATE series
+                            SET anilist_id = ?, mal_id = ?, content_type = 'anime'
+                            WHERE id = ?
+                        """, (anilist_id, result.get("mal_id"), series_id))
+                    linked_count += 1
+                    logger.info(f"Vinculat '{search_title}' amb AniList ID {anilist_id}")
+
+            # Si ara tenim AniList ID, actualitzar metadata
+            if anilist_id:
+                details = await anilist_client.get_anime_details(anilist_id)
+
+                if details:
+                    # Preferència de títol: anglès > romaji > natiu
+                    new_title = (
+                        details.get("title_english") or
+                        details.get("title_romaji") or
+                        details.get("title_native") or
+                        series["title"]
+                    )
+
+                    # Actualitzar a la DB
+                    with get_db() as conn:
+                        conn.execute("""
+                            UPDATE series
+                            SET title = ?,
+                                content_type = 'anime',
+                                updated_date = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                        """, (new_title, series_id))
+
+                    updated_count += 1
+                    logger.info(f"Actualitzat '{series['name']}' -> '{new_title}'")
+
+            # Petit delay per no saturar l'API
+            await asyncio.sleep(0.5)
+
+        except Exception as e:
+            logger.warning(f"Error actualitzant sèrie {series['id']}: {e}")
+            continue
+
+    logger.info(f"Actualització completada: {linked_count} vinculats, {updated_count} actualitzats")
+
+
+@app.post("/api/series/{series_id}/refresh-metadata")
+async def refresh_single_series_metadata(series_id: int):
+    """
+    Actualitza la metadata d'una sèrie específica.
+    Si és anime, usa AniList per obtenir el títol correcte.
+    """
+    from backend.metadata.anilist import AniListClient
+    from backend.metadata.tmdb import TMDBClient
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, name, title, year, tmdb_id, content_type, anilist_id, genres
+            FROM series WHERE id = ?
+        """, (series_id,))
+        series = cursor.fetchone()
+
+    if not series:
+        raise HTTPException(status_code=404, detail="Sèrie no trobada")
+
+    result = {
+        "series_id": series_id,
+        "original_title": series["title"] or series["name"],
+        "new_title": None,
+        "source": None,
+        "anilist_linked": False
+    }
+
+    # Detectar si és anime
+    is_anime = (
+        series["content_type"] == "anime" or
+        (series["genres"] and "Animation" in series["genres"])
+    )
+
+    if is_anime:
+        anilist_client = AniListClient()
+        anilist_id = series["anilist_id"]
+
+        # Si no té AniList ID, intentar vincular
+        if not anilist_id:
+            search_title = series["title"] or series["name"]
+            search_result = await anilist_client.search_anime(
+                search_title,
+                year=series["year"],
+                is_adult=False
+            )
+
+            if search_result:
+                anilist_id = search_result["anilist_id"]
+                with get_db() as conn:
+                    conn.execute("""
+                        UPDATE series
+                        SET anilist_id = ?, mal_id = ?, content_type = 'anime'
+                        WHERE id = ?
+                    """, (anilist_id, search_result.get("mal_id"), series_id))
+                result["anilist_linked"] = True
+
+        # Obtenir detalls d'AniList
+        if anilist_id:
+            details = await anilist_client.get_anime_details(anilist_id)
+
+            if details:
+                new_title = (
+                    details.get("title_english") or
+                    details.get("title_romaji") or
+                    details.get("title_native")
+                )
+
+                if new_title:
+                    with get_db() as conn:
+                        conn.execute("""
+                            UPDATE series
+                            SET title = ?, updated_date = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                        """, (new_title, series_id))
+
+                    result["new_title"] = new_title
+                    result["source"] = "anilist"
+                    result["anilist_id"] = anilist_id
+
+    return result
+
+
 # === FANART.TV / TVDB / ANIDB ENDPOINTS ===
 
 @app.get("/api/artwork/fallback/{media_type}/{tmdb_id}")
