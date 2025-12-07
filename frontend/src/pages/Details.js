@@ -495,6 +495,33 @@ function Details() {
     return { season: selectedSeason, episode: episodes[0]?.episode_number || 1, hasProgress: true };
   }, [type, episodes, selectedSeason]);
 
+  // PROGRÉS GLOBAL DE LA SÈRIE: Per al botó principal (estil Netflix)
+  // Busca el progrés de l'usuari a través de totes les temporades
+  // Si l'usuari no ha començat la sèrie: "Reproduir" → S1E1
+  // Si l'usuari té progrés: "Continuar T{X}:E{Y}" → Últim episodi vist
+  const seriesProgress = useMemo(() => {
+    if (type !== 'series') return null;
+
+    const effectiveTmdbId = isTmdbOnly ? realTmdbId : item?.tmdb_id;
+    if (!effectiveTmdbId) return null;
+
+    // Llegir l'últim episodi vist des de localStorage
+    const episodeKey = `hermes_last_episode_${effectiveTmdbId}`;
+    try {
+      const savedData = localStorage.getItem(episodeKey);
+      if (savedData) {
+        const { season, episode } = JSON.parse(savedData);
+        // L'usuari té progrés - mostrar "Continuar"
+        return { season, episode, hasProgress: true };
+      }
+    } catch (e) {
+      // Error llegint localStorage
+    }
+
+    // L'usuari no ha començat - mostrar "Reproduir" (S1E1)
+    return { season: 1, episode: 1, hasProgress: false };
+  }, [type, isTmdbOnly, realTmdbId, item?.tmdb_id]);
+
   // Guardar últim episodi vist per al preload primerenc
   const saveLastEpisode = useCallback((tmdbId, season, episode) => {
     try {
@@ -511,10 +538,12 @@ function Details() {
         navigate(`/debrid/movie/${item.tmdb_id}`);
       }
     } else {
-      if (item?.tmdb_id && nextEpisode) {
+      // Usar seriesProgress per al botó principal (progrés global de la sèrie)
+      const effectiveTmdbId = isTmdbOnly ? realTmdbId : item?.tmdb_id;
+      if (effectiveTmdbId && seriesProgress) {
         // Guardar per al preload primerenc de la pròxima visita
-        saveLastEpisode(item.tmdb_id, nextEpisode.season, nextEpisode.episode);
-        navigate(`/debrid/tv/${item.tmdb_id}?s=${nextEpisode.season}&e=${nextEpisode.episode}`);
+        saveLastEpisode(effectiveTmdbId, seriesProgress.season, seriesProgress.episode);
+        navigate(`/debrid/tv/${effectiveTmdbId}?s=${seriesProgress.season}&e=${seriesProgress.episode}`);
       }
     }
   };
@@ -919,7 +948,7 @@ function Details() {
               {/* Botó de reproducció només visible per usuaris premium */}
               {isPremium && item?.tmdb_id && (
                 <button
-                  className={`play-btn ${!streamReady ? 'loading' : ''}`}
+                  className={`play-btn ${!streamReady ? 'loading' : ''} ${type === 'series' && seriesProgress?.hasProgress ? 'continue-mode' : ''}`}
                   onClick={handlePlay}
                   disabled={!streamReady}
                 >
@@ -931,9 +960,14 @@ function Details() {
                   ) : (
                     <>
                       <PlayIcon />
-                      {type === 'series' && nextEpisode?.hasProgress
-                        ? 'Continuar'
-                        : 'Reproduir'}
+                      {type === 'series' && seriesProgress?.hasProgress ? (
+                        <span className="play-btn-text">
+                          <span className="play-btn-action">Continuar</span>
+                          <span className="play-btn-episode">T{seriesProgress.season}:E{seriesProgress.episode}</span>
+                        </span>
+                      ) : (
+                        'Reproduir'
+                      )}
                     </>
                   )}
                 </button>
