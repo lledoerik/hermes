@@ -538,7 +538,11 @@ function Details() {
 
   const handlePlay = () => {
     if (type === 'movies') {
-      if (item?.tmdb_id) {
+      // Si la pel·lícula té fitxer local, usar el player local
+      if (item?.has_file && item?.id) {
+        navigate(`/play/movie/${item.id}`);
+      } else if (item?.tmdb_id) {
+        // Si no té fitxer local, usar DebridPlayer amb Real-Debrid
         navigate(`/debrid/movie/${item.tmdb_id}`);
       }
     } else {
@@ -949,8 +953,8 @@ function Details() {
             )}
 
             <div className="details-actions">
-              {/* Botó de reproducció només visible per usuaris premium */}
-              {isPremium && item?.tmdb_id && (
+              {/* Botó de reproducció: fitxers locals (has_file) o streaming amb Real-Debrid (tmdb_id) */}
+              {isPremium && (item?.has_file || item?.tmdb_id) && (
                 <button
                   className={`play-btn ${!streamReady ? 'loading' : ''} ${type === 'series' && seriesProgress?.hasProgress ? 'continue-mode' : ''}`}
                   onClick={handlePlay}

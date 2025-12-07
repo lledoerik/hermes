@@ -9,6 +9,7 @@ import Home from './pages/Home';
 import Movies from './pages/Movies';
 import Series from './pages/Series';
 import Details from './pages/Details';
+import Player from './pages/Player';
 import DebridPlayer from './pages/DebridPlayer';
 import Search from './pages/Search';
 import Admin from './pages/Admin';
@@ -76,8 +77,8 @@ function AppContent() {
         </div>
 
         <Routes>
-          {/* Player local desactivat - redirigir a home */}
-          <Route path="/play/:type/:id" element={<Navigate to="/" replace />} />
+          {/* Player local per fitxers locals */}
+          <Route path="/play/:type/:id" element={<Player />} />
 
           {/* Rutes de streaming legacy - redirigir a DebridPlayer */}
           <Route path="/stream/:type/:tmdbId" element={<StreamRedirect />} />
