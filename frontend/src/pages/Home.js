@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
+import LazyImage from '../components/LazyImage';
 import {
   MovieIcon,
   SeriesIcon,
@@ -19,7 +20,7 @@ import './Home.css';
 
 axios.defaults.baseURL = API_URL;
 
-// Component per mostrar imatge amb fallback a placeholder
+// Component per mostrar imatge amb fallback a placeholder i lazy loading
 const PosterImage = ({ src, alt, type }) => {
   const [hasError, setHasError] = useState(false);
 
@@ -32,7 +33,7 @@ const PosterImage = ({ src, alt, type }) => {
   }
 
   return (
-    <img
+    <LazyImage
       src={src}
       alt={alt}
       onError={() => setHasError(true)}
@@ -144,7 +145,7 @@ const ContinueThumbnail = ({ item, imageUrl, type }) => {
   }
 
   return (
-    <img
+    <LazyImage
       src={dynamicUrl}
       alt={item.series_name || item.title}
       onError={() => setHasError(true)}
@@ -506,7 +507,7 @@ function Home() {
                 >
                   <div className="continue-thumbnail">
                     {item.backdrop || item.poster ? (
-                      <img
+                      <LazyImage
                         src={`${API_URL}/api/image/${item.backdrop ? 'backdrop' : 'poster'}/${item.series_id || item.id}`}
                         alt={item.series_name || item.title}
                       />
@@ -549,7 +550,7 @@ function Home() {
                 >
                   <div className="continue-thumbnail book-thumbnail">
                     {item.cover ? (
-                      <img
+                      <LazyImage
                         src={`${API_URL}/api/books/${item.id}/cover`}
                         alt={item.title}
                       />
@@ -597,7 +598,7 @@ function Home() {
                 >
                   <div className="continue-thumbnail">
                     {item.cover ? (
-                      <img
+                      <LazyImage
                         src={`${API_URL}/api/audiobooks/${item.id}/cover`}
                         alt={item.title}
                       />
@@ -650,7 +651,7 @@ function Home() {
                   >
                     <div className="content-poster">
                       {image ? (
-                        <img src={image} alt={item.title} />
+                        <LazyImage src={image} alt={item.title} />
                       ) : (
                         <div className="poster-placeholder">
                           {item.media_type === 'movie' ? <MovieIcon /> : <SeriesIcon />}
