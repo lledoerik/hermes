@@ -1705,12 +1705,17 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
 
 @app.get("/api/series/{series_id}")
 async def get_series_detail(series_id: int):
-    """Retorna detalls d'una sèrie amb temporades"""
+    """
+    Retorna detalls d'una sèrie amb temporades.
+    Usa lazy loading per obtenir metadata fresca de les APIs.
+    """
     import json as json_module
+    from backend.metadata.service import metadata_service, ContentType
+
     with get_db() as conn:
         cursor = conn.cursor()
 
-        # Info de la sèrie
+        # Info de la sèrie (dades locals)
         cursor.execute("SELECT * FROM series WHERE id = ?", (series_id,))
         row = cursor.fetchone()
 
@@ -1720,7 +1725,7 @@ async def get_series_detail(series_id: int):
         # Convertir a diccionari per poder usar .get()
         series = dict(row)
 
-        # Temporades
+        # Temporades locals
         cursor.execute("""
             SELECT DISTINCT season_number, COUNT(*) as episode_count
             FROM media_files
@@ -1736,51 +1741,80 @@ async def get_series_detail(series_id: int):
                 "episode_count": row["episode_count"]
             })
 
-        # Parsejar gèneres si existeixen
-        genres = None
-        if series.get("genres"):
-            try:
-                genres = json_module.loads(series["genres"])
-            except (json_module.JSONDecodeError, TypeError):
-                genres = None
+    # === LAZY LOADING: Obtenir metadata fresca ===
+    # Si tenim tmdb_id o anilist_id, obtenir metadata actualitzada
+    fresh_metadata = None
+    if series.get("tmdb_id") or series.get("anilist_id"):
+        try:
+            content_type = ContentType.ANIME if series.get("content_type") == "anime" else ContentType.SERIES
+            fresh_metadata = await metadata_service.get_series_metadata(
+                tmdb_id=series.get("tmdb_id"),
+                anilist_id=series.get("anilist_id"),
+                content_type=content_type
+            )
+        except Exception as e:
+            logger.warning(f"Error fetching fresh metadata for series {series_id}: {e}")
+            fresh_metadata = None
 
-        # Parsejar creadors si existeixen
-        creators = None
-        if series.get("creators"):
-            try:
-                creators = json_module.loads(series["creators"])
-            except (json_module.JSONDecodeError, TypeError):
-                creators = None
+    # Parsejar gèneres si existeixen (fallback a DB)
+    genres = None
+    if fresh_metadata and fresh_metadata.get("genres"):
+        genres = fresh_metadata["genres"]
+    elif series.get("genres"):
+        try:
+            genres = json_module.loads(series["genres"])
+        except (json_module.JSONDecodeError, TypeError):
+            genres = None
 
-        # Parsejar repartiment si existeix
-        cast_members = None
-        if series.get("cast_members"):
-            try:
-                cast_members = json_module.loads(series["cast_members"])
-            except (json_module.JSONDecodeError, TypeError):
-                cast_members = None
+    # Parsejar creadors si existeixen
+    creators = None
+    if series.get("creators"):
+        try:
+            creators = json_module.loads(series["creators"])
+        except (json_module.JSONDecodeError, TypeError):
+            creators = None
 
-        return {
-            "id": series["id"],
-            "name": series["name"],
-            "title": series.get("title"),
-            "original_title": series.get("original_title"),
-            "year": series.get("year"),
-            "overview": series.get("overview"),
-            "tagline": series.get("tagline"),
-            "rating": series.get("rating"),
-            "genres": genres,
-            "runtime": series.get("runtime"),
-            "director": series.get("director"),
-            "creators": creators,
-            "cast": cast_members,
-            "tmdb_id": series.get("tmdb_id"),
-            "poster": series.get("poster"),
-            "backdrop": series.get("backdrop"),
-            "external_url": series.get("external_url"),
-            "external_source": series.get("external_source"),
-            "seasons": seasons
-        }
+    # Parsejar repartiment si existeix
+    cast_members = None
+    if series.get("cast_members"):
+        try:
+            cast_members = json_module.loads(series["cast_members"])
+        except (json_module.JSONDecodeError, TypeError):
+            cast_members = None
+
+    # Combinar dades locals amb metadata fresca
+    # Prioritat: metadata fresca > dades locals
+    return {
+        "id": series["id"],
+        "name": series["name"],
+        # Títol: preferir metadata fresca (AniList/TMDB)
+        "title": (fresh_metadata.get("title") if fresh_metadata else None) or series.get("title"),
+        "original_title": (fresh_metadata.get("title_original") if fresh_metadata else None) or series.get("original_title"),
+        "year": (fresh_metadata.get("year") if fresh_metadata else None) or series.get("year"),
+        "overview": (fresh_metadata.get("overview") if fresh_metadata else None) or series.get("overview"),
+        "tagline": series.get("tagline"),
+        "rating": (fresh_metadata.get("rating") if fresh_metadata else None) or series.get("rating"),
+        "genres": genres,
+        "runtime": series.get("runtime"),
+        "director": series.get("director"),
+        "creators": creators,
+        "cast": cast_members,
+        "tmdb_id": series.get("tmdb_id"),
+        "anilist_id": series.get("anilist_id"),
+        "content_type": (fresh_metadata.get("content_type") if fresh_metadata else None) or series.get("content_type"),
+        # Imatges: preferir metadata fresca, amb fallback a DB
+        "poster": (fresh_metadata.get("poster_path") if fresh_metadata else None) or series.get("poster"),
+        "backdrop": (fresh_metadata.get("backdrop_path") if fresh_metadata else None) or series.get("backdrop"),
+        "logo": fresh_metadata.get("logo_path") if fresh_metadata else None,
+        "external_url": series.get("external_url"),
+        "external_source": series.get("external_source"),
+        "seasons": seasons,
+        # Info addicional d'anime si disponible
+        "studios": fresh_metadata.get("studios") if fresh_metadata else None,
+        "mal_id": series.get("mal_id"),
+        # Font de la metadata
+        "_metadata_source": str(fresh_metadata.get("_source")) if fresh_metadata else "database"
+    }
 
 @app.patch("/api/series/{series_id}/external-url")
 async def update_series_external_url(series_id: int, request: Request):
@@ -3104,6 +3138,190 @@ async def auto_link_anilist(series_id: int):
     }
 
 
+@app.post("/api/anime/refresh-metadata")
+async def refresh_anime_metadata(background_tasks: BackgroundTasks):
+    """
+    Actualitza la metadata de tots els animes existents.
+    - Vincula amb AniList si no ho està
+    - Actualitza títols amb el títol en anglès/romanitzat d'AniList
+    - Útil després d'integrar AniList per primera vegada
+    """
+    background_tasks.add_task(refresh_all_anime_metadata_task)
+    return {
+        "status": "started",
+        "message": "Actualització de metadata d'anime iniciada en segon pla"
+    }
+
+
+async def refresh_all_anime_metadata_task():
+    """Task en background per actualitzar tots els animes."""
+    from backend.metadata.anilist import AniListClient
+    from backend.metadata.tmdb import TMDBClient
+
+    logger.info("Iniciant actualització de metadata d'anime...")
+
+    # Obtenir totes les sèries que podrien ser anime
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, name, title, year, tmdb_id, content_type, anilist_id, genres
+            FROM series
+            WHERE content_type = 'anime'
+               OR genres LIKE '%Animation%'
+               OR origin_country = 'JP'
+        """)
+        series_list = cursor.fetchall()
+
+    logger.info(f"Trobades {len(series_list)} sèries potencialment anime")
+
+    anilist_client = AniListClient()
+    updated_count = 0
+    linked_count = 0
+
+    for series in series_list:
+        try:
+            series_id = series["id"]
+            anilist_id = series["anilist_id"]
+
+            # Si no té AniList ID, intentar vincular
+            if not anilist_id:
+                search_title = series["title"] or series["name"]
+                result = await anilist_client.search_anime(
+                    search_title,
+                    year=series["year"],
+                    is_adult=False
+                )
+
+                if result:
+                    anilist_id = result["anilist_id"]
+                    with get_db() as conn:
+                        conn.execute("""
+                            UPDATE series
+                            SET anilist_id = ?, mal_id = ?, content_type = 'anime'
+                            WHERE id = ?
+                        """, (anilist_id, result.get("mal_id"), series_id))
+                    linked_count += 1
+                    logger.info(f"Vinculat '{search_title}' amb AniList ID {anilist_id}")
+
+            # Si ara tenim AniList ID, actualitzar metadata
+            if anilist_id:
+                details = await anilist_client.get_anime_details(anilist_id)
+
+                if details:
+                    # Preferència de títol: anglès > romaji > natiu
+                    new_title = (
+                        details.get("title_english") or
+                        details.get("title_romaji") or
+                        details.get("title_native") or
+                        series["title"]
+                    )
+
+                    # Actualitzar a la DB
+                    with get_db() as conn:
+                        conn.execute("""
+                            UPDATE series
+                            SET title = ?,
+                                content_type = 'anime',
+                                updated_date = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                        """, (new_title, series_id))
+
+                    updated_count += 1
+                    logger.info(f"Actualitzat '{series['name']}' -> '{new_title}'")
+
+            # Petit delay per no saturar l'API
+            await asyncio.sleep(0.5)
+
+        except Exception as e:
+            logger.warning(f"Error actualitzant sèrie {series['id']}: {e}")
+            continue
+
+    logger.info(f"Actualització completada: {linked_count} vinculats, {updated_count} actualitzats")
+
+
+@app.post("/api/series/{series_id}/refresh-metadata")
+async def refresh_single_series_metadata(series_id: int):
+    """
+    Actualitza la metadata d'una sèrie específica.
+    Si és anime, usa AniList per obtenir el títol correcte.
+    """
+    from backend.metadata.anilist import AniListClient
+    from backend.metadata.tmdb import TMDBClient
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, name, title, year, tmdb_id, content_type, anilist_id, genres
+            FROM series WHERE id = ?
+        """, (series_id,))
+        series = cursor.fetchone()
+
+    if not series:
+        raise HTTPException(status_code=404, detail="Sèrie no trobada")
+
+    result = {
+        "series_id": series_id,
+        "original_title": series["title"] or series["name"],
+        "new_title": None,
+        "source": None,
+        "anilist_linked": False
+    }
+
+    # Detectar si és anime
+    is_anime = (
+        series["content_type"] == "anime" or
+        (series["genres"] and "Animation" in series["genres"])
+    )
+
+    if is_anime:
+        anilist_client = AniListClient()
+        anilist_id = series["anilist_id"]
+
+        # Si no té AniList ID, intentar vincular
+        if not anilist_id:
+            search_title = series["title"] or series["name"]
+            search_result = await anilist_client.search_anime(
+                search_title,
+                year=series["year"],
+                is_adult=False
+            )
+
+            if search_result:
+                anilist_id = search_result["anilist_id"]
+                with get_db() as conn:
+                    conn.execute("""
+                        UPDATE series
+                        SET anilist_id = ?, mal_id = ?, content_type = 'anime'
+                        WHERE id = ?
+                    """, (anilist_id, search_result.get("mal_id"), series_id))
+                result["anilist_linked"] = True
+
+        # Obtenir detalls d'AniList
+        if anilist_id:
+            details = await anilist_client.get_anime_details(anilist_id)
+
+            if details:
+                new_title = (
+                    details.get("title_english") or
+                    details.get("title_romaji") or
+                    details.get("title_native")
+                )
+
+                if new_title:
+                    with get_db() as conn:
+                        conn.execute("""
+                            UPDATE series
+                            SET title = ?, updated_date = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                        """, (new_title, series_id))
+
+                    result["new_title"] = new_title
+                    result["source"] = "anilist"
+                    result["anilist_id"] = anilist_id
+
+    return result
+
+
 # === FANART.TV / TVDB / ANIDB ENDPOINTS ===
 
 @app.get("/api/artwork/fallback/{media_type}/{tmdb_id}")
@@ -3365,6 +3583,150 @@ async def convert_anime_ids(
         "status": "found",
         "ids": ids
     }
+
+
+# === LAZY LOADING METADATA ENDPOINTS ===
+# Aquests endpoints obtenen metadata en temps real amb cache intel·ligent
+
+@app.get("/api/metadata/series/{tmdb_id}")
+async def get_series_metadata_lazy(
+    tmdb_id: int,
+    anilist_id: int = None,
+    refresh: bool = False
+):
+    """
+    Obté metadata d'una sèrie amb lazy loading.
+
+    - Retorna dades del cache si disponibles (< 24h)
+    - Fetch automàtic si no hi ha cache
+    - Background refresh si cache > 12h
+    - Per anime: prioritza AniList
+
+    Args:
+        tmdb_id: ID de TMDB
+        anilist_id: ID d'AniList (opcional, auto-detectat per anime)
+        refresh: Forçar refresh ignorant cache
+    """
+    from backend.metadata.service import metadata_service, ContentType
+
+    # Forçar refresh si es demana
+    if refresh:
+        metadata_service.invalidate_cache(tmdb_id=tmdb_id)
+
+    # Detectar si té anilist_id a la DB
+    if not anilist_id:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT anilist_id, content_type FROM series WHERE tmdb_id = ?",
+                (tmdb_id,)
+            )
+            row = cursor.fetchone()
+            if row:
+                anilist_id = row["anilist_id"]
+                content_type = ContentType.ANIME if row["content_type"] == "anime" else ContentType.SERIES
+            else:
+                content_type = None
+    else:
+        content_type = ContentType.ANIME
+
+    data = await metadata_service.get_series_metadata(
+        tmdb_id=tmdb_id,
+        anilist_id=anilist_id,
+        content_type=content_type
+    )
+
+    if not data:
+        raise HTTPException(status_code=404, detail="Sèrie no trobada")
+
+    return data
+
+
+@app.get("/api/metadata/movie/{tmdb_id}")
+async def get_movie_metadata_lazy(tmdb_id: int, refresh: bool = False):
+    """
+    Obté metadata d'una pel·lícula amb lazy loading.
+    """
+    from backend.metadata.service import metadata_service
+
+    if refresh:
+        metadata_service.invalidate_cache(tmdb_id=tmdb_id)
+
+    data = await metadata_service.get_movie_metadata(tmdb_id)
+
+    if not data:
+        raise HTTPException(status_code=404, detail="Pel·lícula no trobada")
+
+    return data
+
+
+@app.get("/api/metadata/series/{tmdb_id}/season/{season_number}")
+async def get_episodes_metadata_lazy(
+    tmdb_id: int,
+    season_number: int,
+    anilist_id: int = None,
+    refresh: bool = False
+):
+    """
+    Obté metadata dels episodis d'una temporada amb lazy loading.
+
+    - Cache de 24h
+    - Traducció automàtica al català
+    - Per anime: combina TMDB + AniList
+    """
+    from backend.metadata.service import metadata_service, ContentType
+
+    if refresh:
+        metadata_service.invalidate_cache(tmdb_id=tmdb_id)
+
+    # Detectar anilist_id si no s'ha proporcionat
+    content_type = None
+    if not anilist_id:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT anilist_id, content_type FROM series WHERE tmdb_id = ?",
+                (tmdb_id,)
+            )
+            row = cursor.fetchone()
+            if row:
+                anilist_id = row["anilist_id"]
+                content_type = ContentType.ANIME if row["content_type"] == "anime" else None
+
+    data = await metadata_service.get_episodes_metadata(
+        tmdb_id=tmdb_id,
+        season_number=season_number,
+        anilist_id=anilist_id,
+        content_type=content_type
+    )
+
+    if not data:
+        raise HTTPException(status_code=404, detail="Temporada no trobada")
+
+    return data
+
+
+@app.get("/api/metadata/cache/stats")
+async def get_metadata_cache_stats():
+    """Retorna estadístiques del cache de metadata."""
+    from backend.metadata.service import metadata_service
+    return metadata_service.get_cache_stats()
+
+
+@app.post("/api/metadata/cache/clear")
+async def clear_metadata_cache():
+    """Neteja tot el cache de metadata."""
+    from backend.metadata.service import metadata_service
+    metadata_service.clear_cache()
+    return {"status": "cleared"}
+
+
+@app.post("/api/metadata/cache/invalidate/{tmdb_id}")
+async def invalidate_metadata_cache(tmdb_id: int):
+    """Invalida el cache d'un contingut específic."""
+    from backend.metadata.service import metadata_service
+    metadata_service.invalidate_cache(tmdb_id=tmdb_id)
+    return {"status": "invalidated", "tmdb_id": tmdb_id}
 
 
 @app.get("/api/embed-sources/{media_type}/{tmdb_id}")
