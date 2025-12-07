@@ -267,6 +267,29 @@
   }
 }
 
+/* Netflix-style Continue button */
+.details-actions .play-btn.continue-mode {
+  padding: 14px 28px;
+}
+
+.details-actions .play-btn .play-btn-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.2;
+}
+
+.details-actions .play-btn .play-btn-action {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.details-actions .play-btn .play-btn-episode {
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
 .secondary-btn {
   display: inline-flex;
   align-items: center;
@@ -1105,6 +1128,18 @@
     flex: 1;
     padding: 12px 24px;
     font-size: 15px;
+  }
+
+  .details-actions .play-btn.continue-mode {
+    padding: 10px 20px;
+  }
+
+  .details-actions .play-btn .play-btn-action {
+    font-size: 15px;
+  }
+
+  .details-actions .play-btn .play-btn-episode {
+    font-size: 11px;
   }
 
   /* Seasons: scroll horitzontal en mòbil */
