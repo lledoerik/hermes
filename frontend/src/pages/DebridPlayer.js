@@ -518,6 +518,12 @@ function DebridPlayer() {
 
       setTorrents(streams);
 
+      // Si no s'han trobat torrents, mostrar error
+      if (streams.length === 0) {
+        setError('No s\'han trobat fonts disponibles per aquest contingut');
+        return;
+      }
+
       // Get user preferences from localStorage
       const preferredAudioLang = localStorage.getItem('hermes_audio_lang') || 'en';
       const preferredQuality = localStorage.getItem('hermes_quality') || 'auto';
