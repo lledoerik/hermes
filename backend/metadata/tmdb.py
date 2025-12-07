@@ -44,6 +44,91 @@ def translate_to_catalan(text: str, source_lang: str = "auto") -> str:
         return text
 
 
+def translate_batch_to_catalan(texts: list, source_lang: str = "auto") -> list:
+    """
+    Tradueix múltiples textos al català d'un sol cop (MOLT més ràpid).
+    Utilitza un separador únic per combinar i després separar.
+    """
+    if not texts:
+        return texts
+
+    # Filtrar textos buits i guardar els índexs originals
+    valid_indices = []
+    valid_texts = []
+    for i, text in enumerate(texts):
+        if text and text.strip():
+            valid_indices.append(i)
+            valid_texts.append(text.strip())
+
+    if not valid_texts:
+        return texts
+
+    try:
+        from deep_translator import GoogleTranslator
+
+        # Detectar idioma font
+        if source_lang == "auto" or source_lang.startswith("en"):
+            source_lang = "en"
+        elif source_lang.startswith("es"):
+            source_lang = "es"
+        else:
+            source_lang = "auto"
+
+        translator = GoogleTranslator(source=source_lang, target='ca')
+
+        # Separador únic que no apareix en text normal
+        SEPARATOR = " ||| "
+
+        # Combinar tots els textos
+        combined = SEPARATOR.join(valid_texts)
+
+        # Si és massa llarg, dividir en chunks
+        MAX_CHARS = 4500
+        if len(combined) <= MAX_CHARS:
+            # Traduir tot d'un sol cop
+            translated_combined = translator.translate(combined)
+            translated_texts = translated_combined.split(SEPARATOR)
+        else:
+            # Dividir en chunks i traduir per separat
+            translated_texts = []
+            current_chunk = []
+            current_length = 0
+
+            for text in valid_texts:
+                text_length = len(text) + len(SEPARATOR)
+                if current_length + text_length > MAX_CHARS and current_chunk:
+                    # Traduir chunk actual
+                    chunk_combined = SEPARATOR.join(current_chunk)
+                    chunk_translated = translator.translate(chunk_combined)
+                    translated_texts.extend(chunk_translated.split(SEPARATOR))
+                    current_chunk = [text]
+                    current_length = text_length
+                else:
+                    current_chunk.append(text)
+                    current_length += text_length
+
+            # Traduir últim chunk
+            if current_chunk:
+                chunk_combined = SEPARATOR.join(current_chunk)
+                chunk_translated = translator.translate(chunk_combined)
+                translated_texts.extend(chunk_translated.split(SEPARATOR))
+
+        # Reconstruir la llista original amb els textos traduïts
+        result = list(texts)  # Copiar original
+        for i, idx in enumerate(valid_indices):
+            if i < len(translated_texts):
+                result[idx] = translated_texts[i].strip()
+
+        return result
+
+    except ImportError:
+        print("Avís: deep-translator no instal·lat")
+        return texts
+    except Exception as e:
+        print(f"Error traduint batch: {e}")
+        return texts
+
+
 class TMDBClient:
     BASE_URL = "https://api.themoviedb.org/3"
     IMAGE_BASE_URL = "https://image.tmdb.org/t/p"
@@ -251,17 +336,35 @@ class TMDBClient:
 
         # Translate overview if not in Catalan
         if result and used_language and used_language != "ca-ES":
+            # Collect all texts to translate in a single batch (MUCH faster!)
+            texts_to_translate = []
+            text_indices = []  # Track where each text goes
+
+            # Season overview
             if result.get("overview"):
-                result["overview"] = await asyncio.to_thread(
-                    translate_to_catalan, result["overview"], used_language
-                )
-            # Also translate episode overviews
+                texts_to_translate.append(result["overview"])
+                text_indices.append(("season_overview", None))
+
+            # Episode overviews - collect all at once
             if result.get("episodes"):
-                for episode in result["episodes"]:
+                for i, episode in enumerate(result["episodes"]):
                     if episode.get("overview"):
-                        episode["overview"] = await asyncio.to_thread(
-                            translate_to_catalan, episode["overview"], used_language
-                        )
+                        texts_to_translate.append(episode["overview"])
+                        text_indices.append(("episode_overview", i))
+
+            # Translate all texts in one batch call (1-2 API calls instead of 24+)
+            if texts_to_translate:
+                translated = await asyncio.to_thread(
+                    translate_batch_to_catalan, texts_to_translate, used_language
+                )
+
+                # Apply translations back to the correct places
+                for idx, (text_type, episode_idx) in enumerate(text_indices):
+                    if idx < len(translated):
+                        if text_type == "season_overview":
+                            result["overview"] = translated[idx]
+                        elif text_type == "episode_overview" and episode_idx is not None:
+                            result["episodes"][episode_idx]["overview"] = translated[idx]
 
         return result
 

@@ -16,7 +16,11 @@ import {
 } from '../components/icons';
 import './Details.css';
 
-axios.defaults.baseURL = API_URL;
+// Client axios amb timeout per evitar peticions penjades indefinidament
+const api = axios.create({
+  baseURL: API_URL,
+  timeout: 30000, // 30 segons màxim per petició
+});
 
 function Details() {
   const { id } = useParams();
@@ -167,8 +171,8 @@ function Details() {
         if (type === 'series') {
           // Carregar detalls i temporades des de TMDB en paral·lel
           const [detailsRes, seasonsRes] = await Promise.all([
-            axios.get(`/api/tmdb/tv/${realTmdbId}`),
-            axios.get(`/api/tmdb/tv/${realTmdbId}/seasons`)
+            api.get(`/api/tmdb/tv/${realTmdbId}`),
+            api.get(`/api/tmdb/tv/${realTmdbId}/seasons`)
           ]);
 
           setItem(detailsRes.data);
@@ -195,7 +199,7 @@ function Details() {
           // Episodis es carregaran via useEffect després de mostrar la pàgina
         } else {
           // Carregar detalls de pel·lícula des de TMDB
-          const response = await axios.get(`/api/tmdb/movie/${realTmdbId}`);
+          const response = await api.get(`/api/tmdb/movie/${realTmdbId}`);
           setItem(response.data);
         }
         setLoading(false);
@@ -205,8 +209,8 @@ function Details() {
       // Contingut local (amb possible enriquiment TMDB)
       if (type === 'series') {
         const [seriesRes, seasonsRes] = await Promise.all([
-          axios.get(`/api/library/series/${id}`),
-          axios.get(`/api/library/series/${id}/seasons`)
+          api.get(`/api/library/series/${id}`),
+          api.get(`/api/library/series/${id}/seasons`)
         ]);
         const seriesData = seriesRes.data;
         setItem(seriesData);
@@ -218,7 +222,7 @@ function Details() {
         // per permetre veure episodis via streaming de temporades que no tenim locals
         if (seriesData.tmdb_id) {
           try {
-            const tmdbSeasonsRes = await axios.get(`/api/tmdb/tv/${seriesData.tmdb_id}/seasons`);
+            const tmdbSeasonsRes = await api.get(`/api/tmdb/tv/${seriesData.tmdb_id}/seasons`);
             if (tmdbSeasonsRes.data.seasons && tmdbSeasonsRes.data.seasons.length > 0) {
               // Combinar temporades locals i TMDB (unió)
               const tmdbSeasons = tmdbSeasonsRes.data.seasons.filter(s => s.season_number > 0);
@@ -314,7 +318,7 @@ function Details() {
           setUsingTmdbSeasons(false);
         }
       } else {
-        const response = await axios.get(`/api/library/movies/${id}`);
+        const response = await api.get(`/api/library/movies/${id}`);
         setItem(response.data);
       }
     } catch (error) {
@@ -350,7 +354,7 @@ function Details() {
       // Per contingut TMDB-only, carregar directament des de TMDB
       if (isTmdbOnly && realTmdbId) {
         // Contingut només TMDB - carregar directament
-        const tmdbRes = await axios.get(`/api/tmdb/tv/${realTmdbId}/season/${seasonNum}`);
+        const tmdbRes = await api.get(`/api/tmdb/tv/${realTmdbId}/season/${seasonNum}`);
         if (tmdbRes.data.episodes) {
           const episodes = tmdbRes.data.episodes.map(ep => ({
             ...ep,
@@ -367,12 +371,12 @@ function Details() {
       }
 
       // PARAL·LELITZAR: Carregar episodis locals i TMDB alhora
-      const localPromise = axios.get(`/api/library/series/${id}/seasons/${seasonNum}/episodes`)
+      const localPromise = api.get(`/api/library/series/${id}/seasons/${seasonNum}/episodes`)
         .then(res => res.data || [])
         .catch(() => []); // No hi ha episodis locals per aquesta temporada
 
       const tmdbPromise = effectiveTmdbId
-        ? axios.get(`/api/tmdb/tv/${effectiveTmdbId}/season/${seasonNum}`)
+        ? api.get(`/api/tmdb/tv/${effectiveTmdbId}/season/${seasonNum}`)
             .then(res => res.data.episodes || [])
             .catch(() => [])
         : Promise.resolve([]);
@@ -456,7 +460,7 @@ function Details() {
 
       try {
         const mediaType = type === 'movies' ? 'movie' : 'series';
-        const response = await axios.get(`/api/watch-providers/${mediaType}/${tmdbIdToUse}`);
+        const response = await api.get(`/api/watch-providers/${mediaType}/${tmdbIdToUse}`);
         setWatchProviders(response.data);
       } catch (err) {
         console.error('Error carregant proveïdors:', err);
@@ -557,7 +561,7 @@ function Details() {
 
     try {
       const mediaType = type === 'movies' ? 'movie' : 'series';
-      const response = await axios.get(`/api/user/watchlist/check/${tmdbIdToCheck}?media_type=${mediaType}`);
+      const response = await api.get(`/api/user/watchlist/check/${tmdbIdToCheck}?media_type=${mediaType}`);
       setIsInWatchlist(response.data.in_watchlist);
     } catch (error) {
       console.error('Error checking watchlist:', error);
@@ -578,10 +582,10 @@ function Details() {
 
     try {
       if (isInWatchlist) {
-        await axios.delete(`/api/user/watchlist/${tmdbIdToUse}?media_type=${mediaType}`);
+        await api.delete(`/api/user/watchlist/${tmdbIdToUse}?media_type=${mediaType}`);
         setIsInWatchlist(false);
       } else {
-        await axios.post('/api/user/watchlist', {
+        await api.post('/api/user/watchlist', {
           tmdb_id: tmdbIdToUse,
           media_type: mediaType,
           title: item?.title || item?.name,
@@ -699,7 +703,7 @@ function Details() {
     setTmdbMessage(null);
 
     try {
-      const response = await axios.post(`/api/metadata/series/${id}/update-by-tmdb`, {
+      const response = await api.post(`/api/metadata/series/${id}/update-by-tmdb`, {
         tmdb_id: parseInt(tmdbId),
         media_type: type === 'movies' ? 'movie' : 'series'
       });
@@ -763,7 +767,7 @@ function Details() {
     setExternalUrlLoading(true);
     try {
       const detectedSource = detectExternalSource(externalUrl);
-      await axios.patch(`/api/series/${id}/external-url`, {
+      await api.patch(`/api/series/${id}/external-url`, {
         external_url: externalUrl || null,
         external_source: detectedSource
       });
