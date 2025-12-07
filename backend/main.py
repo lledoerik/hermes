@@ -1481,11 +1481,11 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
             where_conditions.append(f"s.content_type IN ({placeholders})")
             count_params.extend(content_types)
 
-        # Search filter (inclou títols alternatius per anime)
+        # Search filter (inclou títols alternatius per qualsevol idioma)
         if search:
-            where_conditions.append("(s.name LIKE ? OR s.title LIKE ? OR s.title_romaji LIKE ? OR s.title_native LIKE ? OR s.original_title LIKE ?)")
+            where_conditions.append("(s.name LIKE ? OR s.title LIKE ? OR s.title_english LIKE ? OR s.title_romaji LIKE ? OR s.title_native LIKE ? OR s.original_title LIKE ?)")
             search_pattern = f"%{search}%"
-            count_params.extend([search_pattern, search_pattern, search_pattern, search_pattern, search_pattern])
+            count_params.extend([search_pattern] * 6)
 
         # Category-specific filters
         if category == "popular":
@@ -1613,11 +1613,11 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
             where_conditions.append(f"s.content_type IN ({placeholders})")
             count_params.extend(content_types)
 
-        # Search filter (inclou títols alternatius)
+        # Search filter (inclou títols alternatius per qualsevol idioma)
         if search:
-            where_conditions.append("(s.name LIKE ? OR s.title LIKE ? OR s.title_romaji LIKE ? OR s.title_native LIKE ? OR s.original_title LIKE ?)")
+            where_conditions.append("(s.name LIKE ? OR s.title LIKE ? OR s.title_english LIKE ? OR s.title_romaji LIKE ? OR s.title_native LIKE ? OR s.original_title LIKE ?)")
             search_pattern = f"%{search}%"
-            count_params.extend([search_pattern, search_pattern, search_pattern, search_pattern, search_pattern])
+            count_params.extend([search_pattern] * 6)
 
         # Category-specific filters
         if category == "popular":
@@ -7244,8 +7244,9 @@ async def import_from_tmdb(data: ImportTMDBRequest):
                     poster, backdrop, director, creators, cast_members,
                     is_imported, source_type, external_url, added_date,
                     content_type, origin_country, original_language,
-                    tmdb_seasons, tmdb_episodes, release_date, popularity, vote_count
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'tmdb', ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)
+                    tmdb_seasons, tmdb_episodes, release_date, popularity, vote_count,
+                    title_english, original_title
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'tmdb', ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 metadata.get("title"),
                 virtual_path,
@@ -7270,7 +7271,9 @@ async def import_from_tmdb(data: ImportTMDBRequest):
                 metadata.get("episodes"),
                 metadata.get("release_date"),
                 metadata.get("popularity"),
-                metadata.get("vote_count")
+                metadata.get("vote_count"),
+                metadata.get("title_english"),  # Títol anglès per contingut no-llatí
+                metadata.get("original_title")  # Títol original (japonès, coreà, etc.)
             ))
 
             series_id = cursor.lastrowid
