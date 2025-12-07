@@ -1969,31 +1969,31 @@ async def get_series_detail_enriched(series_id: int):
         # Aplicar dades d'AniList si en tenim
         if anilist_data:
             # Usar títol anglès d'AniList si existeix
+            # IMPORTANT: Actualitzar tant "name" com "title" perquè el frontend comprova "title" primer
             if anilist_data.get("title_english"):
                 result["name"] = anilist_data["title_english"]
+                result["title"] = anilist_data["title_english"]
             elif anilist_data.get("title_romaji"):
                 result["name"] = anilist_data["title_romaji"]
+                result["title"] = anilist_data["title_romaji"]
 
             result["title_romaji"] = anilist_data.get("title_romaji")
             result["title_native"] = anilist_data.get("title_native")
             result["anilist_id"] = anilist_data.get("anilist_id")
             result["mal_id"] = anilist_data.get("mal_id")
 
-            # Usar descripció d'AniList si és millor
-            if anilist_data.get("description") and (not result.get("overview") or len(anilist_data["description"]) > len(result.get("overview", ""))):
-                # Netejar HTML de la descripció
-                import re
-                clean_desc = re.sub(r'<[^>]+>', '', anilist_data["description"])
-                result["overview"] = clean_desc
+            # Usar descripció d'AniList si és millor (AniList retorna "overview", no "description")
+            if anilist_data.get("overview") and (not result.get("overview") or len(anilist_data["overview"]) > len(result.get("overview", ""))):
+                result["overview"] = anilist_data["overview"]
 
-            # Usar pòster/backdrop d'AniList si no en tenim
-            if not result.get("poster") and anilist_data.get("cover_image"):
-                result["poster"] = anilist_data["cover_image"]
-            if not result.get("backdrop") and anilist_data.get("banner_image"):
-                result["backdrop"] = anilist_data["banner_image"]
+            # Usar pòster/backdrop d'AniList si no en tenim (AniList retorna "poster" i "banner")
+            if not result.get("poster") and anilist_data.get("poster"):
+                result["poster"] = anilist_data["poster"]
+            if not result.get("backdrop") and anilist_data.get("banner"):
+                result["backdrop"] = anilist_data["banner"]
 
             result["studios"] = anilist_data.get("studios", [])
-            result["anilist_score"] = anilist_data.get("score")
+            result["anilist_score"] = anilist_data.get("rating")  # AniList retorna "rating", no "score"
             result["anilist_status"] = anilist_data.get("status")
 
         # Aplicar artwork de Fanart.tv com a fallback
