@@ -1789,6 +1789,225 @@ async def get_series_detail(series_id: int):
             "has_local_episodes": has_local_episodes
         }
 
+
+@app.get("/api/series/{series_id}/enriched")
+async def get_series_detail_enriched(series_id: int):
+    """
+    Retorna detalls d'una sèrie amb enriquiment automàtic:
+    - Detecta si és anime i afegeix dades d'AniList
+    - Afegeix artwork de Fanart.tv si falta pòster/backdrop
+
+    Endpoint segur: Si l'enriquiment falla, retorna les dades bàsiques.
+    """
+    import json as json_module
+    from backend.metadata.anilist import AniListClient
+    from backend.metadata.fanart import FanartTVClient
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Info de la sèrie
+        cursor.execute("SELECT * FROM series WHERE id = ?", (series_id,))
+        row = cursor.fetchone()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Sèrie no trobada")
+
+        series = dict(row)
+
+        # Temporades
+        cursor.execute("""
+            SELECT DISTINCT season_number, COUNT(*) as episode_count
+            FROM media_files
+            WHERE series_id = ?
+            GROUP BY season_number
+            ORDER BY season_number
+        """, (series_id,))
+
+        seasons = []
+        for row in cursor.fetchall():
+            seasons.append({
+                "season_number": row["season_number"],
+                "episode_count": row["episode_count"]
+            })
+
+        has_local_episodes = len(seasons) > 0
+
+        # Parsejar camps JSON
+        genres = None
+        if series.get("genres"):
+            try:
+                genres = json_module.loads(series["genres"])
+            except (json_module.JSONDecodeError, TypeError):
+                genres = None
+
+        creators = None
+        if series.get("creators"):
+            try:
+                creators = json_module.loads(series["creators"])
+            except (json_module.JSONDecodeError, TypeError):
+                creators = None
+
+        cast_members = None
+        if series.get("cast_members"):
+            try:
+                cast_members = json_module.loads(series["cast_members"])
+            except (json_module.JSONDecodeError, TypeError):
+                cast_members = None
+
+        # === DETECCIÓ D'ANIME I ENRIQUIMENT ANILIST ===
+        is_anime = series.get("content_type") == "anime" or series.get("anilist_id") is not None
+        anilist_data = None
+
+        # Auto-detectar anime: gènere Animation (16) + origen japonès
+        if not is_anime and genres:
+            genre_names = [g.get("name", g) if isinstance(g, dict) else g for g in genres]
+            is_animation = "Animation" in genre_names or "Animació" in genre_names
+            # Comprovar origen japonès via TMDB
+            if is_animation and series.get("tmdb_id"):
+                try:
+                    api_key = get_tmdb_api_key()
+                    if api_key:
+                        from backend.metadata.tmdb import TMDBClient
+                        tmdb_client = TMDBClient(api_key)
+                        try:
+                            details = await tmdb_client.get_tv_details(series["tmdb_id"])
+                            if details and "JP" in details.get("origin_country", []):
+                                is_anime = True
+                                logger.info(f"Auto-detectat anime: {series['name']} (ID: {series_id})")
+                        finally:
+                            await tmdb_client.close()
+                except Exception as e:
+                    logger.warning(f"Error detectant anime: {e}")
+
+        # Si és anime, intentar enriquir amb AniList
+        if is_anime:
+            try:
+                anilist_client = AniListClient()
+
+                # Si ja tenim anilist_id, usar-lo
+                if series.get("anilist_id"):
+                    anilist_data = await anilist_client.get_anime_details(series["anilist_id"])
+                # Si no, buscar per títol
+                elif series.get("name") or series.get("original_title"):
+                    search_title = series.get("original_title") or series.get("name")
+                    year = series.get("year")
+                    search_result = await anilist_client.search_anime(search_title, year=year, is_adult=False)
+                    if search_result:
+                        anilist_data = await anilist_client.get_anime_details(search_result["anilist_id"])
+                        # Guardar anilist_id per futures consultes
+                        if anilist_data:
+                            cursor.execute("""
+                                UPDATE series SET anilist_id = ?, content_type = 'anime'
+                                WHERE id = ?
+                            """, (search_result["anilist_id"], series_id))
+                            conn.commit()
+
+            except Exception as e:
+                logger.warning(f"Error enriquint amb AniList: {e}")
+
+        # === FALLBACK ARTWORK DE FANART.TV ===
+        fanart_data = None
+        if not series.get("poster") or not series.get("backdrop"):
+            try:
+                fanart_client = FanartTVClient()
+
+                # Intentar amb TVDB ID si el tenim
+                tvdb_id = series.get("tvdb_id")
+                if not tvdb_id and series.get("tmdb_id"):
+                    # Obtenir TVDB ID via TMDB
+                    api_key = get_tmdb_api_key()
+                    if api_key:
+                        from backend.metadata.tmdb import TMDBClient
+                        tmdb_client = TMDBClient(api_key)
+                        try:
+                            external_ids = await tmdb_client._request(f"/tv/{series['tmdb_id']}/external_ids")
+                            if external_ids:
+                                tvdb_id = external_ids.get("tvdb_id")
+                        finally:
+                            await tmdb_client.close()
+
+                if tvdb_id:
+                    images = await fanart_client.get_tv_images(tvdb_id)
+                    if images:
+                        fanart_data = {
+                            "poster": fanart_client.get_best_image(images.get("posters", [])),
+                            "background": fanart_client.get_best_image(images.get("backgrounds", [])),
+                            "logo": fanart_client.get_best_image(images.get("logos", []))
+                        }
+            except Exception as e:
+                logger.warning(f"Error obtenint artwork Fanart.tv: {e}")
+
+        # Construir resposta final
+        result = {
+            "id": series["id"],
+            "name": series["name"],
+            "title": series.get("title"),
+            "original_title": series.get("original_title"),
+            "year": series.get("year"),
+            "overview": series.get("overview"),
+            "tagline": series.get("tagline"),
+            "rating": series.get("rating"),
+            "genres": genres,
+            "runtime": series.get("runtime"),
+            "director": series.get("director"),
+            "creators": creators,
+            "cast": cast_members,
+            "tmdb_id": series.get("tmdb_id"),
+            "anilist_id": series.get("anilist_id"),
+            "mal_id": series.get("mal_id"),
+            "content_type": "anime" if is_anime else series.get("content_type", "series"),
+            "poster": series.get("poster"),
+            "backdrop": series.get("backdrop"),
+            "external_url": series.get("external_url"),
+            "external_source": series.get("external_source"),
+            "seasons": seasons,
+            "has_local_episodes": has_local_episodes,
+            "is_anime": is_anime
+        }
+
+        # Aplicar dades d'AniList si en tenim
+        if anilist_data:
+            # Usar títol anglès d'AniList si existeix
+            if anilist_data.get("title_english"):
+                result["name"] = anilist_data["title_english"]
+            elif anilist_data.get("title_romaji"):
+                result["name"] = anilist_data["title_romaji"]
+
+            result["title_romaji"] = anilist_data.get("title_romaji")
+            result["title_native"] = anilist_data.get("title_native")
+            result["anilist_id"] = anilist_data.get("anilist_id")
+            result["mal_id"] = anilist_data.get("mal_id")
+
+            # Usar descripció d'AniList si és millor
+            if anilist_data.get("description") and (not result.get("overview") or len(anilist_data["description"]) > len(result.get("overview", ""))):
+                # Netejar HTML de la descripció
+                import re
+                clean_desc = re.sub(r'<[^>]+>', '', anilist_data["description"])
+                result["overview"] = clean_desc
+
+            # Usar pòster/backdrop d'AniList si no en tenim
+            if not result.get("poster") and anilist_data.get("cover_image"):
+                result["poster"] = anilist_data["cover_image"]
+            if not result.get("backdrop") and anilist_data.get("banner_image"):
+                result["backdrop"] = anilist_data["banner_image"]
+
+            result["studios"] = anilist_data.get("studios", [])
+            result["anilist_score"] = anilist_data.get("score")
+            result["anilist_status"] = anilist_data.get("status")
+
+        # Aplicar artwork de Fanart.tv com a fallback
+        if fanart_data:
+            if not result.get("poster") and fanart_data.get("poster"):
+                result["poster"] = fanart_data["poster"]
+            if not result.get("backdrop") and fanart_data.get("background"):
+                result["backdrop"] = fanart_data["background"]
+            if fanart_data.get("logo"):
+                result["logo"] = fanart_data["logo"]
+
+        return result
+
+
 @app.patch("/api/series/{series_id}/external-url")
 async def update_series_external_url(series_id: int, request: Request):
     """Actualitza la URL externa d'una sèrie/pel·lícula"""
@@ -2089,6 +2308,15 @@ async def get_backdrop(item_id: int):
 async def get_library_series_detail(series_id: int):
     """Alias per compatibilitat amb frontend - Detalls sèrie"""
     return await get_series_detail(series_id)
+
+
+@app.get("/api/library/series/{series_id}/enriched")
+async def get_library_series_detail_enriched(series_id: int):
+    """
+    Detalls de sèrie amb enriquiment automàtic AniList i Fanart.tv.
+    Usar aquest endpoint per obtenir millors títols d'anime.
+    """
+    return await get_series_detail_enriched(series_id)
 
 
 @app.get("/api/library/series/{series_id}/seasons")
