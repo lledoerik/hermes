@@ -1704,21 +1704,13 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
         }
 
 @app.get("/api/series/{series_id}")
-async def get_series_detail(series_id: int, refresh: bool = False):
-    """
-    Retorna detalls d'una sèrie amb temporades.
-    Usa lazy loading per obtenir metadata fresca de les APIs (opcional).
-
-    Args:
-        series_id: ID de la sèrie
-        refresh: Si True, força refresh de metadata (per defecte False per rapidesa)
-    """
+async def get_series_detail(series_id: int):
+    """Retorna detalls d'una sèrie amb temporades"""
     import json as json_module
-
     with get_db() as conn:
         cursor = conn.cursor()
 
-        # Info de la sèrie (dades locals)
+        # Info de la sèrie
         cursor.execute("SELECT * FROM series WHERE id = ?", (series_id,))
         row = cursor.fetchone()
 
@@ -1728,7 +1720,7 @@ async def get_series_detail(series_id: int, refresh: bool = False):
         # Convertir a diccionari per poder usar .get()
         series = dict(row)
 
-        # Temporades locals
+        # Temporades
         cursor.execute("""
             SELECT DISTINCT season_number, COUNT(*) as episode_count
             FROM media_files
@@ -1744,100 +1736,54 @@ async def get_series_detail(series_id: int, refresh: bool = False):
                 "episode_count": row["episode_count"]
             })
 
-    # === LAZY LOADING: Només si es demana refresh o és anime sense títol traduït ===
-    fresh_metadata = None
-    should_fetch_fresh = refresh
+        # Parsejar gèneres si existeixen
+        genres = None
+        if series.get("genres"):
+            try:
+                genres = json_module.loads(series["genres"])
+            except (json_module.JSONDecodeError, TypeError):
+                genres = None
 
-    # Auto-detectar si necessitem metadata fresca (títol en japonès)
-    current_title = series.get("title") or series.get("name") or ""
-    has_japanese_title = any('\u3040' <= c <= '\u9fff' for c in current_title)
+        # Parsejar creadors si existeixen
+        creators = None
+        if series.get("creators"):
+            try:
+                creators = json_module.loads(series["creators"])
+            except (json_module.JSONDecodeError, TypeError):
+                creators = None
 
-    if has_japanese_title and series.get("tmdb_id"):
-        should_fetch_fresh = True
-        logger.info(f"Detectat títol japonès, intentant obtenir metadata fresca: {current_title}")
+        # Parsejar repartiment si existeix
+        cast_members = None
+        if series.get("cast_members"):
+            try:
+                cast_members = json_module.loads(series["cast_members"])
+            except (json_module.JSONDecodeError, TypeError):
+                cast_members = None
 
-    if should_fetch_fresh and (series.get("tmdb_id") or series.get("anilist_id")):
-        try:
-            from backend.metadata.service import metadata_service, ContentType
-            import asyncio
-
-            content_type = ContentType.ANIME if series.get("content_type") == "anime" else ContentType.SERIES
-
-            # Timeout de 5 segons per no bloquejar
-            fresh_metadata = await asyncio.wait_for(
-                metadata_service.get_series_metadata(
-                    tmdb_id=series.get("tmdb_id"),
-                    anilist_id=series.get("anilist_id"),
-                    content_type=content_type
-                ),
-                timeout=5.0
-            )
-        except asyncio.TimeoutError:
-            logger.warning(f"Timeout obtenint metadata fresca per series {series_id}")
-            fresh_metadata = None
-        except Exception as e:
-            logger.warning(f"Error fetching fresh metadata for series {series_id}: {e}")
-            fresh_metadata = None
-
-    # Parsejar gèneres si existeixen (fallback a DB)
-    genres = None
-    if fresh_metadata and fresh_metadata.get("genres"):
-        genres = fresh_metadata["genres"]
-    elif series.get("genres"):
-        try:
-            genres = json_module.loads(series["genres"])
-        except (json_module.JSONDecodeError, TypeError):
-            genres = None
-
-    # Parsejar creadors si existeixen
-    creators = None
-    if series.get("creators"):
-        try:
-            creators = json_module.loads(series["creators"])
-        except (json_module.JSONDecodeError, TypeError):
-            creators = None
-
-    # Parsejar repartiment si existeix
-    cast_members = None
-    if series.get("cast_members"):
-        try:
-            cast_members = json_module.loads(series["cast_members"])
-        except (json_module.JSONDecodeError, TypeError):
-            cast_members = None
-
-    # Combinar dades locals amb metadata fresca
-    # Prioritat: metadata fresca > dades locals
-    return {
-        "id": series["id"],
-        "name": series["name"],
-        # Títol: preferir metadata fresca (AniList/TMDB)
-        "title": (fresh_metadata.get("title") if fresh_metadata else None) or series.get("title"),
-        "original_title": (fresh_metadata.get("title_original") if fresh_metadata else None) or series.get("original_title"),
-        "year": (fresh_metadata.get("year") if fresh_metadata else None) or series.get("year"),
-        "overview": (fresh_metadata.get("overview") if fresh_metadata else None) or series.get("overview"),
-        "tagline": series.get("tagline"),
-        "rating": (fresh_metadata.get("rating") if fresh_metadata else None) or series.get("rating"),
-        "genres": genres,
-        "runtime": series.get("runtime"),
-        "director": series.get("director"),
-        "creators": creators,
-        "cast": cast_members,
-        "tmdb_id": series.get("tmdb_id"),
-        "anilist_id": series.get("anilist_id"),
-        "content_type": (fresh_metadata.get("content_type") if fresh_metadata else None) or series.get("content_type"),
-        # Imatges: preferir metadata fresca, amb fallback a DB
-        "poster": (fresh_metadata.get("poster_path") if fresh_metadata else None) or series.get("poster"),
-        "backdrop": (fresh_metadata.get("backdrop_path") if fresh_metadata else None) or series.get("backdrop"),
-        "logo": fresh_metadata.get("logo_path") if fresh_metadata else None,
-        "external_url": series.get("external_url"),
-        "external_source": series.get("external_source"),
-        "seasons": seasons,
-        # Info addicional d'anime si disponible
-        "studios": fresh_metadata.get("studios") if fresh_metadata else None,
-        "mal_id": series.get("mal_id"),
-        # Font de la metadata
-        "_metadata_source": str(fresh_metadata.get("_source")) if fresh_metadata else "database"
-    }
+        return {
+            "id": series["id"],
+            "name": series["name"],
+            "title": series.get("title"),
+            "original_title": series.get("original_title"),
+            "year": series.get("year"),
+            "overview": series.get("overview"),
+            "tagline": series.get("tagline"),
+            "rating": series.get("rating"),
+            "genres": genres,
+            "runtime": series.get("runtime"),
+            "director": series.get("director"),
+            "creators": creators,
+            "cast": cast_members,
+            "tmdb_id": series.get("tmdb_id"),
+            "anilist_id": series.get("anilist_id"),
+            "mal_id": series.get("mal_id"),
+            "content_type": series.get("content_type"),
+            "poster": series.get("poster"),
+            "backdrop": series.get("backdrop"),
+            "external_url": series.get("external_url"),
+            "external_source": series.get("external_source"),
+            "seasons": seasons
+        }
 
 @app.patch("/api/series/{series_id}/external-url")
 async def update_series_external_url(series_id: int, request: Request):
