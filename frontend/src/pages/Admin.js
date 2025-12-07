@@ -604,6 +604,44 @@ function Admin() {
         </div>
       </div>
 
+      {/* Maintenance Section */}
+      <div className="admin-section">
+        <div className="section-header">
+          <h2><DatabaseIcon /> Manteniment</h2>
+        </div>
+        <div className="section-content">
+          <div className="maintenance-item">
+            <div className="maintenance-info">
+              <h4>Corregir títols no llatins</h4>
+              <p>Actualitza els títols en japonès, coreà, xinès, rus, etc. amb els seus equivalents en anglès de TMDB.</p>
+            </div>
+            <button
+              className="action-btn"
+              onClick={async () => {
+                try {
+                  showMessage('Actualitzant títols... Això pot trigar uns segons.', 'info');
+                  addLog('info', 'Iniciant correcció de títols no llatins...');
+                  const response = await axios.post('/api/admin/fix-non-latin-titles');
+                  const data = response.data;
+                  showMessage(`Actualitzats ${data.updated} títols de ${data.total_found} trobats`, 'success');
+                  addLog('success', `Títols actualitzats: ${data.updated}/${data.total_found}`);
+                  if (data.updated_items?.length > 0) {
+                    data.updated_items.slice(0, 5).forEach(item => {
+                      addLog('info', `${item.old_title} → ${item.new_title}`);
+                    });
+                  }
+                } catch (error) {
+                  showMessage('Error actualitzant títols', 'error');
+                  addLog('error', error.response?.data?.detail || 'Error desconegut');
+                }
+              }}
+            >
+              <RefreshIcon /> Corregir títols
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* System Info */}
       <div className="admin-section">
         <div className="section-header">
