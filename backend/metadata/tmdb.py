@@ -15,6 +15,32 @@ import re
 LANGUAGE_FALLBACK = ["ca-ES", "es-ES", "en-US"]
 
 
+def contains_non_latin_characters(text: str) -> bool:
+    """
+    Detecta si un text conté caràcters no-llatins (japonès, xinès, coreà, rus, àrab, etc.).
+    Retorna True si el text conté caràcters fora de l'alfabet llatí estès.
+    """
+    if not text:
+        return False
+
+    # Rang de caràcters llatins estesos (inclou accents, ñ, ç, etc.)
+    # Latin: U+0000-U+024F, Latin Extended: U+1E00-U+1EFF
+    # També permetem números, puntuació bàsica i espais
+    for char in text:
+        code = ord(char)
+        # Permetre: ASCII bàsic, Latin-1 Supplement, Latin Extended-A/B, Latin Extended Additional
+        # i caràcters de puntuació/números comuns
+        if not (
+            (0x0000 <= code <= 0x024F) or  # Basic Latin + Latin Extended A/B
+            (0x1E00 <= code <= 0x1EFF) or  # Latin Extended Additional
+            (0x2000 <= code <= 0x206F) or  # General Punctuation
+            (0x20A0 <= code <= 0x20CF) or  # Currency Symbols
+            char in ' \t\n\r'
+        ):
+            return True
+    return False
+
+
 def translate_to_catalan(text: str, source_lang: str = "auto") -> str:
     """Tradueix text al català utilitzant Google Translate (deep-translator)."""
     if not text or not text.strip():
@@ -538,6 +564,20 @@ class TMDBClient:
         result["tmdb_id"] = movie.get("id")
         result["title"] = movie.get("title")
         result["original_title"] = movie.get("original_title")
+        result["title_english"] = None  # Es pot omplir més avall
+
+        # Si el títol conté caràcters no-llatins (japonès, coreà, xinès, rus, etc.),
+        # obtenir el títol anglès com a alternativa cercable
+        if contains_non_latin_characters(result["title"]):
+            english_data = await self._request(f"/movie/{movie['id']}", {"language": "en-US"})
+            if english_data and english_data.get("title"):
+                english_title = english_data["title"]
+                # Si el títol anglès és diferent i no conté caràcters no-llatins
+                if english_title != result["title"] and not contains_non_latin_characters(english_title):
+                    result["title_english"] = english_title
+                    # Usar el títol anglès com a títol principal per millor UX
+                    result["title"] = english_title
+
         result["overview"] = movie.get("overview")
         result["tagline"] = movie.get("tagline")
         result["rating"] = movie.get("vote_average")
@@ -629,6 +669,20 @@ class TMDBClient:
         result["tmdb_id"] = tv.get("id")
         result["title"] = tv.get("name")
         result["original_title"] = tv.get("original_name")
+        result["title_english"] = None  # Es pot omplir més avall
+
+        # Si el títol conté caràcters no-llatins (japonès, coreà, xinès, rus, etc.),
+        # obtenir el títol anglès com a alternativa cercable
+        if contains_non_latin_characters(result["title"]):
+            english_data = await self._request(f"/tv/{tv['id']}", {"language": "en-US"})
+            if english_data and english_data.get("name"):
+                english_title = english_data["name"]
+                # Si el títol anglès és diferent i no conté caràcters no-llatins
+                if english_title != result["title"] and not contains_non_latin_characters(english_title):
+                    result["title_english"] = english_title
+                    # Usar el títol anglès com a títol principal per millor UX
+                    result["title"] = english_title
+
         result["overview"] = tv.get("overview")
         result["tagline"] = tv.get("tagline")
         result["rating"] = tv.get("vote_average")
