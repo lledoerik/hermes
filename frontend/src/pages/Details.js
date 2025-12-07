@@ -8,7 +8,6 @@ import { API_URL, getBackdropUrl, getPosterUrl, formatDuration } from '../config
 import {
   StarIcon,
   PlayIcon,
-  PauseIcon,
   EditIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -112,8 +111,6 @@ function Details() {
   const [watchlistLoading, setWatchlistLoading] = useState(false);
 
   // Preloading state - per mostrar estat al botó de reproducció
-  // Inicialitzar a true perquè mostri "Preparant..." des del principi
-  const [streamPreloading, setStreamPreloading] = useState(true);
   const [streamReady, setStreamReady] = useState(false);
   const [earlyPreloadStarted, setEarlyPreloadStarted] = useState(false);
 
@@ -172,7 +169,6 @@ function Details() {
         if (result?.success) {
           console.log('[Details] Preload primerenc completat!');
           setStreamReady(true);
-          setStreamPreloading(false);
         }
       })
       .catch(err => {
@@ -660,7 +656,6 @@ function Details() {
       // Només precarregar si l'usuari és premium i tenim tmdb_id
       const tmdbIdToUse = isTmdbOnly ? realTmdbId : item?.tmdb_id;
       if (!isPremium || !tmdbIdToUse) {
-        setStreamPreloading(false);
         setStreamReady(true); // Permetre reproduir sense precàrrega
         return;
       }
@@ -668,14 +663,10 @@ function Details() {
       // Si ja està preparat (pel preload primerenc), no fer res
       if (streamReady) return;
 
-      // Reset estat quan canvia el contingut
-      setStreamPreloading(true);
-
       // Timeout de seguretat: si el preload triga massa, permetre reproducció igualment
       safetyTimeout = setTimeout(() => {
         console.log('[Details] Timeout de seguretat - permetent reproducció');
         setStreamReady(true);
-        setStreamPreloading(false);
       }, 15000);
 
       try {
@@ -702,7 +693,6 @@ function Details() {
         setStreamReady(true); // Permetre reproduir encara que falli
       } finally {
         clearTimeout(safetyTimeout);
-        setStreamPreloading(false);
       }
     };
 
