@@ -18,6 +18,50 @@ import './Details.css';
 
 axios.defaults.baseURL = API_URL;
 
+// Component LazyImage amb Intersection Observer i cache del navegador
+const LazyImage = ({ src, alt, onError, className }) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [isInView, setIsInView] = useState(false);
+  const imgRef = useRef(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+          observer.disconnect();
+        }
+      },
+      {
+        rootMargin: '100px', // Carrega 100px abans d'entrar al viewport
+        threshold: 0
+      }
+    );
+
+    if (imgRef.current) {
+      observer.observe(imgRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={imgRef} className={`lazy-image-container ${className || ''}`}>
+      {isInView ? (
+        <img
+          src={src}
+          alt={alt}
+          className={`lazy-image ${isLoaded ? 'loaded' : ''}`}
+          onLoad={() => setIsLoaded(true)}
+          onError={onError}
+        />
+      ) : (
+        <div className="lazy-image-placeholder" />
+      )}
+    </div>
+  );
+};
+
 function Details() {
   const { id } = useParams();
   const location = useLocation();
@@ -71,6 +115,7 @@ function Details() {
   // Inicialitzar a true perquè mostri "Preparant..." des del principi
   const [streamPreloading, setStreamPreloading] = useState(true);
   const [streamReady, setStreamReady] = useState(false);
+  const [earlyPreloadStarted, setEarlyPreloadStarted] = useState(false);
 
   // Guardar temporada seleccionada a localStorage quan canvia (després de la càrrega inicial)
   useEffect(() => {
@@ -84,6 +129,56 @@ function Details() {
       }
     }
   }, [selectedSeason, loading, seasons.length, id, type]);
+
+  // PRELOAD PRIMERENC: Començar a precarregar immediatament amb dades de localStorage
+  // Això permet carregar el stream en paral·lel amb les metadades dels episodis
+  useEffect(() => {
+    if (earlyPreloadStarted || type !== 'series' || !isPremium) return;
+
+    // Obtenir tmdb_id - pot ser de l'URL (tmdb-XXX) o de l'item carregat
+    const tmdbIdToUse = isTmdbOnly ? realTmdbId : null;
+    if (!tmdbIdToUse && !item?.tmdb_id) return; // Esperar a tenir tmdb_id
+
+    const effectiveTmdbId = tmdbIdToUse || item?.tmdb_id;
+
+    // Llegir temporada i episodi guardats de localStorage
+    const seasonKey = `hermes_selected_season_${id}`;
+    const episodeKey = `hermes_last_episode_${effectiveTmdbId}`;
+
+    const savedSeason = localStorage.getItem(seasonKey);
+    const savedEpisodeData = localStorage.getItem(episodeKey);
+
+    let seasonToPreload = savedSeason ? parseInt(savedSeason) : 1;
+    let episodeToPreload = 1;
+
+    if (savedEpisodeData) {
+      try {
+        const { season, episode } = JSON.parse(savedEpisodeData);
+        // Usar l'episodi guardat si és de la mateixa temporada
+        if (season === seasonToPreload) {
+          episodeToPreload = episode;
+        }
+      } catch (e) {
+        // JSON invàlid, usar valors per defecte
+      }
+    }
+
+    setEarlyPreloadStarted(true);
+    console.log(`[Details] PRELOAD PRIMERENC: S${seasonToPreload}E${episodeToPreload} (paral·lel amb metadades)`);
+
+    // Iniciar preload sense esperar - el useEffect principal actualitzarà si cal
+    preloadWithHighPriority('tv', effectiveTmdbId, seasonToPreload, episodeToPreload)
+      .then(result => {
+        if (result?.success) {
+          console.log('[Details] Preload primerenc completat!');
+          setStreamReady(true);
+          setStreamPreloading(false);
+        }
+      })
+      .catch(err => {
+        console.log('[Details] Preload primerenc fallat, esperant preload normal');
+      });
+  }, [type, isPremium, isTmdbOnly, realTmdbId, item?.tmdb_id, id, earlyPreloadStarted, preloadWithHighPriority]);
 
   const checkScrollButtons = useCallback(() => {
     const container = seasonsScrollRef.current;
@@ -447,6 +542,16 @@ function Details() {
     return { season: selectedSeason, episode: episodes[0]?.episode_number || 1, hasProgress: true };
   }, [type, episodes, selectedSeason]);
 
+  // Guardar últim episodi vist per al preload primerenc
+  const saveLastEpisode = useCallback((tmdbId, season, episode) => {
+    try {
+      const key = `hermes_last_episode_${tmdbId}`;
+      localStorage.setItem(key, JSON.stringify({ season, episode }));
+    } catch (e) {
+      // localStorage no disponible
+    }
+  }, []);
+
   const handlePlay = () => {
     if (type === 'movies') {
       if (item?.tmdb_id) {
@@ -454,6 +559,8 @@ function Details() {
       }
     } else {
       if (item?.tmdb_id && nextEpisode) {
+        // Guardar per al preload primerenc de la pròxima visita
+        saveLastEpisode(item.tmdb_id, nextEpisode.season, nextEpisode.episode);
         navigate(`/debrid/tv/${item.tmdb_id}?s=${nextEpisode.season}&e=${nextEpisode.episode}`);
       }
     }
@@ -525,6 +632,27 @@ function Details() {
   const nextEpisodeNum = nextEpisode?.episode;
 
   useEffect(() => {
+    // Si el preload primerenc ja ha completat i és per sèries, comprovar si cal re-preload
+    if (streamReady && type === 'series' && earlyPreloadStarted) {
+      // El preload primerenc ja va, verificar si l'episodi correcte és diferent
+      const tmdbIdToUse = isTmdbOnly ? realTmdbId : item?.tmdb_id;
+      if (tmdbIdToUse && nextSeason && nextEpisodeNum) {
+        const episodeKey = `hermes_last_episode_${tmdbIdToUse}`;
+        const savedEpisodeData = localStorage.getItem(episodeKey);
+        if (savedEpisodeData) {
+          try {
+            const { season, episode } = JSON.parse(savedEpisodeData);
+            // Si l'episodi que es vol reproduir és diferent del precarregat, re-preload
+            if (season !== nextSeason || episode !== nextEpisodeNum) {
+              console.log(`[Details] Episodi canviat: guardat S${season}E${episode} → real S${nextSeason}E${nextEpisodeNum}`);
+              preloadWithHighPriority('tv', tmdbIdToUse, nextSeason, nextEpisodeNum);
+            }
+          } catch (e) {}
+        }
+      }
+      return;
+    }
+
     // Timeout de seguretat: permetre reproducció després de 15s encara que no estigui preparat
     let safetyTimeout;
 
@@ -537,8 +665,10 @@ function Details() {
         return;
       }
 
+      // Si ja està preparat (pel preload primerenc), no fer res
+      if (streamReady) return;
+
       // Reset estat quan canvia el contingut
-      setStreamReady(false);
       setStreamPreloading(true);
 
       // Timeout de seguretat: si el preload triga massa, permetre reproducció igualment
@@ -581,7 +711,7 @@ function Details() {
     return () => {
       if (safetyTimeout) clearTimeout(safetyTimeout);
     };
-  }, [item?.tmdb_id, nextSeason, nextEpisodeNum, selectedSeason, type, isPremium, isTmdbOnly, realTmdbId, preloadWithHighPriority]);
+  }, [item?.tmdb_id, nextSeason, nextEpisodeNum, selectedSeason, type, isPremium, isTmdbOnly, realTmdbId, preloadWithHighPriority, streamReady, earlyPreloadStarted]);
 
   const handleUpdateByTmdbId = async () => {
     if (!tmdbId.trim()) {
@@ -1025,17 +1155,20 @@ function Details() {
                   style={{ cursor: isPremium && item?.tmdb_id ? 'pointer' : 'default' }}
                   onClick={() => {
                     if (isPremium && item?.tmdb_id) {
+                      // Guardar per al preload primerenc de la pròxima visita
+                      saveLastEpisode(item.tmdb_id, selectedSeason, episode.episode_number);
                       navigate(`/debrid/tv/${item.tmdb_id}?s=${selectedSeason}&e=${episode.episode_number}`);
                     }
                   }}
                 >
                   {episode.still_path ? (
-                    <img
+                    <LazyImage
                       src={episode.still_path}
                       alt={episode.name}
                       onError={(e) => {
                         e.target.style.display = 'none';
-                        if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+                        const fallback = e.target.parentElement?.parentElement?.querySelector('.episode-number');
+                        if (fallback) fallback.style.display = 'flex';
                       }}
                     />
                   ) : null}
