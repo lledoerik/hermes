@@ -919,6 +919,110 @@ async def delete_user(request: Request, user_id: int):
     return result
 
 
+@app.post("/api/admin/fix-non-latin-titles")
+async def fix_non_latin_titles(request: Request):
+    """
+    Actualitza tots els títols que contenen caràcters no-llatins (japonès, coreà, xinès, rus, etc.)
+    obtenint el títol anglès de TMDB.
+    """
+    from backend.metadata.tmdb import TMDBClient, contains_non_latin_characters
+
+    admin = require_auth(request)
+    if not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Accés només per administradors")
+
+    api_key = get_tmdb_api_key()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
+
+    updated = []
+    errors = []
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Trobar totes les sèries amb títols que contenen caràcters no-llatins
+        cursor.execute("""
+            SELECT id, name, title, tmdb_id, media_type
+            FROM series
+            WHERE tmdb_id IS NOT NULL
+        """)
+
+        series_to_update = []
+        for row in cursor.fetchall():
+            name = row["name"] or ""
+            title = row["title"] or ""
+            # Comprovar si el nom o títol conté caràcters no-llatins
+            if contains_non_latin_characters(name) or contains_non_latin_characters(title):
+                series_to_update.append(dict(row))
+
+        logger.info(f"Trobades {len(series_to_update)} sèries amb títols no-llatins per actualitzar")
+
+        # Actualitzar cada sèrie
+        client = TMDBClient(api_key)
+        try:
+            for item in series_to_update:
+                try:
+                    tmdb_id = item["tmdb_id"]
+                    media_type = item["media_type"]
+
+                    # Obtenir dades en anglès
+                    if media_type == "movie":
+                        data = await client._request(f"/movie/{tmdb_id}", {"language": "en-US"})
+                        english_title = data.get("title") if data else None
+                    else:
+                        data = await client._request(f"/tv/{tmdb_id}", {"language": "en-US"})
+                        english_title = data.get("name") if data else None
+
+                    if english_title and not contains_non_latin_characters(english_title):
+                        # Actualitzar a la base de dades
+                        cursor.execute("""
+                            UPDATE series
+                            SET name = ?, title = ?, title_english = ?, original_title = COALESCE(original_title, ?)
+                            WHERE id = ?
+                        """, (
+                            english_title,
+                            english_title,
+                            english_title,
+                            item["name"],  # Guardar l'original si no existia
+                            item["id"]
+                        ))
+                        conn.commit()
+
+                        updated.append({
+                            "id": item["id"],
+                            "old_title": item["name"],
+                            "new_title": english_title
+                        })
+                        logger.info(f"Títol actualitzat: {item['name']} -> {english_title}")
+                    else:
+                        errors.append({
+                            "id": item["id"],
+                            "title": item["name"],
+                            "error": "No s'ha pogut obtenir títol anglès"
+                        })
+
+                except Exception as e:
+                    errors.append({
+                        "id": item["id"],
+                        "title": item["name"],
+                        "error": str(e)
+                    })
+                    logger.warning(f"Error actualitzant {item['name']}: {e}")
+
+        finally:
+            await client.close()
+
+    return {
+        "status": "success",
+        "total_found": len(series_to_update),
+        "updated": len(updated),
+        "errors": len(errors),
+        "updated_items": updated,
+        "error_items": errors[:10]  # Limitar errors a 10 per no saturar
+    }
+
+
 @app.get("/api/user/continue-watching")
 async def get_continue_watching(request: Request):
     """Retorna el contingut que l'usuari està veient (per continuar)"""

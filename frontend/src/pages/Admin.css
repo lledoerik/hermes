@@ -891,6 +891,30 @@
   background: rgba(50, 132, 146, 0.08);
 }
 
+/* Maintenance Section */
+.maintenance-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  gap: 20px;
+}
+
+.maintenance-info h4 {
+  margin: 0 0 5px 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.maintenance-info p {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .admin-container {
