@@ -10,6 +10,7 @@ import re
 import sqlite3
 import logging
 import asyncio
+import unicodedata
 from pathlib import Path
 from typing import Optional, List, Dict
 from contextlib import contextmanager, asynccontextmanager
@@ -119,6 +120,32 @@ app.add_middleware(
 )
 
 # === DATABASE ===
+
+def normalize_for_sort(text: str) -> str:
+    """
+    Normalitza text per ordenar: elimina accents i converteix a minúscules.
+    Així 'Érase' s'ordena com 'erase' (a la E, no al final).
+    """
+    if not text:
+        return ""
+    # Descompon accents (é → e + ́) i elimina marques diacrítiques
+    normalized = unicodedata.normalize('NFD', text)
+    # Elimina caràcters de combinació (accents)
+    without_accents = ''.join(c for c in normalized if unicodedata.category(c) != 'Mn')
+    return without_accents.lower()
+
+
+def collate_noaccent(str1: str, str2: str) -> int:
+    """Col·lació personalitzada per SQLite que ignora accents."""
+    s1 = normalize_for_sort(str1 or "")
+    s2 = normalize_for_sort(str2 or "")
+    if s1 < s2:
+        return -1
+    elif s1 > s2:
+        return 1
+    return 0
+
+
 @contextmanager
 def get_db():
     """Context manager per connexions a la BD"""
@@ -128,6 +155,8 @@ def get_db():
         isolation_level=None
     )
     conn.row_factory = sqlite3.Row
+    # Registrar col·lació personalitzada per ordenar sense accents
+    conn.create_collation("NOACCENT", collate_noaccent)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=5000")
     try:
@@ -1362,7 +1391,7 @@ async def precache_episodes(request: Request):
 
         # Obtenir totes les sèries amb tmdb_id
         cursor.execute("""
-            SELECT id, name, tmdb_id, anilist_id, content_type
+            SELECT id, name, tmdb_id, anilist_id, content_type, tmdb_seasons
             FROM series
             WHERE tmdb_id IS NOT NULL AND media_type = 'series'
         """)
@@ -1371,14 +1400,20 @@ async def precache_episodes(request: Request):
 
     metadata_service = MetadataService()
 
+    logger.info(f"Pre-cache: {len(series_list)} sèries a processar")
+
     for series in series_list:
         try:
             tmdb_id = series["tmdb_id"]
             anilist_id = series.get("anilist_id")
             content_type = series.get("content_type")
 
-            # Obtenir número de temporades (assumim màxim 10 si no ho sabem)
-            for season_num in range(1, 11):
+            # Obtenir número de temporades des de la BD o TMDB
+            tmdb_seasons = series.get("tmdb_seasons") or 10  # màxim 10 si no ho sabem
+            max_seasons = min(tmdb_seasons, 20)  # límit raonable
+
+            series_cached = 0
+            for season_num in range(1, max_seasons + 1):
                 try:
                     data = await metadata_service.get_episodes_metadata(
                         tmdb_id=tmdb_id,
@@ -1392,16 +1427,25 @@ async def precache_episodes(request: Request):
                             "season": season_num,
                             "episodes": len(data["episodes"])
                         })
+                        series_cached += 1
                     else:
-                        break  # No hi ha més temporades
-                except Exception:
-                    break  # Temporada no existeix
+                        # Continuar amb la següent temporada (algunes sèries salten temporades)
+                        if season_num > 3 and series_cached == 0:
+                            break  # Si després de 3 intents no hi ha res, parar
+                except Exception as e:
+                    logger.debug(f"Pre-cache error {series['name']} S{season_num}: {e}")
+                    if season_num > 3 and series_cached == 0:
+                        break
+
+            if series_cached > 0:
+                logger.debug(f"Pre-cache: {series['name']} - {series_cached} temporades")
 
         except Exception as e:
             errors.append({
                 "series": series["name"],
                 "error": str(e)
             })
+            logger.warning(f"Pre-cache error {series.get('name', 'unknown')}: {e}")
 
     return {
         "status": "success",
@@ -2016,18 +2060,18 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
         # Sorting basat en categoria o sort_by
         if category == "popular":
             # Populars: ordenar per rating DESC (les millor valorades amb mínim vots)
-            query += " ORDER BY COALESCE(s.rating, 0) DESC, s.name"
+            query += " ORDER BY COALESCE(s.rating, 0) DESC, s.name COLLATE NOACCENT"
         elif category in ["on_the_air", "airing_today"]:
             # En emissió / Avui: ordenar per popularitat
-            query += " ORDER BY COALESCE(s.popularity, 0) DESC, s.name"
+            query += " ORDER BY COALESCE(s.popularity, 0) DESC, s.name COLLATE NOACCENT"
         elif sort_by == "year":
-            query += " ORDER BY s.year DESC, s.name"
+            query += " ORDER BY s.year DESC, s.name COLLATE NOACCENT"
         elif sort_by == "episodes":
-            query += " ORDER BY episode_count DESC, s.name"
+            query += " ORDER BY episode_count DESC, s.name COLLATE NOACCENT"
         elif sort_by == "seasons":
-            query += " ORDER BY season_count DESC, s.name"
+            query += " ORDER BY season_count DESC, s.name COLLATE NOACCENT"
         else:
-            query += " ORDER BY s.name"
+            query += " ORDER BY s.name COLLATE NOACCENT"
 
         # Pagination
         offset = (page - 1) * limit
@@ -2048,11 +2092,21 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
             final_seasons = local_seasons if local_seasons > 0 else (tmdb_seasons or 0)
             final_episodes = local_episodes if local_episodes > 0 else (tmdb_episodes or 0)
 
-            # Preferir títol en llatí (title_english > name si name és no-llatí)
+            # Preferir títol en llatí (title_english > title_romaji > name)
             display_name = row["name"]
             title_english = row["title_english"] if "title_english" in row.keys() else None
-            if title_english and contains_non_latin_characters(display_name or ""):
-                display_name = title_english
+            title_romaji = row["title_romaji"] if "title_romaji" in row.keys() else None
+
+            # Si el nom principal té caràcters no-llatins, buscar alternativa
+            if contains_non_latin_characters(display_name or ""):
+                if title_english and not contains_non_latin_characters(title_english):
+                    display_name = title_english
+                elif title_romaji and not contains_non_latin_characters(title_romaji):
+                    display_name = title_romaji
+
+            # Si estem cercant i no tenim títol llatí, saltar aquest item
+            if search and contains_non_latin_characters(display_name or ""):
+                continue
 
             series.append({
                 "id": row["id"],
@@ -2158,19 +2212,19 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
         # Sorting basat en categoria o sort_by
         if category == "popular":
             # Populars: ordenar per rating DESC (les millor valorades amb mínim vots)
-            query += " ORDER BY COALESCE(s.rating, 0) DESC, s.name"
+            query += " ORDER BY COALESCE(s.rating, 0) DESC, s.name COLLATE NOACCENT"
         elif category == "now_playing":
             # Cartellera: ordenar per popularitat
-            query += " ORDER BY COALESCE(s.popularity, 0) DESC, s.name"
+            query += " ORDER BY COALESCE(s.popularity, 0) DESC, s.name COLLATE NOACCENT"
         elif category == "upcoming":
             # Pròximament: ordenar per data d'estrena ASC (properes primer)
-            query += " ORDER BY s.release_date ASC, s.name"
+            query += " ORDER BY s.release_date ASC, s.name COLLATE NOACCENT"
         elif sort_by == "year":
-            query += " ORDER BY s.year DESC, s.name"
+            query += " ORDER BY s.year DESC, s.name COLLATE NOACCENT"
         elif sort_by == "duration":
-            query += " ORDER BY m.duration DESC, s.name"
+            query += " ORDER BY m.duration DESC, s.name COLLATE NOACCENT"
         else:
-            query += " ORDER BY s.name"
+            query += " ORDER BY s.name COLLATE NOACCENT"
 
         # Pagination
         offset = (page - 1) * limit
@@ -2181,11 +2235,21 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
 
         movies = []
         for row in cursor.fetchall():
-            # Preferir títol en llatí (title_english > name si name és no-llatí)
+            # Preferir títol en llatí (title_english > title_romaji > name)
             display_name = row["name"]
             title_english = row["title_english"] if "title_english" in row.keys() else None
-            if title_english and contains_non_latin_characters(display_name or ""):
-                display_name = title_english
+            title_romaji = row["title_romaji"] if "title_romaji" in row.keys() else None
+
+            # Si el nom principal té caràcters no-llatins, buscar alternativa
+            if contains_non_latin_characters(display_name or ""):
+                if title_english and not contains_non_latin_characters(title_english):
+                    display_name = title_english
+                elif title_romaji and not contains_non_latin_characters(title_romaji):
+                    display_name = title_romaji
+
+            # Si estem cercant i no tenim títol llatí, saltar aquest item
+            if search and contains_non_latin_characters(display_name or ""):
+                continue
 
             movies.append({
                 "id": row["id"],
@@ -5281,7 +5345,7 @@ async def get_authors():
             FROM authors a
             LEFT JOIN books b ON a.id = b.author_id
             GROUP BY a.id
-            ORDER BY a.name
+            ORDER BY a.name COLLATE NOACCENT
         """)
         authors = [dict(row) for row in cursor.fetchall()]
         return authors
@@ -5557,7 +5621,7 @@ async def get_audiobook_authors():
             FROM audiobook_authors a
             LEFT JOIN audiobooks ab ON a.id = ab.author_id
             GROUP BY a.id
-            ORDER BY a.name
+            ORDER BY a.name COLLATE NOACCENT
         """)
         authors = [dict(row) for row in cursor.fetchall()]
         return authors
@@ -9809,10 +9873,270 @@ async def sync_books_from_openlibrary(max_items: int = 500):
         return imported_count
 
 
+async def fix_non_latin_titles_background() -> int:
+    """
+    Versió background (sense streaming) per corregir títols no-llatins.
+    S'utilitza en la sincronització diària automatitzada.
+    Retorna el nombre de títols corregits.
+    """
+    from backend.metadata.tmdb import TMDBClient, contains_non_latin_characters
+    from backend.metadata.anilist import AniListClient
+
+    api_key = get_tmdb_api_key()
+    if not api_key:
+        logger.warning("fix_non_latin_titles_background: No hi ha clau TMDB configurada")
+        return 0
+
+    updated_count = 0
+    error_count = 0
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Assegurar que les columnes necessàries existeixen
+        for column, col_type in [
+            ("title_english", "TEXT"),
+            ("title_romaji", "TEXT"),
+            ("title_native", "TEXT"),
+            ("anilist_id", "INTEGER"),
+            ("mal_id", "INTEGER"),
+            ("original_title", "TEXT")
+        ]:
+            try:
+                cursor.execute(f"ALTER TABLE series ADD COLUMN {column} {col_type}")
+                conn.commit()
+            except Exception:
+                pass
+
+        # Trobar contingut que necessita actualització
+        cursor.execute("""
+            SELECT id, name, title, title_english, tmdb_id, media_type, content_type, genres, origin_country, original_language
+            FROM series
+            WHERE tmdb_id IS NOT NULL
+        """)
+
+        series_to_update = []
+        for row in cursor.fetchall():
+            name = row["name"] or ""
+            title = row["title"] or ""
+            title_english = row["title_english"] or ""
+            needs_update = (
+                contains_non_latin_characters(name) or
+                contains_non_latin_characters(title) or
+                not title_english
+            )
+            if needs_update:
+                series_to_update.append(dict(row))
+
+        total = len(series_to_update)
+        if total == 0:
+            logger.info("fix_non_latin_titles_background: No hi ha títols per actualitzar")
+            return 0
+
+        logger.info(f"fix_non_latin_titles_background: {total} títols per processar")
+
+        tmdb_client = TMDBClient(api_key)
+        anilist_client = AniListClient()
+
+        try:
+            for idx, item in enumerate(series_to_update):
+                try:
+                    tmdb_id = item["tmdb_id"]
+                    media_type = item["media_type"]
+                    best_title = None
+                    has_non_latin = contains_non_latin_characters(item["name"] or "") or contains_non_latin_characters(item["title"] or "")
+
+                    # Detectar si és anime
+                    is_anime = False
+                    content_type = item.get("content_type", "")
+                    genres_str = item.get("genres", "") or ""
+                    origin_country = item.get("origin_country", "") or ""
+                    original_language = item.get("original_language", "") or ""
+
+                    if content_type == "anime":
+                        is_anime = True
+                    elif "Animation" in genres_str or "Animació" in genres_str:
+                        if original_language == "ja" or "JP" in origin_country:
+                            is_anime = True
+
+                    # Provar idiomes en ordre de preferència: Català → Anglès
+                    languages_to_try = [
+                        ("ca-ES", "TMDB (català)"),
+                        ("en-US", "TMDB (anglès)")
+                    ]
+
+                    # Determinar endpoints a provar
+                    if media_type == "movie":
+                        endpoints = [("/movie/", "title"), ("/tv/", "name")]
+                    else:
+                        endpoints = [("/tv/", "name"), ("/movie/", "title")]
+
+                    # Intentar per ID directe primer
+                    for lang_code, lang_source in languages_to_try:
+                        for endpoint, title_key in endpoints:
+                            data = await tmdb_client._request(f"{endpoint}{tmdb_id}", {"language": lang_code})
+                            if data:
+                                tmdb_title = data.get(title_key)
+                                if tmdb_title and not contains_non_latin_characters(tmdb_title):
+                                    best_title = tmdb_title
+                                    break
+                        if best_title:
+                            break
+
+                    # Fallback: cercar per nom si l'ID no funciona
+                    if not best_title:
+                        search_name = item["name"] or item["title"]
+                        if search_name:
+                            for lang_code, lang_source in languages_to_try:
+                                # Cercar com a TV
+                                data = await tmdb_client._request("/search/tv", {"query": search_name, "language": lang_code})
+                                if data and data.get("results"):
+                                    first_result = data["results"][0]
+                                    tmdb_title = first_result.get("name")
+                                    if tmdb_title and not contains_non_latin_characters(tmdb_title):
+                                        best_title = tmdb_title
+                                        new_tmdb_id = first_result.get("id")
+                                        if new_tmdb_id:
+                                            cursor.execute("UPDATE series SET tmdb_id = ? WHERE id = ?", (new_tmdb_id, item["id"]))
+                                        break
+
+                                # Cercar com a movie
+                                if not best_title:
+                                    data = await tmdb_client._request("/search/movie", {"query": search_name, "language": lang_code})
+                                    if data and data.get("results"):
+                                        first_result = data["results"][0]
+                                        tmdb_title = first_result.get("title")
+                                        if tmdb_title and not contains_non_latin_characters(tmdb_title):
+                                            best_title = tmdb_title
+                                            new_tmdb_id = first_result.get("id")
+                                            if new_tmdb_id:
+                                                cursor.execute("UPDATE series SET tmdb_id = ? WHERE id = ?", (new_tmdb_id, item["id"]))
+                                            break
+
+                                if best_title:
+                                    break
+
+                    # Per anime, també obtenir AniList IDs
+                    if is_anime and media_type == "series":
+                        try:
+                            search_title = best_title if best_title else item["name"]
+                            anilist_result = await anilist_client.search_anime(search_title)
+                            if anilist_result and anilist_result.get("anilist_id"):
+                                cursor.execute("""
+                                    UPDATE series SET anilist_id = ?, mal_id = ?, content_type = 'anime'
+                                    WHERE id = ?
+                                """, (
+                                    anilist_result.get("anilist_id"),
+                                    anilist_result.get("mal_id"),
+                                    item["id"]
+                                ))
+                        except Exception as e:
+                            logger.debug(f"Error consultant AniList per {item['name']}: {e}")
+
+                    if best_title and not contains_non_latin_characters(best_title):
+                        if has_non_latin:
+                            cursor.execute("""
+                                UPDATE series
+                                SET name = ?, title = ?, title_english = ?, original_title = COALESCE(original_title, ?)
+                                WHERE id = ?
+                            """, (best_title, best_title, best_title, item["name"], item["id"]))
+                        else:
+                            cursor.execute("""
+                                UPDATE series SET title_english = ? WHERE id = ?
+                            """, (best_title, item["id"]))
+
+                        conn.commit()
+                        updated_count += 1
+                    else:
+                        error_count += 1
+
+                except Exception as e:
+                    error_count += 1
+                    logger.debug(f"Error processant títol {item.get('name', 'desconegut')}: {e}")
+
+                # Log progrés cada 50 ítems
+                if (idx + 1) % 50 == 0:
+                    logger.info(f"fix_non_latin_titles_background: {idx + 1}/{total} processats ({updated_count} actualitzats)")
+
+        finally:
+            await tmdb_client.close()
+
+    logger.info(f"fix_non_latin_titles_background: Completat - {updated_count} actualitzats, {error_count} errors de {total} total")
+    return updated_count
+
+
+async def precache_episodes_background() -> int:
+    """
+    Pre-cacheja metadades d'episodis en background (per la sincronització diària).
+    Retorna el nombre de temporades cachejades.
+    """
+    from backend.metadata.service import MetadataService
+
+    cached_count = 0
+    error_count = 0
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Obtenir sèries amb tmdb_id
+        cursor.execute("""
+            SELECT id, name, tmdb_id, anilist_id, content_type, tmdb_seasons
+            FROM series
+            WHERE tmdb_id IS NOT NULL AND media_type = 'series'
+        """)
+        series_list = [dict(row) for row in cursor.fetchall()]
+
+    if not series_list:
+        logger.info("precache_episodes_background: No hi ha sèries per processar")
+        return 0
+
+    logger.info(f"precache_episodes_background: {len(series_list)} sèries a processar")
+
+    metadata_service = MetadataService()
+
+    for idx, series in enumerate(series_list):
+        try:
+            tmdb_id = series["tmdb_id"]
+            anilist_id = series.get("anilist_id")
+            content_type = series.get("content_type")
+            tmdb_seasons = series.get("tmdb_seasons") or 5  # Default 5 temporades
+            max_seasons = min(tmdb_seasons, 15)  # Límit raonable
+
+            series_cached = 0
+            for season_num in range(1, max_seasons + 1):
+                try:
+                    data = await metadata_service.get_episodes_metadata(
+                        tmdb_id=tmdb_id,
+                        season_number=season_num,
+                        anilist_id=anilist_id,
+                        content_type=content_type
+                    )
+                    if data and data.get("episodes"):
+                        series_cached += 1
+                        cached_count += 1
+                    elif season_num > 2 and series_cached == 0:
+                        break  # Si les primeres temporades no existeixen, parar
+
+                except Exception:
+                    if season_num > 2 and series_cached == 0:
+                        break
+
+        except Exception as e:
+            error_count += 1
+            logger.debug(f"precache error {series.get('name', 'unknown')}: {e}")
+
+        # Log progrés cada 20 sèries
+        if (idx + 1) % 20 == 0:
+            logger.info(f"precache_episodes_background: {idx + 1}/{len(series_list)} sèries ({cached_count} temporades)")
+
+    logger.info(f"precache_episodes_background: Completat - {cached_count} temporades cachejades, {error_count} errors")
+    return cached_count
+
+
 async def daily_sync_job():
     """
     Tasca de sincronització diària que s'executa a les 2:30 AM.
-    Sincronitza tot el contingut de TMDB i llibres.
+    Sincronitza tot el contingut de TMDB, llibres i corregeix títols no-llatins.
     """
     logger.info("=== INICI SINCRONITZACIÓ DIÀRIA ===")
     start_time = datetime.now()
@@ -9834,8 +10158,16 @@ async def daily_sync_job():
         books_count = await sync_books_from_openlibrary(max_items=500)
         total_imported += books_count
 
+        # Corregir títols no-llatins (japonès, xinès, coreà, etc.) → Català/Anglès
+        titles_fixed = await fix_non_latin_titles_background()
+        logger.info(f"Títols corregits: {titles_fixed}")
+
+        # Pre-cachejar metadades d'episodis per càrrega ràpida
+        seasons_cached = await precache_episodes_background()
+        logger.info(f"Temporades cachejades: {seasons_cached}")
+
         elapsed = (datetime.now() - start_time).total_seconds()
-        logger.info(f"=== FI SINCRONITZACIÓ DIÀRIA: {total_imported} items en {elapsed:.1f}s ===")
+        logger.info(f"=== FI SINCRONITZACIÓ DIÀRIA: {total_imported} items, {titles_fixed} títols corregits, {seasons_cached} temporades cachejades en {elapsed:.1f}s ===")
 
         # Guardar última sincronització
         with get_db() as conn:
