@@ -128,7 +128,7 @@ const ScrollableContainer = ({ children, className = '' }) => {
 axios.defaults.baseURL = API_URL;
 
 // Component per mostrar imatge amb fallback a placeholder i lazy loading
-const PosterImage = ({ src, alt, type }) => {
+const PosterImage = React.memo(({ src, alt, type }) => {
   const [hasError, setHasError] = useState(false);
 
   if (!src || hasError) {
@@ -146,10 +146,10 @@ const PosterImage = ({ src, alt, type }) => {
       onError={() => setHasError(true)}
     />
   );
-};
+});
 
 // Component per mostrar thumbnail de "Continuar veient" amb càrrega dinàmica de TMDB
-const ContinueThumbnail = ({ item, imageUrl, type }) => {
+const ContinueThumbnail = React.memo(({ item, imageUrl, type }) => {
   const [dynamicUrl, setDynamicUrl] = useState(imageUrl);
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(!imageUrl && item.tmdb_id);
@@ -233,7 +233,9 @@ const ContinueThumbnail = ({ item, imageUrl, type }) => {
     } else {
       setIsLoading(false);
     }
-  }, [item.tmdb_id, item.season_number, item.episode_number, imageUrl, type, item.progress_percentage, item.series_name, item.title, item.poster, item.backdrop]);
+  // Només re-executar quan canviïn les dades necessàries per obtenir la imatge
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.tmdb_id, item.season_number, item.episode_number, imageUrl, type]);
 
   if (isLoading) {
     return (
@@ -258,7 +260,7 @@ const ContinueThumbnail = ({ item, imageUrl, type }) => {
       onError={() => setHasError(true)}
     />
   );
-};
+});
 
 function Home() {
   const { isAuthenticated, user, isPremium } = useAuth();
