@@ -42,8 +42,6 @@ function Details() {
 
   // Handler per canviar de temporada
   const handleSeasonSelect = useCallback((seasonNum) => {
-    // Evitar canvi de temporada si s'estava arrossegant
-    if (hasDragged.current) return;
     setSelectedSeason(seasonNum);
   }, []);
 
@@ -71,9 +69,9 @@ function Details() {
 
   // Drag-to-scroll per temporades
   const [isDragging, setIsDragging] = useState(false);
+  const isMouseDown = useRef(false);
   const dragStartX = useRef(0);
   const dragScrollLeft = useRef(0);
-  const hasDragged = useRef(false);
 
   // Watchlist state
   const [isInWatchlist, setIsInWatchlist] = useState(false);
@@ -170,37 +168,38 @@ function Details() {
   const handleDragStart = useCallback((e) => {
     const container = seasonsScrollRef.current;
     if (!container) return;
-    setIsDragging(true);
-    hasDragged.current = false;
+    isMouseDown.current = true;
     dragStartX.current = e.pageX - container.offsetLeft;
     dragScrollLeft.current = container.scrollLeft;
-    container.style.scrollBehavior = 'auto';
   }, []);
 
   const handleDragEnd = useCallback(() => {
+    isMouseDown.current = false;
     setIsDragging(false);
     const container = seasonsScrollRef.current;
     if (container) {
       container.style.scrollBehavior = 'smooth';
     }
-    // Reset hasDragged after a short delay to allow click events to check it
-    setTimeout(() => {
-      hasDragged.current = false;
-    }, 50);
   }, []);
 
   const handleDragMove = useCallback((e) => {
-    if (!isDragging) return;
-    e.preventDefault();
+    if (!isMouseDown.current) return;
     const container = seasonsScrollRef.current;
     if (!container) return;
+
     const x = e.pageX - container.offsetLeft;
-    const walk = (x - dragStartX.current) * 1.5; // Multiplicador per scroll més ràpid
-    // Només marcar com a "dragged" si hi ha moviment significatiu
-    if (Math.abs(walk) > 5) {
-      hasDragged.current = true;
+    const walk = (x - dragStartX.current) * 1.5;
+
+    // Només activar dragging si hi ha moviment significatiu (>5px)
+    if (!isDragging && Math.abs(walk) > 5) {
+      setIsDragging(true);
+      container.style.scrollBehavior = 'auto';
     }
-    container.scrollLeft = dragScrollLeft.current - walk;
+
+    if (isDragging) {
+      e.preventDefault();
+      container.scrollLeft = dragScrollLeft.current - walk;
+    }
   }, [isDragging]);
 
   useEffect(() => {
