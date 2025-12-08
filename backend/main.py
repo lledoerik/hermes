@@ -1405,8 +1405,8 @@ async def precache_episodes(request: Request):
     for series in series_list:
         try:
             tmdb_id = series["tmdb_id"]
-            anilist_id = series.get("anilist_id")
-            content_type = series.get("content_type")
+            # NO usar AniList per evitar rate limiting (429 errors)
+            # Només necessitem dades de TMDB per episodis
 
             # Obtenir número de temporades des de la BD o TMDB
             tmdb_seasons = series.get("tmdb_seasons") or 10  # màxim 10 si no ho sabem
@@ -1418,8 +1418,8 @@ async def precache_episodes(request: Request):
                     data = await metadata_service.get_episodes_metadata(
                         tmdb_id=tmdb_id,
                         season_number=season_num,
-                        anilist_id=anilist_id,
-                        content_type=content_type
+                        anilist_id=None,  # Evitar AniList rate limiting
+                        content_type=None
                     )
                     if data and data.get("episodes"):
                         cached.append({
@@ -1436,6 +1436,9 @@ async def precache_episodes(request: Request):
                     logger.debug(f"Pre-cache error {series['name']} S{season_num}: {e}")
                     if season_num > 3 and series_cached == 0:
                         break
+
+            # Petita pausa per no sobrecarregar TMDB
+            await asyncio.sleep(0.1)
 
             if series_cached > 0:
                 logger.debug(f"Pre-cache: {series['name']} - {series_cached} temporades")
@@ -10097,19 +10100,20 @@ async def precache_episodes_background() -> int:
     for idx, series in enumerate(series_list):
         try:
             tmdb_id = series["tmdb_id"]
-            anilist_id = series.get("anilist_id")
-            content_type = series.get("content_type")
+            # NO passar anilist_id per evitar rate limiting d'AniList durant precache
+            # Només necessitem dades de TMDB per episodis
             tmdb_seasons = series.get("tmdb_seasons") or 5  # Default 5 temporades
             max_seasons = min(tmdb_seasons, 15)  # Límit raonable
 
             series_cached = 0
             for season_num in range(1, max_seasons + 1):
                 try:
+                    # Passar anilist_id=None per forçar només TMDB
                     data = await metadata_service.get_episodes_metadata(
                         tmdb_id=tmdb_id,
                         season_number=season_num,
-                        anilist_id=anilist_id,
-                        content_type=content_type
+                        anilist_id=None,  # Evitar AniList rate limiting
+                        content_type=None
                     )
                     if data and data.get("episodes"):
                         series_cached += 1
@@ -10117,9 +10121,13 @@ async def precache_episodes_background() -> int:
                     elif season_num > 2 and series_cached == 0:
                         break  # Si les primeres temporades no existeixen, parar
 
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"precache S{season_num} error: {e}")
                     if season_num > 2 and series_cached == 0:
                         break
+
+            # Petita pausa per no sobrecarregar TMDB (0.1s entre sèries)
+            await asyncio.sleep(0.1)
 
         except Exception as e:
             error_count += 1
