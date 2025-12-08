@@ -109,6 +109,20 @@ const EpisodesIcon = () => (
   </svg>
 );
 
+// Subtitles icon
+const SubtitlesIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10h2v2H6v-2zm0 4h8v2H6v-2zm10 0h2v2h-2v-2zm-6-4h8v2h-8v-2z"/>
+  </svg>
+);
+
+// Subtitles off icon
+const SubtitlesOffIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M20 4H6.83l2 2H20v11.17l1.76 1.76c.15-.28.24-.59.24-.93V6c0-1.1-.9-2-2-2zm0 14H4V6h.17L2.1 3.93 3.51 2.52 21.49 20.49l-1.42 1.42L18.17 20H4c-1.1 0-2-.9-2-2V6c0-.33.09-.64.24-.93L.41 3.24 1.82 1.83l19.59 19.59L20 20zm-10-6h2v2h-2v-2zm6 0h2v2h-2v-2z"/>
+  </svg>
+);
+
 // Format time (seconds to MM:SS or HH:MM:SS)
 const formatTime = (seconds) => {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -252,6 +266,7 @@ function DebridPlayer() {
   const directBadge = searchParams.get('directBadge');
   const directQuality = searchParams.get('directQuality');
   const directSubtitle = searchParams.get('directSubtitle');
+  const directSubtitleUrl = searchParams.get('directSubtitleUrl');
   const isDirectMode = !!directUrl;
 
   // Media info
@@ -299,6 +314,9 @@ function DebridPlayer() {
   const [audioTracks, setAudioTracks] = useState([]);
   const [currentAudioTrack, setCurrentAudioTrack] = useState(0);
   const [showAudioMenu, setShowAudioMenu] = useState(false);
+
+  // Subtitle state (for direct mode streams like BBC)
+  const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
 
   // Episode navigation state
   const [showEpisodesList, setShowEpisodesList] = useState(false);
@@ -996,6 +1014,18 @@ function DebridPlayer() {
     }
   }, []);
 
+  // Toggle subtitles
+  const toggleSubtitles = useCallback(() => {
+    if (!videoRef.current) return;
+    const newEnabled = !subtitlesEnabled;
+    setSubtitlesEnabled(newEnabled);
+    // Update track mode
+    const tracks = videoRef.current.textTracks;
+    if (tracks.length > 0) {
+      tracks[0].mode = newEnabled ? 'showing' : 'hidden';
+    }
+  }, [subtitlesEnabled]);
+
   const skipBack = useCallback(() => seek(currentTime - 10), [currentTime, seek]);
   const skipForward = useCallback(() => seek(currentTime + 10), [currentTime, seek]);
 
@@ -1493,7 +1523,19 @@ function DebridPlayer() {
           onEnded={handleEnded}
           autoPlay
           playsInline
-        />
+          crossOrigin="anonymous"
+        >
+          {/* Subtitle track for direct mode (BBC iPlayer, etc.) */}
+          {directSubtitleUrl && (
+            <track
+              kind="subtitles"
+              src={directSubtitleUrl}
+              srcLang="en"
+              label="English"
+              default={subtitlesEnabled}
+            />
+          )}
+        </video>
       )}
 
       {/* Loading overlay */}
@@ -1705,6 +1747,17 @@ function DebridPlayer() {
                   title="Llista d'episodis"
                 >
                   <EpisodesIcon />
+                </button>
+              )}
+
+              {/* Subtitles button (only show when subtitles are available) */}
+              {directSubtitleUrl && (
+                <button
+                  className={`control-btn ${subtitlesEnabled ? 'active' : ''}`}
+                  onClick={(e) => { e.stopPropagation(); toggleSubtitles(); }}
+                  title={subtitlesEnabled ? 'Desactivar subtítols' : 'Activar subtítols'}
+                >
+                  {subtitlesEnabled ? <SubtitlesIcon /> : <SubtitlesOffIcon />}
                 </button>
               )}
 
