@@ -317,6 +317,8 @@ function DebridPlayer() {
 
   // Subtitle state (for direct mode streams like BBC)
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
+  const [hlsSubtitleTracks, setHlsSubtitleTracks] = useState([]);
+  const [currentHlsSubtitleTrack, setCurrentHlsSubtitleTrack] = useState(-1);
 
   // Episode navigation state
   const [showEpisodesList, setShowEpisodesList] = useState(false);
@@ -1014,17 +1016,33 @@ function DebridPlayer() {
     }
   }, []);
 
-  // Toggle subtitles
+  // Toggle subtitles (supports both HLS tracks and HTML5 track element)
   const toggleSubtitles = useCallback(() => {
-    if (!videoRef.current) return;
     const newEnabled = !subtitlesEnabled;
     setSubtitlesEnabled(newEnabled);
-    // Update track mode
-    const tracks = videoRef.current.textTracks;
-    if (tracks.length > 0) {
-      tracks[0].mode = newEnabled ? 'showing' : 'hidden';
+
+    // Handle HLS.js subtitle tracks
+    if (hlsRef.current && hlsSubtitleTracks.length > 0) {
+      if (newEnabled) {
+        // Enable first subtitle track (or previously selected one)
+        const trackToEnable = currentHlsSubtitleTrack >= 0 ? currentHlsSubtitleTrack : 0;
+        hlsRef.current.subtitleTrack = trackToEnable;
+        setCurrentHlsSubtitleTrack(trackToEnable);
+      } else {
+        // Disable subtitles
+        hlsRef.current.subtitleTrack = -1;
+      }
+      return;
     }
-  }, [subtitlesEnabled]);
+
+    // Handle HTML5 track element (fallback for directSubtitleUrl)
+    if (videoRef.current) {
+      const tracks = videoRef.current.textTracks;
+      if (tracks.length > 0) {
+        tracks[0].mode = newEnabled ? 'showing' : 'hidden';
+      }
+    }
+  }, [subtitlesEnabled, hlsSubtitleTracks, currentHlsSubtitleTrack]);
 
   const skipBack = useCallback(() => seek(currentTime - 10), [currentTime, seek]);
   const skipForward = useCallback(() => seek(currentTime + 10), [currentTime, seek]);
@@ -1427,6 +1445,10 @@ function DebridPlayer() {
 
     const isHLS = streamUrl.includes('.m3u8') || streamUrl.includes('/hls/');
 
+    // Reset HLS subtitle tracks state
+    setHlsSubtitleTracks([]);
+    setCurrentHlsSubtitleTrack(-1);
+
     // Clean up previous HLS instance
     if (hlsRef.current) {
       hlsRef.current.destroy();
@@ -1439,12 +1461,32 @@ function DebridPlayer() {
         const hls = new Hls({
           maxBufferLength: 30,
           maxMaxBufferLength: 60,
+          enableWebVTT: true,
+          enableCEA708Captions: true,
         });
         hls.loadSource(streamUrl);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           video.play().catch(e => console.log('Autoplay prevented:', e));
+
+          // Check for subtitle tracks
+          if (hls.subtitleTracks && hls.subtitleTracks.length > 0) {
+            console.log('HLS subtitle tracks found:', hls.subtitleTracks);
+            setHlsSubtitleTracks(hls.subtitleTracks);
+            // Enable first subtitle track by default if subtitles are enabled
+            if (subtitlesEnabled) {
+              hls.subtitleTrack = 0;
+              setCurrentHlsSubtitleTrack(0);
+            }
+          }
         });
+
+        // Listen for subtitle track changes
+        hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, (event, data) => {
+          console.log('Subtitle tracks updated:', data.subtitleTracks);
+          setHlsSubtitleTracks(data.subtitleTracks || []);
+        });
+
         hls.on(Hls.Events.ERROR, (event, data) => {
           if (data.fatal) {
             console.error('HLS fatal error:', data);
@@ -1751,7 +1793,7 @@ function DebridPlayer() {
               )}
 
               {/* Subtitles button (only show when subtitles are available) */}
-              {directSubtitleUrl && (
+              {(directSubtitleUrl || hlsSubtitleTracks.length > 0) && (
                 <button
                   className={`control-btn ${subtitlesEnabled ? 'active' : ''}`}
                   onClick={(e) => { e.stopPropagation(); toggleSubtitles(); }}
