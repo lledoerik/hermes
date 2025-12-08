@@ -927,15 +927,22 @@ async def fix_non_latin_titles_stream(request: Request):
     """
     from backend.metadata.tmdb import TMDBClient, contains_non_latin_characters
     from backend.metadata.anilist import AniListClient
+    from backend.auth import get_auth_manager
 
-    # Verificar auth via query param o header
+    # Verificar auth via query param o header (SSE no suporta headers customs)
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         token = auth_header[7:]
     else:
         token = request.query_params.get("token", "")
 
-    if not token:
+    # Validar el token
+    user = None
+    if token:
+        auth = get_auth_manager()
+        user = auth.verify_token(token)
+
+    if not user or not user.get("is_admin"):
         async def error_gen():
             yield f"data: {json.dumps({'type': 'error', 'message': 'No autoritzat'})}\n\n"
         return StreamingResponse(error_gen(), media_type="text/event-stream")

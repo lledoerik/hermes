@@ -110,7 +110,7 @@ function Admin() {
       result: null
     });
 
-    const token = localStorage.getItem('token') || '';
+    const token = localStorage.getItem('hermes_token') || '';
     const eventSource = new EventSource(`${API_URL}${endpoint}?token=${token}`);
 
     eventSource.onmessage = (event) => {
