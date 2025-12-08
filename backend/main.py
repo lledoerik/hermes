@@ -10582,6 +10582,157 @@ async def get_cached_stream(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ==================== BBC IPLAYER API ====================
+
+@app.get("/api/bbc/stream")
+async def get_bbc_stream(
+    url: str = Query(..., description="URL de BBC iPlayer o programme_id"),
+    quality: str = Query("best", description="Qualitat: best, 1080, 720, 480, worst")
+):
+    """
+    Obtenir URL de streaming d'un programa de BBC iPlayer
+
+    IMPORTANT: Requereix IP del Regne Unit per funcionar.
+    """
+    from backend.debrid import BBCiPlayerClient, BBCiPlayerError
+
+    client = BBCiPlayerClient()
+
+    try:
+        stream = await client.get_stream_info(url, quality)
+
+        if not stream:
+            raise HTTPException(
+                status_code=404,
+                detail="No s'ha pogut obtenir informació del programa"
+            )
+
+        if not stream.url:
+            raise HTTPException(
+                status_code=404,
+                detail="No s'ha pogut obtenir l'URL de streaming"
+            )
+
+        return {
+            "status": "success",
+            "provider": "bbc_iplayer",
+            "programme_id": stream.programme_id,
+            "title": stream.title,
+            "description": stream.description,
+            "thumbnail": stream.thumbnail,
+            "duration": stream.duration,
+            "url": stream.url,
+            "subtitles": stream.subtitles,
+            "season": stream.season,
+            "episode": stream.episode
+        }
+
+    except BBCiPlayerError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error obtenint stream BBC: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/bbc/info")
+async def get_bbc_info(
+    url: str = Query(..., description="URL de BBC iPlayer o programme_id")
+):
+    """
+    Obtenir informació d'un programa de BBC iPlayer sense URL de streaming
+    (més ràpid que /api/bbc/stream)
+    """
+    from backend.debrid import BBCiPlayerClient, BBCiPlayerError
+
+    client = BBCiPlayerClient()
+
+    try:
+        stream = await client.get_stream_info(url, quality="worst")  # worst és més ràpid
+
+        if not stream:
+            raise HTTPException(
+                status_code=404,
+                detail="No s'ha pogut obtenir informació del programa"
+            )
+
+        return {
+            "status": "success",
+            "provider": "bbc_iplayer",
+            "programme_id": stream.programme_id,
+            "title": stream.title,
+            "description": stream.description,
+            "thumbnail": stream.thumbnail,
+            "duration": stream.duration,
+            "season": stream.season,
+            "episode": stream.episode,
+            "formats_available": len(stream.formats) if stream.formats else 0
+        }
+
+    except BBCiPlayerError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error obtenint info BBC: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/bbc/formats")
+async def get_bbc_formats(
+    url: str = Query(..., description="URL de BBC iPlayer o programme_id")
+):
+    """
+    Obtenir tots els formats disponibles d'un programa
+    """
+    from backend.debrid import BBCiPlayerClient, BBCiPlayerError
+
+    client = BBCiPlayerClient()
+
+    try:
+        formats = await client.get_formats(url)
+
+        return {
+            "status": "success",
+            "formats": formats,
+            "count": len(formats)
+        }
+
+    except BBCiPlayerError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error obtenint formats BBC: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/bbc/series")
+async def get_bbc_series(
+    url: str = Query(..., description="URL de la sèrie de BBC iPlayer")
+):
+    """
+    Obtenir tots els episodis d'una sèrie de BBC iPlayer
+    """
+    from backend.debrid import BBCiPlayerClient, BBCiPlayerError
+
+    client = BBCiPlayerClient()
+
+    try:
+        episodes = await client.search_series(url)
+
+        return {
+            "status": "success",
+            "episodes": episodes,
+            "count": len(episodes)
+        }
+
+    except BBCiPlayerError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error obtenint sèrie BBC: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ==================== SUBTITLES API ====================
 
 # Client de subtítols compartit (cache)
