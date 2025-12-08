@@ -18,3 +18,5 @@ lxml>=5.0.0
 python-dotenv>=1.0.0
 # BBC iPlayer streaming
 yt-dlp>=2024.8.0
+# Encriptació per cookies de BBC
+cryptography>=42.0.0
