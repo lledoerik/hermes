@@ -11047,6 +11047,90 @@ async def import_onepiece_bbc_episodes(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/bbc/onepiece/import-all")
+async def import_onepiece_all_arcs(request: Request):
+    """
+    Importa tots els episodis de One Piece de les 10 URLs predefinides de BBC.
+    Processa cada arc seqüencialment.
+    """
+    require_auth(request)
+
+    from backend.debrid import BBCiPlayerClient
+    from backend.debrid.bbc_onepiece import (
+        import_bbc_episodes_from_list,
+        BBC_EPISODE_MAPPING,
+        ONE_PIECE_ARCS
+    )
+
+    # URLs dels 10 arcs de BBC One Piece amb els episodis inicials de cada arc
+    # Format: (url, arc_name, start_episode)
+    BBC_ONEPIECE_ARCS = [
+        ("https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-1-m0021y5z", "East Blue", 1),
+        ("https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-2-m0021ydl", "Alabasta", 62),
+        ("https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-3-m0021ykk", "Sky Island", 136),
+        ("https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-4-m0021yr7", "Water 7", 207),
+        ("https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-5-m002217d", "Thriller Bark", 326),
+        ("https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-6-m00238l2", "Summit War", 385),
+        ("https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-7-m0023zjq", "Fish-Man Island", 517),
+        ("https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-8-m00246hj", "Dressrosa", 575),
+        ("https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-9-m0024yv1", "Whole Cake Island", 747),
+        ("https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-10-m0025f1t", "Land of Wano", 892),
+    ]
+
+    client = BBCiPlayerClient()
+    results = []
+    total_imported = 0
+    total_found = 0
+
+    for url, arc_name, start_episode in BBC_ONEPIECE_ARCS:
+        try:
+            logger.info(f"Processant {arc_name} (episodi {start_episode}+): {url}")
+            episodes = await client.search_series(url)
+
+            if episodes:
+                total_found += len(episodes)
+                # Passar l'episodi inicial de l'arc per fallback posicional
+                imported = import_bbc_episodes_from_list(episodes, arc_start_episode=start_episode)
+                total_imported += imported
+                results.append({
+                    "arc": arc_name,
+                    "start_episode": start_episode,
+                    "url": url,
+                    "found": len(episodes),
+                    "imported": imported,
+                    "status": "success"
+                })
+                logger.info(f"{arc_name}: Trobats {len(episodes)}, importats {imported}")
+            else:
+                results.append({
+                    "arc": arc_name,
+                    "start_episode": start_episode,
+                    "url": url,
+                    "found": 0,
+                    "imported": 0,
+                    "status": "empty"
+                })
+
+        except Exception as e:
+            logger.error(f"Error processant {arc_name}: {e}")
+            results.append({
+                "arc": arc_name,
+                "start_episode": start_episode,
+                "url": url,
+                "error": str(e),
+                "status": "error"
+            })
+
+    return {
+        "status": "success",
+        "message": f"Importació completada: {total_imported} episodis de {total_found} trobats",
+        "total_found": total_found,
+        "total_imported": total_imported,
+        "total_mapped": len(BBC_EPISODE_MAPPING),
+        "arcs_processed": results
+    }
+
+
 @app.get("/api/bbc/onepiece/mapping")
 async def get_onepiece_bbc_mapping(request: Request):
     """
