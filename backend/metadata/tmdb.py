@@ -381,9 +381,12 @@ class TMDBClient:
                 texts_to_translate.append(result["overview"])
                 text_indices.append(("season_overview", None))
 
-            # Episode overviews - collect all at once
+            # Episode names and overviews - collect all at once
             if result.get("episodes"):
                 for i, episode in enumerate(result["episodes"]):
+                    if episode.get("name"):
+                        texts_to_translate.append(episode["name"])
+                        text_indices.append(("episode_name", i))
                     if episode.get("overview"):
                         texts_to_translate.append(episode["overview"])
                         text_indices.append(("episode_overview", i))
@@ -399,6 +402,8 @@ class TMDBClient:
                     if idx < len(translated):
                         if text_type == "season_overview":
                             result["overview"] = translated[idx]
+                        elif text_type == "episode_name" and episode_idx is not None:
+                            result["episodes"][episode_idx]["name"] = translated[idx]
                         elif text_type == "episode_overview" and episode_idx is not None:
                             result["episodes"][episode_idx]["overview"] = translated[idx]
 

@@ -47,6 +47,18 @@ function Admin() {
   const [copiedCode, setCopiedCode] = useState(null);
   const [message, setMessage] = useState(null);
 
+  // Progress modal state
+  const [progressModal, setProgressModal] = useState({
+    show: false,
+    title: '',
+    current: 0,
+    total: 0,
+    currentItem: '',
+    updates: [],
+    done: false,
+    result: null
+  });
+
   const loadStats = useCallback(async () => {
     try {
       const response = await axios.get('/api/library/stats');
@@ -83,6 +95,116 @@ function Admin() {
   const showMessage = (text, type = 'success') => {
     setMessage({ text, type });
     setTimeout(() => setMessage(null), 3000);
+  };
+
+  // Funció per executar tasques amb progrés en temps real (SSE)
+  const runWithProgress = (title, endpoint) => {
+    setProgressModal({
+      show: true,
+      title,
+      current: 0,
+      total: 0,
+      currentItem: 'Inicialitzant...',
+      updates: [],
+      done: false,
+      result: null
+    });
+
+    const token = localStorage.getItem('token') || '';
+    const eventSource = new EventSource(`${API_URL}${endpoint}?token=${token}`);
+
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      switch (data.type) {
+        case 'start':
+          setProgressModal(prev => ({
+            ...prev,
+            total: data.total,
+            currentItem: `Trobats ${data.total} elements per processar`
+          }));
+          break;
+
+        case 'progress':
+          setProgressModal(prev => ({
+            ...prev,
+            current: data.current,
+            total: data.total,
+            currentItem: data.title
+          }));
+          break;
+
+        case 'updated':
+          setProgressModal(prev => ({
+            ...prev,
+            updates: [...prev.updates.slice(-19), {
+              type: 'success',
+              text: `${data.old_title} → ${data.new_title}`
+            }]
+          }));
+          break;
+
+        case 'item_error':
+          setProgressModal(prev => ({
+            ...prev,
+            updates: [...prev.updates.slice(-19), {
+              type: 'error',
+              text: `Error: ${data.title} - ${data.error}`
+            }]
+          }));
+          break;
+
+        case 'error':
+          setProgressModal(prev => ({
+            ...prev,
+            done: true,
+            result: { type: 'error', message: data.message }
+          }));
+          eventSource.close();
+          break;
+
+        case 'done':
+          setProgressModal(prev => ({
+            ...prev,
+            done: true,
+            current: prev.total,
+            result: {
+              type: 'success',
+              message: data.message,
+              updated: data.updated,
+              errors: data.errors
+            }
+          }));
+          eventSource.close();
+          addLog('success', data.message);
+          break;
+
+        default:
+          break;
+      }
+    };
+
+    eventSource.onerror = () => {
+      setProgressModal(prev => ({
+        ...prev,
+        done: true,
+        result: { type: 'error', message: 'Connexió perduda' }
+      }));
+      eventSource.close();
+    };
+  };
+
+  const closeProgressModal = () => {
+    setProgressModal({
+      show: false,
+      title: '',
+      current: 0,
+      total: 0,
+      currentItem: '',
+      updates: [],
+      done: false,
+      result: null
+    });
   };
 
   const loadUserData = async () => {
@@ -613,30 +735,42 @@ function Admin() {
           <div className="maintenance-item">
             <div className="maintenance-info">
               <h4>Corregir títols no llatins</h4>
-              <p>Actualitza els títols en japonès, coreà, xinès, rus, etc. amb els seus equivalents en anglès de TMDB.</p>
+              <p>Actualitza els títols en japonès, coreà, xinès, rus, etc. amb els seus equivalents en català (o castellà/anglès si no hi ha).</p>
+            </div>
+            <button
+              className="action-btn"
+              onClick={() => runWithProgress('Corregint títols', '/api/admin/fix-non-latin-titles/stream')}
+            >
+              <RefreshIcon /> Corregir títols
+            </button>
+          </div>
+          <div className="maintenance-item">
+            <div className="maintenance-info">
+              <h4>Pre-cachejar episodis</h4>
+              <p>Tradueix i cacheja els títols dels episodis de totes les sèries. Així la càrrega serà instantània.</p>
             </div>
             <button
               className="action-btn"
               onClick={async () => {
                 try {
-                  showMessage('Actualitzant títols... Això pot trigar uns segons.', 'info');
-                  addLog('info', 'Iniciant correcció de títols no llatins...');
-                  const response = await axios.post('/api/admin/fix-non-latin-titles');
+                  showMessage('Pre-cachejant episodis... Això pot trigar uns minuts.', 'info');
+                  addLog('info', 'Iniciant pre-cache d\'episodis...');
+                  const response = await axios.post('/api/admin/precache-episodes');
                   const data = response.data;
-                  showMessage(`Actualitzats ${data.updated} títols de ${data.total_found} trobats`, 'success');
-                  addLog('success', `Títols actualitzats: ${data.updated}/${data.total_found}`);
-                  if (data.updated_items?.length > 0) {
-                    data.updated_items.slice(0, 5).forEach(item => {
-                      addLog('info', `${item.old_title} → ${item.new_title}`);
+                  showMessage(`Cachejades ${data.cached_seasons} temporades`, 'success');
+                  addLog('success', `Temporades cachejades: ${data.cached_seasons}`);
+                  if (data.details?.length > 0) {
+                    data.details.slice(0, 5).forEach(item => {
+                      addLog('info', `${item.series} T${item.season}: ${item.episodes} episodis`);
                     });
                   }
                 } catch (error) {
-                  showMessage('Error actualitzant títols', 'error');
+                  showMessage('Error pre-cachejant episodis', 'error');
                   addLog('error', error.response?.data?.detail || 'Error desconegut');
                 }
               }}
             >
-              <RefreshIcon /> Corregir títols
+              <RefreshIcon /> Pre-cachejar
             </button>
           </div>
         </div>
@@ -678,6 +812,64 @@ function Admin() {
           </div>
         </div>
       </div>
+
+      {/* Progress Modal */}
+      {progressModal.show && (
+        <div className="progress-modal-overlay">
+          <div className="progress-modal">
+            <div className="progress-modal-header">
+              <h3>{progressModal.title}</h3>
+              {progressModal.done && (
+                <button className="close-btn" onClick={closeProgressModal}>×</button>
+              )}
+            </div>
+
+            <div className="progress-modal-body">
+              {/* Progress bar */}
+              <div className="progress-bar-container">
+                <div
+                  className="progress-bar-fill"
+                  style={{ width: `${progressModal.total > 0 ? (progressModal.current / progressModal.total) * 100 : 0}%` }}
+                />
+              </div>
+              <div className="progress-stats">
+                <span>{progressModal.current} / {progressModal.total}</span>
+                <span>{progressModal.total > 0 ? Math.round((progressModal.current / progressModal.total) * 100) : 0}%</span>
+              </div>
+
+              {/* Current item */}
+              <div className="progress-current-item">
+                {progressModal.currentItem}
+              </div>
+
+              {/* Updates log */}
+              <div className="progress-updates">
+                {progressModal.updates.map((update, idx) => (
+                  <div key={idx} className={`progress-update ${update.type}`}>
+                    {update.text}
+                  </div>
+                ))}
+              </div>
+
+              {/* Result */}
+              {progressModal.result && (
+                <div className={`progress-result ${progressModal.result.type}`}>
+                  <strong>{progressModal.result.message}</strong>
+                  {progressModal.result.updated !== undefined && (
+                    <span> ({progressModal.result.updated} actualitzats, {progressModal.result.errors} errors)</span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {progressModal.done && (
+              <div className="progress-modal-footer">
+                <button className="action-btn" onClick={closeProgressModal}>Tancar</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Toast Message */}
       {message && (
