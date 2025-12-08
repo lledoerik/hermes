@@ -497,7 +497,9 @@ class BBCiPlayerClient:
         except BBCiPlayerError:
             raise
         except Exception as e:
-            logger.error(f"Error executant yt-dlp: {e}")
+            import traceback
+            logger.error(f"Error executant yt-dlp: {type(e).__name__}: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return None
 
 
