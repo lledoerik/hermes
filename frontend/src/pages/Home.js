@@ -18,32 +18,34 @@ import {
 } from '../components/icons';
 import './Home.css';
 
-// Hook per drag-to-scroll
+// Hook per drag-to-scroll (optimitzat per evitar re-renders)
 const useDragScroll = () => {
   const containerRef = useRef(null);
+  const wrapperRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
   const isMouseDown = useRef(false);
   const hasDragged = useRef(false);
   const startX = useRef(0);
   const scrollLeft = useRef(0);
 
-  const checkScrollPosition = useCallback(() => {
+  // Actualitza les classes CSS directament sense causar re-renders
+  const updateScrollClasses = useCallback(() => {
     const container = containerRef.current;
-    if (container) {
-      setCanScrollLeft(container.scrollLeft > 0);
-      setCanScrollRight(
-        container.scrollLeft < container.scrollWidth - container.clientWidth - 5
-      );
-    }
+    const wrapper = wrapperRef.current;
+    if (!container || !wrapper) return;
+
+    const canScrollLeft = container.scrollLeft > 0;
+    const canScrollRight = container.scrollLeft < container.scrollWidth - container.clientWidth - 5;
+
+    wrapper.classList.toggle('can-scroll-left', canScrollLeft);
+    wrapper.classList.toggle('can-scroll-right', canScrollRight);
   }, []);
 
   useEffect(() => {
-    checkScrollPosition();
-    window.addEventListener('resize', checkScrollPosition);
-    return () => window.removeEventListener('resize', checkScrollPosition);
-  }, [checkScrollPosition]);
+    updateScrollClasses();
+    window.addEventListener('resize', updateScrollClasses);
+    return () => window.removeEventListener('resize', updateScrollClasses);
+  }, [updateScrollClasses]);
 
   const handleMouseDown = useCallback((e) => {
     const container = containerRef.current;
@@ -93,15 +95,14 @@ const useDragScroll = () => {
 
   return {
     containerRef,
+    wrapperRef,
     isDragging,
-    canScrollLeft,
-    canScrollRight,
     handlers: {
       onMouseDown: handleMouseDown,
       onMouseUp: handleMouseUp,
       onMouseMove: handleMouseMove,
       onMouseLeave: handleMouseUp,
-      onScroll: checkScrollPosition,
+      onScroll: updateScrollClasses,
       onClickCapture: handleClick,
     },
   };
@@ -109,16 +110,10 @@ const useDragScroll = () => {
 
 // Component per scroll horitzontal amb drag
 const ScrollableContainer = ({ children, className = '' }) => {
-  const { containerRef, isDragging, canScrollLeft, canScrollRight, handlers } = useDragScroll();
-
-  const scrollClasses = [
-    'scrollable-wrapper',
-    canScrollLeft ? 'can-scroll-left' : '',
-    canScrollRight ? 'can-scroll-right' : '',
-  ].filter(Boolean).join(' ');
+  const { containerRef, wrapperRef, isDragging, handlers } = useDragScroll();
 
   return (
-    <div className={scrollClasses}>
+    <div ref={wrapperRef} className="scrollable-wrapper">
       <div
         ref={containerRef}
         className={`content-scroll ${isDragging ? 'dragging' : ''} ${className}`}
