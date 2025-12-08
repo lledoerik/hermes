@@ -871,7 +871,6 @@
   gap: var(--space-md);
   overflow-x: auto;
   padding-bottom: var(--space-md);
-  scroll-snap-type: x mandatory;
   scrollbar-width: none;
   -ms-overflow-style: none;
   cursor: grab;
@@ -897,7 +896,6 @@
   flex: 0 0 auto;
   width: 150px;
   cursor: pointer;
-  scroll-snap-align: start;
   transition: transform var(--transition-normal);
 }
 
@@ -1031,7 +1029,6 @@
 .continue-watching-section .content-scroll .continue-card {
   flex: 0 0 auto;
   width: 280px;
-  scroll-snap-align: start;
 }
 
 /* Quick Access Grid */
