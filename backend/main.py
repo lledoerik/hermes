@@ -1030,10 +1030,9 @@ async def fix_non_latin_titles_stream(request: Request):
                         # Enviar progrés
                         yield f"data: {json.dumps({'type': 'progress', 'current': idx + 1, 'total': total, 'title': item['name']})}\n\n"
 
-                        # Provar idiomes en ordre de preferència
+                        # Provar idiomes en ordre de preferència: Català → Anglès
                         languages_to_try = [
                             ("ca-ES", "TMDB (català)"),
-                            ("es-ES", "TMDB (castellà)"),
                             ("en-US", "TMDB (anglès)")
                         ]
 
@@ -1245,10 +1244,9 @@ async def fix_non_latin_titles(request: Request):
                         if original_language == "ja" or "JP" in origin_country:
                             is_anime = True
 
-                    # Provar idiomes en ordre de preferència: Català → Castellà → Anglès
+                    # Provar idiomes en ordre de preferència: Català → Anglès
                     languages_to_try = [
                         ("ca-ES", "TMDB (català)"),
-                        ("es-ES", "TMDB (castellà)"),
                         ("en-US", "TMDB (anglès)")
                     ]
 
@@ -3224,8 +3222,8 @@ async def search_tmdb(q: str, limit: int = 20):
     client = TMDBClient(api_key)
 
     try:
-        # Idiomes per ordre de preferència
-        languages = ["ca-ES", "es-ES", "en-US"]
+        # Idiomes per ordre de preferència: Català → Anglès
+        languages = ["ca-ES", "en-US"]
 
         movies = []
         series = []
