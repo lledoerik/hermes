@@ -11052,6 +11052,19 @@ async def import_onepiece_all_arcs(request: Request):
     """
     Importa tots els episodis de One Piece de les 10 URLs predefinides de BBC.
     Processa cada arc seqüencialment.
+
+    Arcs i episodis:
+    - East Blue: 1-61 (61 episodis)
+    - Alabasta: 62-135 (74 episodis)
+    - Sky Island: 136-206 (71 episodis)
+    - Water 7: 207-325 (119 episodis)
+    - Thriller Bark: 326-384 (59 episodis)
+    - Summit War: 385-516 (132 episodis)
+    - Fish-Man Island: 517-574 (58 episodis)
+    - Dressrosa: 575-746 (172 episodis)
+    - Whole Cake Island: 747-891 (145 episodis)
+    - Land of Wano: 892-1088 (197 episodis)
+    Total: 1088 episodis
     """
     require_auth(request)
 
@@ -11062,71 +11075,81 @@ async def import_onepiece_all_arcs(request: Request):
         ONE_PIECE_ARCS
     )
 
-    # URLs dels 10 arcs de BBC One Piece amb els episodis inicials de cada arc
-    # Format: (url, arc_name, start_episode)
-    BBC_ONEPIECE_ARCS = [
-        ("https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-1-m0021y5z", "East Blue", 1),
-        ("https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-2-m0021ydl", "Alabasta", 62),
-        ("https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-3-m0021ykk", "Sky Island", 136),
-        ("https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-4-m0021yr7", "Water 7", 207),
-        ("https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-5-m002217d", "Thriller Bark", 326),
-        ("https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-6-m00238l2", "Summit War", 385),
-        ("https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-7-m0023zjq", "Fish-Man Island", 517),
-        ("https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-8-m00246hj", "Dressrosa", 575),
-        ("https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-9-m0024yv1", "Whole Cake Island", 747),
-        ("https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-10-m0025f1t", "Land of Wano", 892),
+    # URLs dels 10 arcs de BBC One Piece
+    BBC_ONEPIECE_URLS = [
+        "https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-1-m0021y5z",   # East Blue
+        "https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-2-m0021ydl",   # Alabasta
+        "https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-3-m0021ykk",   # Sky Island
+        "https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-4-m0021yr7",   # Water 7
+        "https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-5-m002217d",   # Thriller Bark
+        "https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-6-m00238l2",   # Summit War
+        "https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-7-m0023zjq",   # Fish-Man Island
+        "https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-8-m00246hj",   # Dressrosa
+        "https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-9-m0024yv1",   # Whole Cake Island
+        "https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece?seriesId=m0021y5y-structural-10-m0025f1t",  # Land of Wano
     ]
 
     client = BBCiPlayerClient()
     results = []
     total_imported = 0
     total_found = 0
+    total_expected = 0
 
-    for url, arc_name, start_episode in BBC_ONEPIECE_ARCS:
+    for arc_idx, url in enumerate(BBC_ONEPIECE_URLS):
+        if arc_idx >= len(ONE_PIECE_ARCS):
+            break
+
+        arc = ONE_PIECE_ARCS[arc_idx]
+        expected_count = arc.episode_count
+        total_expected += expected_count
+
         try:
-            logger.info(f"Processant {arc_name} (episodi {start_episode}+): {url}")
+            logger.info(f"Processant {arc.name} (eps {arc.tmdb_start}-{arc.tmdb_end}, {expected_count} episodis)")
             episodes = await client.search_series(url)
 
             if episodes:
                 total_found += len(episodes)
-                # Passar l'episodi inicial de l'arc per fallback posicional
-                imported = import_bbc_episodes_from_list(episodes, arc_start_episode=start_episode)
+                imported = import_bbc_episodes_from_list(episodes, arc_start_episode=arc.tmdb_start)
                 total_imported += imported
                 results.append({
-                    "arc": arc_name,
-                    "start_episode": start_episode,
-                    "url": url,
+                    "arc": arc.name,
+                    "episode_range": f"{arc.tmdb_start}-{arc.tmdb_end}",
+                    "expected_episodes": expected_count,
                     "found": len(episodes),
                     "imported": imported,
+                    "coverage": f"{round(imported/expected_count*100, 1)}%" if expected_count > 0 else "0%",
                     "status": "success"
                 })
-                logger.info(f"{arc_name}: Trobats {len(episodes)}, importats {imported}")
+                logger.info(f"{arc.name}: Esperats {expected_count}, trobats {len(episodes)}, importats {imported}")
             else:
                 results.append({
-                    "arc": arc_name,
-                    "start_episode": start_episode,
-                    "url": url,
+                    "arc": arc.name,
+                    "episode_range": f"{arc.tmdb_start}-{arc.tmdb_end}",
+                    "expected_episodes": expected_count,
                     "found": 0,
                     "imported": 0,
+                    "coverage": "0%",
                     "status": "empty"
                 })
 
         except Exception as e:
-            logger.error(f"Error processant {arc_name}: {e}")
+            logger.error(f"Error processant {arc.name}: {e}")
             results.append({
-                "arc": arc_name,
-                "start_episode": start_episode,
-                "url": url,
+                "arc": arc.name,
+                "episode_range": f"{arc.tmdb_start}-{arc.tmdb_end}",
+                "expected_episodes": expected_count,
                 "error": str(e),
                 "status": "error"
             })
 
     return {
         "status": "success",
-        "message": f"Importació completada: {total_imported} episodis de {total_found} trobats",
+        "message": f"Importació completada: {total_imported}/{total_expected} episodis importats",
+        "total_expected": total_expected,
         "total_found": total_found,
         "total_imported": total_imported,
         "total_mapped": len(BBC_EPISODE_MAPPING),
+        "overall_coverage": f"{round(total_imported/total_expected*100, 1)}%" if total_expected > 0 else "0%",
         "arcs_processed": results
     }
 
@@ -11263,6 +11286,275 @@ async def get_onepiece_arc_episodes(
         "episodes": all_episodes,
         "count": len(all_episodes)
     }
+
+
+# ============================================================================
+# BBC Generic Import Endpoints
+# Endpoints genèrics per importar qualsevol contingut de BBC
+# ============================================================================
+
+@app.post("/api/bbc/import")
+async def import_bbc_content(
+    request: Request,
+    url: str = Query(..., description="URL de BBC iPlayer (sèrie o episodi)"),
+    tmdb_id: int = Query(..., description="ID de TMDB del contingut"),
+    content_type: str = Query("tv", description="Tipus: 'tv' o 'movie'"),
+    title: str = Query(None, description="Títol del contingut (opcional)"),
+    start_episode: int = Query(None, description="Episodi inicial per fallback (opcional)")
+):
+    """
+    Importa contingut de BBC iPlayer i el mapeja a un ID de TMDB.
+
+    Funciona amb qualsevol sèrie o pel·lícula de BBC.
+    Obté automàticament tots els episodis de la URL i els guarda al mappeig.
+
+    Exemples:
+    - Sèrie: /api/bbc/import?url=https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece&tmdb_id=37854
+    - Pel·lícula: /api/bbc/import?url=https://www.bbc.co.uk/iplayer/episode/m000xyz&tmdb_id=12345&content_type=movie
+    """
+    require_auth(request)
+
+    from backend.debrid import BBCiPlayerClient
+    from backend.debrid.bbc_mapping import import_bbc_episodes, get_bbc_mapping_for_content
+
+    client = BBCiPlayerClient()
+
+    try:
+        # Obtenir tots els episodis de la URL
+        logger.info(f"Important contingut BBC: {url} -> TMDB {tmdb_id}")
+        episodes = await client.get_all_episodes_from_series(url)
+
+        if not episodes:
+            # Pot ser un episodi únic (pel·lícula)
+            info = await client.get_episode_info(url)
+            if info:
+                episodes = [{
+                    "programme_id": info.get("programme_id"),
+                    "title": info.get("title"),
+                    "episode_number": 1
+                }]
+
+        if not episodes:
+            raise HTTPException(
+                status_code=404,
+                detail="No s'ha trobat contingut a la URL proporcionada"
+            )
+
+        # Extreure bbc_series_id de la URL
+        import re
+        series_match = re.search(r'/episodes/([a-z0-9]+)', url)
+        bbc_series_id = series_match.group(1) if series_match else None
+
+        # Importar
+        imported = import_bbc_episodes(
+            tmdb_id=tmdb_id,
+            content_type=content_type,
+            episodes=episodes,
+            bbc_series_id=bbc_series_id,
+            title=title or episodes[0].get("title", "").split(":")[0].strip(),
+            start_episode=start_episode
+        )
+
+        # Obtenir estat actual
+        mapping = get_bbc_mapping_for_content(tmdb_id, content_type)
+        total_mapped = len(mapping.get("episodes", {})) if mapping else 0
+
+        return {
+            "status": "success",
+            "message": f"Importats {imported} episodis",
+            "tmdb_id": tmdb_id,
+            "content_type": content_type,
+            "bbc_series_id": bbc_series_id,
+            "found": len(episodes),
+            "imported": imported,
+            "total_mapped": total_mapped,
+            "preview": [
+                {"title": ep.get("title"), "programme_id": ep.get("programme_id")}
+                for ep in episodes[:5]
+            ]
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error important contingut BBC: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/bbc/content/{tmdb_id}")
+async def get_bbc_content_mapping(
+    request: Request,
+    tmdb_id: int,
+    content_type: str = Query("tv", description="Tipus: 'tv' o 'movie'")
+):
+    """
+    Obtenir el mappeig BBC per un contingut TMDB específic.
+    """
+    require_auth(request)
+
+    from backend.debrid.bbc_mapping import get_bbc_mapping_for_content
+
+    mapping = get_bbc_mapping_for_content(tmdb_id, content_type)
+
+    if not mapping:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No hi ha mappeig BBC per TMDB {tmdb_id}"
+        )
+
+    return {
+        "status": "success",
+        "tmdb_id": tmdb_id,
+        "content_type": content_type,
+        "title": mapping.get("title"),
+        "bbc_series_id": mapping.get("bbc_series_id"),
+        "episode_count": len(mapping.get("episodes", {})),
+        "last_updated": mapping.get("last_updated"),
+        "episodes": mapping.get("episodes", {})
+    }
+
+
+@app.get("/api/bbc/content/{tmdb_id}/episode/{episode}")
+async def get_bbc_episode_stream(
+    request: Request,
+    tmdb_id: int,
+    episode: int,
+    content_type: str = Query("tv", description="Tipus: 'tv' o 'movie'"),
+    quality: str = Query("720p", description="Qualitat: 720p o 1080p")
+):
+    """
+    Obtenir el stream HLS d'un episodi específic d'un contingut BBC.
+    """
+    require_auth(request)
+
+    from backend.debrid import BBCiPlayerClient
+    from backend.debrid.bbc_mapping import get_bbc_programme_id
+
+    programme_id = get_bbc_programme_id(tmdb_id, episode, content_type)
+
+    if not programme_id:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Episodi {episode} no mapejat per TMDB {tmdb_id}"
+        )
+
+    client = BBCiPlayerClient()
+    upgrade_1080p = quality == "1080p"
+
+    stream_url = await client.get_stream_url(programme_id, upgrade_1080p=upgrade_1080p)
+
+    if not stream_url:
+        raise HTTPException(
+            status_code=503,
+            detail="No s'ha pogut obtenir el stream de BBC"
+        )
+
+    return {
+        "status": "success",
+        "tmdb_id": tmdb_id,
+        "episode": episode,
+        "programme_id": programme_id,
+        "quality": quality,
+        "stream_url": stream_url
+    }
+
+
+@app.get("/api/bbc/content")
+async def list_bbc_content(request: Request):
+    """
+    Llistar tot el contingut BBC mapejat.
+    """
+    require_auth(request)
+
+    from backend.debrid.bbc_mapping import get_all_bbc_content
+
+    content = get_all_bbc_content()
+
+    return {
+        "status": "success",
+        "count": len(content),
+        "content": content
+    }
+
+
+@app.delete("/api/bbc/content/{tmdb_id}")
+async def delete_bbc_content_mapping(
+    request: Request,
+    tmdb_id: int,
+    content_type: str = Query("tv", description="Tipus: 'tv' o 'movie'")
+):
+    """
+    Eliminar el mappeig BBC per un contingut.
+    """
+    require_auth(request)
+
+    from backend.debrid.bbc_mapping import delete_bbc_mapping
+
+    if delete_bbc_mapping(tmdb_id, content_type):
+        return {
+            "status": "success",
+            "message": f"Mappeig eliminat per TMDB {tmdb_id}"
+        }
+    else:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No hi ha mappeig BBC per TMDB {tmdb_id}"
+        )
+
+
+@app.post("/api/bbc/discover")
+async def discover_bbc_series(
+    request: Request,
+    url: str = Query(..., description="URL de la sèrie a BBC iPlayer")
+):
+    """
+    Descobrir informació d'una sèrie de BBC iPlayer.
+    Retorna tots els episodis disponibles sense importar-los.
+
+    Útil per veure què hi ha disponible abans d'importar.
+    """
+    require_auth(request)
+
+    from backend.debrid import BBCiPlayerClient
+
+    client = BBCiPlayerClient()
+
+    try:
+        episodes = await client.get_all_episodes_from_series(url)
+
+        if not episodes:
+            raise HTTPException(
+                status_code=404,
+                detail="No s'han trobat episodis a la URL"
+            )
+
+        # Agrupar per temporada si és possible
+        by_season = {}
+        for ep in episodes:
+            season = ep.get("season_number") or "unknown"
+            if season not in by_season:
+                by_season[season] = []
+            by_season[season].append(ep)
+
+        return {
+            "status": "success",
+            "url": url,
+            "total_episodes": len(episodes),
+            "seasons": {
+                str(k): {
+                    "episode_count": len(v),
+                    "episodes": v
+                }
+                for k, v in sorted(by_season.items(), key=lambda x: str(x[0]))
+            },
+            "all_episodes": episodes
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error descobrint sèrie BBC: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/bbc/subtitles")
