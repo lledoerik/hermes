@@ -835,6 +835,36 @@
   width: 180px;
 }
 
+/* Scrollable Wrapper with Gradient Fades */
+.scrollable-wrapper {
+  position: relative;
+  overflow: hidden;
+}
+
+.scrollable-wrapper.can-scroll-left::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 60px;
+  background: linear-gradient(to right, var(--bg-primary) 0%, transparent 100%);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.scrollable-wrapper.can-scroll-right::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 60px;
+  background: linear-gradient(to left, var(--bg-primary) 0%, transparent 100%);
+  z-index: 2;
+  pointer-events: none;
+}
+
 /* Horizontal Scroll */
 .content-scroll {
   display: flex;
@@ -842,21 +872,24 @@
   overflow-x: auto;
   padding-bottom: var(--space-md);
   scroll-snap-type: x mandatory;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  cursor: grab;
+  user-select: none;
 }
 
 .content-scroll::-webkit-scrollbar {
-  height: 6px;
+  display: none;
 }
 
-.content-scroll::-webkit-scrollbar-track {
-  background: transparent;
+.content-scroll.dragging {
+  cursor: grabbing;
+  scroll-behavior: auto;
 }
 
-.content-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
+.content-scroll.dragging .content-card,
+.content-scroll.dragging .continue-card {
+  pointer-events: none;
 }
 
 /* Content Cards */
