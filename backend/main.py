@@ -922,8 +922,10 @@ async def delete_user(request: Request, user_id: int):
 @app.post("/api/admin/fix-non-latin-titles")
 async def fix_non_latin_titles(request: Request):
     """
-    Actualitza tots els títols que contenen caràcters no-llatins (japonès, coreà, xinès, rus, etc.)
-    obtenint el títol anglès de TMDB i/o AniList (per anime).
+    Actualitza títols:
+    1. Títols no-llatins → obté títol anglès de TMDB/AniList
+    2. Tot contingut sense title_english → obté i guarda títol anglès
+    Així es pot cercar per títol anglès (ex: "Squid Game") encara que estigui guardat en català.
     """
     from backend.metadata.tmdb import TMDBClient, contains_non_latin_characters
     from backend.metadata.anilist import AniListClient
@@ -942,10 +944,11 @@ async def fix_non_latin_titles(request: Request):
     with get_db() as conn:
         cursor = conn.cursor()
 
-        # Trobar totes les sèries amb títols que contenen caràcters no-llatins
-        # Incloem més camps per detectar si és anime
+        # Trobar contingut que necessita actualització:
+        # 1. Títols no-llatins (japonès, coreà, etc.) - canviar títol principal
+        # 2. Sense title_english - afegir títol anglès per cerca
         cursor.execute("""
-            SELECT id, name, title, tmdb_id, media_type, content_type, genres, origin_country, original_language
+            SELECT id, name, title, title_english, tmdb_id, media_type, content_type, genres, origin_country, original_language
             FROM series
             WHERE tmdb_id IS NOT NULL
         """)
@@ -954,11 +957,20 @@ async def fix_non_latin_titles(request: Request):
         for row in cursor.fetchall():
             name = row["name"] or ""
             title = row["title"] or ""
-            # Comprovar si el nom o títol conté caràcters no-llatins
-            if contains_non_latin_characters(name) or contains_non_latin_characters(title):
+            title_english = row["title_english"] or ""
+
+            # Processar si:
+            # 1. Títol conté caràcters no-llatins (necessita canvi de títol principal)
+            # 2. O no té title_english (necessita afegir-lo per cerca)
+            needs_update = (
+                contains_non_latin_characters(name) or
+                contains_non_latin_characters(title) or
+                not title_english
+            )
+            if needs_update:
                 series_to_update.append(dict(row))
 
-        logger.info(f"Trobades {len(series_to_update)} sèries amb títols no-llatins per actualitzar")
+        logger.info(f"Trobades {len(series_to_update)} sèries per actualitzar")
 
         # Clients
         tmdb_client = TMDBClient(api_key)
@@ -971,13 +983,14 @@ async def fix_non_latin_titles(request: Request):
                     media_type = item["media_type"]
                     english_title = None
                     source = "TMDB"
+                    has_non_latin = contains_non_latin_characters(item["name"] or "") or contains_non_latin_characters(item["title"] or "")
 
                     # Detectar si és anime
                     is_anime = False
                     content_type = item.get("content_type", "")
-                    genres_str = item.get("genres", "")
-                    origin_country = item.get("origin_country", "")
-                    original_language = item.get("original_language", "")
+                    genres_str = item.get("genres", "") or ""
+                    origin_country = item.get("origin_country", "") or ""
+                    original_language = item.get("original_language", "") or ""
 
                     if content_type == "anime":
                         is_anime = True
@@ -1026,24 +1039,32 @@ async def fix_non_latin_titles(request: Request):
                             source = "TMDB"
 
                     if english_title and not contains_non_latin_characters(english_title):
-                        # Actualitzar a la base de dades
-                        cursor.execute("""
-                            UPDATE series
-                            SET name = ?, title = ?, title_english = ?, original_title = COALESCE(original_title, ?)
-                            WHERE id = ?
-                        """, (
-                            english_title,
-                            english_title,
-                            english_title,
-                            item["name"],  # Guardar l'original si no existia
-                            item["id"]
-                        ))
+                        # Si té títol no-llatí, canviar el títol principal
+                        # Si no, només afegir title_english per cerca
+                        if has_non_latin:
+                            cursor.execute("""
+                                UPDATE series
+                                SET name = ?, title = ?, title_english = ?, original_title = COALESCE(original_title, ?)
+                                WHERE id = ?
+                            """, (
+                                english_title,
+                                english_title,
+                                english_title,
+                                item["name"],
+                                item["id"]
+                            ))
+                        else:
+                            # Només afegir title_english per cerca (no canviar títol principal)
+                            cursor.execute("""
+                                UPDATE series SET title_english = ? WHERE id = ?
+                            """, (english_title, item["id"]))
+
                         conn.commit()
 
                         updated.append({
                             "id": item["id"],
                             "old_title": item["name"],
-                            "new_title": english_title,
+                            "new_title": english_title if has_non_latin else f"{item['name']} (+EN: {english_title})",
                             "source": source
                         })
                         logger.info(f"Títol actualitzat ({source}): {item['name']} -> {english_title}")
@@ -1071,7 +1092,7 @@ async def fix_non_latin_titles(request: Request):
         "updated": len(updated),
         "errors": len(errors),
         "updated_items": updated,
-        "error_items": errors[:10]  # Limitar errors a 10 per no saturar
+        "error_items": errors[:10]
     }
 
 
