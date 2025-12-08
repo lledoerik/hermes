@@ -419,12 +419,15 @@ class BBCiPlayerClient:
 
     async def _run_ytdlp(self, args: List[str]) -> Optional[str]:
         """
-        Executar yt-dlp com a subprocess async
+        Executar yt-dlp com a subprocess
 
         Utilitza cookies de BBC si estan configurades per autenticar-se.
+        Nota: Usem subprocess.run síncron perquè asyncio subprocess
+        no funciona correctament a Windows.
         """
         import sys
         import shutil
+        import subprocess
 
         try:
             # Utilitzar context manager per gestionar el fitxer de cookies temporal
@@ -448,19 +451,16 @@ class BBCiPlayerClient:
 
                 logger.debug(f"Executant: {' '.join(cmd[:3])}...")  # No mostrar tot per seguretat
 
-                process = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(),
+                # Usar subprocess.run síncron (funciona a Windows)
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
                     timeout=60  # 60 segons timeout
                 )
 
-                if process.returncode != 0:
-                    error_msg = stderr.decode() if stderr else "Error desconegut"
+                if result.returncode != 0:
+                    error_msg = result.stderr or "Error desconegut"
                     logger.error(f"yt-dlp error: {error_msg}")
 
                     # Errors comuns
@@ -483,9 +483,9 @@ class BBCiPlayerClient:
 
                     return None
 
-                return stdout.decode() if stdout else None
+                return result.stdout if result.stdout else None
 
-        except asyncio.TimeoutError:
+        except subprocess.TimeoutExpired:
             logger.error("Timeout executant yt-dlp")
             return None
         except FileNotFoundError:
