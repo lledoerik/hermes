@@ -18,6 +18,12 @@
   opacity: 1;
 }
 
+/* Imatges ja al cache - mostrar immediatament sense transició */
+.lazy-image.cached {
+  opacity: 1;
+  transition: none;
+}
+
 .lazy-image-placeholder {
   width: 100%;
   height: 100%;
