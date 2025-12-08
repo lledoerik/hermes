@@ -1131,17 +1131,7 @@ function Details() {
           <div className="section-header">
             {/* Season Tabs amb scroll horitzontal */}
             {seasons.length > 0 && (
-              <div className="seasons-tabs">
-                {canScrollLeft && (
-                  <button
-                    className="scroll-indicator left"
-                    onClick={() => scrollSeasons('left')}
-                    aria-label="Scroll left"
-                  >
-                    <ChevronLeftIcon />
-                  </button>
-                )}
-
+              <div className={`seasons-tabs ${canScrollLeft ? 'can-scroll-left' : ''} ${canScrollRight ? 'can-scroll-right' : ''}`}>
                 <div
                   className={`seasons-scroll-container ${isDragging ? 'dragging' : ''}`}
                   ref={seasonsScrollRef}
@@ -1163,16 +1153,6 @@ function Details() {
                     ))}
                   </div>
                 </div>
-
-                {canScrollRight && (
-                  <button
-                    className="scroll-indicator right"
-                    onClick={() => scrollSeasons('right')}
-                    aria-label="Scroll right"
-                  >
-                    <ChevronRightIcon />
-                  </button>
-                )}
               </div>
             )}
           </div>
