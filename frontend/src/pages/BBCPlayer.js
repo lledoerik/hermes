@@ -62,10 +62,20 @@ function BBCPlayer() {
         });
 
         if (response.data.status === 'success') {
-          const { url, title, season, episode, quality: actualQuality } = response.data;
+          const { url, title, season, episode, quality: actualQuality, subtitles } = response.data;
 
-          // Build subtitle
-          const subtitle = season && episode ? `T${season}E${episode}` : '';
+          // Build subtitle text (season/episode info)
+          const subtitleText = season && episode ? `T${season}E${episode}` : '';
+
+          // Get subtitle URL (prefer English) - use proxy to convert TTML to VTT
+          let subtitleUrl = '';
+          if (subtitles) {
+            const rawSubUrl = subtitles.en || subtitles.eng || Object.values(subtitles)[0] || '';
+            if (rawSubUrl) {
+              // Use our proxy endpoint to convert TTML to VTT
+              subtitleUrl = `${API_URL}/api/bbc/subtitles?url=${encodeURIComponent(rawSubUrl)}`;
+            }
+          }
 
           // Redirect to DebridPlayer with direct mode params
           const params = new URLSearchParams({
@@ -73,7 +83,8 @@ function BBCPlayer() {
             directTitle: title || 'BBC Programme',
             directBadge: 'BBC iPlayer',
             directQuality: actualQuality || '',
-            directSubtitle: subtitle
+            directSubtitle: subtitleText,
+            directSubtitleUrl: subtitleUrl
           });
 
           // Navigate to DebridPlayer in direct mode
