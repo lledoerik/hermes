@@ -681,14 +681,38 @@
 }
 
 /* ========================================
-   SEASON TABS - Pastilles allargades
+   SEASON TABS - Disseny modern amb degradats
    ======================================== */
 .seasons-tabs {
   position: relative;
-  text-align: left;
-  padding: 0 30px; /* Espai pels indicadors de scroll */
-  overflow: hidden; /* Contenir el scroll horitzontal */
+  overflow: hidden;
   max-width: 100%;
+}
+
+/* Degradat esquerre quan es pot fer scroll */
+.seasons-tabs.can-scroll-left::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 50px;
+  background: linear-gradient(to right, var(--bg-primary) 0%, transparent 100%);
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Degradat dret quan es pot fer scroll */
+.seasons-tabs.can-scroll-right::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 50px;
+  background: linear-gradient(to left, var(--bg-primary) 0%, transparent 100%);
+  z-index: 2;
+  pointer-events: none;
 }
 
 .seasons-scroll-container {
@@ -697,7 +721,7 @@
   scrollbar-width: none;
   -ms-overflow-style: none;
   scroll-behavior: smooth;
-  padding: 4px 0;
+  padding: 8px 0;
   cursor: grab;
   user-select: none;
   width: 100%;
@@ -719,79 +743,36 @@
 .seasons-list {
   display: flex;
   flex-wrap: nowrap;
-  gap: 10px;
-  padding: 4px 0;
-  justify-content: flex-start;
+  gap: 12px;
+  padding: 0;
 }
 
-/* Botons pastilla allargats i rodons */
+/* Botons pastilla - disseny modern */
 .season-btn {
   flex-shrink: 0;
-  padding: var(--space-md) var(--space-2xl);
-  background: transparent;
-  border: 2px solid var(--border-medium);
-  border-radius: var(--radius-pill);
+  padding: 10px 24px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 25px;
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all var(--transition-normal);
+  transition: all 0.2s ease;
   white-space: nowrap;
 }
 
 .season-btn:hover {
-  background: var(--bg-glass);
-  border-color: var(--border-light);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
   color: var(--text-primary);
 }
 
 .season-btn.active {
-  background: var(--text-primary);
-  border-color: var(--text-primary);
-  color: var(--bg-primary);
-  font-weight: var(--font-weight-bold);
-}
-
-/* Indicadors de scroll */
-.scroll-indicator {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 28px;
-  height: 28px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 10;
-  transition: all 0.2s ease;
-  color: var(--text-secondary);
-}
-
-.scroll-indicator:hover {
-  background: rgba(255, 255, 255, 0.2);
-  color: var(--text-primary);
-}
-
-.scroll-indicator svg {
-  width: 16px;
-  height: 16px;
-}
-
-.scroll-indicator.left {
-  left: 0;
-}
-
-.scroll-indicator.right {
-  right: 0;
-}
-
-.scroll-indicator.hidden {
-  opacity: 0;
-  pointer-events: none;
+  background: white;
+  border-color: white;
+  color: #0f172a;
+  font-weight: 600;
 }
 
 /* ========================================
