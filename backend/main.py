@@ -10875,38 +10875,48 @@ async def get_onepiece_bbc_stream(
     from backend.debrid import BBCiPlayerClient, BBCiPlayerError
     from backend.debrid.bbc_onepiece import (
         get_arc_for_episode,
-        BBCOnePieceClient
+        get_bbc_programme_id
     )
 
-    # Trobar l'arc corresponent
-    arc = get_arc_for_episode(episode)
-    if not arc:
+    # Buscar el programme_id directe de l'episodi
+    programme_id = get_bbc_programme_id(episode)
+
+    if not programme_id:
+        # Fallback: comprovar si l'arc té bbc_series_id (mètode antic)
+        arc = get_arc_for_episode(episode)
+        if not arc:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No s'ha trobat cap arc per l'episodi {episode}"
+            )
         raise HTTPException(
             status_code=404,
-            detail=f"No s'ha trobat cap arc per l'episodi {episode}"
+            detail=f"L'episodi {episode} no està mapejat a BBC. Importa els episodis primer."
         )
 
-    if not arc.bbc_series_id:
-        raise HTTPException(
-            status_code=404,
-            detail=f"L'arc '{arc.name}' no està disponible a BBC iPlayer"
-        )
-
+    # Obtenir stream directament amb el programme_id
     try:
         bbc_client = BBCiPlayerClient()
-        op_client = BBCOnePieceClient(bbc_client)
+        stream = await bbc_client.get_stream_info(programme_id, quality)
 
-        stream = await op_client.get_episode_for_tmdb(episode, quality)
-
-        if not stream:
+        if not stream or not stream.url:
             raise HTTPException(
                 status_code=404,
                 detail=f"No s'ha pogut obtenir l'stream per l'episodi {episode}"
             )
 
+        arc = get_arc_for_episode(episode)
+
         return {
             "status": "success",
-            **stream
+            "provider": "bbc_iplayer",
+            "arc": arc.name if arc else "Unknown",
+            "programme_id": programme_id,
+            "title": stream.title,
+            "url": stream.url,
+            "quality": stream.quality,
+            "subtitles": stream.subtitles,
+            "duration": stream.duration
         }
 
     except BBCiPlayerError as e:
@@ -10929,7 +10939,7 @@ async def check_onepiece_bbc_availability(
     """
     require_auth(request)
 
-    from backend.debrid.bbc_onepiece import get_arc_for_episode
+    from backend.debrid.bbc_onepiece import get_arc_for_episode, get_bbc_programme_id
 
     arc = get_arc_for_episode(episode)
 
@@ -10939,19 +10949,21 @@ async def check_onepiece_bbc_availability(
             "reason": "episode_not_found"
         }
 
-    if not arc.bbc_series_id:
+    # Comprovar si tenim el programme_id mapejat
+    programme_id = get_bbc_programme_id(episode)
+
+    if programme_id:
         return {
-            "available": False,
+            "available": True,
             "arc": arc.name,
-            "reason": "arc_not_on_bbc"
+            "arc_en": arc.name_en,
+            "programme_id": programme_id
         }
 
     return {
-        "available": True,
+        "available": False,
         "arc": arc.name,
-        "arc_en": arc.name_en,
-        "bbc_episode": arc.tmdb_to_bbc_episode(episode),
-        "bbc_series_id": arc.bbc_series_id
+        "reason": "episode_not_mapped"
     }
 
 
@@ -10980,6 +10992,91 @@ async def configure_onepiece_arc(
     return {
         "status": "success",
         "message": f"Arc '{arc_name}' configurat amb BBC ID: {bbc_series_id}"
+    }
+
+
+@app.post("/api/bbc/onepiece/import")
+async def import_onepiece_bbc_episodes(
+    request: Request,
+    url: str = Query(..., description="URL de la sèrie/arc de BBC iPlayer")
+):
+    """
+    Importa episodis de One Piece de BBC iPlayer automàticament.
+    Obté tots els episodis de la URL donada i els mapeja als episodis absoluts.
+
+    Args:
+        url: URL de la sèrie de BBC (ex: https://www.bbc.co.uk/iplayer/episodes/p0j3hwjx)
+    """
+    require_auth(request)
+
+    from backend.debrid import BBCiPlayerClient
+    from backend.debrid.bbc_onepiece import (
+        import_bbc_episodes_from_list,
+        BBC_EPISODE_MAPPING
+    )
+
+    client = BBCiPlayerClient()
+
+    try:
+        # Obtenir tots els episodis de la sèrie
+        episodes = await client.search_series(url)
+
+        if not episodes:
+            raise HTTPException(
+                status_code=404,
+                detail="No s'han trobat episodis a la URL proporcionada"
+            )
+
+        # Importar episodis
+        imported = import_bbc_episodes_from_list(episodes)
+
+        return {
+            "status": "success",
+            "message": f"Importats {imported} episodis de {len(episodes)} trobats",
+            "total_found": len(episodes),
+            "imported": imported,
+            "total_mapped": len(BBC_EPISODE_MAPPING),
+            "episodes_preview": [
+                {"episode": k, "programme_id": v}
+                for k, v in sorted(BBC_EPISODE_MAPPING.items())[:10]
+            ]
+        }
+
+    except Exception as e:
+        logger.error(f"Error important episodis BBC: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/bbc/onepiece/mapping")
+async def get_onepiece_bbc_mapping(request: Request):
+    """
+    Obtenir el mappeig actual d'episodis de One Piece a BBC.
+    """
+    require_auth(request)
+
+    from backend.debrid.bbc_onepiece import BBC_EPISODE_MAPPING, ONE_PIECE_ARCS
+
+    # Agrupar per arcs
+    arcs_status = []
+    for arc in ONE_PIECE_ARCS:
+        mapped_count = sum(
+            1 for ep in range(arc.tmdb_start, arc.tmdb_end + 1)
+            if ep in BBC_EPISODE_MAPPING
+        )
+        arcs_status.append({
+            "name": arc.name,
+            "tmdb_start": arc.tmdb_start,
+            "tmdb_end": arc.tmdb_end,
+            "total_episodes": arc.episode_count,
+            "mapped_episodes": mapped_count,
+            "coverage_percent": round(mapped_count / arc.episode_count * 100, 1) if arc.episode_count > 0 else 0
+        })
+
+    return {
+        "status": "success",
+        "total_mapped": len(BBC_EPISODE_MAPPING),
+        "arcs": arcs_status,
+        "mapping": {str(k): v for k, v in sorted(BBC_EPISODE_MAPPING.items())}
     }
 
 

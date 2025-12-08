@@ -176,16 +176,16 @@ ONE_PIECE_ARCS: List[OnePieceArc] = [
         name="Whole Cake Island",
         name_en="Whole Cake Island",
         tmdb_start=747,
-        tmdb_end=877,
+        tmdb_end=891,
         bbc_series_id="p0j3hwjx"  # Exemple - verificar a BBC
     ),
 
-    # Wano Country Saga
+    # Land of Wano Saga
     OnePieceArc(
-        name="Wano Country",
-        name_en="Wano Country",
-        tmdb_start=878,
-        tmdb_end=1085,
+        name="Land of Wano",
+        name_en="Land of Wano",
+        tmdb_start=892,
+        tmdb_end=1088,
         bbc_series_id=None
     ),
 
@@ -193,11 +193,114 @@ ONE_PIECE_ARCS: List[OnePieceArc] = [
     OnePieceArc(
         name="Egghead",
         name_en="Egghead",
-        tmdb_start=1086,
+        tmdb_start=1089,
         tmdb_end=9999,  # En emissió
         bbc_series_id=None
     ),
 ]
+
+
+# Diccionari que mapeja episodi absolut → programme_id de BBC
+# Format: { episode_number: programme_id }
+# Això es pot guardar/carregar des d'un fitxer JSON
+BBC_EPISODE_MAPPING: Dict[int, str] = {}
+
+# Fitxer on guardar el mappeig persistent
+BBC_MAPPING_FILE = "/home/user/hermes/data/bbc_onepiece_mapping.json"
+
+
+def load_bbc_mapping():
+    """Carrega el mappeig des del fitxer JSON"""
+    global BBC_EPISODE_MAPPING
+    import json
+    import os
+
+    if os.path.exists(BBC_MAPPING_FILE):
+        try:
+            with open(BBC_MAPPING_FILE, 'r') as f:
+                data = json.load(f)
+                # Convertir claus a int
+                BBC_EPISODE_MAPPING = {int(k): v for k, v in data.items()}
+                logger.info(f"Carregat mappeig BBC amb {len(BBC_EPISODE_MAPPING)} episodis")
+        except Exception as e:
+            logger.error(f"Error carregant mappeig BBC: {e}")
+
+
+def save_bbc_mapping():
+    """Guarda el mappeig al fitxer JSON"""
+    import json
+    import os
+
+    # Crear directori si no existeix
+    os.makedirs(os.path.dirname(BBC_MAPPING_FILE), exist_ok=True)
+
+    try:
+        with open(BBC_MAPPING_FILE, 'w') as f:
+            json.dump(BBC_EPISODE_MAPPING, f, indent=2)
+        logger.info(f"Guardat mappeig BBC amb {len(BBC_EPISODE_MAPPING)} episodis")
+    except Exception as e:
+        logger.error(f"Error guardant mappeig BBC: {e}")
+
+
+def add_bbc_episode(absolute_episode: int, programme_id: str):
+    """Afegeix un episodi al mappeig"""
+    BBC_EPISODE_MAPPING[absolute_episode] = programme_id
+    save_bbc_mapping()
+
+
+def get_bbc_programme_id(absolute_episode: int) -> Optional[str]:
+    """Obté el programme_id de BBC per un episodi absolut"""
+    return BBC_EPISODE_MAPPING.get(absolute_episode)
+
+
+def import_bbc_episodes_from_list(episodes: List[Dict]) -> int:
+    """
+    Importa episodis de BBC a partir d'una llista obtinguda de yt-dlp.
+    Intenta extreure el número d'episodi del títol.
+
+    Returns:
+        Nombre d'episodis importats
+    """
+    import re
+    imported = 0
+
+    for ep in episodes:
+        programme_id = ep.get("programme_id") or ep.get("id")
+        title = ep.get("title", "")
+
+        if not programme_id:
+            continue
+
+        # Intentar extreure el número d'episodi del títol
+        # Patrons comuns: "Episode 804", "804.", "Ep 804", "#804"
+        patterns = [
+            r'Episode\s*(\d+)',
+            r'Ep\.?\s*(\d+)',
+            r'^(\d+)\.',
+            r'#(\d+)',
+            r'\b(\d{3,4})\b',  # Qualsevol número de 3-4 dígits
+        ]
+
+        episode_num = None
+        for pattern in patterns:
+            match = re.search(pattern, title, re.IGNORECASE)
+            if match:
+                episode_num = int(match.group(1))
+                break
+
+        if episode_num and 1 <= episode_num <= 2000:
+            BBC_EPISODE_MAPPING[episode_num] = programme_id
+            imported += 1
+            logger.debug(f"Importat episodi {episode_num} -> {programme_id}")
+
+    if imported > 0:
+        save_bbc_mapping()
+
+    return imported
+
+
+# Carregar mappeig al iniciar
+load_bbc_mapping()
 
 
 def get_arc_for_episode(tmdb_episode: int) -> Optional[OnePieceArc]:
