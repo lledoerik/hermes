@@ -736,10 +736,6 @@
   scroll-behavior: auto;
 }
 
-.seasons-scroll-container.dragging .season-btn {
-  pointer-events: none;
-}
-
 .seasons-list {
   display: flex;
   flex-wrap: nowrap;
