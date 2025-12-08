@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import Hls from 'hls.js';
 import { API_URL } from '../config/api';
 import './DebridPlayer.css'; // Reutilitzem els estils del DebridPlayer
 
@@ -91,10 +92,15 @@ function BBCPlayer() {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
   const controlsTimeoutRef = useRef(null);
+  const hlsRef = useRef(null);
 
-  // Get URL from query params
-  const bbcUrl = searchParams.get('url');
+  // Get URL from query params (support both 'url' and 'id')
+  const urlParam = searchParams.get('url');
+  const idParam = searchParams.get('id');
   const quality = searchParams.get('quality') || 'best';
+
+  // Construir URL de BBC si només tenim l'ID
+  const bbcUrl = urlParam || (idParam ? `https://www.bbc.co.uk/iplayer/episode/${idParam}` : null);
 
   // Player state
   const [loading, setLoading] = useState(true);
@@ -167,6 +173,74 @@ function BBCPlayer() {
 
     fetchStream();
   }, [bbcUrl, quality]);
+
+  // Initialize HLS when we have a stream URL
+  useEffect(() => {
+    if (!streamUrl || !videoRef.current) return;
+
+    // Check if it's an HLS stream
+    const isHls = streamUrl.includes('.m3u8');
+
+    if (isHls && Hls.isSupported()) {
+      // Use HLS.js for browsers that don't support HLS natively
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
+        startLevel: -1,  // Auto select best quality
+      });
+
+      hlsRef.current = hls;
+      hls.loadSource(streamUrl);
+      hls.attachMedia(videoRef.current);
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        // Select highest quality
+        const levels = hls.levels;
+        if (levels && levels.length > 0) {
+          const hdLevel = levels.findIndex(l => l.height >= 720);
+          if (hdLevel !== -1) {
+            hls.currentLevel = hdLevel;
+          }
+        }
+        videoRef.current.play().catch(e => console.log('Autoplay blocked:', e));
+      });
+
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.warn('HLS network error, trying to recover...');
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.warn('HLS media error, trying to recover...');
+              hls.recoverMediaError();
+              break;
+            default:
+              console.error('HLS fatal error:', data);
+              setError('Error loading stream');
+              hls.destroy();
+              break;
+          }
+        }
+      });
+
+      return () => {
+        hls.destroy();
+        hlsRef.current = null;
+      };
+    } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+      // Safari native HLS support
+      videoRef.current.src = streamUrl;
+      videoRef.current.play().catch(e => console.log('Autoplay blocked:', e));
+    } else if (!isHls) {
+      // Direct URL (not HLS)
+      videoRef.current.src = streamUrl;
+      videoRef.current.play().catch(e => console.log('Autoplay blocked:', e));
+    }
+  }, [streamUrl]);
 
   // Video event handlers
   const handleTimeUpdate = useCallback(() => {
@@ -391,7 +465,6 @@ function BBCPlayer() {
       {/* Video element */}
       <video
         ref={videoRef}
-        src={streamUrl}
         className="video-element"
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
@@ -400,7 +473,6 @@ function BBCPlayer() {
         onPause={handlePause}
         onEnded={handleEnded}
         onClick={togglePlay}
-        autoPlay
         playsInline
       >
         {/* Subtitles */}
