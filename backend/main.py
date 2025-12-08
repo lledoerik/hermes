@@ -998,21 +998,26 @@ async def fix_non_latin_titles(request: Request):
                         if original_language == "ja" or "JP" in origin_country:
                             is_anime = True
 
-                    # Si és anime, provar AniList primer (millors títols anglesos)
+                    # SEMPRE provar TMDB primer per obtenir títol anglès (és més fiable)
+                    if media_type == "movie":
+                        data = await tmdb_client._request(f"/movie/{tmdb_id}", {"language": "en-US"})
+                        tmdb_title = data.get("title") if data else None
+                    else:
+                        data = await tmdb_client._request(f"/tv/{tmdb_id}", {"language": "en-US"})
+                        tmdb_title = data.get("name") if data else None
+
+                    if tmdb_title and not contains_non_latin_characters(tmdb_title):
+                        english_title = tmdb_title
+                        source = "TMDB"
+
+                    # Per anime, també obtenir AniList IDs (però NO usar per títol si ja tenim TMDB)
                     if is_anime and media_type == "series":
                         try:
-                            search_title = item["name"]
+                            # Cercar per títol anglès de TMDB (més precís que japonès)
+                            search_title = english_title if english_title else item["name"]
                             anilist_result = await anilist_client.search_anime(search_title)
                             if anilist_result:
-                                # Preferir títol anglès, després romaji
-                                if anilist_result.get("title_english"):
-                                    english_title = anilist_result["title_english"]
-                                    source = "AniList"
-                                elif anilist_result.get("title_romaji"):
-                                    english_title = anilist_result["title_romaji"]
-                                    source = "AniList (romaji)"
-
-                                # Guardar també anilist_id i mal_id
+                                # Guardar anilist_id i mal_id
                                 if anilist_result.get("anilist_id"):
                                     cursor.execute("""
                                         UPDATE series SET anilist_id = ?, mal_id = ?, content_type = 'anime'
@@ -1022,21 +1027,14 @@ async def fix_non_latin_titles(request: Request):
                                         anilist_result.get("mal_id"),
                                         item["id"]
                                     ))
+
+                                # NOMÉS usar títol d'AniList si TMDB no ha donat anglès
+                                if not english_title or contains_non_latin_characters(english_title):
+                                    if anilist_result.get("title_english"):
+                                        english_title = anilist_result["title_english"]
+                                        source = "AniList"
                         except Exception as e:
                             logger.warning(f"Error consultant AniList per {item['name']}: {e}")
-
-                    # Si no hem trobat títol a AniList, provar TMDB
-                    if not english_title or contains_non_latin_characters(english_title):
-                        if media_type == "movie":
-                            data = await tmdb_client._request(f"/movie/{tmdb_id}", {"language": "en-US"})
-                            tmdb_title = data.get("title") if data else None
-                        else:
-                            data = await tmdb_client._request(f"/tv/{tmdb_id}", {"language": "en-US"})
-                            tmdb_title = data.get("name") if data else None
-
-                        if tmdb_title and not contains_non_latin_characters(tmdb_title):
-                            english_title = tmdb_title
-                            source = "TMDB"
 
                     if english_title and not contains_non_latin_characters(english_title):
                         # Si té títol no-llatí, canviar el títol principal
