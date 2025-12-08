@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
+import Hls from 'hls.js';
 import { useAuth } from '../context/AuthContext';
 import { useStreamCache } from '../context/StreamCacheContext';
 import { API_URL } from '../config/api';
@@ -226,6 +227,7 @@ function DebridPlayer() {
   } = useStreamCache();
 
   const videoRef = useRef(null);
+  const hlsRef = useRef(null);
   const containerRef = useRef(null);
   const controlsTimeoutRef = useRef(null);
   const progressSaveTimeoutRef = useRef(null);
@@ -243,6 +245,14 @@ function DebridPlayer() {
   const searchParams = new URLSearchParams(location.search);
   const season = searchParams.get('s') ? parseInt(searchParams.get('s')) : null;
   const episode = searchParams.get('e') ? parseInt(searchParams.get('e')) : null;
+
+  // Direct mode params (for BBC iPlayer and other direct streams)
+  const directUrl = searchParams.get('directUrl');
+  const directTitle = searchParams.get('directTitle');
+  const directBadge = searchParams.get('directBadge');
+  const directQuality = searchParams.get('directQuality');
+  const directSubtitle = searchParams.get('directSubtitle');
+  const isDirectMode = !!directUrl;
 
   // Media info
   const [mediaInfo, setMediaInfo] = useState(location.state?.mediaInfo || null);
@@ -1233,6 +1243,14 @@ function DebridPlayer() {
   // Initial load
   useEffect(() => {
     const init = async () => {
+      // Direct mode: skip all torrent loading, use provided URL
+      if (isDirectMode) {
+        setStreamUrl(directUrl);
+        setLoadingTorrents(false);
+        setDebridConfigured(true); // Pretend it's configured
+        return;
+      }
+
       if (!mediaInfo) loadMediaInfo();
       loadEpisodes();
 
@@ -1245,7 +1263,7 @@ function DebridPlayer() {
       }
     };
     init();
-  }, [mediaInfo, loadMediaInfo, loadEpisodes, searchTorrents, checkDebridStatus]);
+  }, [mediaInfo, loadMediaInfo, loadEpisodes, searchTorrents, checkDebridStatus, isDirectMode, directUrl]);
 
   // Auto-get stream when torrent is selected
   useEffect(() => {
@@ -1372,10 +1390,66 @@ function DebridPlayer() {
     };
   }, [tmdbId, type, season, episode, mediaInfo, duration]);
 
-  const title = mediaInfo?.title || mediaInfo?.name || 'Carregant...';
-  const subtitle = type !== 'movie' && season && episode
-    ? `T${season} · E${episode}`
-    : null;
+  // HLS.js setup for .m3u8 streams
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !streamUrl) return;
+
+    const isHLS = streamUrl.includes('.m3u8') || streamUrl.includes('/hls/');
+
+    // Clean up previous HLS instance
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    if (isHLS) {
+      if (Hls.isSupported()) {
+        // Use HLS.js for Chrome, Firefox, etc.
+        const hls = new Hls({
+          maxBufferLength: 30,
+          maxMaxBufferLength: 60,
+        });
+        hls.loadSource(streamUrl);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          video.play().catch(e => console.log('Autoplay prevented:', e));
+        });
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          if (data.fatal) {
+            console.error('HLS fatal error:', data);
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+              hls.startLoad();
+            } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              hls.recoverMediaError();
+            }
+          }
+        });
+        hlsRef.current = hls;
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Native HLS support (Safari)
+        video.src = streamUrl;
+        video.play().catch(e => console.log('Autoplay prevented:', e));
+      }
+    } else {
+      // Non-HLS stream - set src directly
+      video.src = streamUrl;
+    }
+
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [streamUrl]);
+
+  const title = isDirectMode
+    ? (directTitle || 'Reproduint...')
+    : (mediaInfo?.title || mediaInfo?.name || 'Carregant...');
+  const subtitle = isDirectMode
+    ? directSubtitle
+    : (type !== 'movie' && season && episode ? `T${season} · E${episode}` : null);
 
   return (
     <div
@@ -1411,7 +1485,6 @@ function DebridPlayer() {
         <video
           ref={videoRef}
           className="video-element"
-          src={streamUrl}
           muted={isMuted}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
@@ -1514,6 +1587,8 @@ function DebridPlayer() {
           <BackIcon />
         </button>
         <div className="title-info">
+          {isDirectMode && directBadge && <span className="source-badge">{directBadge}</span>}
+          {isDirectMode && directQuality && <span className="quality-badge direct-quality">{directQuality}</span>}
           <h1>{title}</h1>
           {subtitle && <span>{subtitle}</span>}
         </div>
