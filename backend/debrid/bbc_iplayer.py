@@ -6,6 +6,11 @@ Suport per 1080p:
 - BBC iPlayer limita els navegadors a 720p
 - Aquesta implementació intenta forçar 1080p modificant els paràmetres del manifest HLS
 - No tots els programes tenen 1080p disponible (especialment contingut web-only)
+
+Autenticació:
+- Utilitza cookies de sessió guardades de forma segura (encriptades)
+- Les cookies es configuren a través del panell d'administració
+- Permet accés als amics sense que necessitin compte BBC
 """
 
 import asyncio
@@ -17,6 +22,8 @@ from dataclasses import dataclass
 from typing import Optional, List, Dict, Any
 
 import httpx
+
+from .bbc_cookies import BBCCookieFile, has_bbc_cookies
 
 logger = logging.getLogger(__name__)
 
@@ -395,41 +402,61 @@ class BBCiPlayerClient:
         return season, episode
 
     async def _run_ytdlp(self, args: List[str]) -> Optional[str]:
-        """Executar yt-dlp com a subprocess async"""
+        """
+        Executar yt-dlp com a subprocess async
+
+        Utilitza cookies de BBC si estan configurades per autenticar-se.
+        """
         try:
-            cmd = ["yt-dlp"] + args
+            # Utilitzar context manager per gestionar el fitxer de cookies temporal
+            with BBCCookieFile() as cookie_file:
+                cmd = ["yt-dlp"]
 
-            logger.debug(f"Executant: {' '.join(cmd)}")
+                # Afegir cookies si disponibles
+                if cookie_file:
+                    cmd.extend(["--cookies", cookie_file])
+                    logger.debug("Utilitzant cookies de BBC configurades")
 
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
+                cmd.extend(args)
 
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
-                timeout=60  # 60 segons timeout
-            )
+                logger.debug(f"Executant: {' '.join(cmd[:3])}...")  # No mostrar tot per seguretat
 
-            if process.returncode != 0:
-                error_msg = stderr.decode() if stderr else "Error desconegut"
-                logger.error(f"yt-dlp error: {error_msg}")
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
 
-                # Errors comuns
-                if "not available in your country" in error_msg.lower():
-                    raise BBCiPlayerError(
-                        "Aquest contingut no està disponible fora del Regne Unit. "
-                        "Necessites una IP del Regne Unit per accedir a BBC iPlayer."
-                    )
-                if "sign in" in error_msg.lower():
-                    raise BBCiPlayerError(
-                        "Aquest contingut requereix iniciar sessió a BBC iPlayer."
-                    )
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=60  # 60 segons timeout
+                )
 
-                return None
+                if process.returncode != 0:
+                    error_msg = stderr.decode() if stderr else "Error desconegut"
+                    logger.error(f"yt-dlp error: {error_msg}")
 
-            return stdout.decode() if stdout else None
+                    # Errors comuns
+                    if "not available in your country" in error_msg.lower():
+                        raise BBCiPlayerError(
+                            "Aquest contingut no està disponible fora del Regne Unit. "
+                            "Necessites una IP del Regne Unit per accedir a BBC iPlayer."
+                        )
+                    if "sign in" in error_msg.lower():
+                        if has_bbc_cookies():
+                            raise BBCiPlayerError(
+                                "Les cookies de BBC han expirat o són invàlides. "
+                                "L'administrador ha de reconfigurar-les."
+                            )
+                        else:
+                            raise BBCiPlayerError(
+                                "Aquest contingut requereix autenticació. "
+                                "L'administrador ha de configurar les cookies de BBC."
+                            )
+
+                    return None
+
+                return stdout.decode() if stdout else None
 
         except asyncio.TimeoutError:
             logger.error("Timeout executant yt-dlp")
@@ -440,6 +467,8 @@ class BBCiPlayerClient:
                 "yt-dlp no està instal·lat. "
                 "Instal·la'l amb: pip install yt-dlp"
             )
+        except BBCiPlayerError:
+            raise
         except Exception as e:
             logger.error(f"Error executant yt-dlp: {e}")
             return None

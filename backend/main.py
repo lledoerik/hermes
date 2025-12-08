@@ -10584,16 +10584,111 @@ async def get_cached_stream(
 
 # ==================== BBC IPLAYER API ====================
 
+# --- BBC Admin Endpoints (només admins) ---
+
+@app.get("/api/bbc/status")
+async def get_bbc_status(request: Request):
+    """
+    Obtenir l'estat de la configuració de BBC iPlayer
+
+    Accessible per tots els usuaris autenticats.
+    """
+    require_auth(request)
+
+    from backend.debrid import has_bbc_cookies, ENCRYPTION_AVAILABLE
+
+    return {
+        "configured": has_bbc_cookies(),
+        "encryption_available": ENCRYPTION_AVAILABLE,
+        "note": "Les cookies de BBC es guarden encriptades" if ENCRYPTION_AVAILABLE else "Encriptació no disponible (instal·la cryptography)"
+    }
+
+
+@app.post("/api/bbc/cookies")
+async def set_bbc_cookies(request: Request):
+    """
+    Configurar les cookies de BBC iPlayer (només admins)
+
+    Les cookies s'han d'exportar del navegador en format Netscape.
+    Extensions recomanades:
+    - Chrome: "Get cookies.txt LOCALLY"
+    - Firefox: "cookies.txt"
+
+    Cos de la petició:
+    {
+        "cookies": "# Netscape HTTP Cookie File\\n.bbc.co.uk\\tTRUE\\t/..."
+    }
+    """
+    admin = require_auth(request)
+    if not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Només els administradors poden configurar les cookies de BBC")
+
+    from backend.debrid import save_bbc_cookies, validate_cookies_format
+
+    try:
+        body = await request.json()
+        cookies_data = body.get("cookies", "")
+
+        if not cookies_data:
+            raise HTTPException(status_code=400, detail="No s'han proporcionat cookies")
+
+        # Validar format
+        valid, message = validate_cookies_format(cookies_data)
+        if not valid:
+            raise HTTPException(status_code=400, detail=message)
+
+        # Guardar cookies (encriptades)
+        if save_bbc_cookies(cookies_data):
+            return {
+                "status": "success",
+                "message": "Cookies de BBC configurades correctament",
+                "validation": message
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Error guardant les cookies")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error configurant cookies BBC: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/bbc/cookies")
+async def delete_bbc_cookies_endpoint(request: Request):
+    """
+    Eliminar les cookies de BBC iPlayer (només admins)
+    """
+    admin = require_auth(request)
+    if not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Només els administradors poden eliminar les cookies de BBC")
+
+    from backend.debrid import delete_bbc_cookies
+
+    if delete_bbc_cookies():
+        return {"status": "success", "message": "Cookies de BBC eliminades"}
+    else:
+        raise HTTPException(status_code=500, detail="Error eliminant les cookies")
+
+
+# --- BBC Streaming Endpoints (usuaris autenticats) ---
+
 @app.get("/api/bbc/stream")
 async def get_bbc_stream(
+    request: Request,
     url: str = Query(..., description="URL de BBC iPlayer o programme_id"),
     quality: str = Query("best", description="Qualitat: best, 1080, 720, 480, worst")
 ):
     """
     Obtenir URL de streaming d'un programa de BBC iPlayer
 
-    IMPORTANT: Requereix IP del Regne Unit per funcionar.
+    Requereix:
+    - Usuari autenticat a Hermes
+    - Cookies de BBC configurades per l'admin
+    - Servidor amb IP del Regne Unit
     """
+    require_auth(request)  # Usuaris autenticats només
+
     from backend.debrid import BBCiPlayerClient, BBCiPlayerError
 
     client = BBCiPlayerClient()
@@ -10625,7 +10720,7 @@ async def get_bbc_stream(
             "subtitles": stream.subtitles,
             "season": stream.season,
             "episode": stream.episode,
-            "quality": stream.quality  # Qualitat real obtinguda (720p o 1080p)
+            "quality": stream.quality
         }
 
     except BBCiPlayerError as e:
@@ -10639,18 +10734,21 @@ async def get_bbc_stream(
 
 @app.get("/api/bbc/info")
 async def get_bbc_info(
+    request: Request,
     url: str = Query(..., description="URL de BBC iPlayer o programme_id")
 ):
     """
     Obtenir informació d'un programa de BBC iPlayer sense URL de streaming
     (més ràpid que /api/bbc/stream)
     """
+    require_auth(request)
+
     from backend.debrid import BBCiPlayerClient, BBCiPlayerError
 
     client = BBCiPlayerClient()
 
     try:
-        stream = await client.get_stream_info(url, quality="worst")  # worst és més ràpid
+        stream = await client.get_stream_info(url, quality="worst")
 
         if not stream:
             raise HTTPException(
@@ -10682,11 +10780,14 @@ async def get_bbc_info(
 
 @app.get("/api/bbc/formats")
 async def get_bbc_formats(
+    request: Request,
     url: str = Query(..., description="URL de BBC iPlayer o programme_id")
 ):
     """
     Obtenir tots els formats disponibles d'un programa
     """
+    require_auth(request)
+
     from backend.debrid import BBCiPlayerClient, BBCiPlayerError
 
     client = BBCiPlayerClient()
@@ -10709,11 +10810,14 @@ async def get_bbc_formats(
 
 @app.get("/api/bbc/series")
 async def get_bbc_series(
+    request: Request,
     url: str = Query(..., description="URL de la sèrie de BBC iPlayer")
 ):
     """
     Obtenir tots els episodis d'una sèrie de BBC iPlayer
     """
+    require_auth(request)
+
     from backend.debrid import BBCiPlayerClient, BBCiPlayerError
 
     client = BBCiPlayerClient()
