@@ -10983,6 +10983,107 @@ async def configure_onepiece_arc(
     }
 
 
+@app.get("/api/bbc/onepiece/arc/{arc_index}/episodes")
+async def get_onepiece_arc_episodes(
+    request: Request,
+    arc_index: int,
+):
+    """
+    Obtenir els episodis d'un arc de One Piece des de TMDB.
+    Retorna els episodis amb número absolut.
+
+    Args:
+        arc_index: Índex de l'arc (0-based)
+    """
+    require_auth(request)
+
+    from backend.debrid.bbc_onepiece import (
+        ONE_PIECE_ARCS,
+        ONE_PIECE_TMDB_ID,
+        get_seasons_for_arc_range,
+        TMDB_SEASON_MAPPING
+    )
+
+    if arc_index < 0 or arc_index >= len(ONE_PIECE_ARCS):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Arc index {arc_index} not found"
+        )
+
+    arc = ONE_PIECE_ARCS[arc_index]
+    start_ep = arc.tmdb_start
+    end_ep = min(arc.tmdb_end, 2000)  # Cap per evitar problemes
+
+    # Obtenir les temporades TMDB que cobreixen aquest arc
+    seasons_needed = get_seasons_for_arc_range(start_ep, end_ep)
+
+    if not seasons_needed:
+        return {
+            "status": "success",
+            "arc": arc.name,
+            "episodes": [],
+            "count": 0
+        }
+
+    # Obtenir episodis de TMDB per cada temporada
+    all_episodes = []
+
+    for season_num in seasons_needed:
+        try:
+            # Trobar el rang d'episodis absoluts per aquesta temporada
+            season_info = next(
+                (s for s in TMDB_SEASON_MAPPING if s[0] == season_num),
+                None
+            )
+            if not season_info:
+                continue
+
+            season_start = season_info[1]
+
+            # Obtenir episodis de TMDB
+            tmdb_response = await fetch_tmdb(
+                f"/tv/{ONE_PIECE_TMDB_ID}/season/{season_num}"
+            )
+
+            if tmdb_response and "episodes" in tmdb_response:
+                for ep in tmdb_response["episodes"]:
+                    # Calcular número d'episodi absolut
+                    absolute_ep = season_start + ep["episode_number"] - 1
+
+                    # Filtrar només episodis dins l'arc
+                    if start_ep <= absolute_ep <= end_ep:
+                        all_episodes.append({
+                            "episode_number": absolute_ep,
+                            "episode_in_arc": absolute_ep - start_ep + 1,
+                            "name": ep.get("name", f"Episode {absolute_ep}"),
+                            "overview": ep.get("overview"),
+                            "still_path": ep.get("still_path"),
+                            "air_date": ep.get("air_date"),
+                            "runtime": ep.get("runtime"),
+                            "vote_average": ep.get("vote_average"),
+                            "tmdb_season": season_num,
+                            "tmdb_episode": ep["episode_number"]
+                        })
+
+        except Exception as e:
+            logger.error(f"Error fetching season {season_num}: {e}")
+            continue
+
+    # Ordenar per número d'episodi absolut
+    all_episodes.sort(key=lambda x: x["episode_number"])
+
+    return {
+        "status": "success",
+        "arc": arc.name,
+        "arc_index": arc_index,
+        "tmdb_start": start_ep,
+        "tmdb_end": end_ep,
+        "bbc_available": arc.bbc_series_id is not None,
+        "episodes": all_episodes,
+        "count": len(all_episodes)
+    }
+
+
 @app.get("/api/bbc/subtitles")
 async def proxy_bbc_subtitles(
     request: Request,
