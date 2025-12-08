@@ -16,3 +16,5 @@ apscheduler>=3.10.0
 beautifulsoup4>=4.12.0
 lxml>=5.0.0
 python-dotenv>=1.0.0
+# BBC iPlayer streaming
+yt-dlp>=2024.8.0
