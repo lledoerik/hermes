@@ -217,25 +217,44 @@ class BBCiPlayerClient:
             (url, quality_achieved) - La URL i la qualitat real obtinguda
         """
         try:
-            # Primer obtenim la URL de 720p (la màxima que yt-dlp pot obtenir directament)
+            # Utilitzar -j per obtenir JSON (més fiable que -g que pot donar 403)
             result = await self._run_ytdlp([
-                "-f", "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
-                "-g",
+                "-j",
+                "--no-download",
                 url
             ])
 
             if not result:
                 return None, None
 
-            urls = result.strip().split("\n")
-            base_url = urls[0] if urls else None
+            info = json.loads(result)
+
+            # Extreure la URL del JSON
+            base_url = info.get("url")
+
+            # Si no hi ha URL directa, buscar al manifest_url
+            if not base_url:
+                base_url = info.get("manifest_url")
+
+            # També podem buscar en els formats
+            if not base_url and info.get("formats"):
+                # Buscar el millor format amb video
+                for fmt in reversed(info.get("formats", [])):
+                    if fmt.get("url") and fmt.get("vcodec") != "none":
+                        base_url = fmt.get("url")
+                        break
 
             if not base_url:
+                logger.error("No s'ha trobat cap URL de streaming al JSON")
                 return None, None
+
+            # Determinar la qualitat actual
+            height = info.get("height", 720)
+            current_quality = f"{height}p" if height else "720p"
 
             # Si l'usuari vol 720p o menys, retornem directament
             if quality in ["720", "480", "worst"]:
-                return base_url, "720p"
+                return base_url, current_quality
 
             # Intentar actualitzar a 1080p
             if quality in ["best", "1080"]:
@@ -250,16 +269,13 @@ class BBCiPlayerClient:
                         logger.info("1080p disponible!")
                         return upgraded_url, "1080p"
                     else:
-                        logger.info("1080p no disponible, utilitzant 720p")
-                        if quality == "1080":
-                            # L'usuari ha demanat específicament 1080p
-                            logger.warning(
-                                "1080p no disponible per aquest contingut. "
-                                "Alguns programes (web-only) només tenen 720p."
-                            )
+                        logger.info("1080p no disponible, utilitzant " + current_quality)
 
-            return base_url, "720p"
+            return base_url, current_quality
 
+        except json.JSONDecodeError as e:
+            logger.error(f"Error parsejant JSON: {e}")
+            return None, None
         except Exception as e:
             logger.error(f"Error obtenint URL: {e}")
             return None, None
