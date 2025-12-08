@@ -3376,7 +3376,7 @@ async def get_tmdb_movie_details(tmdb_id: int):
     if not api_key:
         raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
 
-    from backend.metadata.tmdb import TMDBClient
+    from backend.metadata.tmdb import TMDBClient, contains_non_latin_characters
 
     client = TMDBClient(api_key)
     try:
@@ -3388,11 +3388,20 @@ async def get_tmdb_movie_details(tmdb_id: int):
         if data.get("release_date"):
             year = int(data["release_date"][:4])
 
+        # Obtenir títol - si conté caràcters no llatins (japonès, etc), usar anglès
+        title = data.get("title")
+        if title and contains_non_latin_characters(title):
+            english_data = await client._request(f"/movie/{tmdb_id}", {"language": "en-US"})
+            if english_data and english_data.get("title"):
+                english_title = english_data["title"]
+                if not contains_non_latin_characters(english_title):
+                    title = english_title
+
         return {
             "id": f"tmdb-{tmdb_id}",
             "tmdb_id": tmdb_id,
-            "name": data.get("title"),
-            "title": data.get("title"),
+            "name": title,
+            "title": title,
             "original_name": data.get("original_title"),
             "year": year,
             "overview": data.get("overview"),
@@ -3420,7 +3429,7 @@ async def get_tmdb_tv_details(tmdb_id: int):
     if not api_key:
         raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
 
-    from backend.metadata.tmdb import TMDBClient
+    from backend.metadata.tmdb import TMDBClient, contains_non_latin_characters
 
     client = TMDBClient(api_key)
     try:
@@ -3432,11 +3441,20 @@ async def get_tmdb_tv_details(tmdb_id: int):
         if data.get("first_air_date"):
             year = int(data["first_air_date"][:4])
 
+        # Obtenir títol - si conté caràcters no llatins (japonès, etc), usar anglès
+        title = data.get("name")
+        if title and contains_non_latin_characters(title):
+            english_data = await client._request(f"/tv/{tmdb_id}", {"language": "en-US"})
+            if english_data and english_data.get("name"):
+                english_title = english_data["name"]
+                if not contains_non_latin_characters(english_title):
+                    title = english_title
+
         return {
             "id": f"tmdb-{tmdb_id}",
             "tmdb_id": tmdb_id,
-            "name": data.get("name"),
-            "title": data.get("name"),
+            "name": title,
+            "title": title,
             "original_name": data.get("original_name"),
             "year": year,
             "overview": data.get("overview"),
