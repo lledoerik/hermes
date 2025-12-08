@@ -11,13 +11,66 @@ Per actualitzar els IDs de BBC:
 """
 
 from dataclasses import dataclass
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple
 import logging
 
 logger = logging.getLogger(__name__)
 
 # TMDB ID per One Piece (anime 1999)
 ONE_PIECE_TMDB_ID = 37854
+
+# Mappeig de temporades TMDB a episodis absoluts
+# Format: (temporada, primer_episodi_absolut, últim_episodi_absolut)
+TMDB_SEASON_MAPPING: List[Tuple[int, int, int]] = [
+    (1, 1, 61),
+    (2, 62, 77),
+    (3, 78, 91),
+    (4, 92, 130),
+    (5, 131, 143),
+    (6, 144, 195),
+    (7, 196, 228),
+    (8, 229, 263),
+    (9, 264, 336),
+    (10, 337, 381),
+    (11, 382, 407),
+    (12, 408, 421),
+    (13, 422, 456),
+    (14, 457, 516),
+    (15, 517, 578),
+    (16, 579, 628),
+    (17, 629, 746),
+    (18, 747, 782),
+    (19, 783, 877),
+    (20, 878, 1085),
+    (21, 1086, 9999),  # En emissió
+]
+
+
+def get_tmdb_season_for_episode(absolute_episode: int) -> Optional[Tuple[int, int]]:
+    """
+    Retorna la temporada TMDB i el número d'episodi dins la temporada
+    per a un episodi absolut.
+
+    Returns:
+        (season_number, episode_in_season) o None si no trobat
+    """
+    for season, start, end in TMDB_SEASON_MAPPING:
+        if start <= absolute_episode <= end:
+            episode_in_season = absolute_episode - start + 1
+            return (season, episode_in_season)
+    return None
+
+
+def get_seasons_for_arc_range(start_ep: int, end_ep: int) -> List[int]:
+    """
+    Retorna les temporades TMDB que cobreixen un rang d'episodis.
+    """
+    seasons = set()
+    for season, s_start, s_end in TMDB_SEASON_MAPPING:
+        # Si hi ha overlap entre el rang i la temporada
+        if s_start <= end_ep and s_end >= start_ep:
+            seasons.add(season)
+    return sorted(list(seasons))
 
 
 @dataclass

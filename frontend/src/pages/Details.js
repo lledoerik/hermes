@@ -16,6 +16,9 @@ import {
 } from '../components/icons';
 import './Details.css';
 
+// One Piece TMDB ID - per mostrar arcs en lloc de temporades
+const ONE_PIECE_TMDB_ID = 37854;
+
 // Client axios amb timeout per evitar peticions penjades indefinidament
 const api = axios.create({
   baseURL: API_URL,
@@ -49,10 +52,23 @@ function Details() {
   const [episodes, setEpisodes] = useState([]);
   const [selectedSeason, setSelectedSeason] = useState(1);
 
-  // Handler per canviar de temporada
+  // One Piece arc mode
+  const [isOnePiece, setIsOnePiece] = useState(false);
+  const [onePieceArcs, setOnePieceArcs] = useState([]);
+  const [selectedArc, setSelectedArc] = useState(null);
+
+  // Handler per canviar de temporada/arc
   const handleSeasonSelect = useCallback((seasonNum) => {
     setSelectedSeason(seasonNum);
-  }, []);
+    // If One Piece, also update selectedArc
+    if (isOnePiece && onePieceArcs.length > 0) {
+      const arc = onePieceArcs.find(a => a.season_number === seasonNum);
+      setSelectedArc(arc || null);
+      // Save selected arc
+      const storageKey = `hermes_selected_arc_${id}`;
+      localStorage.setItem(storageKey, seasonNum.toString());
+    }
+  }, [isOnePiece, onePieceArcs, id]);
 
   const [loading, setLoading] = useState(true);
   const [loadingEpisodes, setLoadingEpisodes] = useState(false);
@@ -217,6 +233,31 @@ function Details() {
     return () => window.removeEventListener('resize', checkScrollButtons);
   }, [checkScrollButtons, seasons]);
 
+  // Load One Piece arcs from API
+  const loadOnePieceArcs = useCallback(async () => {
+    try {
+      const response = await api.get('/api/bbc/onepiece/arcs');
+      if (response.data.arcs) {
+        const arcs = response.data.arcs.map((arc, index) => ({
+          id: `arc-${index}`,
+          season_number: index + 1, // Use index as "season" number for compatibility
+          name: arc.name,
+          name_en: arc.name_en,
+          tmdb_start: arc.tmdb_start,
+          tmdb_end: arc.tmdb_end,
+          episode_count: arc.episode_count,
+          bbc_available: arc.bbc_available,
+          isArc: true
+        }));
+        setOnePieceArcs(arcs);
+        return arcs;
+      }
+    } catch (err) {
+      console.error('Error loading One Piece arcs:', err);
+    }
+    return null;
+  }, []);
+
   const loadDetails = useCallback(async () => {
     try {
       // Si és contingut només de TMDB, carregar directament des de TMDB
@@ -229,6 +270,29 @@ function Details() {
           ]);
 
           setItem(detailsRes.data);
+
+          // Check if this is One Piece
+          if (realTmdbId === ONE_PIECE_TMDB_ID) {
+            setIsOnePiece(true);
+            const arcs = await loadOnePieceArcs();
+            if (arcs && arcs.length > 0) {
+              setSeasons(arcs);
+              // Find arc that contains episode 1 or first available
+              const storageKey = `hermes_selected_arc_${id}`;
+              const savedArc = localStorage.getItem(storageKey);
+              const savedArcNum = savedArc ? parseInt(savedArc) : null;
+              if (savedArcNum && arcs.some(a => a.season_number === savedArcNum)) {
+                setSelectedSeason(savedArcNum);
+                setSelectedArc(arcs.find(a => a.season_number === savedArcNum));
+              } else {
+                setSelectedSeason(arcs[0].season_number);
+                setSelectedArc(arcs[0]);
+              }
+              setUsingTmdbSeasons(true);
+              setLoading(false);
+              return;
+            }
+          }
 
           const tmdbSeasons = (seasonsRes.data.seasons || [])
             .filter(s => s.season_number > 0)
@@ -405,6 +469,44 @@ function Details() {
     setLoadingEpisodes(true);
     setEpisodes([]); // Clear episodes while loading
     try {
+      // ONE PIECE: Carregar episodis de l'arc
+      if (isOnePiece && onePieceArcs.length > 0) {
+        const arcIndex = seasonNum - 1; // seasonNum és 1-based, arc index és 0-based
+        if (arcIndex >= 0 && arcIndex < onePieceArcs.length) {
+          try {
+            const arcRes = await api.get(`/api/bbc/onepiece/arc/${arcIndex}/episodes`);
+            if (arcRes.data.episodes) {
+              const arcEpisodes = arcRes.data.episodes.map(ep => ({
+                ...ep,
+                // Use absolute episode number
+                episode_number: ep.episode_number,
+                name: ep.name || `Episodi ${ep.episode_number}`,
+                overview: ep.overview,
+                still_path: ep.still_path,
+                air_date: ep.air_date,
+                runtime: ep.runtime,
+                vote_average: ep.vote_average,
+                isLocal: false,
+                duration: ep.runtime ? ep.runtime * 60 : null,
+                // Store TMDB info for playback navigation
+                _tmdb_season: ep.tmdb_season,
+                _tmdb_episode: ep.tmdb_episode
+              }));
+              setEpisodes(arcEpisodes);
+              // Guardar al cache
+              try {
+                const arcCacheKey = `hermes_onepiece_arc_${arcIndex}`;
+                sessionStorage.setItem(arcCacheKey, JSON.stringify({ data: arcEpisodes, timestamp: Date.now() }));
+              } catch (e) { /* sessionStorage ple */ }
+            }
+          } catch (err) {
+            console.error('Error loading One Piece arc episodes:', err);
+          }
+          setLoadingEpisodes(false);
+          return;
+        }
+      }
+
       // Per contingut TMDB-only, carregar directament des de TMDB
       if (isTmdbOnly && realTmdbId) {
         // Contingut només TMDB - carregar directament
@@ -1153,10 +1255,12 @@ function Details() {
                     {seasons.map((season) => (
                       <button
                         key={season.id || `tmdb-season-${season.season_number}`}
-                        className={`season-btn ${selectedSeason === season.season_number ? 'active' : ''}`}
+                        className={`season-btn ${selectedSeason === season.season_number ? 'active' : ''} ${season.isArc ? 'arc-btn' : ''} ${season.bbc_available ? 'bbc-available' : ''}`}
                         onClick={() => handleSeasonSelect(season.season_number)}
+                        title={season.isArc ? `${season.name} (Ep. ${season.tmdb_start}-${season.tmdb_end})` : ''}
                       >
-                        Temporada {season.season_number}
+                        {season.isArc ? season.name : `Temporada ${season.season_number}`}
+                        {season.bbc_available && <span className="bbc-indicator">BBC</span>}
                       </button>
                     ))}
                   </div>
@@ -1182,9 +1286,12 @@ function Details() {
                   style={{ cursor: isPremium && item?.tmdb_id ? 'pointer' : 'default' }}
                   onClick={() => {
                     if (isPremium && item?.tmdb_id) {
+                      // Per One Piece: usar temporada/episodi TMDB reals
+                      const seasonToUse = episode._tmdb_season || selectedSeason;
+                      const episodeToUse = episode._tmdb_episode || episode.episode_number;
                       // Guardar per al preload primerenc de la pròxima visita
-                      saveLastEpisode(item.tmdb_id, selectedSeason, episode.episode_number);
-                      navigate(`/debrid/tv/${item.tmdb_id}?s=${selectedSeason}&e=${episode.episode_number}`);
+                      saveLastEpisode(item.tmdb_id, seasonToUse, episodeToUse);
+                      navigate(`/debrid/tv/${item.tmdb_id}?s=${seasonToUse}&e=${episodeToUse}`);
                     }
                   }}
                 >
