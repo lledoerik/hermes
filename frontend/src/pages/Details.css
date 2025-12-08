@@ -669,6 +669,8 @@
 .section-header {
   margin-bottom: 24px;
   text-align: left;
+  overflow: hidden;
+  max-width: 100%;
 }
 
 .section-title {
@@ -685,6 +687,8 @@
   position: relative;
   text-align: left;
   padding: 0 30px; /* Espai pels indicadors de scroll */
+  overflow: hidden; /* Contenir el scroll horitzontal */
+  max-width: 100%;
 }
 
 .seasons-scroll-container {
@@ -696,6 +700,7 @@
   padding: 4px 0;
   cursor: grab;
   user-select: none;
+  width: 100%;
 }
 
 .seasons-scroll-container::-webkit-scrollbar {
