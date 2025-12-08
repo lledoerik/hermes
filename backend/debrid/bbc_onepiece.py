@@ -253,10 +253,14 @@ def get_bbc_programme_id(absolute_episode: int) -> Optional[str]:
     return BBC_EPISODE_MAPPING.get(absolute_episode)
 
 
-def import_bbc_episodes_from_list(episodes: List[Dict]) -> int:
+def import_bbc_episodes_from_list(episodes: List[Dict], arc_start_episode: int = None) -> int:
     """
     Importa episodis de BBC a partir d'una llista obtinguda de yt-dlp.
-    Intenta extreure el número d'episodi del títol.
+    Intenta extreure el número d'episodi del títol o usar el camp episode_number.
+
+    Args:
+        episodes: Llista d'episodis de yt-dlp
+        arc_start_episode: Primer episodi de l'arc (per fallback posicional)
 
     Returns:
         Nombre d'episodis importats
@@ -264,34 +268,51 @@ def import_bbc_episodes_from_list(episodes: List[Dict]) -> int:
     import re
     imported = 0
 
-    for ep in episodes:
+    for idx, ep in enumerate(episodes):
         programme_id = ep.get("programme_id") or ep.get("id")
         title = ep.get("title", "")
 
         if not programme_id:
             continue
 
-        # Intentar extreure el número d'episodi del títol
-        # Patrons comuns: "Episode 804", "804.", "Ep 804", "#804"
-        patterns = [
-            r'Episode\s*(\d+)',
-            r'Ep\.?\s*(\d+)',
-            r'^(\d+)\.',
-            r'#(\d+)',
-            r'\b(\d{3,4})\b',  # Qualsevol número de 3-4 dígits
-        ]
-
         episode_num = None
-        for pattern in patterns:
-            match = re.search(pattern, title, re.IGNORECASE)
-            if match:
-                episode_num = int(match.group(1))
-                break
+
+        # Primer intentar el camp episode_number de yt-dlp
+        if ep.get("episode_number"):
+            episode_num = int(ep.get("episode_number"))
+
+        # Si no, intentar extreure del títol
+        if not episode_num:
+            # Patrons comuns per One Piece: "Episode 804", "804.", "Ep 804", "#804"
+            patterns = [
+                r'Episode\s*(\d+)',           # Episode 804
+                r'Ep\.?\s*(\d+)',              # Ep 804, Ep. 804
+                r'^(\d+)\.',                   # 804. Title
+                r'#(\d+)',                     # #804
+                r':\s*(\d{1,4})(?:\s|$)',     # One Piece: 804
+                r'-\s*(\d{1,4})(?:\s|$)',     # One Piece - 804
+                r'(?:^|\s)(\d{1,4})(?:$|\s)', # Número sol com a paraula
+            ]
+
+            for pattern in patterns:
+                match = re.search(pattern, title, re.IGNORECASE)
+                if match:
+                    num = int(match.group(1))
+                    # Validar que sigui un número d'episodi plausible (1-2000)
+                    # i no un any (1990-2025)
+                    if 1 <= num <= 2000 and not (1990 <= num <= 2025):
+                        episode_num = num
+                        break
+
+        # Fallback: usar posició dins l'arc si coneixem l'episodi inicial
+        if not episode_num and arc_start_episode:
+            episode_num = arc_start_episode + idx
+            logger.debug(f"Usant posició per episodi: {episode_num} (idx={idx})")
 
         if episode_num and 1 <= episode_num <= 2000:
             BBC_EPISODE_MAPPING[episode_num] = programme_id
             imported += 1
-            logger.debug(f"Importat episodi {episode_num} -> {programme_id}")
+            logger.debug(f"Importat episodi {episode_num} -> {programme_id} (títol: {title})")
 
     if imported > 0:
         save_bbc_mapping()
