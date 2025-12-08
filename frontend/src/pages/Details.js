@@ -22,6 +22,15 @@ const api = axios.create({
   timeout: 30000, // 30 segons màxim per petició
 });
 
+// Afegir interceptor per autenticació
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('hermes_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 function Details() {
   const { id } = useParams();
   const location = useLocation();
