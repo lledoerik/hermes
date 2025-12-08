@@ -919,6 +919,186 @@ async def delete_user(request: Request, user_id: int):
     return result
 
 
+@app.get("/api/admin/fix-non-latin-titles/stream")
+async def fix_non_latin_titles_stream(request: Request):
+    """
+    Versió amb streaming SSE per mostrar progrés en temps real.
+    Retorna events: progress, updated, error, done
+    """
+    from backend.metadata.tmdb import TMDBClient, contains_non_latin_characters
+    from backend.metadata.anilist import AniListClient
+
+    # Verificar auth via query param o header
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+    else:
+        token = request.query_params.get("token", "")
+
+    if not token:
+        async def error_gen():
+            yield f"data: {json.dumps({'type': 'error', 'message': 'No autoritzat'})}\n\n"
+        return StreamingResponse(error_gen(), media_type="text/event-stream")
+
+    api_key = get_tmdb_api_key()
+    if not api_key:
+        async def error_gen():
+            yield f"data: {json.dumps({'type': 'error', 'message': 'Cal configurar la clau TMDB'})}\n\n"
+        return StreamingResponse(error_gen(), media_type="text/event-stream")
+
+    async def generate_progress():
+        updated = []
+        errors = []
+
+        with get_db() as conn:
+            cursor = conn.cursor()
+
+            # Assegurar que les columnes necessàries existeixen
+            for column, col_type in [
+                ("title_english", "TEXT"),
+                ("title_romaji", "TEXT"),
+                ("title_native", "TEXT"),
+                ("anilist_id", "INTEGER"),
+                ("mal_id", "INTEGER"),
+                ("original_title", "TEXT")
+            ]:
+                try:
+                    cursor.execute(f"ALTER TABLE series ADD COLUMN {column} {col_type}")
+                    conn.commit()
+                except Exception:
+                    pass
+
+            # Trobar contingut que necessita actualització
+            cursor.execute("""
+                SELECT id, name, title, title_english, tmdb_id, media_type, content_type, genres, origin_country, original_language
+                FROM series
+                WHERE tmdb_id IS NOT NULL
+            """)
+
+            series_to_update = []
+            for row in cursor.fetchall():
+                name = row["name"] or ""
+                title = row["title"] or ""
+                title_english = row["title_english"] or ""
+                needs_update = (
+                    contains_non_latin_characters(name) or
+                    contains_non_latin_characters(title) or
+                    not title_english
+                )
+                if needs_update:
+                    series_to_update.append(dict(row))
+
+            total = len(series_to_update)
+            yield f"data: {json.dumps({'type': 'start', 'total': total})}\n\n"
+
+            if total == 0:
+                yield f"data: {json.dumps({'type': 'done', 'updated': 0, 'errors': 0, 'message': 'No hi ha títols per actualitzar'})}\n\n"
+                return
+
+            tmdb_client = TMDBClient(api_key)
+            anilist_client = AniListClient()
+
+            try:
+                for idx, item in enumerate(series_to_update):
+                    try:
+                        tmdb_id = item["tmdb_id"]
+                        media_type = item["media_type"]
+                        best_title = None
+                        source = "TMDB"
+                        has_non_latin = contains_non_latin_characters(item["name"] or "") or contains_non_latin_characters(item["title"] or "")
+
+                        # Detectar si és anime
+                        is_anime = False
+                        content_type = item.get("content_type", "")
+                        genres_str = item.get("genres", "") or ""
+                        origin_country = item.get("origin_country", "") or ""
+                        original_language = item.get("original_language", "") or ""
+
+                        if content_type == "anime":
+                            is_anime = True
+                        elif "Animation" in genres_str or "Animació" in genres_str:
+                            if original_language == "ja" or "JP" in origin_country:
+                                is_anime = True
+
+                        # Enviar progrés
+                        yield f"data: {json.dumps({'type': 'progress', 'current': idx + 1, 'total': total, 'title': item['name']})}\n\n"
+
+                        # Provar idiomes en ordre de preferència
+                        languages_to_try = [
+                            ("ca-ES", "TMDB (català)"),
+                            ("es-ES", "TMDB (castellà)"),
+                            ("en-US", "TMDB (anglès)")
+                        ]
+
+                        for lang_code, lang_source in languages_to_try:
+                            if media_type == "movie":
+                                data = await tmdb_client._request(f"/movie/{tmdb_id}", {"language": lang_code})
+                                tmdb_title = data.get("title") if data else None
+                            else:
+                                data = await tmdb_client._request(f"/tv/{tmdb_id}", {"language": lang_code})
+                                tmdb_title = data.get("name") if data else None
+
+                            if tmdb_title and not contains_non_latin_characters(tmdb_title):
+                                best_title = tmdb_title
+                                source = lang_source
+                                break
+
+                        # Per anime, també obtenir AniList IDs
+                        if is_anime and media_type == "series":
+                            try:
+                                search_title = best_title if best_title else item["name"]
+                                anilist_result = await anilist_client.search_anime(search_title)
+                                if anilist_result and anilist_result.get("anilist_id"):
+                                    cursor.execute("""
+                                        UPDATE series SET anilist_id = ?, mal_id = ?, content_type = 'anime'
+                                        WHERE id = ?
+                                    """, (
+                                        anilist_result.get("anilist_id"),
+                                        anilist_result.get("mal_id"),
+                                        item["id"]
+                                    ))
+                            except Exception as e:
+                                logger.warning(f"Error consultant AniList per {item['name']}: {e}")
+
+                        if best_title and not contains_non_latin_characters(best_title):
+                            if has_non_latin:
+                                cursor.execute("""
+                                    UPDATE series
+                                    SET name = ?, title = ?, title_english = ?, original_title = COALESCE(original_title, ?)
+                                    WHERE id = ?
+                                """, (best_title, best_title, best_title, item["name"], item["id"]))
+                            else:
+                                cursor.execute("""
+                                    UPDATE series SET title_english = ? WHERE id = ?
+                                """, (best_title, item["id"]))
+
+                            conn.commit()
+                            updated.append({"old": item["name"], "new": best_title, "source": source})
+
+                            yield f"data: {json.dumps({'type': 'updated', 'old_title': item['name'], 'new_title': best_title, 'source': source})}\n\n"
+                        else:
+                            errors.append({"title": item["name"], "error": "No s'ha trobat títol"})
+
+                    except Exception as e:
+                        errors.append({"title": item["name"], "error": str(e)})
+                        yield f"data: {json.dumps({'type': 'item_error', 'title': item['name'], 'error': str(e)})}\n\n"
+
+            finally:
+                await tmdb_client.close()
+
+        yield f"data: {json.dumps({'type': 'done', 'updated': len(updated), 'errors': len(errors), 'message': f'Actualitzats {len(updated)} de {total} títols'})}\n\n"
+
+    return StreamingResponse(
+        generate_progress(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
 @app.post("/api/admin/fix-non-latin-titles")
 async def fix_non_latin_titles(request: Request):
     """
