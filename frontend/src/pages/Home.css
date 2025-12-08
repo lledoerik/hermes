@@ -533,6 +533,21 @@
   background: linear-gradient(135deg, #1a1a2e, #16213e);
 }
 
+.thumbnail-placeholder.loading {
+  background: linear-gradient(90deg, #1a1a2e 25%, #2a2a4e 50%, #1a1a2e 75%);
+  background-size: 200% 100%;
+  animation: thumbnail-shimmer 1.5s infinite;
+}
+
+.thumbnail-placeholder.loading svg {
+  opacity: 0.15;
+}
+
+@keyframes thumbnail-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 .thumbnail-placeholder svg {
   width: 48px;
   height: 48px;
@@ -602,6 +617,9 @@
   cursor: pointer;
   transition: background var(--transition-fast);
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  /* Prevent flickering during data load */
+  min-height: 2.5rem;
+  contain: layout style;
 }
 
 .continue-info:hover {
@@ -625,6 +643,9 @@
   text-overflow: ellipsis;
   flex: 1;
   min-width: 0;
+  /* Prevent flickering during re-renders */
+  contain: layout style;
+  will-change: contents;
 }
 
 .continue-episode {
@@ -970,6 +991,9 @@
 .content-meta {
   padding: var(--space-sm) 0;
   text-align: left;
+  /* Prevent flickering during data load */
+  min-height: 2.5rem;
+  contain: layout style;
 }
 
 .content-meta h4 {
@@ -980,6 +1004,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   text-align: left;
+  /* Prevent text flickering */
+  contain: layout style;
+  will-change: contents;
 }
 
 .content-year {
