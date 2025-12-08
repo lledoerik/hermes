@@ -35,6 +35,11 @@ function Admin() {
   const [rdKey, setRdKey] = useState('');
   const [rdStatus, setRdStatus] = useState(null); // null = loading, { configured, valid, message }
 
+  // BBC iPlayer state
+  const [bbcStatus, setBbcStatus] = useState(null);
+  const [bbcCookies, setBbcCookies] = useState('');
+  const [bbcLoading, setBbcLoading] = useState(false);
+
   // Sync state
   const [syncStatus, setSyncStatus] = useState(null);
   const [syncRunning, setSyncRunning] = useState(false);
@@ -84,6 +89,7 @@ function Admin() {
     loadStats();
     checkTmdbKey();
     checkRdStatus();
+    checkBbcStatus();
     loadUserData();
     loadSyncStatus();
 
@@ -326,6 +332,47 @@ function Admin() {
       const errorMsg = error.response?.data?.detail || 'Error guardant clau Real-Debrid';
       showMessage(errorMsg, 'error');
       addLog('error', errorMsg);
+    }
+  };
+
+  // BBC iPlayer functions
+  const checkBbcStatus = async () => {
+    try {
+      const response = await axios.get('/api/bbc/status');
+      setBbcStatus(response.data);
+    } catch (error) {
+      console.error('Error checking BBC status:', error);
+      setBbcStatus({ configured: false });
+    }
+  };
+
+  const saveBbcCookies = async () => {
+    if (!bbcCookies.trim()) return;
+    setBbcLoading(true);
+    try {
+      const response = await axios.post('/api/bbc/cookies', { cookies: bbcCookies });
+      showMessage(response.data.message || 'Cookies de BBC guardades correctament');
+      addLog('success', response.data.validation || 'BBC iPlayer configurat');
+      setBbcCookies('');
+      checkBbcStatus();
+    } catch (error) {
+      const errorMsg = error.response?.data?.detail || 'Error guardant cookies de BBC';
+      showMessage(errorMsg, 'error');
+      addLog('error', errorMsg);
+    } finally {
+      setBbcLoading(false);
+    }
+  };
+
+  const deleteBbcCookies = async () => {
+    if (!window.confirm('Segur que vols eliminar les cookies de BBC?')) return;
+    try {
+      await axios.delete('/api/bbc/cookies');
+      showMessage('Cookies de BBC eliminades');
+      addLog('info', 'Cookies de BBC eliminades');
+      checkBbcStatus();
+    } catch (error) {
+      showMessage('Error eliminant cookies', 'error');
     }
   };
 
@@ -575,6 +622,68 @@ function Admin() {
         </div>
       </div>
 
+      {/* BBC iPlayer Configuration */}
+      <div className="admin-section">
+        <div className="section-header">
+          <h2><TvIcon /> BBC iPlayer</h2>
+        </div>
+        <div className="section-content">
+          {bbcStatus === null ? (
+            <div style={{ color: 'rgba(255,255,255,0.6)' }}>Comprovant...</div>
+          ) : !bbcStatus.configured ? (
+            <div className="tmdb-config">
+              <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '1rem' }}>
+                Per reproduir contingut de BBC iPlayer, has de configurar les cookies del teu compte de BBC.
+                Exporta les cookies en format Netscape utilitzant una extensió del navegador com{' '}
+                <a href="https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/" target="_blank" rel="noopener noreferrer" style={{ color: '#328492' }}>cookies.txt</a>.
+              </p>
+              <p style={{ color: 'rgba(255,255,255,0.5)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+                Nota: Les cookies es guarden encriptades i només admins poden accedir-hi.
+                {bbcStatus.encryption && ' (Encriptació AES-128 activa)'}
+              </p>
+              <textarea
+                value={bbcCookies}
+                onChange={(e) => setBbcCookies(e.target.value)}
+                placeholder="Enganxa aquí les cookies en format Netscape..."
+                className="admin-textarea"
+                rows={8}
+                style={{
+                  width: '100%',
+                  marginBottom: '1rem',
+                  backgroundColor: 'rgba(0,0,0,0.3)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '8px',
+                  padding: '12px',
+                  color: '#fff',
+                  fontFamily: 'monospace',
+                  fontSize: '12px',
+                  resize: 'vertical'
+                }}
+              />
+              <button
+                className="action-btn"
+                onClick={saveBbcCookies}
+                disabled={!bbcCookies.trim() || bbcLoading}
+              >
+                {bbcLoading ? 'Guardant...' : 'Guardar cookies'}
+              </button>
+            </div>
+          ) : (
+            <div className="tmdb-configured">
+              <CheckIcon />
+              <span>BBC iPlayer configurat correctament</span>
+              <button
+                className="action-btn secondary"
+                onClick={deleteBbcCookies}
+                style={{ marginLeft: '1rem', padding: '6px 12px', fontSize: '13px' }}
+              >
+                Eliminar cookies
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Users Section */}
       <div className="admin-section">
         <div className="section-header">
@@ -797,6 +906,12 @@ function Admin() {
               <span className="system-label">Real-Debrid</span>
               <span className={`system-value ${rdStatus?.configured && rdStatus?.valid ? 'status-ok' : 'status-error'}`}>
                 {rdStatus?.configured && rdStatus?.valid ? 'Actiu' : 'No configurat'}
+              </span>
+            </div>
+            <div className="system-info-item">
+              <span className="system-label">BBC iPlayer</span>
+              <span className={`system-value ${bbcStatus?.configured ? 'status-ok' : 'status-error'}`}>
+                {bbcStatus?.configured ? 'Configurat' : 'No configurat'}
               </span>
             </div>
             <div className="system-info-item">
