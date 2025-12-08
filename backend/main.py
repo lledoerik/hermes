@@ -1391,7 +1391,7 @@ async def precache_episodes(request: Request):
 
         # Obtenir totes les sèries amb tmdb_id
         cursor.execute("""
-            SELECT id, name, tmdb_id, anilist_id, content_type
+            SELECT id, name, tmdb_id, anilist_id, content_type, tmdb_seasons
             FROM series
             WHERE tmdb_id IS NOT NULL AND media_type = 'series'
         """)
@@ -1400,14 +1400,20 @@ async def precache_episodes(request: Request):
 
     metadata_service = MetadataService()
 
+    logger.info(f"Pre-cache: {len(series_list)} sèries a processar")
+
     for series in series_list:
         try:
             tmdb_id = series["tmdb_id"]
             anilist_id = series.get("anilist_id")
             content_type = series.get("content_type")
 
-            # Obtenir número de temporades (assumim màxim 10 si no ho sabem)
-            for season_num in range(1, 11):
+            # Obtenir número de temporades des de la BD o TMDB
+            tmdb_seasons = series.get("tmdb_seasons") or 10  # màxim 10 si no ho sabem
+            max_seasons = min(tmdb_seasons, 20)  # límit raonable
+
+            series_cached = 0
+            for season_num in range(1, max_seasons + 1):
                 try:
                     data = await metadata_service.get_episodes_metadata(
                         tmdb_id=tmdb_id,
@@ -1421,16 +1427,25 @@ async def precache_episodes(request: Request):
                             "season": season_num,
                             "episodes": len(data["episodes"])
                         })
+                        series_cached += 1
                     else:
-                        break  # No hi ha més temporades
-                except Exception:
-                    break  # Temporada no existeix
+                        # Continuar amb la següent temporada (algunes sèries salten temporades)
+                        if season_num > 3 and series_cached == 0:
+                            break  # Si després de 3 intents no hi ha res, parar
+                except Exception as e:
+                    logger.debug(f"Pre-cache error {series['name']} S{season_num}: {e}")
+                    if season_num > 3 and series_cached == 0:
+                        break
+
+            if series_cached > 0:
+                logger.debug(f"Pre-cache: {series['name']} - {series_cached} temporades")
 
         except Exception as e:
             errors.append({
                 "series": series["name"],
                 "error": str(e)
             })
+            logger.warning(f"Pre-cache error {series.get('name', 'unknown')}: {e}")
 
     return {
         "status": "success",
@@ -2077,11 +2092,21 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
             final_seasons = local_seasons if local_seasons > 0 else (tmdb_seasons or 0)
             final_episodes = local_episodes if local_episodes > 0 else (tmdb_episodes or 0)
 
-            # Preferir títol en llatí (title_english > name si name és no-llatí)
+            # Preferir títol en llatí (title_english > title_romaji > name)
             display_name = row["name"]
             title_english = row["title_english"] if "title_english" in row.keys() else None
-            if title_english and contains_non_latin_characters(display_name or ""):
-                display_name = title_english
+            title_romaji = row["title_romaji"] if "title_romaji" in row.keys() else None
+
+            # Si el nom principal té caràcters no-llatins, buscar alternativa
+            if contains_non_latin_characters(display_name or ""):
+                if title_english and not contains_non_latin_characters(title_english):
+                    display_name = title_english
+                elif title_romaji and not contains_non_latin_characters(title_romaji):
+                    display_name = title_romaji
+
+            # Si estem cercant i no tenim títol llatí, saltar aquest item
+            if search and contains_non_latin_characters(display_name or ""):
+                continue
 
             series.append({
                 "id": row["id"],
@@ -2210,11 +2235,21 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
 
         movies = []
         for row in cursor.fetchall():
-            # Preferir títol en llatí (title_english > name si name és no-llatí)
+            # Preferir títol en llatí (title_english > title_romaji > name)
             display_name = row["name"]
             title_english = row["title_english"] if "title_english" in row.keys() else None
-            if title_english and contains_non_latin_characters(display_name or ""):
-                display_name = title_english
+            title_romaji = row["title_romaji"] if "title_romaji" in row.keys() else None
+
+            # Si el nom principal té caràcters no-llatins, buscar alternativa
+            if contains_non_latin_characters(display_name or ""):
+                if title_english and not contains_non_latin_characters(title_english):
+                    display_name = title_english
+                elif title_romaji and not contains_non_latin_characters(title_romaji):
+                    display_name = title_romaji
+
+            # Si estem cercant i no tenim títol llatí, saltar aquest item
+            if search and contains_non_latin_characters(display_name or ""):
+                continue
 
             movies.append({
                 "id": row["id"],
@@ -10030,6 +10065,74 @@ async def fix_non_latin_titles_background() -> int:
     return updated_count
 
 
+async def precache_episodes_background() -> int:
+    """
+    Pre-cacheja metadades d'episodis en background (per la sincronització diària).
+    Retorna el nombre de temporades cachejades.
+    """
+    from backend.metadata.service import MetadataService
+
+    cached_count = 0
+    error_count = 0
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Obtenir sèries amb tmdb_id
+        cursor.execute("""
+            SELECT id, name, tmdb_id, anilist_id, content_type, tmdb_seasons
+            FROM series
+            WHERE tmdb_id IS NOT NULL AND media_type = 'series'
+        """)
+        series_list = [dict(row) for row in cursor.fetchall()]
+
+    if not series_list:
+        logger.info("precache_episodes_background: No hi ha sèries per processar")
+        return 0
+
+    logger.info(f"precache_episodes_background: {len(series_list)} sèries a processar")
+
+    metadata_service = MetadataService()
+
+    for idx, series in enumerate(series_list):
+        try:
+            tmdb_id = series["tmdb_id"]
+            anilist_id = series.get("anilist_id")
+            content_type = series.get("content_type")
+            tmdb_seasons = series.get("tmdb_seasons") or 5  # Default 5 temporades
+            max_seasons = min(tmdb_seasons, 15)  # Límit raonable
+
+            series_cached = 0
+            for season_num in range(1, max_seasons + 1):
+                try:
+                    data = await metadata_service.get_episodes_metadata(
+                        tmdb_id=tmdb_id,
+                        season_number=season_num,
+                        anilist_id=anilist_id,
+                        content_type=content_type
+                    )
+                    if data and data.get("episodes"):
+                        series_cached += 1
+                        cached_count += 1
+                    elif season_num > 2 and series_cached == 0:
+                        break  # Si les primeres temporades no existeixen, parar
+
+                except Exception:
+                    if season_num > 2 and series_cached == 0:
+                        break
+
+        except Exception as e:
+            error_count += 1
+            logger.debug(f"precache error {series.get('name', 'unknown')}: {e}")
+
+        # Log progrés cada 20 sèries
+        if (idx + 1) % 20 == 0:
+            logger.info(f"precache_episodes_background: {idx + 1}/{len(series_list)} sèries ({cached_count} temporades)")
+
+    logger.info(f"precache_episodes_background: Completat - {cached_count} temporades cachejades, {error_count} errors")
+    return cached_count
+
+
 async def daily_sync_job():
     """
     Tasca de sincronització diària que s'executa a les 2:30 AM.
@@ -10059,8 +10162,12 @@ async def daily_sync_job():
         titles_fixed = await fix_non_latin_titles_background()
         logger.info(f"Títols corregits: {titles_fixed}")
 
+        # Pre-cachejar metadades d'episodis per càrrega ràpida
+        seasons_cached = await precache_episodes_background()
+        logger.info(f"Temporades cachejades: {seasons_cached}")
+
         elapsed = (datetime.now() - start_time).total_seconds()
-        logger.info(f"=== FI SINCRONITZACIÓ DIÀRIA: {total_imported} items, {titles_fixed} títols corregits en {elapsed:.1f}s ===")
+        logger.info(f"=== FI SINCRONITZACIÓ DIÀRIA: {total_imported} items, {titles_fixed} títols corregits, {seasons_cached} temporades cachejades en {elapsed:.1f}s ===")
 
         # Guardar última sincronització
         with get_db() as conn:
