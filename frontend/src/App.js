@@ -87,6 +87,9 @@ function AppContent() {
           {/* Debrid Player - Real-Debrid streaming amb reproductor HTML5 */}
           <Route path="/debrid/:type/:tmdbId" element={<DebridPlayer />} />
 
+          {/* Debrid Player Direct Mode - per BBC iPlayer i altres streams directes */}
+          <Route path="/debrid/direct/:source" element={<DebridPlayer />} />
+
           {/* BBC iPlayer - Streaming de BBC */}
           <Route path="/bbc" element={<BBCPlayer />} />
 
