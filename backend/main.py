@@ -1037,18 +1037,62 @@ async def fix_non_latin_titles_stream(request: Request):
                             ("en-US", "TMDB (anglès)")
                         ]
 
-                        for lang_code, lang_source in languages_to_try:
-                            if media_type == "movie":
-                                data = await tmdb_client._request(f"/movie/{tmdb_id}", {"language": lang_code})
-                                tmdb_title = data.get("title") if data else None
-                            else:
-                                data = await tmdb_client._request(f"/tv/{tmdb_id}", {"language": lang_code})
-                                tmdb_title = data.get("name") if data else None
+                        # Determinar endpoints a provar (primer el tipus correcte, després l'altre)
+                        if media_type == "movie":
+                            endpoints = [("/movie/", "title"), ("/tv/", "name")]
+                        else:
+                            endpoints = [("/tv/", "name"), ("/movie/", "title")]
 
-                            if tmdb_title and not contains_non_latin_characters(tmdb_title):
-                                best_title = tmdb_title
-                                source = lang_source
+                        # Intentar per ID directe primer
+                        for lang_code, lang_source in languages_to_try:
+                            for endpoint, title_key in endpoints:
+                                data = await tmdb_client._request(f"{endpoint}{tmdb_id}", {"language": lang_code})
+                                if data:
+                                    tmdb_title = data.get(title_key)
+                                    if tmdb_title and not contains_non_latin_characters(tmdb_title):
+                                        best_title = tmdb_title
+                                        source = lang_source
+                                        break
+                            if best_title:
                                 break
+
+                        # Fallback: cercar per nom si l'ID no funciona
+                        if not best_title:
+                            search_name = item["name"] or item["title"]
+                            if search_name:
+                                for lang_code, lang_source in languages_to_try:
+                                    # Cercar com a TV
+                                    search_url = f"/search/tv"
+                                    data = await tmdb_client._request(search_url, {"query": search_name, "language": lang_code})
+                                    if data and data.get("results"):
+                                        first_result = data["results"][0]
+                                        tmdb_title = first_result.get("name")
+                                        if tmdb_title and not contains_non_latin_characters(tmdb_title):
+                                            best_title = tmdb_title
+                                            source = f"{lang_source} (cerca)"
+                                            # Actualitzar tmdb_id correcte
+                                            new_tmdb_id = first_result.get("id")
+                                            if new_tmdb_id:
+                                                cursor.execute("UPDATE series SET tmdb_id = ? WHERE id = ?", (new_tmdb_id, item["id"]))
+                                            break
+
+                                    # Cercar com a movie
+                                    if not best_title:
+                                        search_url = f"/search/movie"
+                                        data = await tmdb_client._request(search_url, {"query": search_name, "language": lang_code})
+                                        if data and data.get("results"):
+                                            first_result = data["results"][0]
+                                            tmdb_title = first_result.get("title")
+                                            if tmdb_title and not contains_non_latin_characters(tmdb_title):
+                                                best_title = tmdb_title
+                                                source = f"{lang_source} (cerca)"
+                                                new_tmdb_id = first_result.get("id")
+                                                if new_tmdb_id:
+                                                    cursor.execute("UPDATE series SET tmdb_id = ? WHERE id = ?", (new_tmdb_id, item["id"]))
+                                                break
+
+                                    if best_title:
+                                        break
 
                         # Per anime, també obtenir AniList IDs
                         if is_anime and media_type == "series":
