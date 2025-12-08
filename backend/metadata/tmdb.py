@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 import re
 
-# Idiomes per ordre de preferència (català, espanyol, anglès)
-LANGUAGE_FALLBACK = ["ca-ES", "es-ES", "en-US"]
+# Idiomes per ordre de preferència (català, anglès)
+LANGUAGE_FALLBACK = ["ca-ES", "en-US"]
 
 
 def contains_non_latin_characters(text: str) -> bool:
