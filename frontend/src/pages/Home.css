@@ -886,11 +886,6 @@
   scroll-behavior: auto;
 }
 
-.content-scroll.dragging .content-card,
-.content-scroll.dragging .continue-card {
-  pointer-events: none;
-}
-
 /* Content Cards */
 .content-card {
   flex: 0 0 auto;
