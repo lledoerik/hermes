@@ -64,6 +64,15 @@ function BBCPlayer() {
         if (response.data.status === 'success') {
           const { url, title, season, episode, quality: actualQuality, subtitles } = response.data;
 
+          // Extract episode title only (BBC format: "Series, Season Name, Episode Title")
+          // We want just the episode title (last part after the last comma)
+          let episodeTitle = title || 'BBC Programme';
+          if (title && title.includes(',')) {
+            const parts = title.split(',').map(p => p.trim());
+            // Last part is usually the episode title
+            episodeTitle = parts[parts.length - 1] || title;
+          }
+
           // Build subtitle text (season/episode info)
           const subtitleText = season && episode ? `T${season}E${episode}` : '';
 
@@ -80,7 +89,7 @@ function BBCPlayer() {
           // Redirect to DebridPlayer with direct mode params
           const params = new URLSearchParams({
             directUrl: url,
-            directTitle: title || 'BBC Programme',
+            directTitle: episodeTitle,
             directBadge: 'BBC iPlayer',
             directQuality: actualQuality || '',
             directSubtitle: subtitleText,
