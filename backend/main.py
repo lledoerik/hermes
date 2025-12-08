@@ -10,6 +10,7 @@ import re
 import sqlite3
 import logging
 import asyncio
+import unicodedata
 from pathlib import Path
 from typing import Optional, List, Dict
 from contextlib import contextmanager, asynccontextmanager
@@ -119,6 +120,32 @@ app.add_middleware(
 )
 
 # === DATABASE ===
+
+def normalize_for_sort(text: str) -> str:
+    """
+    Normalitza text per ordenar: elimina accents i converteix a minúscules.
+    Així 'Érase' s'ordena com 'erase' (a la E, no al final).
+    """
+    if not text:
+        return ""
+    # Descompon accents (é → e + ́) i elimina marques diacrítiques
+    normalized = unicodedata.normalize('NFD', text)
+    # Elimina caràcters de combinació (accents)
+    without_accents = ''.join(c for c in normalized if unicodedata.category(c) != 'Mn')
+    return without_accents.lower()
+
+
+def collate_noaccent(str1: str, str2: str) -> int:
+    """Col·lació personalitzada per SQLite que ignora accents."""
+    s1 = normalize_for_sort(str1 or "")
+    s2 = normalize_for_sort(str2 or "")
+    if s1 < s2:
+        return -1
+    elif s1 > s2:
+        return 1
+    return 0
+
+
 @contextmanager
 def get_db():
     """Context manager per connexions a la BD"""
@@ -128,6 +155,8 @@ def get_db():
         isolation_level=None
     )
     conn.row_factory = sqlite3.Row
+    # Registrar col·lació personalitzada per ordenar sense accents
+    conn.create_collation("NOACCENT", collate_noaccent)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=5000")
     try:
@@ -2016,18 +2045,18 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
         # Sorting basat en categoria o sort_by
         if category == "popular":
             # Populars: ordenar per rating DESC (les millor valorades amb mínim vots)
-            query += " ORDER BY COALESCE(s.rating, 0) DESC, s.name"
+            query += " ORDER BY COALESCE(s.rating, 0) DESC, s.name COLLATE NOACCENT"
         elif category in ["on_the_air", "airing_today"]:
             # En emissió / Avui: ordenar per popularitat
-            query += " ORDER BY COALESCE(s.popularity, 0) DESC, s.name"
+            query += " ORDER BY COALESCE(s.popularity, 0) DESC, s.name COLLATE NOACCENT"
         elif sort_by == "year":
-            query += " ORDER BY s.year DESC, s.name"
+            query += " ORDER BY s.year DESC, s.name COLLATE NOACCENT"
         elif sort_by == "episodes":
-            query += " ORDER BY episode_count DESC, s.name"
+            query += " ORDER BY episode_count DESC, s.name COLLATE NOACCENT"
         elif sort_by == "seasons":
-            query += " ORDER BY season_count DESC, s.name"
+            query += " ORDER BY season_count DESC, s.name COLLATE NOACCENT"
         else:
-            query += " ORDER BY s.name"
+            query += " ORDER BY s.name COLLATE NOACCENT"
 
         # Pagination
         offset = (page - 1) * limit
@@ -2158,19 +2187,19 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
         # Sorting basat en categoria o sort_by
         if category == "popular":
             # Populars: ordenar per rating DESC (les millor valorades amb mínim vots)
-            query += " ORDER BY COALESCE(s.rating, 0) DESC, s.name"
+            query += " ORDER BY COALESCE(s.rating, 0) DESC, s.name COLLATE NOACCENT"
         elif category == "now_playing":
             # Cartellera: ordenar per popularitat
-            query += " ORDER BY COALESCE(s.popularity, 0) DESC, s.name"
+            query += " ORDER BY COALESCE(s.popularity, 0) DESC, s.name COLLATE NOACCENT"
         elif category == "upcoming":
             # Pròximament: ordenar per data d'estrena ASC (properes primer)
-            query += " ORDER BY s.release_date ASC, s.name"
+            query += " ORDER BY s.release_date ASC, s.name COLLATE NOACCENT"
         elif sort_by == "year":
-            query += " ORDER BY s.year DESC, s.name"
+            query += " ORDER BY s.year DESC, s.name COLLATE NOACCENT"
         elif sort_by == "duration":
-            query += " ORDER BY m.duration DESC, s.name"
+            query += " ORDER BY m.duration DESC, s.name COLLATE NOACCENT"
         else:
-            query += " ORDER BY s.name"
+            query += " ORDER BY s.name COLLATE NOACCENT"
 
         # Pagination
         offset = (page - 1) * limit
@@ -5281,7 +5310,7 @@ async def get_authors():
             FROM authors a
             LEFT JOIN books b ON a.id = b.author_id
             GROUP BY a.id
-            ORDER BY a.name
+            ORDER BY a.name COLLATE NOACCENT
         """)
         authors = [dict(row) for row in cursor.fetchall()]
         return authors
@@ -5557,7 +5586,7 @@ async def get_audiobook_authors():
             FROM audiobook_authors a
             LEFT JOIN audiobooks ab ON a.id = ab.author_id
             GROUP BY a.id
-            ORDER BY a.name
+            ORDER BY a.name COLLATE NOACCENT
         """)
         authors = [dict(row) for row in cursor.fetchall()]
         return authors
