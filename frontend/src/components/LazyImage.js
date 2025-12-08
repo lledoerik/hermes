@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './LazyImage.css';
 
+// Cache global d'imatges ja carregades per evitar parpelleig
+const loadedImagesCache = new Set();
+
 /**
  * Component LazyImage amb Intersection Observer i cache del navegador
  * Carrega les imatges només quan s'apropen al viewport
@@ -22,11 +25,16 @@ const LazyImage = ({
   fallback = null,
   rootMargin = 100
 }) => {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [isInView, setIsInView] = useState(false);
+  // Si la imatge ja està al cache, marcar-la com carregada immediatament
+  const isAlreadyCached = src && loadedImagesCache.has(src);
+  const [isLoaded, setIsLoaded] = useState(isAlreadyCached);
+  const [isInView, setIsInView] = useState(isAlreadyCached); // Si ja està cached, mostrar directament
   const [hasError, setHasError] = useState(false);
   const imgRef = useRef(null);
   const observerRef = useRef(null);
+  const prevSrcRef = useRef(src);
+  // Ref per recordar si la imatge s'ha carregat amb èxit (per evitar parpelleig en re-renders)
+  const wasLoadedRef = useRef(isAlreadyCached);
 
   useEffect(() => {
     // Si ja està visible, no cal observar
@@ -52,16 +60,36 @@ const LazyImage = ({
     return () => observerRef.current?.disconnect();
   }, [rootMargin, isInView]);
 
-  // Reset loading/error state when src changes, però mantenir isInView
-  // Això evita recalcular la visibilitat quan canvia la temporada
+  // Reset loading/error state NOMÉS quan src realment canvia
   useEffect(() => {
-    setIsLoaded(false);
-    setHasError(false);
-    // NO resetejar isInView - si ja estava visible, continua visible
+    // Si src no ha canviat, no fer res (evita resets innecessaris en re-renders)
+    if (prevSrcRef.current === src) {
+      return;
+    }
+    prevSrcRef.current = src;
+
+    if (src && loadedImagesCache.has(src)) {
+      // Imatge ja carregada abans - mostrar immediatament sense transició
+      setIsLoaded(true);
+      setIsInView(true);
+      setHasError(false);
+      wasLoadedRef.current = true;
+    } else {
+      // Nova imatge - fer el procés normal de càrrega
+      setIsLoaded(false);
+      setHasError(false);
+      wasLoadedRef.current = false;
+      // NO resetejar isInView - si ja estava visible, continua visible
+    }
   }, [src]);
 
   const handleLoad = () => {
     setIsLoaded(true);
+    wasLoadedRef.current = true;
+    // Afegir al cache global perquè no parpellegi en futures renderitzacions
+    if (src) {
+      loadedImagesCache.add(src);
+    }
     if (onLoad) onLoad();
   };
 
@@ -74,13 +102,18 @@ const LazyImage = ({
     return fallback;
   }
 
+  // Determinar classe CSS: si ja estava cached o ja s'ha carregat, usar 'cached' per evitar transicions
+  const imageClass = (isAlreadyCached || wasLoadedRef.current)
+    ? 'lazy-image cached'
+    : `lazy-image ${isLoaded ? 'loaded' : ''}`;
+
   return (
     <div ref={imgRef} className={`lazy-image-container ${className}`}>
       {isInView ? (
         <img
           src={src}
           alt={alt}
-          className={`lazy-image ${isLoaded ? 'loaded' : ''}`}
+          className={imageClass}
           onLoad={handleLoad}
           onError={handleError}
         />
