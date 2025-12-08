@@ -242,7 +242,24 @@ class HermesScanner:
             CREATE INDEX IF NOT EXISTS idx_segments_series
             ON media_segments(series_id)
         ''')
-        
+
+        # Taula metadata_cache per guardar metadata traduïda (persistent)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS metadata_cache (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cache_key TEXT UNIQUE NOT NULL,
+                data TEXT NOT NULL,
+                source TEXT,
+                language TEXT DEFAULT 'ca',
+                created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_date TIMESTAMP
+            )
+        ''')
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_cache_key
+            ON metadata_cache(cache_key)
+        ''')
+
         conn.commit()
         conn.close()
         

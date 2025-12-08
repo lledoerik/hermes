@@ -613,7 +613,7 @@ function Admin() {
           <div className="maintenance-item">
             <div className="maintenance-info">
               <h4>Corregir títols no llatins</h4>
-              <p>Actualitza els títols en japonès, coreà, xinès, rus, etc. amb els seus equivalents en anglès de TMDB.</p>
+              <p>Actualitza els títols en japonès, coreà, xinès, rus, etc. amb els seus equivalents en català (o castellà/anglès si no hi ha).</p>
             </div>
             <button
               className="action-btn"
@@ -637,6 +637,35 @@ function Admin() {
               }}
             >
               <RefreshIcon /> Corregir títols
+            </button>
+          </div>
+          <div className="maintenance-item">
+            <div className="maintenance-info">
+              <h4>Pre-cachejar episodis</h4>
+              <p>Tradueix i cacheja els títols dels episodis de totes les sèries. Així la càrrega serà instantània.</p>
+            </div>
+            <button
+              className="action-btn"
+              onClick={async () => {
+                try {
+                  showMessage('Pre-cachejant episodis... Això pot trigar uns minuts.', 'info');
+                  addLog('info', 'Iniciant pre-cache d\'episodis...');
+                  const response = await axios.post('/api/admin/precache-episodes');
+                  const data = response.data;
+                  showMessage(`Cachejades ${data.cached_seasons} temporades`, 'success');
+                  addLog('success', `Temporades cachejades: ${data.cached_seasons}`);
+                  if (data.details?.length > 0) {
+                    data.details.slice(0, 5).forEach(item => {
+                      addLog('info', `${item.series} T${item.season}: ${item.episodes} episodis`);
+                    });
+                  }
+                } catch (error) {
+                  showMessage('Error pre-cachejant episodis', 'error');
+                  addLog('error', error.response?.data?.detail || 'Error desconegut');
+                }
+              }}
+            >
+              <RefreshIcon /> Pre-cachejar
             </button>
           </div>
         </div>

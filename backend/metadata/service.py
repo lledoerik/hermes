@@ -4,6 +4,7 @@ Servei centralitzat de metadata amb cache intel·ligent.
 Arquitectura "Lazy Loading":
 - Fetch on-demand quan l'usuari accedeix al contingut
 - Cache amb TTL (24h per defecte)
+- Cache persistent a SQLite per traduccions (sobreviu reinicis)
 - Background refresh quan cache > 12h
 - Fallback entre fonts (TMDB → AniList → TVDB → AniDB)
 """
@@ -11,11 +12,73 @@ Arquitectura "Lazy Loading":
 import asyncio
 import logging
 import time
+import json
+import sqlite3
+from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass, field
 from enum import Enum
 
 logger = logging.getLogger(__name__)
+
+
+# === CACHE PERSISTENT (SQLite) ===
+
+def _get_db_cache(cache_key: str) -> Optional[Dict]:
+    """Obté dades del cache persistent (SQLite)."""
+    from config import settings
+    try:
+        conn = sqlite3.connect(settings.DATABASE_PATH, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT data, expires_date FROM metadata_cache
+            WHERE cache_key = ? AND (expires_date IS NULL OR expires_date > datetime('now'))
+        """, (cache_key,))
+
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            return json.loads(row["data"])
+        return None
+    except Exception as e:
+        logger.debug(f"Cache DB read error: {e}")
+        return None
+
+
+def _set_db_cache(cache_key: str, data: Dict, source: str = None, ttl_hours: int = 168):
+    """Guarda dades al cache persistent (SQLite). TTL per defecte: 7 dies."""
+    from config import settings
+    try:
+        conn = sqlite3.connect(settings.DATABASE_PATH, check_same_thread=False)
+        cursor = conn.cursor()
+
+        # Assegurar que la taula existeix
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS metadata_cache (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cache_key TEXT UNIQUE NOT NULL,
+                data TEXT NOT NULL,
+                source TEXT,
+                language TEXT DEFAULT 'ca',
+                created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_date TIMESTAMP
+            )
+        """)
+
+        expires = datetime.now() + timedelta(hours=ttl_hours)
+
+        cursor.execute("""
+            INSERT OR REPLACE INTO metadata_cache (cache_key, data, source, expires_date)
+            VALUES (?, ?, ?, ?)
+        """, (cache_key, json.dumps(data), source, expires.isoformat()))
+
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning(f"Cache DB write error: {e}")
 
 
 class ContentType(Enum):
@@ -404,16 +467,37 @@ class MetadataService:
         """Obté metadata dels episodis d'una temporada."""
         cache_key = f"episodes:{tmdb_id}:{season_number}:{anilist_id or ''}"
 
+        # 1. Primer mirar cache en memòria (més ràpid)
         cached = metadata_cache.get(cache_key)
         if cached:
             if cached.is_stale():
                 self._schedule_background_refresh_episodes(cache_key, tmdb_id, season_number, anilist_id)
             return cached.data
 
+        # 2. Mirar cache persistent (SQLite) - sobreviu reinicis
+        db_cached = _get_db_cache(cache_key)
+        if db_cached:
+            # Guardar també a memòria per accés ràpid
+            source = MetadataSource.TMDB
+            if db_cached.get("_source"):
+                try:
+                    source = MetadataSource(db_cached["_source"])
+                except ValueError:
+                    pass
+            metadata_cache.set(cache_key, db_cached, source)
+            logger.debug(f"Cache DB hit: {cache_key}")
+            return db_cached
+
+        # 3. Fetch de nou (amb traducció)
         data = await self._fetch_episodes_metadata(tmdb_id, season_number, anilist_id, content_type)
 
         if data:
-            metadata_cache.set(cache_key, data, data.get("_source", MetadataSource.TMDB))
+            source = data.get("_source", MetadataSource.TMDB)
+            # Guardar a memòria
+            metadata_cache.set(cache_key, data, source)
+            # Guardar a DB persistent (7 dies)
+            _set_db_cache(cache_key, data, source.value if hasattr(source, 'value') else str(source))
+            logger.debug(f"Cache saved: {cache_key}")
 
         return data
 
