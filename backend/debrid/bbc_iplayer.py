@@ -1,6 +1,11 @@
 """
 BBC iPlayer Client
 Extreu URLs de streaming de BBC iPlayer utilitzant yt-dlp
+
+Suport per 1080p:
+- BBC iPlayer limita els navegadors a 720p
+- Aquesta implementació intenta forçar 1080p modificant els paràmetres del manifest HLS
+- No tots els programes tenen 1080p disponible (especialment contingut web-only)
 """
 
 import asyncio
@@ -11,7 +16,17 @@ import subprocess
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Any
 
+import httpx
+
 logger = logging.getLogger(__name__)
+
+# Bitrates de BBC iPlayer HLS
+BBC_BITRATES = {
+    "1080p": 12000000,  # Full HD
+    "720p": 5070000,    # HD
+    "540p": 2812000,    # SD+
+    "396p": 1500000,    # SD
+}
 
 
 @dataclass
@@ -28,6 +43,7 @@ class BBCStream:
     series_id: Optional[str] = None
     season: Optional[int] = None
     episode: Optional[int] = None
+    quality: Optional[str] = None  # Qualitat real obtinguda
 
     def to_dict(self) -> Dict:
         return {
@@ -41,7 +57,8 @@ class BBCStream:
             "subtitles": self.subtitles,
             "series_id": self.series_id,
             "season": self.season,
-            "episode": self.episode
+            "episode": self.episode,
+            "quality": self.quality
         }
 
 
@@ -75,6 +92,40 @@ class BBCiPlayerClient:
 
         return None
 
+    def _upgrade_to_1080p(self, url: str) -> str:
+        """
+        Intenta actualitzar una URL de 720p a 1080p
+
+        BBC utilitza paràmetres de bitrate en les URLs HLS:
+        - 720p: -video=5070000.m3u8
+        - 1080p: -video=12000000.m3u8
+        """
+        if not url:
+            return url
+
+        # Patró per trobar el bitrate de 720p
+        pattern_720p = r'-video=5070000\.m3u8'
+        replacement_1080p = '-video=12000000.m3u8'
+
+        # També pot aparèixer com a paràmetre a la URL
+        pattern_720p_alt = r'video=5070000'
+        replacement_1080p_alt = 'video=12000000'
+
+        upgraded = re.sub(pattern_720p, replacement_1080p, url)
+        upgraded = re.sub(pattern_720p_alt, replacement_1080p_alt, upgraded)
+
+        return upgraded
+
+    async def _verify_url_accessible(self, url: str) -> bool:
+        """Verifica si una URL és accessible (no retorna 404)"""
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.head(url, follow_redirects=True)
+                return response.status_code == 200
+        except Exception as e:
+            logger.debug(f"Error verificant URL: {e}")
+            return False
+
     async def get_stream_info(
         self,
         url_or_id: str,
@@ -86,6 +137,8 @@ class BBCiPlayerClient:
         Args:
             url_or_id: URL completa o programme_id (e.g., m0025643)
             quality: "best", "1080", "720", "480", "worst"
+                    - "best" intentarà 1080p primer, amb fallback a 720p
+                    - "1080" forçarà 1080p (pot fallar si no disponible)
 
         Returns:
             BBCStream amb tota la informació del programa
@@ -110,8 +163,8 @@ class BBCiPlayerClient:
 
             info = json.loads(result)
 
-            # Obtenir URL directa del millor format
-            stream_url = await self._get_best_url(url, quality)
+            # Obtenir URL directa
+            stream_url, actual_quality = await self._get_best_url_with_1080p(url, quality)
 
             # Processar subtítols
             subtitles = {}
@@ -134,7 +187,8 @@ class BBCiPlayerClient:
                 subtitles=subtitles if subtitles else None,
                 series_id=info.get("series_id"),
                 season=season,
-                episode=episode
+                episode=episode,
+                quality=actual_quality
             )
 
         except json.JSONDecodeError as e:
@@ -144,38 +198,75 @@ class BBCiPlayerClient:
             logger.error(f"Error obtenint info de BBC iPlayer: {e}")
             return None
 
-    async def _get_best_url(self, url: str, quality: str = "best") -> Optional[str]:
-        """Obtenir la millor URL de streaming directe"""
-        try:
-            # Mapa de qualitats
-            format_selector = {
-                "best": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
-                "1080": "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
-                "720": "bestvideo[height<=720]+bestaudio/best[height<=720]",
-                "480": "bestvideo[height<=480]+bestaudio/best[height<=480]",
-                "worst": "worstvideo+worstaudio/worst"
-            }.get(quality, "best")
+    async def _get_best_url_with_1080p(
+        self,
+        url: str,
+        quality: str = "best"
+    ) -> tuple[Optional[str], Optional[str]]:
+        """
+        Obtenir la millor URL de streaming, intentant 1080p si és possible
 
+        Returns:
+            (url, quality_achieved) - La URL i la qualitat real obtinguda
+        """
+        try:
+            # Primer obtenim la URL de 720p (la màxima que yt-dlp pot obtenir directament)
             result = await self._run_ytdlp([
-                "-f", format_selector,
-                "-g",  # Obtenir URL directe
+                "-f", "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
+                "-g",
                 url
             ])
 
-            if result:
-                # yt-dlp pot retornar múltiples URLs (video + audio)
-                urls = result.strip().split("\n")
-                return urls[0] if urls else None
+            if not result:
+                return None, None
 
-            return None
+            urls = result.strip().split("\n")
+            base_url = urls[0] if urls else None
+
+            if not base_url:
+                return None, None
+
+            # Si l'usuari vol 720p o menys, retornem directament
+            if quality in ["720", "480", "worst"]:
+                return base_url, "720p"
+
+            # Intentar actualitzar a 1080p
+            if quality in ["best", "1080"]:
+                upgraded_url = self._upgrade_to_1080p(base_url)
+
+                if upgraded_url != base_url:
+                    # Verificar si la URL 1080p és accessible
+                    logger.info(f"Intentant obtenir 1080p...")
+                    is_accessible = await self._verify_url_accessible(upgraded_url)
+
+                    if is_accessible:
+                        logger.info("1080p disponible!")
+                        return upgraded_url, "1080p"
+                    else:
+                        logger.info("1080p no disponible, utilitzant 720p")
+                        if quality == "1080":
+                            # L'usuari ha demanat específicament 1080p
+                            logger.warning(
+                                "1080p no disponible per aquest contingut. "
+                                "Alguns programes (web-only) només tenen 720p."
+                            )
+
+            return base_url, "720p"
 
         except Exception as e:
-            logger.error(f"Error obtenint URL directa: {e}")
-            return None
+            logger.error(f"Error obtenint URL: {e}")
+            return None, None
+
+    async def _get_best_url(self, url: str, quality: str = "best") -> Optional[str]:
+        """Obtenir la millor URL de streaming directe (legacy)"""
+        stream_url, _ = await self._get_best_url_with_1080p(url, quality)
+        return stream_url
 
     async def get_formats(self, url_or_id: str) -> List[Dict]:
         """
         Obtenir tots els formats disponibles d'un programa
+
+        Inclou formats 1080p sintètics si 720p està disponible
 
         Returns:
             Llista de formats amb resolució, codec, etc.
@@ -189,7 +280,7 @@ class BBCiPlayerClient:
         try:
             result = await self._run_ytdlp([
                 "--list-formats",
-                "-J",  # JSON output
+                "-J",
                 url
             ])
 
@@ -199,17 +290,38 @@ class BBCiPlayerClient:
 
                 # Simplificar la sortida
                 simplified = []
+                has_720p = False
+
                 for fmt in formats:
+                    height = fmt.get("height")
+                    if height == 720:
+                        has_720p = True
+
                     simplified.append({
                         "format_id": fmt.get("format_id"),
                         "ext": fmt.get("ext"),
                         "resolution": fmt.get("resolution"),
-                        "height": fmt.get("height"),
+                        "height": height,
                         "width": fmt.get("width"),
                         "vcodec": fmt.get("vcodec"),
                         "acodec": fmt.get("acodec"),
                         "filesize": fmt.get("filesize"),
-                        "tbr": fmt.get("tbr")  # bitrate total
+                        "tbr": fmt.get("tbr")
+                    })
+
+                # Afegir format 1080p sintètic si tenim 720p
+                if has_720p:
+                    simplified.append({
+                        "format_id": "1080p_upgraded",
+                        "ext": "mp4",
+                        "resolution": "1920x1080",
+                        "height": 1080,
+                        "width": 1920,
+                        "vcodec": "avc1",
+                        "acodec": "mp4a",
+                        "filesize": None,
+                        "tbr": 12000,
+                        "note": "Pot no estar disponible per contingut web-only"
                     })
 
                 return simplified
