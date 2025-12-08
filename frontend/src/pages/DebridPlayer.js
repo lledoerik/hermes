@@ -74,6 +74,23 @@ const CloseIcon = () => (
   </svg>
 );
 
+// BBC iPlayer icon
+const BBCIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M3 3h18v18H3V3zm2 2v14h14V5H5zm2 2h3v3H7V7zm4 0h3v3h-3V7zm4 0h2v3h-2V7zM7 11h3v3H7v-3zm4 0h3v3h-3v-3zm4 0h2v3h-2v-3z"/>
+  </svg>
+);
+
+// Torrent icon
+const TorrentIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+  </svg>
+);
+
+// One Piece TMDB ID
+const ONE_PIECE_TMDB_ID = 37854;
+
 // Audio track icon
 const AudioIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor">
@@ -319,6 +336,15 @@ function DebridPlayer() {
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
   const [hlsSubtitleTracks, setHlsSubtitleTracks] = useState([]);
   const [currentHlsSubtitleTrack, setCurrentHlsSubtitleTrack] = useState(-1);
+
+  // BBC iPlayer integration state (for One Piece)
+  const isOnePiece = parseInt(tmdbId) === ONE_PIECE_TMDB_ID && type === 'tv';
+  const [bbcStream, setBbcStream] = useState(null);
+  const [bbcAvailable, setBbcAvailable] = useState(false);
+  const [bbcArcInfo, setBbcArcInfo] = useState(null);
+  const [activeSource, setActiveSource] = useState('torrentio'); // 'bbc' or 'torrentio'
+  const [loadingBbc, setLoadingBbc] = useState(false);
+  const [showSourceMenu, setShowSourceMenu] = useState(false);
 
   // Episode navigation state
   const [showEpisodesList, setShowEpisodesList] = useState(false);
@@ -780,6 +806,101 @@ function DebridPlayer() {
       }
     }
   }, [torrents, getStreamUrl]);
+
+  // BBC iPlayer functions (for One Piece)
+  const checkBbcAvailability = useCallback(async () => {
+    if (!isOnePiece || !episode) return false;
+
+    try {
+      const response = await axios.get(`${API_URL}/api/bbc/onepiece/check/${episode}`);
+      if (response.data.available) {
+        setBbcAvailable(true);
+        setBbcArcInfo(response.data);
+        return true;
+      } else {
+        setBbcAvailable(false);
+        setBbcArcInfo(response.data);
+        return false;
+      }
+    } catch (err) {
+      console.log('BBC check failed:', err.message);
+      setBbcAvailable(false);
+      return false;
+    }
+  }, [isOnePiece, episode]);
+
+  const loadBbcStream = useCallback(async () => {
+    if (!isOnePiece || !episode || !bbcAvailable) return null;
+
+    setLoadingBbc(true);
+    try {
+      const response = await axios.get(`${API_URL}/api/bbc/onepiece/episode/${episode}`, {
+        params: { quality: 'best' }
+      });
+
+      if (response.data.status === 'success') {
+        const bbcData = {
+          url: response.data.url,
+          title: response.data.title,
+          quality: response.data.quality,
+          arc: response.data.arc,
+          subtitles: response.data.subtitles,
+          duration: response.data.duration
+        };
+        setBbcStream(bbcData);
+        return bbcData;
+      }
+    } catch (err) {
+      console.error('Error loading BBC stream:', err);
+      setBbcAvailable(false);
+    } finally {
+      setLoadingBbc(false);
+    }
+    return null;
+  }, [isOnePiece, episode, bbcAvailable]);
+
+  const changeSource = useCallback(async (source) => {
+    if (source === activeSource) {
+      setShowSourceMenu(false);
+      return;
+    }
+
+    // Save current playback time
+    const currentPlayTime = videoRef.current?.currentTime || 0;
+    resumeTimeRef.current = currentPlayTime;
+
+    if (source === 'bbc') {
+      // Switch to BBC
+      if (!bbcStream) {
+        setLoadingBbc(true);
+        const stream = await loadBbcStream();
+        if (stream) {
+          setStreamUrl(stream.url);
+          setActiveSource('bbc');
+        } else {
+          // BBC failed, stay on torrentio
+          console.log('BBC stream not available, staying on torrentio');
+        }
+        setLoadingBbc(false);
+      } else {
+        setStreamUrl(bbcStream.url);
+        setActiveSource('bbc');
+      }
+    } else {
+      // Switch to Torrentio
+      if (selectedTorrent) {
+        const cachedUrl = getCachedStreamUrl(selectedTorrent.info_hash, season, episode);
+        if (cachedUrl) {
+          setStreamUrl(cachedUrl);
+        } else {
+          await getStreamUrl(selectedTorrent, true);
+        }
+      }
+      setActiveSource('torrentio');
+    }
+
+    setShowSourceMenu(false);
+  }, [activeSource, bbcStream, loadBbcStream, selectedTorrent, getCachedStreamUrl, getStreamUrl, season, episode]);
 
   // Video event handlers
   const handleTimeUpdate = useCallback(() => {
@@ -1304,6 +1425,32 @@ function DebridPlayer() {
 
       // Check debrid status first
       const isConfigured = await checkDebridStatus();
+
+      // One Piece: Check BBC availability first (prioritary source)
+      if (isOnePiece && episode) {
+        const bbcIsAvailable = await checkBbcAvailability();
+        if (bbcIsAvailable) {
+          // Try to load BBC stream as primary source
+          setLoadingBbc(true);
+          const bbcData = await loadBbcStream();
+          setLoadingBbc(false);
+
+          if (bbcData) {
+            // BBC stream loaded successfully - use it as primary
+            setStreamUrl(bbcData.url);
+            setActiveSource('bbc');
+            setDebridConfigured(true);
+            // Still load torrents in background as fallback
+            if (isConfigured) {
+              searchTorrents();
+            }
+            setLoadingTorrents(false);
+            return;
+          }
+        }
+      }
+
+      // Default: Load torrents (either not One Piece or BBC not available)
       if (isConfigured) {
         searchTorrents();
       } else {
@@ -1311,7 +1458,8 @@ function DebridPlayer() {
       }
     };
     init();
-  }, [mediaInfo, loadMediaInfo, loadEpisodes, searchTorrents, checkDebridStatus, isDirectMode, directUrl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mediaInfo, loadMediaInfo, loadEpisodes, searchTorrents, checkDebridStatus, isDirectMode, directUrl, isOnePiece, episode]);
 
   // Auto-get stream when torrent is selected
   useEffect(() => {
@@ -1673,6 +1821,13 @@ function DebridPlayer() {
         <div className="title-info">
           {isDirectMode && directBadge && <span className="source-badge">{directBadge}</span>}
           {isDirectMode && directQuality && <span className="quality-badge direct-quality">{directQuality}</span>}
+          {/* BBC source badge for One Piece */}
+          {!isDirectMode && isOnePiece && activeSource === 'bbc' && (
+            <span className="source-badge bbc-badge">BBC iPlayer</span>
+          )}
+          {!isDirectMode && isOnePiece && activeSource === 'bbc' && bbcStream?.quality && (
+            <span className="quality-badge direct-quality">{bbcStream.quality}</span>
+          )}
           <h1>{title}</h1>
           {subtitle && <span>{subtitle}</span>}
         </div>
@@ -1803,6 +1958,17 @@ function DebridPlayer() {
                 </button>
               )}
 
+              {/* Source button (only for One Piece with BBC available) */}
+              {isOnePiece && (bbcAvailable || torrents.length > 0) && (
+                <button
+                  className={`control-btn source-btn ${activeSource === 'bbc' ? 'bbc-active' : ''}`}
+                  onClick={(e) => { e.stopPropagation(); setShowSourceMenu(true); }}
+                  title="Canviar font"
+                >
+                  {activeSource === 'bbc' ? <BBCIcon /> : <TorrentIcon />}
+                </button>
+              )}
+
               {/* Quality button */}
               <button
                 className="control-btn"
@@ -1835,6 +2001,61 @@ function DebridPlayer() {
               {track.label}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Source menu (BBC vs Torrentio) */}
+      {showSourceMenu && isOnePiece && (
+        <div className="quality-menu-overlay" onClick={(e) => e.stopPropagation()}>
+          <div className="quality-menu source-menu">
+            <div className="quality-menu-header">
+              <h3>Font</h3>
+              <button className="close-btn" onClick={() => setShowSourceMenu(false)}>
+                <CloseIcon />
+              </button>
+            </div>
+            <div className="quality-menu-content">
+              {/* BBC iPlayer option */}
+              <div
+                className={`quality-option source-option ${activeSource === 'bbc' ? 'active' : ''} ${!bbcAvailable ? 'disabled' : ''}`}
+                onClick={() => bbcAvailable && changeSource('bbc')}
+              >
+                <span className="source-icon"><BBCIcon /></span>
+                <div className="source-info">
+                  <span className="source-name">BBC iPlayer</span>
+                  {bbcArcInfo && bbcAvailable && (
+                    <span className="source-detail">Arc: {bbcArcInfo.arc}</span>
+                  )}
+                  {!bbcAvailable && bbcArcInfo?.reason === 'arc_not_on_bbc' && (
+                    <span className="source-detail unavailable">Arc no disponible</span>
+                  )}
+                </div>
+                {loadingBbc && <span className="loading-spinner-small"></span>}
+                {bbcAvailable && !loadingBbc && <span className="source-badge-quality">HD</span>}
+              </div>
+
+              {/* Torrentio option */}
+              <div
+                className={`quality-option source-option ${activeSource === 'torrentio' ? 'active' : ''} ${torrents.length === 0 ? 'disabled' : ''}`}
+                onClick={() => torrents.length > 0 && changeSource('torrentio')}
+              >
+                <span className="source-icon"><TorrentIcon /></span>
+                <div className="source-info">
+                  <span className="source-name">Torrentio</span>
+                  {torrents.length > 0 && (
+                    <span className="source-detail">{torrents.filter(t => t.cached).length} en cache</span>
+                  )}
+                  {torrents.length === 0 && !loadingTorrents && (
+                    <span className="source-detail unavailable">No disponible</span>
+                  )}
+                </div>
+                {loadingTorrents && <span className="loading-spinner-small"></span>}
+                {torrents.length > 0 && selectedTorrent && (
+                  <span className="source-badge-quality">{parseQuality(selectedTorrent.name)}</span>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

@@ -10838,6 +10838,151 @@ async def get_bbc_series(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ==================== ONE PIECE BBC INTEGRATION ====================
+
+@app.get("/api/bbc/onepiece/arcs")
+async def get_onepiece_arcs(request: Request):
+    """
+    Obtenir tots els arcs de One Piece amb informació de disponibilitat a BBC
+    """
+    require_auth(request)
+
+    from backend.debrid.bbc_onepiece import get_all_arcs
+
+    arcs = get_all_arcs()
+    return {
+        "status": "success",
+        "arcs": arcs,
+        "count": len(arcs)
+    }
+
+
+@app.get("/api/bbc/onepiece/episode/{episode}")
+async def get_onepiece_bbc_stream(
+    request: Request,
+    episode: int,
+    quality: str = Query("best", description="Qualitat: best, 1080, 720")
+):
+    """
+    Obtenir stream de BBC iPlayer per un episodi de One Piece
+
+    Args:
+        episode: Número d'episodi TMDB (absolut)
+        quality: Qualitat desitjada
+    """
+    require_auth(request)
+
+    from backend.debrid import BBCiPlayerClient, BBCiPlayerError
+    from backend.debrid.bbc_onepiece import (
+        get_arc_for_episode,
+        BBCOnePieceClient
+    )
+
+    # Trobar l'arc corresponent
+    arc = get_arc_for_episode(episode)
+    if not arc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No s'ha trobat cap arc per l'episodi {episode}"
+        )
+
+    if not arc.bbc_series_id:
+        raise HTTPException(
+            status_code=404,
+            detail=f"L'arc '{arc.name}' no està disponible a BBC iPlayer"
+        )
+
+    try:
+        bbc_client = BBCiPlayerClient()
+        op_client = BBCOnePieceClient(bbc_client)
+
+        stream = await op_client.get_episode_for_tmdb(episode, quality)
+
+        if not stream:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No s'ha pogut obtenir l'stream per l'episodi {episode}"
+            )
+
+        return {
+            "status": "success",
+            **stream
+        }
+
+    except BBCiPlayerError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error obtenint stream One Piece BBC: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/bbc/onepiece/check/{episode}")
+async def check_onepiece_bbc_availability(
+    request: Request,
+    episode: int
+):
+    """
+    Comprova si un episodi de One Piece està disponible a BBC iPlayer
+    (sense obtenir l'stream, més ràpid)
+    """
+    require_auth(request)
+
+    from backend.debrid.bbc_onepiece import get_arc_for_episode
+
+    arc = get_arc_for_episode(episode)
+
+    if not arc:
+        return {
+            "available": False,
+            "reason": "episode_not_found"
+        }
+
+    if not arc.bbc_series_id:
+        return {
+            "available": False,
+            "arc": arc.name,
+            "reason": "arc_not_on_bbc"
+        }
+
+    return {
+        "available": True,
+        "arc": arc.name,
+        "arc_en": arc.name_en,
+        "bbc_episode": arc.tmdb_to_bbc_episode(episode),
+        "bbc_series_id": arc.bbc_series_id
+    }
+
+
+@app.post("/api/bbc/onepiece/configure")
+async def configure_onepiece_arc(
+    request: Request,
+    arc_name: str = Query(..., description="Nom de l'arc"),
+    bbc_series_id: str = Query(..., description="ID de la sèrie a BBC")
+):
+    """
+    Configura el bbc_series_id d'un arc de One Piece
+    (Administració)
+    """
+    require_auth(request)
+
+    from backend.debrid.bbc_onepiece import update_arc_bbc_id
+
+    success = update_arc_bbc_id(arc_name, bbc_series_id)
+
+    if not success:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No s'ha trobat l'arc '{arc_name}'"
+        )
+
+    return {
+        "status": "success",
+        "message": f"Arc '{arc_name}' configurat amb BBC ID: {bbc_series_id}"
+    }
+
+
 @app.get("/api/bbc/subtitles")
 async def proxy_bbc_subtitles(
     request: Request,
