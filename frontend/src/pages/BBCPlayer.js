@@ -1,11 +1,36 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import StreamPlayer from '../components/StreamPlayer';
 import { API_URL } from '../config/api';
+import './DebridPlayer.css';
+
+// Loading screen component (same style as DebridPlayer)
+function LoadingScreen({ message }) {
+  return (
+    <div className="debrid-player">
+      <div className="loading-overlay">
+        <div className="spinner"></div>
+        {message && <p style={{ marginTop: '16px', color: '#fff' }}>{message}</p>}
+      </div>
+    </div>
+  );
+}
+
+// Error screen component
+function ErrorScreen({ error, onBack }) {
+  return (
+    <div className="debrid-player">
+      <div className="error-overlay">
+        <p>{error}</p>
+        <button onClick={onBack}>Tornar</button>
+      </div>
+    </div>
+  );
+}
 
 function BBCPlayer() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   // Get URL from query params (support both 'url' and 'id')
   const urlParam = searchParams.get('url');
@@ -18,10 +43,8 @@ function BBCPlayer() {
   // State
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [streamUrl, setStreamUrl] = useState(null);
-  const [metadata, setMetadata] = useState(null);
 
-  // Fetch stream from BBC iPlayer
+  // Fetch stream from BBC iPlayer and redirect to DebridPlayer
   useEffect(() => {
     if (!bbcUrl) {
       setError('No BBC iPlayer URL provided');
@@ -39,47 +62,46 @@ function BBCPlayer() {
         });
 
         if (response.data.status === 'success') {
-          setStreamUrl(response.data.url);
-          setMetadata({
-            title: response.data.title,
-            description: response.data.description,
-            thumbnail: response.data.thumbnail,
-            duration: response.data.duration,
-            season: response.data.season,
-            episode: response.data.episode,
-            quality: response.data.quality
+          const { url, title, season, episode, quality: actualQuality } = response.data;
+
+          // Build subtitle
+          const subtitle = season && episode ? `T${season}E${episode}` : '';
+
+          // Redirect to DebridPlayer with direct mode params
+          const params = new URLSearchParams({
+            directUrl: url,
+            directTitle: title || 'BBC Programme',
+            directBadge: 'BBC iPlayer',
+            directQuality: actualQuality || '',
+            directSubtitle: subtitle
           });
+
+          // Navigate to DebridPlayer in direct mode
+          navigate(`/debrid/direct/bbc?${params.toString()}`, { replace: true });
         } else {
           setError('Failed to get stream');
+          setLoading(false);
         }
       } catch (err) {
         console.error('Error fetching BBC stream:', err);
         const errorMsg = err.response?.data?.detail || err.message || 'Error loading stream';
         setError(errorMsg);
-      } finally {
         setLoading(false);
       }
     };
 
     fetchStream();
-  }, [bbcUrl, quality]);
+  }, [bbcUrl, quality, navigate]);
 
-  // Build subtitle (season/episode info)
-  const subtitle = metadata?.season && metadata?.episode
-    ? `T${metadata.season}E${metadata.episode}`
-    : '';
+  if (loading) {
+    return <LoadingScreen message="Carregant BBC iPlayer..." />;
+  }
 
-  return (
-    <StreamPlayer
-      streamUrl={streamUrl}
-      title={metadata?.title || 'BBC Programme'}
-      subtitle={subtitle}
-      badge="BBC iPlayer"
-      quality={metadata?.quality}
-      loading={loading}
-      error={error}
-    />
-  );
+  if (error) {
+    return <ErrorScreen error={error} onBack={() => navigate(-1)} />;
+  }
+
+  return null;
 }
 
 export default BBCPlayer;
