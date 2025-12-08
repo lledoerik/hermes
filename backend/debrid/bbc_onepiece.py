@@ -1,0 +1,299 @@
+"""
+BBC iPlayer One Piece Arc Mapping
+
+Mapeja els episodis de TMDB als arcs de BBC iPlayer.
+BBC organitza One Piece per arcs narratius, no per número d'episodi absolut.
+
+Per actualitzar els IDs de BBC:
+1. Ves a BBC iPlayer i busca "One Piece"
+2. Cada arc té una URL com: https://www.bbc.co.uk/iplayer/episodes/SERIES_ID
+3. Actualitza el camp 'bbc_series_id' de cada arc
+"""
+
+from dataclasses import dataclass
+from typing import Optional, List, Dict
+import logging
+
+logger = logging.getLogger(__name__)
+
+# TMDB ID per One Piece (anime 1999)
+ONE_PIECE_TMDB_ID = 37854
+
+
+@dataclass
+class OnePieceArc:
+    """Representa un arc de One Piece"""
+    name: str                    # Nom de l'arc
+    name_en: str                 # Nom en anglès (per BBC)
+    tmdb_start: int              # Primer episodi TMDB
+    tmdb_end: int                # Últim episodi TMDB
+    bbc_series_id: Optional[str] # ID de la sèrie a BBC (p.ex. "m000q0w4")
+
+    @property
+    def episode_count(self) -> int:
+        return self.tmdb_end - self.tmdb_start + 1
+
+    def tmdb_to_bbc_episode(self, tmdb_episode: int) -> Optional[int]:
+        """Converteix número d'episodi TMDB a número dins l'arc BBC (1-based)"""
+        if self.tmdb_start <= tmdb_episode <= self.tmdb_end:
+            return tmdb_episode - self.tmdb_start + 1
+        return None
+
+    def contains_episode(self, tmdb_episode: int) -> bool:
+        return self.tmdb_start <= tmdb_episode <= self.tmdb_end
+
+
+# Llista d'arcs de One Piece amb els rangs d'episodis TMDB
+# Els bbc_series_id s'han de configurar manualment ja que BBC pot canviar-los
+ONE_PIECE_ARCS: List[OnePieceArc] = [
+    # East Blue Saga
+    OnePieceArc(
+        name="East Blue",
+        name_en="East Blue",
+        tmdb_start=1,
+        tmdb_end=61,
+        bbc_series_id=None  # Configurar quan estigui disponible
+    ),
+
+    # Alabasta Saga
+    OnePieceArc(
+        name="Alabasta",
+        name_en="Alabasta",
+        tmdb_start=62,
+        tmdb_end=135,
+        bbc_series_id=None
+    ),
+
+    # Sky Island Saga
+    OnePieceArc(
+        name="Sky Island",
+        name_en="Sky Island",
+        tmdb_start=136,
+        tmdb_end=206,
+        bbc_series_id=None
+    ),
+
+    # Water 7 Saga
+    OnePieceArc(
+        name="Water 7",
+        name_en="Water 7",
+        tmdb_start=207,
+        tmdb_end=325,
+        bbc_series_id=None
+    ),
+
+    # Thriller Bark Saga
+    OnePieceArc(
+        name="Thriller Bark",
+        name_en="Thriller Bark",
+        tmdb_start=326,
+        tmdb_end=384,
+        bbc_series_id=None
+    ),
+
+    # Summit War Saga (Sabaody + Impel Down + Marineford + Post-War)
+    OnePieceArc(
+        name="Summit War",
+        name_en="Summit War",
+        tmdb_start=385,
+        tmdb_end=516,
+        bbc_series_id=None
+    ),
+
+    # Fish-Man Island Saga
+    OnePieceArc(
+        name="Fish-Man Island",
+        name_en="Fish-Man Island",
+        tmdb_start=517,
+        tmdb_end=574,
+        bbc_series_id=None
+    ),
+
+    # Dressrosa Saga (Punk Hazard + Dressrosa)
+    OnePieceArc(
+        name="Dressrosa",
+        name_en="Dressrosa",
+        tmdb_start=575,
+        tmdb_end=746,
+        bbc_series_id=None
+    ),
+
+    # Whole Cake Island Saga (Zou + Whole Cake Island)
+    OnePieceArc(
+        name="Whole Cake Island",
+        name_en="Whole Cake Island",
+        tmdb_start=747,
+        tmdb_end=877,
+        bbc_series_id="p0j3hwjx"  # Exemple - verificar a BBC
+    ),
+
+    # Wano Country Saga
+    OnePieceArc(
+        name="Wano Country",
+        name_en="Wano Country",
+        tmdb_start=878,
+        tmdb_end=1085,
+        bbc_series_id=None
+    ),
+
+    # Egghead Saga
+    OnePieceArc(
+        name="Egghead",
+        name_en="Egghead",
+        tmdb_start=1086,
+        tmdb_end=9999,  # En emissió
+        bbc_series_id=None
+    ),
+]
+
+
+def get_arc_for_episode(tmdb_episode: int) -> Optional[OnePieceArc]:
+    """Troba l'arc que conté un episodi TMDB"""
+    for arc in ONE_PIECE_ARCS:
+        if arc.contains_episode(tmdb_episode):
+            return arc
+    return None
+
+
+def get_all_arcs() -> List[Dict]:
+    """Retorna tots els arcs amb la seva informació"""
+    return [
+        {
+            "name": arc.name,
+            "name_en": arc.name_en,
+            "tmdb_start": arc.tmdb_start,
+            "tmdb_end": arc.tmdb_end,
+            "episode_count": arc.episode_count,
+            "bbc_available": arc.bbc_series_id is not None,
+            "bbc_series_id": arc.bbc_series_id
+        }
+        for arc in ONE_PIECE_ARCS
+    ]
+
+
+def get_bbc_episode_url(tmdb_episode: int) -> Optional[str]:
+    """
+    Obté la URL de BBC iPlayer per un episodi TMDB
+
+    Retorna None si l'arc no està disponible a BBC
+    """
+    arc = get_arc_for_episode(tmdb_episode)
+    if not arc or not arc.bbc_series_id:
+        return None
+
+    # La URL de la sèrie BBC - els episodis individuals es troben dins
+    return f"https://www.bbc.co.uk/iplayer/episodes/{arc.bbc_series_id}"
+
+
+def is_one_piece(tmdb_id: int) -> bool:
+    """Comprova si un TMDB ID és One Piece"""
+    return tmdb_id == ONE_PIECE_TMDB_ID
+
+
+class BBCOnePieceClient:
+    """Client per obtenir episodis de One Piece de BBC iPlayer"""
+
+    def __init__(self, bbc_client):
+        """
+        Args:
+            bbc_client: Instància de BBCiPlayerClient
+        """
+        self.bbc_client = bbc_client
+        self._episode_cache: Dict[str, List[Dict]] = {}  # Cache d'episodis per arc
+
+    async def get_arc_episodes(self, arc: OnePieceArc) -> List[Dict]:
+        """Obté tots els episodis d'un arc de BBC"""
+        if not arc.bbc_series_id:
+            return []
+
+        # Comprovar cache
+        if arc.bbc_series_id in self._episode_cache:
+            return self._episode_cache[arc.bbc_series_id]
+
+        try:
+            url = f"https://www.bbc.co.uk/iplayer/episodes/{arc.bbc_series_id}"
+            episodes = await self.bbc_client.search_series(url)
+            self._episode_cache[arc.bbc_series_id] = episodes
+            return episodes
+        except Exception as e:
+            logger.error(f"Error obtenint episodis de l'arc {arc.name}: {e}")
+            return []
+
+    async def get_episode_for_tmdb(
+        self,
+        tmdb_episode: int,
+        quality: str = "best"
+    ) -> Optional[Dict]:
+        """
+        Obté l'stream de BBC per un episodi TMDB
+
+        Args:
+            tmdb_episode: Número d'episodi TMDB
+            quality: Qualitat desitjada
+
+        Returns:
+            Dict amb informació de l'stream o None si no disponible
+        """
+        arc = get_arc_for_episode(tmdb_episode)
+        if not arc or not arc.bbc_series_id:
+            logger.debug(f"Episodi {tmdb_episode} no disponible a BBC (arc: {arc.name if arc else 'no trobat'})")
+            return None
+
+        # Obtenir episodis de l'arc
+        episodes = await self.get_arc_episodes(arc)
+        if not episodes:
+            return None
+
+        # Calcular quin episodi dins l'arc és
+        bbc_episode_num = arc.tmdb_to_bbc_episode(tmdb_episode)
+        if not bbc_episode_num:
+            return None
+
+        # BBC pot tenir els episodis en ordre invers o diferent
+        # Intentem trobar per índex (assumint ordre cronològic)
+        episode_index = bbc_episode_num - 1
+
+        if episode_index >= len(episodes):
+            logger.warning(f"Episodi {tmdb_episode} (índex {episode_index}) no trobat a BBC (només {len(episodes)} episodis)")
+            return None
+
+        bbc_episode = episodes[episode_index]
+        programme_id = bbc_episode.get("programme_id")
+
+        if not programme_id:
+            return None
+
+        # Obtenir stream info
+        try:
+            stream = await self.bbc_client.get_stream_info(programme_id, quality)
+            if stream and stream.url:
+                return {
+                    "provider": "bbc_iplayer",
+                    "arc": arc.name,
+                    "bbc_episode": bbc_episode_num,
+                    "programme_id": stream.programme_id,
+                    "title": stream.title,
+                    "url": stream.url,
+                    "quality": stream.quality,
+                    "subtitles": stream.subtitles,
+                    "duration": stream.duration
+                }
+        except Exception as e:
+            logger.error(f"Error obtenint stream BBC per episodi {tmdb_episode}: {e}")
+
+        return None
+
+
+# Funció auxiliar per actualitzar IDs de BBC des de l'administració
+def update_arc_bbc_id(arc_name: str, bbc_series_id: str) -> bool:
+    """
+    Actualitza el bbc_series_id d'un arc
+
+    Nota: Això només actualitza la memòria, no persisteix.
+    Per persistir, caldria guardar a la base de dades.
+    """
+    for arc in ONE_PIECE_ARCS:
+        if arc.name.lower() == arc_name.lower() or arc.name_en.lower() == arc_name.lower():
+            arc.bbc_series_id = bbc_series_id
+            return True
+    return False
