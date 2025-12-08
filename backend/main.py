@@ -1113,6 +1113,76 @@ async def fix_non_latin_titles(request: Request):
     }
 
 
+@app.post("/api/admin/precache-episodes")
+async def precache_episodes(request: Request):
+    """
+    Pre-cacheja metadades d'episodis (títols traduïts) per totes les sèries.
+    Això fa que la càrrega sigui instantània per l'usuari.
+    """
+    from backend.metadata.service import MetadataService
+
+    admin = require_auth(request)
+    if not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Accés només per administradors")
+
+    cached = []
+    errors = []
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Obtenir totes les sèries amb tmdb_id
+        cursor.execute("""
+            SELECT id, name, tmdb_id, anilist_id, content_type
+            FROM series
+            WHERE tmdb_id IS NOT NULL AND media_type = 'series'
+        """)
+
+        series_list = [dict(row) for row in cursor.fetchall()]
+
+    metadata_service = MetadataService()
+
+    for series in series_list:
+        try:
+            tmdb_id = series["tmdb_id"]
+            anilist_id = series.get("anilist_id")
+            content_type = series.get("content_type")
+
+            # Obtenir número de temporades (assumim màxim 10 si no ho sabem)
+            for season_num in range(1, 11):
+                try:
+                    data = await metadata_service.get_episodes_metadata(
+                        tmdb_id=tmdb_id,
+                        season_number=season_num,
+                        anilist_id=anilist_id,
+                        content_type=content_type
+                    )
+                    if data and data.get("episodes"):
+                        cached.append({
+                            "series": series["name"],
+                            "season": season_num,
+                            "episodes": len(data["episodes"])
+                        })
+                    else:
+                        break  # No hi ha més temporades
+                except Exception:
+                    break  # Temporada no existeix
+
+        except Exception as e:
+            errors.append({
+                "series": series["name"],
+                "error": str(e)
+            })
+
+    return {
+        "status": "success",
+        "cached_seasons": len(cached),
+        "errors": len(errors),
+        "details": cached[:20],  # Primeres 20
+        "error_details": errors[:10]
+    }
+
+
 @app.get("/api/user/continue-watching")
 async def get_continue_watching(request: Request):
     """Retorna el contingut que l'usuari està veient (per continuar)"""
