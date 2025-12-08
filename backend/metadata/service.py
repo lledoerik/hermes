@@ -447,15 +447,17 @@ class MetadataService:
                     tmdb_episodes = await tmdb_client.get_tv_season_details(tmdb_id, season_number)
 
                     if tmdb_episodes and tmdb_episodes.get("episodes"):
-                        # Traduir descripcions si cal
+                        # Traduir títols i descripcions al català
+                        names = [ep.get("name", "") for ep in tmdb_episodes["episodes"]]
                         overviews = [ep.get("overview", "") for ep in tmdb_episodes["episodes"]]
-                        translated = translate_batch_to_catalan(overviews)
+                        translated_names = translate_batch_to_catalan(names)
+                        translated_overviews = translate_batch_to_catalan(overviews)
 
                         for i, ep in enumerate(tmdb_episodes["episodes"]):
                             result["episodes"].append({
                                 "episode_number": ep.get("episode_number"),
-                                "name": ep.get("name"),
-                                "overview": translated[i] if i < len(translated) else ep.get("overview"),
+                                "name": translated_names[i] if i < len(translated_names) else ep.get("name"),
+                                "overview": translated_overviews[i] if i < len(translated_overviews) else ep.get("overview"),
                                 "still_path": ep.get("still_path"),
                                 "air_date": ep.get("air_date"),
                                 "runtime": ep.get("runtime"),
