@@ -10838,6 +10838,191 @@ async def get_bbc_series(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/bbc/subtitles")
+async def proxy_bbc_subtitles(
+    request: Request,
+    url: str = Query(..., description="URL dels subtítols")
+):
+    """
+    Proxy per subtítols de BBC iPlayer.
+    Converteix TTML a VTT si és necessari.
+    """
+    require_auth(request)
+
+    import re
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(url, follow_redirects=True)
+            response.raise_for_status()
+            content = response.text
+
+        # Detectar format
+        is_ttml = '<tt ' in content or '<tt>' in content or 'xmlns="http://www.w3.org/ns/ttml"' in content
+
+        if is_ttml:
+            # Convertir TTML a VTT
+            vtt_content = convert_ttml_to_vtt(content)
+        elif content.strip().startswith('WEBVTT'):
+            # Ja és VTT
+            vtt_content = content
+        else:
+            # Format desconegut, intentar retornar-lo com a VTT
+            vtt_content = "WEBVTT\n\n" + content
+
+        from fastapi.responses import Response
+        return Response(
+            content=vtt_content,
+            media_type="text/vtt",
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Cache-Control": "public, max-age=3600"
+            }
+        )
+
+    except httpx.HTTPError as e:
+        logger.error(f"Error obtenint subtítols: {e}")
+        raise HTTPException(status_code=502, detail="No s'han pogut obtenir els subtítols")
+    except Exception as e:
+        logger.error(f"Error processant subtítols: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def convert_ttml_to_vtt(ttml_content: str) -> str:
+    """
+    Converteix TTML (Timed Text Markup Language) a WebVTT.
+    BBC iPlayer utilitza TTML per als subtítols.
+    """
+    import re
+    from xml.etree import ElementTree as ET
+
+    try:
+        # Parse TTML XML
+        root = ET.fromstring(ttml_content)
+
+        # Trobar el namespace
+        ns = {'tt': 'http://www.w3.org/ns/ttml'}
+
+        # Buscar tots els elements <p> (paràgrafs amb text)
+        # El namespace pot variar, així que busquem amb i sense
+        paragraphs = root.findall('.//{http://www.w3.org/ns/ttml}p')
+        if not paragraphs:
+            paragraphs = root.findall('.//p')
+
+        vtt_lines = ["WEBVTT", ""]
+
+        for i, p in enumerate(paragraphs, 1):
+            begin = p.get('begin', '')
+            end = p.get('end', '')
+
+            # Convertir format de temps (pot ser "00:00:01.000" o "1s")
+            begin_vtt = convert_ttml_time(begin)
+            end_vtt = convert_ttml_time(end)
+
+            if not begin_vtt or not end_vtt:
+                continue
+
+            # Obtenir text (pot tenir spans o altres elements)
+            text = get_element_text(p)
+            if not text.strip():
+                continue
+
+            vtt_lines.append(str(i))
+            vtt_lines.append(f"{begin_vtt} --> {end_vtt}")
+            vtt_lines.append(text)
+            vtt_lines.append("")
+
+        return "\n".join(vtt_lines)
+
+    except ET.ParseError as e:
+        logger.error(f"Error parsejant TTML: {e}")
+        # Fallback: regex simple
+        return convert_ttml_to_vtt_regex(ttml_content)
+
+
+def convert_ttml_time(time_str: str) -> str:
+    """Converteix format de temps TTML a VTT (HH:MM:SS.mmm)"""
+    import re
+
+    if not time_str:
+        return ""
+
+    # Format ja correcte (00:00:01.000)
+    if re.match(r'\d{2}:\d{2}:\d{2}\.\d{3}', time_str):
+        return time_str
+
+    # Format HH:MM:SS (afegir mil·lisegons)
+    if re.match(r'\d{2}:\d{2}:\d{2}$', time_str):
+        return time_str + ".000"
+
+    # Format amb ticks (10000000t = 1 segon)
+    tick_match = re.match(r'(\d+)t', time_str)
+    if tick_match:
+        ticks = int(tick_match.group(1))
+        seconds = ticks / 10000000
+        return format_vtt_time(seconds)
+
+    # Format amb segons (1.5s)
+    sec_match = re.match(r'([\d.]+)s', time_str)
+    if sec_match:
+        seconds = float(sec_match.group(1))
+        return format_vtt_time(seconds)
+
+    return time_str
+
+
+def format_vtt_time(seconds: float) -> str:
+    """Formata segons a VTT (HH:MM:SS.mmm)"""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = seconds % 60
+    return f"{hours:02d}:{minutes:02d}:{secs:06.3f}"
+
+
+def get_element_text(element) -> str:
+    """Obtenir tot el text d'un element XML, incloent fills"""
+    text = element.text or ""
+    for child in element:
+        # Si és un <br/>, afegir salt de línia
+        if child.tag.endswith('br') or child.tag == 'br':
+            text += "\n"
+        else:
+            text += get_element_text(child)
+        if child.tail:
+            text += child.tail
+    return text
+
+
+def convert_ttml_to_vtt_regex(ttml_content: str) -> str:
+    """Fallback: convertir TTML a VTT usant regex"""
+    import re
+
+    vtt_lines = ["WEBVTT", ""]
+
+    # Buscar patrons <p begin="..." end="...">text</p>
+    pattern = r'<p[^>]*begin="([^"]*)"[^>]*end="([^"]*)"[^>]*>(.*?)</p>'
+    matches = re.findall(pattern, ttml_content, re.DOTALL)
+
+    for i, (begin, end, text) in enumerate(matches, 1):
+        begin_vtt = convert_ttml_time(begin)
+        end_vtt = convert_ttml_time(end)
+
+        # Netejar HTML del text
+        clean_text = re.sub(r'<[^>]+>', '', text)
+        clean_text = clean_text.strip()
+
+        if not clean_text:
+            continue
+
+        vtt_lines.append(str(i))
+        vtt_lines.append(f"{begin_vtt} --> {end_vtt}")
+        vtt_lines.append(clean_text)
+        vtt_lines.append("")
+
+    return "\n".join(vtt_lines)
+
+
 # ==================== SUBTITLES API ====================
 
 # Client de subtítols compartit (cache)
