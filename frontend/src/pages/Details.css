@@ -684,7 +684,7 @@
 .seasons-tabs {
   position: relative;
   text-align: left;
-  overflow: hidden; /* Contenir el scroll horitzontal de les temporades */
+  padding: 0 30px; /* Espai pels indicadors de scroll */
 }
 
 .seasons-scroll-container {
@@ -693,12 +693,22 @@
   scrollbar-width: none;
   -ms-overflow-style: none;
   scroll-behavior: smooth;
-  margin: 0 -4px;
-  padding: 0 4px;
+  padding: 4px 0;
+  cursor: grab;
+  user-select: none;
 }
 
 .seasons-scroll-container::-webkit-scrollbar {
   display: none;
+}
+
+.seasons-scroll-container.dragging {
+  cursor: grabbing;
+  scroll-behavior: auto;
+}
+
+.seasons-scroll-container.dragging .season-btn {
+  pointer-events: none;
 }
 
 .seasons-list {
@@ -742,9 +752,9 @@
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  width: 44px;
-  height: 44px;
-  background: rgba(15, 23, 42, 0.95);
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 50%;
   display: flex;
@@ -753,21 +763,25 @@
   cursor: pointer;
   z-index: 10;
   transition: all 0.2s ease;
-  color: white;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  color: var(--text-secondary);
 }
 
 .scroll-indicator:hover {
-  background: rgba(var(--color-primary-rgb), 0.9);
-  border-color: var(--color-primary);
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--text-primary);
+}
+
+.scroll-indicator svg {
+  width: 16px;
+  height: 16px;
 }
 
 .scroll-indicator.left {
-  left: -22px;
+  left: 0;
 }
 
 .scroll-indicator.right {
-  right: -22px;
+  right: 0;
 }
 
 .scroll-indicator.hidden {
