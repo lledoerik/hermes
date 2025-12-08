@@ -337,14 +337,16 @@ function DebridPlayer() {
   const [hlsSubtitleTracks, setHlsSubtitleTracks] = useState([]);
   const [currentHlsSubtitleTrack, setCurrentHlsSubtitleTrack] = useState(-1);
 
-  // BBC iPlayer integration state (for One Piece)
+  // BBC iPlayer integration state (generic - works with any BBC content)
   const isOnePiece = parseInt(tmdbId) === ONE_PIECE_TMDB_ID && type === 'tv';
   const [bbcStream, setBbcStream] = useState(null);
   const [bbcAvailable, setBbcAvailable] = useState(false);
-  const [bbcArcInfo, setBbcArcInfo] = useState(null);
+  const [bbcContentInfo, setBbcContentInfo] = useState(null); // Generic BBC content info
+  const [bbcArcInfo, setBbcArcInfo] = useState(null); // For One Piece arcs (backwards compat)
   const [activeSource, setActiveSource] = useState('torrentio'); // 'bbc' or 'torrentio'
   const [loadingBbc, setLoadingBbc] = useState(false);
   const [showSourceMenu, setShowSourceMenu] = useState(false);
+  const [hasBbcMapping, setHasBbcMapping] = useState(false); // Whether this content has BBC mapping
 
   // Episode navigation state
   const [showEpisodesList, setShowEpisodesList] = useState(false);
@@ -807,48 +809,99 @@ function DebridPlayer() {
     }
   }, [torrents, getStreamUrl]);
 
-  // BBC iPlayer functions (for One Piece)
+  // BBC iPlayer functions (generic - works with any BBC content)
   const checkBbcAvailability = useCallback(async () => {
-    if (!isOnePiece || !episode) return false;
+    // First check if there's a generic BBC mapping for this content
+    const contentType = type === 'movie' ? 'movie' : 'tv';
+    const currentEpisode = type === 'movie' ? 1 : episode;
+
+    if (!tmdbId) return false;
 
     try {
-      const response = await axios.get(`${API_URL}/api/bbc/onepiece/check/${episode}`);
-      if (response.data.available) {
-        setBbcAvailable(true);
-        setBbcArcInfo(response.data);
-        return true;
-      } else {
-        setBbcAvailable(false);
-        setBbcArcInfo(response.data);
-        return false;
+      // Check generic BBC mapping first
+      const mappingResponse = await axios.get(`${API_URL}/api/bbc/content/${tmdbId}`, {
+        params: { content_type: contentType }
+      });
+
+      if (mappingResponse.data.status === 'success') {
+        const mapping = mappingResponse.data;
+        setBbcContentInfo(mapping);
+        setHasBbcMapping(true);
+
+        // Check if this specific episode is available
+        const episodeStr = String(currentEpisode);
+        if (mapping.episodes && mapping.episodes[episodeStr]) {
+          setBbcAvailable(true);
+          return true;
+        }
       }
     } catch (err) {
-      console.log('BBC check failed:', err.message);
-      setBbcAvailable(false);
-      return false;
+      // No generic mapping, try One Piece specific endpoint if applicable
+      if (isOnePiece && episode) {
+        try {
+          const response = await axios.get(`${API_URL}/api/bbc/onepiece/check/${episode}`);
+          if (response.data.available) {
+            setBbcAvailable(true);
+            setBbcArcInfo(response.data);
+            setHasBbcMapping(true);
+            return true;
+          } else {
+            setBbcArcInfo(response.data);
+          }
+        } catch (opErr) {
+          console.log('BBC One Piece check failed:', opErr.message);
+        }
+      }
     }
-  }, [isOnePiece, episode]);
+
+    setBbcAvailable(false);
+    return false;
+  }, [tmdbId, type, episode, isOnePiece]);
 
   const loadBbcStream = useCallback(async () => {
-    if (!isOnePiece || !episode || !bbcAvailable) return null;
+    const contentType = type === 'movie' ? 'movie' : 'tv';
+    const currentEpisode = type === 'movie' ? 1 : episode;
+
+    if (!tmdbId || !bbcAvailable) return null;
 
     setLoadingBbc(true);
     try {
-      const response = await axios.get(`${API_URL}/api/bbc/onepiece/episode/${episode}`, {
-        params: { quality: 'best' }
-      });
+      // Try generic endpoint first
+      if (hasBbcMapping && bbcContentInfo) {
+        const response = await axios.get(`${API_URL}/api/bbc/content/${tmdbId}/episode/${currentEpisode}`, {
+          params: { content_type: contentType, quality: '720p' }
+        });
 
-      if (response.data.status === 'success') {
-        const bbcData = {
-          url: response.data.url,
-          title: response.data.title,
-          quality: response.data.quality,
-          arc: response.data.arc,
-          subtitles: response.data.subtitles,
-          duration: response.data.duration
-        };
-        setBbcStream(bbcData);
-        return bbcData;
+        if (response.data.status === 'success') {
+          const bbcData = {
+            url: response.data.stream_url,
+            title: bbcContentInfo.title,
+            quality: response.data.quality,
+            programme_id: response.data.programme_id
+          };
+          setBbcStream(bbcData);
+          return bbcData;
+        }
+      }
+
+      // Fallback to One Piece specific endpoint
+      if (isOnePiece && episode) {
+        const response = await axios.get(`${API_URL}/api/bbc/onepiece/episode/${episode}`, {
+          params: { quality: 'best' }
+        });
+
+        if (response.data.status === 'success') {
+          const bbcData = {
+            url: response.data.url,
+            title: response.data.title,
+            quality: response.data.quality,
+            arc: response.data.arc,
+            subtitles: response.data.subtitles,
+            duration: response.data.duration
+          };
+          setBbcStream(bbcData);
+          return bbcData;
+        }
       }
     } catch (err) {
       console.error('Error loading BBC stream:', err);
@@ -857,7 +910,7 @@ function DebridPlayer() {
       setLoadingBbc(false);
     }
     return null;
-  }, [isOnePiece, episode, bbcAvailable]);
+  }, [tmdbId, type, episode, bbcAvailable, hasBbcMapping, bbcContentInfo, isOnePiece]);
 
   const changeSource = useCallback(async (source) => {
     if (source === activeSource) {
@@ -1426,31 +1479,30 @@ function DebridPlayer() {
       // Check debrid status first
       const isConfigured = await checkDebridStatus();
 
-      // One Piece: Check BBC availability first (prioritary source)
-      if (isOnePiece && episode) {
-        const bbcIsAvailable = await checkBbcAvailability();
-        if (bbcIsAvailable) {
-          // Try to load BBC stream as primary source
-          setLoadingBbc(true);
-          const bbcData = await loadBbcStream();
-          setLoadingBbc(false);
+      // Check BBC availability first for ANY content (prioritary source)
+      // This works for: One Piece, any imported BBC series, BBC movies
+      const bbcIsAvailable = await checkBbcAvailability();
+      if (bbcIsAvailable) {
+        // Try to load BBC stream as primary source
+        setLoadingBbc(true);
+        const bbcData = await loadBbcStream();
+        setLoadingBbc(false);
 
-          if (bbcData) {
-            // BBC stream loaded successfully - use it as primary
-            setStreamUrl(bbcData.url);
-            setActiveSource('bbc');
-            setDebridConfigured(true);
-            // Still load torrents in background as fallback
-            if (isConfigured) {
-              searchTorrents();
-            }
-            setLoadingTorrents(false);
-            return;
+        if (bbcData) {
+          // BBC stream loaded successfully - use it as primary
+          setStreamUrl(bbcData.url);
+          setActiveSource('bbc');
+          setDebridConfigured(true);
+          // Still load torrents in background as fallback
+          if (isConfigured) {
+            searchTorrents();
           }
+          setLoadingTorrents(false);
+          return;
         }
       }
 
-      // Default: Load torrents (either not One Piece or BBC not available)
+      // Default: Load torrents (BBC not available)
       if (isConfigured) {
         searchTorrents();
       } else {
@@ -1459,7 +1511,7 @@ function DebridPlayer() {
     };
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mediaInfo, loadMediaInfo, loadEpisodes, searchTorrents, checkDebridStatus, isDirectMode, directUrl, isOnePiece, episode]);
+  }, [mediaInfo, loadMediaInfo, loadEpisodes, searchTorrents, checkDebridStatus, isDirectMode, directUrl, tmdbId, type, episode]);
 
   // Auto-get stream when torrent is selected
   useEffect(() => {
@@ -1821,11 +1873,11 @@ function DebridPlayer() {
         <div className="title-info">
           {isDirectMode && directBadge && <span className="source-badge">{directBadge}</span>}
           {isDirectMode && directQuality && <span className="quality-badge direct-quality">{directQuality}</span>}
-          {/* BBC source badge for One Piece */}
-          {!isDirectMode && isOnePiece && activeSource === 'bbc' && (
+          {/* BBC source badge for any BBC content */}
+          {!isDirectMode && activeSource === 'bbc' && (
             <span className="source-badge bbc-badge">BBC iPlayer</span>
           )}
-          {!isDirectMode && isOnePiece && activeSource === 'bbc' && bbcStream?.quality && (
+          {!isDirectMode && activeSource === 'bbc' && bbcStream?.quality && (
             <span className="quality-badge direct-quality">{bbcStream.quality}</span>
           )}
           <h1>{title}</h1>
@@ -1958,8 +2010,8 @@ function DebridPlayer() {
                 </button>
               )}
 
-              {/* Source button (only for One Piece with BBC available) */}
-              {isOnePiece && (bbcAvailable || torrents.length > 0) && (
+              {/* Source button (for any content with BBC available) */}
+              {hasBbcMapping && (bbcAvailable || torrents.length > 0) && (
                 <button
                   className={`control-btn source-btn ${activeSource === 'bbc' ? 'bbc-active' : ''}`}
                   onClick={(e) => { e.stopPropagation(); setShowSourceMenu(true); }}
@@ -2005,7 +2057,7 @@ function DebridPlayer() {
       )}
 
       {/* Source menu (BBC vs Torrentio) */}
-      {showSourceMenu && isOnePiece && (
+      {showSourceMenu && hasBbcMapping && (
         <div className="quality-menu-overlay" onClick={(e) => e.stopPropagation()}>
           <div className="quality-menu source-menu">
             <div className="quality-menu-header">
@@ -2023,11 +2075,19 @@ function DebridPlayer() {
                 <span className="source-icon"><BBCIcon /></span>
                 <div className="source-info">
                   <span className="source-name">BBC iPlayer</span>
+                  {/* Show arc info for One Piece */}
                   {bbcArcInfo && bbcAvailable && (
                     <span className="source-detail">Arc: {bbcArcInfo.arc}</span>
                   )}
+                  {/* Show generic BBC content title */}
+                  {bbcContentInfo && bbcAvailable && !bbcArcInfo && (
+                    <span className="source-detail">{bbcContentInfo.title}</span>
+                  )}
                   {!bbcAvailable && bbcArcInfo?.reason === 'arc_not_on_bbc' && (
                     <span className="source-detail unavailable">Arc no disponible</span>
+                  )}
+                  {!bbcAvailable && !bbcArcInfo && (
+                    <span className="source-detail unavailable">Episodi no disponible</span>
                   )}
                 </div>
                 {loadingBbc && <span className="loading-spinner-small"></span>}
