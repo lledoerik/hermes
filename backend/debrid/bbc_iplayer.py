@@ -423,10 +423,21 @@ class BBCiPlayerClient:
 
         Utilitza cookies de BBC si estan configurades per autenticar-se.
         """
+        import sys
+        import shutil
+
         try:
             # Utilitzar context manager per gestionar el fitxer de cookies temporal
             with BBCCookieFile() as cookie_file:
-                cmd = ["yt-dlp"]
+                # Intentar trobar yt-dlp de diverses maneres
+                ytdlp_path = shutil.which("yt-dlp")
+
+                if ytdlp_path:
+                    # yt-dlp trobat al PATH
+                    cmd = [ytdlp_path]
+                else:
+                    # Fallback: usar python -m yt_dlp
+                    cmd = [sys.executable, "-m", "yt_dlp"]
 
                 # Afegir cookies si disponibles
                 if cookie_file:
