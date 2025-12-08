@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -17,6 +17,106 @@ import {
   StarIcon
 } from '../components/icons';
 import './Home.css';
+
+// Hook per drag-to-scroll
+const useDragScroll = () => {
+  const containerRef = useRef(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const isMouseDown = useRef(false);
+  const startX = useRef(0);
+  const scrollLeft = useRef(0);
+
+  const checkScrollPosition = useCallback(() => {
+    const container = containerRef.current;
+    if (container) {
+      setCanScrollLeft(container.scrollLeft > 0);
+      setCanScrollRight(
+        container.scrollLeft < container.scrollWidth - container.clientWidth - 5
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    checkScrollPosition();
+    window.addEventListener('resize', checkScrollPosition);
+    return () => window.removeEventListener('resize', checkScrollPosition);
+  }, [checkScrollPosition]);
+
+  const handleMouseDown = useCallback((e) => {
+    const container = containerRef.current;
+    if (!container) return;
+    isMouseDown.current = true;
+    startX.current = e.pageX - container.offsetLeft;
+    scrollLeft.current = container.scrollLeft;
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    isMouseDown.current = false;
+    setIsDragging(false);
+    const container = containerRef.current;
+    if (container) {
+      container.style.scrollBehavior = 'smooth';
+    }
+  }, []);
+
+  const handleMouseMove = useCallback((e) => {
+    if (!isMouseDown.current) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    const x = e.pageX - container.offsetLeft;
+    const walk = (x - startX.current) * 1.5;
+
+    if (!isDragging && Math.abs(walk) > 5) {
+      setIsDragging(true);
+      container.style.scrollBehavior = 'auto';
+    }
+
+    if (isDragging) {
+      e.preventDefault();
+      container.scrollLeft = scrollLeft.current - walk;
+    }
+  }, [isDragging]);
+
+  return {
+    containerRef,
+    isDragging,
+    canScrollLeft,
+    canScrollRight,
+    handlers: {
+      onMouseDown: handleMouseDown,
+      onMouseUp: handleMouseUp,
+      onMouseMove: handleMouseMove,
+      onMouseLeave: handleMouseUp,
+      onScroll: checkScrollPosition,
+    },
+  };
+};
+
+// Component per scroll horitzontal amb drag
+const ScrollableContainer = ({ children, className = '' }) => {
+  const { containerRef, isDragging, canScrollLeft, canScrollRight, handlers } = useDragScroll();
+
+  const scrollClasses = [
+    'scrollable-wrapper',
+    canScrollLeft ? 'can-scroll-left' : '',
+    canScrollRight ? 'can-scroll-right' : '',
+  ].filter(Boolean).join(' ');
+
+  return (
+    <div className={scrollClasses}>
+      <div
+        ref={containerRef}
+        className={`content-scroll ${isDragging ? 'dragging' : ''} ${className}`}
+        {...handlers}
+      >
+        {children}
+      </div>
+    </div>
+  );
+};
 
 axios.defaults.baseURL = API_URL;
 
@@ -223,18 +323,18 @@ function Home() {
           console.error('Error carregant pel·lícules:', e);
         }
 
-        // Mix de contingut recent
+        // Mix de contingut recent (Per a tu - 10 elements)
         try {
           const [series, movies] = await Promise.all([
-            axios.get('/api/library/series?limit=5'),
-            axios.get('/api/library/movies?limit=5')
+            axios.get('/api/library/series?limit=6'),
+            axios.get('/api/library/movies?limit=6')
           ]);
           const seriesItems = series.data?.items || series.data || [];
           const moviesItems = movies.data?.items || movies.data || [];
           const mixed = [
             ...seriesItems.map(s => ({ ...s, type: 'series' })),
             ...moviesItems.map(m => ({ ...m, type: 'movie' }))
-          ].sort(() => Math.random() - 0.5).slice(0, 8);
+          ].sort(() => Math.random() - 0.5).slice(0, 10);
           setRecentlyAdded(mixed);
         } catch (e) {
           console.error('Error carregant contingut recent:', e);
@@ -273,7 +373,7 @@ function Home() {
     return (
       <section className="content-row">
         <h2 className="row-title">{title}</h2>
-        <div className="content-scroll">
+        <ScrollableContainer>
           {items.map((item) => {
             const itemType = item.type || type;
             const link = itemType === 'series' ? `/series/${item.id}` : `/movies/${item.id}`;
@@ -306,7 +406,7 @@ function Home() {
               </div>
             );
           })}
-        </div>
+        </ScrollableContainer>
       </section>
     );
   };
@@ -335,7 +435,7 @@ function Home() {
         {continueWatchingMovies.length > 0 && (
           <section className="continue-watching-section">
             <h2 className="row-title">Continuar veient pel·lícules</h2>
-            <div className="content-scroll">
+            <ScrollableContainer>
               {continueWatchingMovies.map((item, index) => {
                 // Determinar URL de la imatge segons la font
                 let imageUrl = null;
@@ -402,7 +502,7 @@ function Home() {
                   </div>
                 );
               })}
-            </div>
+            </ScrollableContainer>
           </section>
         )}
 
@@ -410,7 +510,7 @@ function Home() {
         {continueWatchingSeries.length > 0 && (
           <section className="continue-watching-section">
             <h2 className="row-title">Continuar veient sèries</h2>
-            <div className="content-scroll">
+            <ScrollableContainer>
               {continueWatchingSeries.map((item, index) => {
                 // Determinar URL de la imatge segons la font
                 // Prioritat: still_path (miniatura episodi) > backdrop > poster
@@ -490,7 +590,7 @@ function Home() {
                   </div>
                 );
               })}
-            </div>
+            </ScrollableContainer>
           </section>
         )}
 
@@ -498,7 +598,7 @@ function Home() {
         {continueWatchingPrograms.length > 0 && (
           <section className="continue-watching-section">
             <h2 className="row-title">Continuar veient programes</h2>
-            <div className="content-scroll">
+            <ScrollableContainer>
               {continueWatchingPrograms.map((item) => (
                 <div
                   key={item.id}
@@ -533,7 +633,7 @@ function Home() {
                   </div>
                 </div>
               ))}
-            </div>
+            </ScrollableContainer>
           </section>
         )}
 
@@ -541,7 +641,7 @@ function Home() {
         {user?.is_admin && continueReadingBooks.length > 0 && (
           <section className="continue-watching-section">
             <h2 className="row-title">Continua llegint</h2>
-            <div className="content-scroll">
+            <ScrollableContainer>
               {continueReadingBooks.map((item) => (
                 <div
                   key={item.id}
@@ -581,7 +681,7 @@ function Home() {
                   </div>
                 </div>
               ))}
-            </div>
+            </ScrollableContainer>
           </section>
         )}
 
@@ -589,7 +689,7 @@ function Home() {
         {user?.is_admin && continueListeningAudiobooks.length > 0 && (
           <section className="continue-watching-section">
             <h2 className="row-title">Continua escoltant</h2>
-            <div className="content-scroll">
+            <ScrollableContainer>
               {continueListeningAudiobooks.map((item) => (
                 <div
                   key={item.id}
@@ -624,7 +724,7 @@ function Home() {
                   </div>
                 </div>
               ))}
-            </div>
+            </ScrollableContainer>
           </section>
         )}
 
@@ -635,7 +735,7 @@ function Home() {
               La meva llista
               <Link to="/watchlist" className="see-all-link">Veure tot</Link>
             </h2>
-            <div className="content-scroll">
+            <ScrollableContainer>
               {watchlist.map((item) => {
                 const itemType = item.media_type === 'movie' ? 'movies' : 'series';
                 const link = `/${itemType}/tmdb-${item.tmdb_id}`;
@@ -689,7 +789,7 @@ function Home() {
                   </div>
                 );
               })}
-            </div>
+            </ScrollableContainer>
           </section>
         )}
 
