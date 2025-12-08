@@ -16,7 +16,7 @@ import {
 } from '../components/icons';
 import './Details.css';
 
-// One Piece TMDB ID - per mostrar arcs en lloc de temporades
+// One Piece TMDB ID - per compatibilitat amb endpoint antic
 const ONE_PIECE_TMDB_ID = 37854;
 
 // Client axios amb timeout per evitar peticions penjades indefinidament
@@ -52,10 +52,15 @@ function Details() {
   const [episodes, setEpisodes] = useState([]);
   const [selectedSeason, setSelectedSeason] = useState(1);
 
-  // One Piece arc mode
-  const [isOnePiece, setIsOnePiece] = useState(false);
-  const [onePieceArcs, setOnePieceArcs] = useState([]);
+  // BBC content mode (generic - works with any BBC-mapped content)
+  const [hasBbcContent, setHasBbcContent] = useState(false);
+  const [bbcSeasons, setBbcSeasons] = useState([]);
+  const [bbcContentInfo, setBbcContentInfo] = useState(null);
   const [selectedArc, setSelectedArc] = useState(null);
+
+  // Legacy aliases for backwards compatibility
+  const isOnePiece = hasBbcContent;
+  const onePieceArcs = bbcSeasons;
 
   // Handler per canviar de temporada/arc
   const handleSeasonSelect = useCallback((seasonNum) => {
@@ -233,30 +238,66 @@ function Details() {
     return () => window.removeEventListener('resize', checkScrollButtons);
   }, [checkScrollButtons, seasons]);
 
-  // Load One Piece arcs from API
-  const loadOnePieceArcs = useCallback(async () => {
+  // Load BBC content (seasons/arcs) from API - generic for any BBC-mapped content
+  const loadBbcContent = useCallback(async (tmdbId) => {
     try {
-      const response = await api.get('/api/bbc/onepiece/arcs');
-      if (response.data.arcs) {
-        const arcs = response.data.arcs.map((arc, index) => ({
-          id: `arc-${index}`,
-          season_number: index + 1, // Use index as "season" number for compatibility
-          name: arc.name,
-          name_en: arc.name_en,
-          tmdb_start: arc.tmdb_start,
-          tmdb_end: arc.tmdb_end,
-          episode_count: arc.episode_count,
-          bbc_available: arc.bbc_available,
-          isArc: true
+      // Try generic BBC endpoint first
+      const response = await api.get(`/api/bbc/content/${tmdbId}/seasons`);
+      if (response.data.seasons && response.data.seasons.length > 0) {
+        const seasons = response.data.seasons.map((season) => ({
+          id: `bbc-season-${season.season_number}`,
+          season_number: season.season_number,
+          name: season.name,
+          start_episode: season.start_episode,
+          end_episode: season.end_episode,
+          episode_count: season.total_episodes,
+          available_episodes: season.available_episodes,
+          bbc_available: season.available_episodes > 0,
+          isArc: true,
+          isBbc: true
         }));
-        setOnePieceArcs(arcs);
-        return arcs;
+        setBbcSeasons(seasons);
+        setBbcContentInfo({
+          title: response.data.title,
+          tmdb_id: tmdbId
+        });
+        return seasons;
       }
     } catch (err) {
-      console.error('Error loading One Piece arcs:', err);
+      // If generic endpoint fails, try One Piece specific endpoint as fallback
+      if (tmdbId === ONE_PIECE_TMDB_ID) {
+        try {
+          const response = await api.get('/api/bbc/onepiece/arcs');
+          if (response.data.arcs) {
+            const arcs = response.data.arcs.map((arc, index) => ({
+              id: `arc-${index}`,
+              season_number: index + 1,
+              name: arc.name,
+              name_en: arc.name_en,
+              tmdb_start: arc.tmdb_start,
+              tmdb_end: arc.tmdb_end,
+              start_episode: arc.tmdb_start,
+              end_episode: arc.tmdb_end,
+              episode_count: arc.episode_count,
+              bbc_available: arc.bbc_available,
+              isArc: true
+            }));
+            setBbcSeasons(arcs);
+            setBbcContentInfo({ title: 'One Piece', tmdb_id: tmdbId });
+            return arcs;
+          }
+        } catch (opErr) {
+          console.error('Error loading One Piece arcs:', opErr);
+        }
+      }
     }
     return null;
   }, []);
+
+  // Legacy alias for backwards compatibility
+  const loadOnePieceArcs = useCallback(async () => {
+    return loadBbcContent(ONE_PIECE_TMDB_ID);
+  }, [loadBbcContent]);
 
   const loadDetails = useCallback(async () => {
     try {
@@ -271,27 +312,25 @@ function Details() {
 
           setItem(detailsRes.data);
 
-          // Check if this is One Piece
-          if (realTmdbId === ONE_PIECE_TMDB_ID) {
-            setIsOnePiece(true);
-            const arcs = await loadOnePieceArcs();
-            if (arcs && arcs.length > 0) {
-              setSeasons(arcs);
-              // Find arc that contains episode 1 or first available
-              const storageKey = `hermes_selected_arc_${id}`;
-              const savedArc = localStorage.getItem(storageKey);
-              const savedArcNum = savedArc ? parseInt(savedArc) : null;
-              if (savedArcNum && arcs.some(a => a.season_number === savedArcNum)) {
-                setSelectedSeason(savedArcNum);
-                setSelectedArc(arcs.find(a => a.season_number === savedArcNum));
-              } else {
-                setSelectedSeason(arcs[0].season_number);
-                setSelectedArc(arcs[0]);
-              }
-              setUsingTmdbSeasons(true);
-              setLoading(false);
-              return;
+          // Check if this content has BBC mapping (generic - any content)
+          const bbcContent = await loadBbcContent(realTmdbId);
+          if (bbcContent && bbcContent.length > 0) {
+            setHasBbcContent(true);
+            setSeasons(bbcContent);
+            // Find saved arc/season or use first
+            const storageKey = `hermes_selected_arc_${id}`;
+            const savedArc = localStorage.getItem(storageKey);
+            const savedArcNum = savedArc ? parseInt(savedArc) : null;
+            if (savedArcNum && bbcContent.some(a => a.season_number === savedArcNum)) {
+              setSelectedSeason(savedArcNum);
+              setSelectedArc(bbcContent.find(a => a.season_number === savedArcNum));
+            } else {
+              setSelectedSeason(bbcContent[0].season_number);
+              setSelectedArc(bbcContent[0]);
             }
+            setUsingTmdbSeasons(true);
+            setLoading(false);
+            return;
           }
 
           const tmdbSeasons = (seasonsRes.data.seasons || [])
@@ -444,7 +483,7 @@ function Details() {
     } finally {
       setLoading(false);
     }
-  }, [type, id, isTmdbOnly, realTmdbId]);
+  }, [type, id, isTmdbOnly, realTmdbId, loadBbcContent]);
 
   const loadEpisodes = useCallback(async (seasonNum, isTmdb = false, tmdbIdParam = null) => {
     const effectiveTmdbId = isTmdbOnly ? realTmdbId : tmdbIdParam;
@@ -469,38 +508,68 @@ function Details() {
     setLoadingEpisodes(true);
     setEpisodes([]); // Clear episodes while loading
     try {
-      // ONE PIECE: Carregar episodis de l'arc
-      if (isOnePiece && onePieceArcs.length > 0) {
-        const arcIndex = seasonNum - 1; // seasonNum és 1-based, arc index és 0-based
-        if (arcIndex >= 0 && arcIndex < onePieceArcs.length) {
+      // BBC CONTENT: Carregar episodis de la temporada/arc BBC
+      if (hasBbcContent && bbcSeasons.length > 0) {
+        const season = bbcSeasons.find(s => s.season_number === seasonNum);
+        if (season) {
           try {
-            const arcRes = await api.get(`/api/bbc/onepiece/arc/${arcIndex}/episodes`);
-            if (arcRes.data.episodes) {
-              const arcEpisodes = arcRes.data.episodes.map(ep => ({
-                ...ep,
-                // Use absolute episode number
+            // Try generic BBC endpoint
+            const bbcRes = await api.get(`/api/bbc/content/${effectiveTmdbId}/seasons/${seasonNum}/episodes`);
+            if (bbcRes.data.episodes && bbcRes.data.episodes.length > 0) {
+              const bbcEpisodes = bbcRes.data.episodes.map(ep => ({
+                // BBC episode data
                 episode_number: ep.episode_number,
-                name: ep.name || `Episodi ${ep.episode_number}`,
-                overview: ep.overview,
-                still_path: ep.still_path,
-                air_date: ep.air_date,
-                runtime: ep.runtime,
-                vote_average: ep.vote_average,
+                name: ep.title || `Episodi ${ep.episode_number}`,
+                overview: ep.description || '',
+                still_path: ep.thumbnail ? ep.thumbnail : null,
+                runtime: ep.duration ? Math.round(ep.duration / 60) : 24,
                 isLocal: false,
-                duration: ep.runtime ? ep.runtime * 60 : null,
-                // Store TMDB info for playback navigation
-                _tmdb_season: ep.tmdb_season,
-                _tmdb_episode: ep.tmdb_episode
+                duration: ep.duration || null,
+                programme_id: ep.programme_id,
+                isBbc: true
               }));
-              setEpisodes(arcEpisodes);
+              setEpisodes(bbcEpisodes);
               // Guardar al cache
               try {
-                const arcCacheKey = `hermes_onepiece_arc_${arcIndex}`;
-                sessionStorage.setItem(arcCacheKey, JSON.stringify({ data: arcEpisodes, timestamp: Date.now() }));
+                const bbcCacheKey = `hermes_bbc_${effectiveTmdbId}_s${seasonNum}`;
+                sessionStorage.setItem(bbcCacheKey, JSON.stringify({ data: bbcEpisodes, timestamp: Date.now() }));
               } catch (e) { /* sessionStorage ple */ }
+              setLoadingEpisodes(false);
+              return;
             }
           } catch (err) {
-            console.error('Error loading One Piece arc episodes:', err);
+            // Fallback: Try One Piece specific endpoint
+            if (effectiveTmdbId === ONE_PIECE_TMDB_ID) {
+              const arcIndex = seasonNum - 1;
+              try {
+                const arcRes = await api.get(`/api/bbc/onepiece/arc/${arcIndex}/episodes`);
+                if (arcRes.data.episodes) {
+                  const arcEpisodes = arcRes.data.episodes.map(ep => ({
+                    ...ep,
+                    episode_number: ep.episode_number,
+                    name: ep.name || `Episodi ${ep.episode_number}`,
+                    overview: ep.overview,
+                    still_path: ep.still_path,
+                    air_date: ep.air_date,
+                    runtime: ep.runtime,
+                    vote_average: ep.vote_average,
+                    isLocal: false,
+                    duration: ep.runtime ? ep.runtime * 60 : null,
+                    _tmdb_season: ep.tmdb_season,
+                    _tmdb_episode: ep.tmdb_episode
+                  }));
+                  setEpisodes(arcEpisodes);
+                  try {
+                    const arcCacheKey = `hermes_onepiece_arc_${arcIndex}`;
+                    sessionStorage.setItem(arcCacheKey, JSON.stringify({ data: arcEpisodes, timestamp: Date.now() }));
+                  } catch (e) { /* sessionStorage ple */ }
+                  setLoadingEpisodes(false);
+                  return;
+                }
+              } catch (opErr) {
+                console.error('Error loading One Piece arc episodes:', opErr);
+              }
+            }
           }
           setLoadingEpisodes(false);
           return;
@@ -587,7 +656,7 @@ function Details() {
     } finally {
       setLoadingEpisodes(false);
     }
-  }, [id, isTmdbOnly, realTmdbId]);
+  }, [id, isTmdbOnly, realTmdbId, hasBbcContent, bbcSeasons]);
 
   useEffect(() => {
     loadDetails();
