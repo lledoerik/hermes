@@ -944,6 +944,22 @@ async def fix_non_latin_titles(request: Request):
     with get_db() as conn:
         cursor = conn.cursor()
 
+        # Assegurar que les columnes necessàries existeixen (migració automàtica)
+        for column, col_type in [
+            ("title_english", "TEXT"),
+            ("title_romaji", "TEXT"),
+            ("title_native", "TEXT"),
+            ("anilist_id", "INTEGER"),
+            ("mal_id", "INTEGER"),
+            ("original_title", "TEXT")
+        ]:
+            try:
+                cursor.execute(f"ALTER TABLE series ADD COLUMN {column} {col_type}")
+                conn.commit()
+                logger.info(f"Columna '{column}' afegida a la taula series")
+            except Exception:
+                pass  # La columna ja existeix
+
         # Trobar contingut que necessita actualització:
         # 1. Títols no-llatins (japonès, coreà, etc.) - canviar títol principal
         # 2. Sense title_english - afegir títol anglès per cerca
