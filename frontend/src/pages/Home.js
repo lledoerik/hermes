@@ -25,6 +25,7 @@ const useDragScroll = () => {
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
   const isMouseDown = useRef(false);
+  const hasDragged = useRef(false);
   const startX = useRef(0);
   const scrollLeft = useRef(0);
 
@@ -48,6 +49,7 @@ const useDragScroll = () => {
     const container = containerRef.current;
     if (!container) return;
     isMouseDown.current = true;
+    hasDragged.current = false;
     startX.current = e.pageX - container.offsetLeft;
     scrollLeft.current = container.scrollLeft;
   }, []);
@@ -71,6 +73,7 @@ const useDragScroll = () => {
 
     if (!isDragging && Math.abs(walk) > 5) {
       setIsDragging(true);
+      hasDragged.current = true;
       container.style.scrollBehavior = 'auto';
     }
 
@@ -79,6 +82,14 @@ const useDragScroll = () => {
       container.scrollLeft = scrollLeft.current - walk;
     }
   }, [isDragging]);
+
+  // Prevent click events from firing if we dragged
+  const handleClick = useCallback((e) => {
+    if (hasDragged.current) {
+      e.stopPropagation();
+      hasDragged.current = false;
+    }
+  }, []);
 
   return {
     containerRef,
@@ -91,6 +102,7 @@ const useDragScroll = () => {
       onMouseMove: handleMouseMove,
       onMouseLeave: handleMouseUp,
       onScroll: checkScrollPosition,
+      onClickCapture: handleClick,
     },
   };
 };
@@ -394,7 +406,13 @@ function Home() {
                     type={itemType}
                   />
                   <div className="content-hover">
-                    <button className="quick-play-btn">
+                    <button
+                      className="quick-play-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(link);
+                      }}
+                    >
                       {isPremium ? <PlayIcon /> : <InfoIcon />}
                     </button>
                   </div>
