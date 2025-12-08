@@ -695,10 +695,21 @@
   scroll-behavior: smooth;
   margin: 0 -4px;
   padding: 0 4px;
+  cursor: grab;
+  user-select: none;
 }
 
 .seasons-scroll-container::-webkit-scrollbar {
   display: none;
+}
+
+.seasons-scroll-container.dragging {
+  cursor: grabbing;
+  scroll-behavior: auto;
+}
+
+.seasons-scroll-container.dragging .season-btn {
+  pointer-events: none;
 }
 
 .seasons-list {
