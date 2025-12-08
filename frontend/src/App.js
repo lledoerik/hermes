@@ -19,6 +19,7 @@ import Audiobooks from './pages/Audiobooks';
 import AudiobookPlayer from './pages/AudiobookPlayer';
 import TV from './pages/TV';
 import Programs from './pages/Programs';
+import BBCPlayer from './pages/BBCPlayer';
 import Login from './pages/Login';
 import Profile from './pages/Profile';
 import Watchlist from './pages/Watchlist';
@@ -85,6 +86,9 @@ function AppContent() {
 
           {/* Debrid Player - Real-Debrid streaming amb reproductor HTML5 */}
           <Route path="/debrid/:type/:tmdbId" element={<DebridPlayer />} />
+
+          {/* BBC iPlayer - Streaming de BBC */}
+          <Route path="/bbc" element={<BBCPlayer />} />
 
           {/* Book Reader without Navbar - només admin */}
           <Route path="/read/:id" element={<AdminRoute><BookReader /></AdminRoute>} />
