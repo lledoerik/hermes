@@ -42,6 +42,8 @@ function Details() {
 
   // Handler per canviar de temporada
   const handleSeasonSelect = useCallback((seasonNum) => {
+    // Evitar canvi de temporada si s'estava arrossegant
+    if (hasDragged.current) return;
     setSelectedSeason(seasonNum);
   }, []);
 
@@ -66,6 +68,12 @@ function Details() {
   const seasonsScrollRef = useRef(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+
+  // Drag-to-scroll per temporades
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartX = useRef(0);
+  const dragScrollLeft = useRef(0);
+  const hasDragged = useRef(false);
 
   // Watchlist state
   const [isInWatchlist, setIsInWatchlist] = useState(false);
@@ -157,6 +165,43 @@ function Details() {
       });
     }
   };
+
+  // Drag-to-scroll handlers per temporades
+  const handleDragStart = useCallback((e) => {
+    const container = seasonsScrollRef.current;
+    if (!container) return;
+    setIsDragging(true);
+    hasDragged.current = false;
+    dragStartX.current = e.pageX - container.offsetLeft;
+    dragScrollLeft.current = container.scrollLeft;
+    container.style.scrollBehavior = 'auto';
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    setIsDragging(false);
+    const container = seasonsScrollRef.current;
+    if (container) {
+      container.style.scrollBehavior = 'smooth';
+    }
+    // Reset hasDragged after a short delay to allow click events to check it
+    setTimeout(() => {
+      hasDragged.current = false;
+    }, 50);
+  }, []);
+
+  const handleDragMove = useCallback((e) => {
+    if (!isDragging) return;
+    e.preventDefault();
+    const container = seasonsScrollRef.current;
+    if (!container) return;
+    const x = e.pageX - container.offsetLeft;
+    const walk = (x - dragStartX.current) * 1.5; // Multiplicador per scroll més ràpid
+    // Només marcar com a "dragged" si hi ha moviment significatiu
+    if (Math.abs(walk) > 5) {
+      hasDragged.current = true;
+    }
+    container.scrollLeft = dragScrollLeft.current - walk;
+  }, [isDragging]);
 
   useEffect(() => {
     checkScrollButtons();
@@ -1098,9 +1143,13 @@ function Details() {
                 )}
 
                 <div
-                  className="seasons-scroll-container"
+                  className={`seasons-scroll-container ${isDragging ? 'dragging' : ''}`}
                   ref={seasonsScrollRef}
                   onScroll={checkScrollButtons}
+                  onMouseDown={handleDragStart}
+                  onMouseMove={handleDragMove}
+                  onMouseUp={handleDragEnd}
+                  onMouseLeave={handleDragEnd}
                 >
                   <div className="seasons-list">
                     {seasons.map((season) => (
