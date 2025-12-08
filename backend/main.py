@@ -9809,10 +9809,202 @@ async def sync_books_from_openlibrary(max_items: int = 500):
         return imported_count
 
 
+async def fix_non_latin_titles_background() -> int:
+    """
+    Versió background (sense streaming) per corregir títols no-llatins.
+    S'utilitza en la sincronització diària automatitzada.
+    Retorna el nombre de títols corregits.
+    """
+    from backend.metadata.tmdb import TMDBClient, contains_non_latin_characters
+    from backend.metadata.anilist import AniListClient
+
+    api_key = get_tmdb_api_key()
+    if not api_key:
+        logger.warning("fix_non_latin_titles_background: No hi ha clau TMDB configurada")
+        return 0
+
+    updated_count = 0
+    error_count = 0
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Assegurar que les columnes necessàries existeixen
+        for column, col_type in [
+            ("title_english", "TEXT"),
+            ("title_romaji", "TEXT"),
+            ("title_native", "TEXT"),
+            ("anilist_id", "INTEGER"),
+            ("mal_id", "INTEGER"),
+            ("original_title", "TEXT")
+        ]:
+            try:
+                cursor.execute(f"ALTER TABLE series ADD COLUMN {column} {col_type}")
+                conn.commit()
+            except Exception:
+                pass
+
+        # Trobar contingut que necessita actualització
+        cursor.execute("""
+            SELECT id, name, title, title_english, tmdb_id, media_type, content_type, genres, origin_country, original_language
+            FROM series
+            WHERE tmdb_id IS NOT NULL
+        """)
+
+        series_to_update = []
+        for row in cursor.fetchall():
+            name = row["name"] or ""
+            title = row["title"] or ""
+            title_english = row["title_english"] or ""
+            needs_update = (
+                contains_non_latin_characters(name) or
+                contains_non_latin_characters(title) or
+                not title_english
+            )
+            if needs_update:
+                series_to_update.append(dict(row))
+
+        total = len(series_to_update)
+        if total == 0:
+            logger.info("fix_non_latin_titles_background: No hi ha títols per actualitzar")
+            return 0
+
+        logger.info(f"fix_non_latin_titles_background: {total} títols per processar")
+
+        tmdb_client = TMDBClient(api_key)
+        anilist_client = AniListClient()
+
+        try:
+            for idx, item in enumerate(series_to_update):
+                try:
+                    tmdb_id = item["tmdb_id"]
+                    media_type = item["media_type"]
+                    best_title = None
+                    has_non_latin = contains_non_latin_characters(item["name"] or "") or contains_non_latin_characters(item["title"] or "")
+
+                    # Detectar si és anime
+                    is_anime = False
+                    content_type = item.get("content_type", "")
+                    genres_str = item.get("genres", "") or ""
+                    origin_country = item.get("origin_country", "") or ""
+                    original_language = item.get("original_language", "") or ""
+
+                    if content_type == "anime":
+                        is_anime = True
+                    elif "Animation" in genres_str or "Animació" in genres_str:
+                        if original_language == "ja" or "JP" in origin_country:
+                            is_anime = True
+
+                    # Provar idiomes en ordre de preferència: Català → Anglès
+                    languages_to_try = [
+                        ("ca-ES", "TMDB (català)"),
+                        ("en-US", "TMDB (anglès)")
+                    ]
+
+                    # Determinar endpoints a provar
+                    if media_type == "movie":
+                        endpoints = [("/movie/", "title"), ("/tv/", "name")]
+                    else:
+                        endpoints = [("/tv/", "name"), ("/movie/", "title")]
+
+                    # Intentar per ID directe primer
+                    for lang_code, lang_source in languages_to_try:
+                        for endpoint, title_key in endpoints:
+                            data = await tmdb_client._request(f"{endpoint}{tmdb_id}", {"language": lang_code})
+                            if data:
+                                tmdb_title = data.get(title_key)
+                                if tmdb_title and not contains_non_latin_characters(tmdb_title):
+                                    best_title = tmdb_title
+                                    break
+                        if best_title:
+                            break
+
+                    # Fallback: cercar per nom si l'ID no funciona
+                    if not best_title:
+                        search_name = item["name"] or item["title"]
+                        if search_name:
+                            for lang_code, lang_source in languages_to_try:
+                                # Cercar com a TV
+                                data = await tmdb_client._request("/search/tv", {"query": search_name, "language": lang_code})
+                                if data and data.get("results"):
+                                    first_result = data["results"][0]
+                                    tmdb_title = first_result.get("name")
+                                    if tmdb_title and not contains_non_latin_characters(tmdb_title):
+                                        best_title = tmdb_title
+                                        new_tmdb_id = first_result.get("id")
+                                        if new_tmdb_id:
+                                            cursor.execute("UPDATE series SET tmdb_id = ? WHERE id = ?", (new_tmdb_id, item["id"]))
+                                        break
+
+                                # Cercar com a movie
+                                if not best_title:
+                                    data = await tmdb_client._request("/search/movie", {"query": search_name, "language": lang_code})
+                                    if data and data.get("results"):
+                                        first_result = data["results"][0]
+                                        tmdb_title = first_result.get("title")
+                                        if tmdb_title and not contains_non_latin_characters(tmdb_title):
+                                            best_title = tmdb_title
+                                            new_tmdb_id = first_result.get("id")
+                                            if new_tmdb_id:
+                                                cursor.execute("UPDATE series SET tmdb_id = ? WHERE id = ?", (new_tmdb_id, item["id"]))
+                                            break
+
+                                if best_title:
+                                    break
+
+                    # Per anime, també obtenir AniList IDs
+                    if is_anime and media_type == "series":
+                        try:
+                            search_title = best_title if best_title else item["name"]
+                            anilist_result = await anilist_client.search_anime(search_title)
+                            if anilist_result and anilist_result.get("anilist_id"):
+                                cursor.execute("""
+                                    UPDATE series SET anilist_id = ?, mal_id = ?, content_type = 'anime'
+                                    WHERE id = ?
+                                """, (
+                                    anilist_result.get("anilist_id"),
+                                    anilist_result.get("mal_id"),
+                                    item["id"]
+                                ))
+                        except Exception as e:
+                            logger.debug(f"Error consultant AniList per {item['name']}: {e}")
+
+                    if best_title and not contains_non_latin_characters(best_title):
+                        if has_non_latin:
+                            cursor.execute("""
+                                UPDATE series
+                                SET name = ?, title = ?, title_english = ?, original_title = COALESCE(original_title, ?)
+                                WHERE id = ?
+                            """, (best_title, best_title, best_title, item["name"], item["id"]))
+                        else:
+                            cursor.execute("""
+                                UPDATE series SET title_english = ? WHERE id = ?
+                            """, (best_title, item["id"]))
+
+                        conn.commit()
+                        updated_count += 1
+                    else:
+                        error_count += 1
+
+                except Exception as e:
+                    error_count += 1
+                    logger.debug(f"Error processant títol {item.get('name', 'desconegut')}: {e}")
+
+                # Log progrés cada 50 ítems
+                if (idx + 1) % 50 == 0:
+                    logger.info(f"fix_non_latin_titles_background: {idx + 1}/{total} processats ({updated_count} actualitzats)")
+
+        finally:
+            await tmdb_client.close()
+
+    logger.info(f"fix_non_latin_titles_background: Completat - {updated_count} actualitzats, {error_count} errors de {total} total")
+    return updated_count
+
+
 async def daily_sync_job():
     """
     Tasca de sincronització diària que s'executa a les 2:30 AM.
-    Sincronitza tot el contingut de TMDB i llibres.
+    Sincronitza tot el contingut de TMDB, llibres i corregeix títols no-llatins.
     """
     logger.info("=== INICI SINCRONITZACIÓ DIÀRIA ===")
     start_time = datetime.now()
@@ -9834,8 +10026,12 @@ async def daily_sync_job():
         books_count = await sync_books_from_openlibrary(max_items=500)
         total_imported += books_count
 
+        # Corregir títols no-llatins (japonès, xinès, coreà, etc.) → Català/Anglès
+        titles_fixed = await fix_non_latin_titles_background()
+        logger.info(f"Títols corregits: {titles_fixed}")
+
         elapsed = (datetime.now() - start_time).total_seconds()
-        logger.info(f"=== FI SINCRONITZACIÓ DIÀRIA: {total_imported} items en {elapsed:.1f}s ===")
+        logger.info(f"=== FI SINCRONITZACIÓ DIÀRIA: {total_imported} items, {titles_fixed} títols corregits en {elapsed:.1f}s ===")
 
         # Guardar última sincronització
         with get_db() as conn:
