@@ -140,7 +140,8 @@ function BBCPlayer() {
             duration: response.data.duration,
             season: response.data.season,
             episode: response.data.episode,
-            subtitles: response.data.subtitles
+            subtitles: response.data.subtitles,
+            quality: response.data.quality  // Qualitat real obtinguda
           });
 
           // Process subtitles
@@ -424,6 +425,9 @@ function BBCPlayer() {
           </button>
           <div className="video-title">
             <span className="bbc-badge">BBC iPlayer</span>
+            {metadata?.quality && (
+              <span className="quality-badge">{metadata.quality}</span>
+            )}
             {metadata?.title || 'BBC Programme'}
             {metadata?.season && metadata?.episode && (
               <span className="episode-info">

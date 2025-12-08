@@ -10624,7 +10624,8 @@ async def get_bbc_stream(
             "url": stream.url,
             "subtitles": stream.subtitles,
             "season": stream.season,
-            "episode": stream.episode
+            "episode": stream.episode,
+            "quality": stream.quality  # Qualitat real obtinguda (720p o 1080p)
         }
 
     except BBCiPlayerError as e:
