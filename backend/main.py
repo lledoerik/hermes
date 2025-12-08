@@ -922,10 +922,10 @@ async def delete_user(request: Request, user_id: int):
 @app.post("/api/admin/fix-non-latin-titles")
 async def fix_non_latin_titles(request: Request):
     """
-    Actualitza títols:
-    1. Títols no-llatins → obté títol anglès de TMDB/AniList
-    2. Tot contingut sense title_english → obté i guarda títol anglès
-    Així es pot cercar per títol anglès (ex: "Squid Game") encara que estigui guardat en català.
+    Actualitza títols amb prioritat d'idioma: Català → Castellà → Anglès
+    1. Títols no-llatins → obté títol en l'idioma preferit de TMDB
+    2. Tot contingut sense title_english → obté i guarda títol alternatiu per cerca
+    Així es pot cercar per títol original o anglès encara que estigui guardat en català.
     """
     from backend.metadata.tmdb import TMDBClient, contains_non_latin_characters
     from backend.metadata.anilist import AniListClient
@@ -997,7 +997,7 @@ async def fix_non_latin_titles(request: Request):
                 try:
                     tmdb_id = item["tmdb_id"]
                     media_type = item["media_type"]
-                    english_title = None
+                    best_title = None
                     source = "TMDB"
                     has_non_latin = contains_non_latin_characters(item["name"] or "") or contains_non_latin_characters(item["title"] or "")
 
@@ -1014,23 +1014,32 @@ async def fix_non_latin_titles(request: Request):
                         if original_language == "ja" or "JP" in origin_country:
                             is_anime = True
 
-                    # SEMPRE provar TMDB primer per obtenir títol anglès (és més fiable)
-                    if media_type == "movie":
-                        data = await tmdb_client._request(f"/movie/{tmdb_id}", {"language": "en-US"})
-                        tmdb_title = data.get("title") if data else None
-                    else:
-                        data = await tmdb_client._request(f"/tv/{tmdb_id}", {"language": "en-US"})
-                        tmdb_title = data.get("name") if data else None
+                    # Provar idiomes en ordre de preferència: Català → Castellà → Anglès
+                    languages_to_try = [
+                        ("ca-ES", "TMDB (català)"),
+                        ("es-ES", "TMDB (castellà)"),
+                        ("en-US", "TMDB (anglès)")
+                    ]
 
-                    if tmdb_title and not contains_non_latin_characters(tmdb_title):
-                        english_title = tmdb_title
-                        source = "TMDB"
+                    for lang_code, lang_source in languages_to_try:
+                        if media_type == "movie":
+                            data = await tmdb_client._request(f"/movie/{tmdb_id}", {"language": lang_code})
+                            tmdb_title = data.get("title") if data else None
+                        else:
+                            data = await tmdb_client._request(f"/tv/{tmdb_id}", {"language": lang_code})
+                            tmdb_title = data.get("name") if data else None
 
-                    # Per anime, també obtenir AniList IDs (però NO usar per títol si ja tenim TMDB)
+                        # Si trobem un títol en llatí, usar-lo
+                        if tmdb_title and not contains_non_latin_characters(tmdb_title):
+                            best_title = tmdb_title
+                            source = lang_source
+                            break  # Aturar quan trobem un títol vàlid
+
+                    # Per anime, també obtenir AniList IDs
                     if is_anime and media_type == "series":
                         try:
-                            # Cercar per títol anglès de TMDB (més precís que japonès)
-                            search_title = english_title if english_title else item["name"]
+                            # Cercar per títol trobat (més precís que japonès)
+                            search_title = best_title if best_title else item["name"]
                             anilist_result = await anilist_client.search_anime(search_title)
                             if anilist_result:
                                 # Guardar anilist_id i mal_id
@@ -1043,16 +1052,10 @@ async def fix_non_latin_titles(request: Request):
                                         anilist_result.get("mal_id"),
                                         item["id"]
                                     ))
-
-                                # NOMÉS usar títol d'AniList si TMDB no ha donat anglès
-                                if not english_title or contains_non_latin_characters(english_title):
-                                    if anilist_result.get("title_english"):
-                                        english_title = anilist_result["title_english"]
-                                        source = "AniList"
                         except Exception as e:
                             logger.warning(f"Error consultant AniList per {item['name']}: {e}")
 
-                    if english_title and not contains_non_latin_characters(english_title):
+                    if best_title and not contains_non_latin_characters(best_title):
                         # Si té títol no-llatí, canviar el títol principal
                         # Si no, només afegir title_english per cerca
                         if has_non_latin:
@@ -1061,9 +1064,9 @@ async def fix_non_latin_titles(request: Request):
                                 SET name = ?, title = ?, title_english = ?, original_title = COALESCE(original_title, ?)
                                 WHERE id = ?
                             """, (
-                                english_title,
-                                english_title,
-                                english_title,
+                                best_title,
+                                best_title,
+                                best_title,
                                 item["name"],
                                 item["id"]
                             ))
@@ -1071,22 +1074,22 @@ async def fix_non_latin_titles(request: Request):
                             # Només afegir title_english per cerca (no canviar títol principal)
                             cursor.execute("""
                                 UPDATE series SET title_english = ? WHERE id = ?
-                            """, (english_title, item["id"]))
+                            """, (best_title, item["id"]))
 
                         conn.commit()
 
                         updated.append({
                             "id": item["id"],
                             "old_title": item["name"],
-                            "new_title": english_title if has_non_latin else f"{item['name']} (+EN: {english_title})",
+                            "new_title": best_title if has_non_latin else f"{item['name']} (+{source}: {best_title})",
                             "source": source
                         })
-                        logger.info(f"Títol actualitzat ({source}): {item['name']} -> {english_title}")
+                        logger.info(f"Títol actualitzat ({source}): {item['name']} -> {best_title}")
                     else:
                         errors.append({
                             "id": item["id"],
                             "title": item["name"],
-                            "error": "No s'ha pogut obtenir títol anglès"
+                            "error": "No s'ha pogut obtenir títol en català, castellà ni anglès"
                         })
 
                 except Exception as e:
