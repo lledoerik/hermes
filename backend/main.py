@@ -1944,7 +1944,7 @@ async def get_stats():
 async def get_series(content_type: str = None, page: int = 1, limit: int = 50, sort_by: str = "name", search: str = None, category: str = None):
     """Retorna les sèries amb paginació. Filtre opcional: series, anime, toons (comma-separated for multiple)
     Categories: popular (mínim vots + ordenar per rating), on_the_air (en emissió TMDB), airing_today (avui TMDB)"""
-    from backend.metadata.tmdb import TMDBClient
+    from backend.metadata.tmdb import TMDBClient, contains_non_latin_characters
 
     # Per on_the_air i airing_today, obtenim els IDs de TMDB
     tmdb_ids = []
@@ -2050,9 +2050,16 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
             final_seasons = local_seasons if local_seasons > 0 else (tmdb_seasons or 0)
             final_episodes = local_episodes if local_episodes > 0 else (tmdb_episodes or 0)
 
+            # Preferir títol en llatí (title_english > name si name és no-llatí)
+            display_name = row["name"]
+            title_english = row["title_english"] if "title_english" in row.keys() else None
+            if title_english and contains_non_latin_characters(display_name or ""):
+                display_name = title_english
+
             series.append({
                 "id": row["id"],
-                "name": row["name"],
+                "name": display_name,
+                "original_name": row["name"],  # Guardar nom original per referència
                 "path": row["path"],
                 "poster": row["poster"],
                 "backdrop": row["backdrop"],
@@ -2079,7 +2086,7 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
     """Retorna les pel·lícules amb paginació. Filtre opcional: movie, anime_movie, animated (comma-separated for multiple)
     Categories: popular (mínim vots + ordenar per rating), now_playing (en cartellera TMDB), upcoming (release_date > avui)"""
     from datetime import datetime, date
-    from backend.metadata.tmdb import TMDBClient
+    from backend.metadata.tmdb import TMDBClient, contains_non_latin_characters
 
     # Per now_playing, obtenim els IDs de TMDB
     now_playing_ids = []
@@ -2176,9 +2183,16 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
 
         movies = []
         for row in cursor.fetchall():
+            # Preferir títol en llatí (title_english > name si name és no-llatí)
+            display_name = row["name"]
+            title_english = row["title_english"] if "title_english" in row.keys() else None
+            if title_english and contains_non_latin_characters(display_name or ""):
+                display_name = title_english
+
             movies.append({
                 "id": row["id"],
-                "name": row["name"],
+                "name": display_name,
+                "original_name": row["name"],
                 "poster": row["poster"],
                 "backdrop": row["backdrop"],
                 "duration": row["duration"],
@@ -3196,7 +3210,10 @@ async def search_tmdb(q: str, limit: int = 20):
     """
     Cerca a TMDB per pel·lícules i sèries.
     Retorna resultats combinats amb poster URLs.
+    Prioritat d'idioma: Català → Castellà → Anglès
     """
+    from backend.metadata.tmdb import TMDBClient, contains_non_latin_characters
+
     if not q or len(q) < 2:
         return {"movies": [], "series": []}
 
@@ -3204,53 +3221,83 @@ async def search_tmdb(q: str, limit: int = 20):
     if not api_key:
         raise HTTPException(status_code=400, detail="Cal configurar la clau TMDB")
 
-    from backend.metadata.tmdb import TMDBClient
     client = TMDBClient(api_key)
 
     try:
-        # Cerca pel·lícules i sèries en paral·lel
-        movies_data = await client._request("/search/movie", {"query": q, "language": "ca-ES"})
-        tv_data = await client._request("/search/tv", {"query": q, "language": "ca-ES"})
+        # Idiomes per ordre de preferència
+        languages = ["ca-ES", "es-ES", "en-US"]
 
         movies = []
-        if movies_data and movies_data.get("results"):
-            for m in movies_data["results"][:limit]:
-                year = None
-                if m.get("release_date"):
-                    year = int(m["release_date"][:4])
-                movies.append({
-                    "tmdb_id": m["id"],
-                    "name": m.get("title"),
-                    "original_name": m.get("original_title"),
-                    "year": year,
-                    "overview": m.get("overview"),
-                    "rating": m.get("vote_average"),
-                    "poster": client.get_poster_url(m.get("poster_path")),
-                    "backdrop": client.get_backdrop_url(m.get("backdrop_path")),
-                    "type": "movie",
-                    "is_tmdb": True
-                })
-
         series = []
-        if tv_data and tv_data.get("results"):
-            for s in tv_data["results"][:limit]:
-                year = None
-                if s.get("first_air_date"):
-                    year = int(s["first_air_date"][:4])
-                series.append({
-                    "tmdb_id": s["id"],
-                    "name": s.get("name"),
-                    "original_name": s.get("original_name"),
-                    "year": year,
-                    "overview": s.get("overview"),
-                    "rating": s.get("vote_average"),
-                    "poster": client.get_poster_url(s.get("poster_path")),
-                    "backdrop": client.get_backdrop_url(s.get("backdrop_path")),
-                    "type": "series",
-                    "is_tmdb": True
-                })
+        seen_movie_ids = set()
+        seen_series_ids = set()
 
-        return {"movies": movies, "series": series}
+        # Cercar en cada idioma i combinar resultats
+        for lang in languages:
+            movies_data = await client._request("/search/movie", {"query": q, "language": lang})
+            tv_data = await client._request("/search/tv", {"query": q, "language": lang})
+
+            if movies_data and movies_data.get("results"):
+                for m in movies_data["results"][:limit]:
+                    tmdb_id = m["id"]
+                    title = m.get("title")
+
+                    # Si ja tenim aquest ID amb un títol llatí, saltar
+                    if tmdb_id in seen_movie_ids:
+                        continue
+
+                    # Només afegir si el títol és llatí
+                    if title and not contains_non_latin_characters(title):
+                        seen_movie_ids.add(tmdb_id)
+                        year = None
+                        if m.get("release_date"):
+                            try:
+                                year = int(m["release_date"][:4])
+                            except:
+                                pass
+                        movies.append({
+                            "tmdb_id": tmdb_id,
+                            "name": title,
+                            "original_name": m.get("original_title"),
+                            "year": year,
+                            "overview": m.get("overview"),
+                            "rating": m.get("vote_average"),
+                            "poster": client.get_poster_url(m.get("poster_path")),
+                            "backdrop": client.get_backdrop_url(m.get("backdrop_path")),
+                            "type": "movie",
+                            "is_tmdb": True
+                        })
+
+            if tv_data and tv_data.get("results"):
+                for s in tv_data["results"][:limit]:
+                    tmdb_id = s["id"]
+                    title = s.get("name")
+
+                    if tmdb_id in seen_series_ids:
+                        continue
+
+                    if title and not contains_non_latin_characters(title):
+                        seen_series_ids.add(tmdb_id)
+                        year = None
+                        if s.get("first_air_date"):
+                            try:
+                                year = int(s["first_air_date"][:4])
+                            except:
+                                pass
+                        series.append({
+                            "tmdb_id": tmdb_id,
+                            "name": title,
+                            "original_name": s.get("original_name"),
+                            "year": year,
+                            "overview": s.get("overview"),
+                            "rating": s.get("vote_average"),
+                            "poster": client.get_poster_url(s.get("poster_path")),
+                            "backdrop": client.get_backdrop_url(s.get("backdrop_path")),
+                            "type": "series",
+                            "is_tmdb": True
+                        })
+
+        return {"movies": movies[:limit], "series": series[:limit]}
     finally:
         await client.close()
 
