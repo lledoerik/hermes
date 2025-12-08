@@ -417,6 +417,174 @@ class BBCiPlayerClient:
 
         return season, episode
 
+    async def get_series_info(self, series_url: str) -> Optional[Dict]:
+        """
+        Obtenir informació completa d'una sèrie de BBC iPlayer.
+        Retorna títol, descripció i llista de temporades/arcs disponibles.
+
+        Args:
+            series_url: URL de la sèrie (ex: https://www.bbc.co.uk/iplayer/episodes/m0021y5y/one-piece)
+
+        Returns:
+            Dict amb info de la sèrie i temporades disponibles
+        """
+        try:
+            # Obtenir metadata de la sèrie
+            result = await self._run_ytdlp([
+                "--dump-json",
+                "--flat-playlist",
+                "--no-download",
+                series_url
+            ])
+
+            if not result:
+                return None
+
+            info = json.loads(result)
+
+            # Extreure ID de la sèrie de la URL
+            series_id_match = re.search(r'/episodes/([a-z0-9]+)', series_url)
+            series_id = series_id_match.group(1) if series_id_match else None
+
+            return {
+                "series_id": series_id,
+                "title": info.get("title", ""),
+                "description": info.get("description", ""),
+                "uploader": info.get("uploader", "BBC"),
+                "url": series_url,
+                "entries": info.get("entries", []),
+                "playlist_count": info.get("playlist_count", len(info.get("entries", [])))
+            }
+
+        except Exception as e:
+            logger.error(f"Error obtenint info de sèrie: {e}")
+            return None
+
+    async def get_all_episodes_from_series(
+        self,
+        series_url: str,
+        include_metadata: bool = True
+    ) -> List[Dict]:
+        """
+        Obtenir TOTS els episodis d'una sèrie de BBC iPlayer.
+        Processa totes les temporades/arcs automàticament.
+
+        Args:
+            series_url: URL base de la sèrie
+            include_metadata: Si True, obté metadades extra de cada episodi
+
+        Returns:
+            Llista d'episodis amb programme_id, títol, temporada, episodi
+        """
+        try:
+            result = await self._run_ytdlp([
+                "--flat-playlist",
+                "-J",
+                series_url
+            ])
+
+            if not result:
+                return []
+
+            info = json.loads(result)
+            entries = info.get("entries", [])
+
+            episodes = []
+            for entry in entries:
+                ep_data = {
+                    "programme_id": entry.get("id"),
+                    "title": entry.get("title", ""),
+                    "url": entry.get("url"),
+                    "duration": entry.get("duration"),
+                    "description": entry.get("description", ""),
+                    "series_id": entry.get("series_id"),
+                    "episode_number": entry.get("episode_number"),
+                    "season_number": entry.get("season_number"),
+                }
+
+                # Intentar extreure temporada/episodi del títol si no venen
+                if not ep_data["episode_number"]:
+                    season, episode = self._extract_season_episode(ep_data["title"])
+                    if episode:
+                        ep_data["episode_number"] = episode
+                    if season:
+                        ep_data["season_number"] = season
+
+                episodes.append(ep_data)
+
+            logger.info(f"Obtinguts {len(episodes)} episodis de {series_url}")
+            return episodes
+
+        except Exception as e:
+            logger.error(f"Error obtenint episodis: {e}")
+            return []
+
+    async def discover_series_seasons(self, series_url: str) -> List[Dict]:
+        """
+        Descobreix totes les temporades/arcs d'una sèrie.
+        Útil per sèries com One Piece que tenen múltiples agrupacions.
+
+        Nota: BBC pot organitzar contingut de diverses maneres:
+        - Per temporades (Series 1, 2, 3...)
+        - Per arcs narratius (One Piece: East Blue, Alabasta...)
+        - Cronològicament
+
+        Args:
+            series_url: URL de la sèrie
+
+        Returns:
+            Llista de temporades amb nom i URL
+        """
+        import aiohttp
+
+        try:
+            # Extreure series_id de la URL
+            match = re.search(r'/episodes/([a-z0-9]+)', series_url)
+            if not match:
+                logger.error(f"No s'ha pogut extreure series_id de {series_url}")
+                return []
+
+            series_id = match.group(1)
+
+            # BBC API per obtenir info de la sèrie
+            api_url = f"https://www.bbc.co.uk/programmes/{series_id}.json"
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(api_url) as response:
+                    if response.status != 200:
+                        logger.warning(f"BBC API va retornar {response.status}")
+                        # Fallback: usar yt-dlp per obtenir els episodis directament
+                        episodes = await self.get_all_episodes_from_series(series_url)
+                        if episodes:
+                            return [{
+                                "name": "All Episodes",
+                                "url": series_url,
+                                "episode_count": len(episodes)
+                            }]
+                        return []
+
+                    data = await response.json()
+
+            programme = data.get("programme", {})
+            # Buscar subprogrames (temporades/arcs)
+            # Això dependrà de l'estructura de BBC
+
+            seasons = []
+            # Per ara, retornem la sèrie sencera
+            episodes = await self.get_all_episodes_from_series(series_url)
+
+            return [{
+                "name": programme.get("title", "All Episodes"),
+                "series_id": series_id,
+                "url": series_url,
+                "episode_count": len(episodes),
+                "episodes": episodes
+            }]
+
+        except Exception as e:
+            logger.error(f"Error descobrint temporades: {e}")
+            return []
+
     async def _run_ytdlp(self, args: List[str]) -> Optional[str]:
         """
         Executar yt-dlp com a subprocess
