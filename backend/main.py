@@ -10732,6 +10732,167 @@ async def get_bbc_stream(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# --- BBC HLS Proxy Endpoints ---
+# Proxy per evitar problemes de CORS i geoblocking
+
+@app.get("/api/bbc/proxy/manifest")
+async def proxy_bbc_manifest(
+    request: Request,
+    url: str = Query(..., description="URL del manifest HLS (.m3u8)")
+):
+    """
+    Proxy per al manifest HLS de BBC iPlayer.
+    Modifica les URLs dels segments per apuntar al nostre proxy.
+    """
+    require_auth(request)
+
+    import httpx
+    import re
+    from urllib.parse import urljoin, quote
+
+    try:
+        # Obtenir les cookies de BBC per autenticació
+        from backend.debrid.bbc_cookies import get_bbc_cookies_dict
+        cookies = get_bbc_cookies_dict()
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "*/*",
+            "Accept-Language": "en-GB,en;q=0.9",
+            "Origin": "https://www.bbc.co.uk",
+            "Referer": "https://www.bbc.co.uk/iplayer",
+        }
+
+        async with httpx.AsyncClient(timeout=30.0, cookies=cookies) as client:
+            response = await client.get(url, headers=headers, follow_redirects=True)
+            response.raise_for_status()
+            content = response.text
+
+        # Determinar la URL base per URLs relatives
+        base_url = url.rsplit('/', 1)[0] + '/'
+
+        # Processar el manifest
+        lines = content.split('\n')
+        modified_lines = []
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                modified_lines.append(line)
+                continue
+
+            # Si és una URL (no comença amb #)
+            if not line.startswith('#'):
+                # Convertir URLs relatives a absolutes
+                if not line.startswith('http'):
+                    absolute_url = urljoin(base_url, line)
+                else:
+                    absolute_url = line
+
+                # Si és un altre manifest (.m3u8), proxy-lo
+                if '.m3u8' in line:
+                    proxy_url = f"/api/bbc/proxy/manifest?url={quote(absolute_url, safe='')}"
+                else:
+                    # És un segment, proxy-lo
+                    proxy_url = f"/api/bbc/proxy/segment?url={quote(absolute_url, safe='')}"
+
+                modified_lines.append(proxy_url)
+            else:
+                # Si és un tag amb URI=
+                if 'URI="' in line:
+                    # Extreure i modificar la URI
+                    match = re.search(r'URI="([^"]+)"', line)
+                    if match:
+                        original_uri = match.group(1)
+                        if not original_uri.startswith('http'):
+                            absolute_uri = urljoin(base_url, original_uri)
+                        else:
+                            absolute_uri = original_uri
+
+                        # Determinar si és manifest o segment
+                        if '.m3u8' in original_uri:
+                            proxy_uri = f"/api/bbc/proxy/manifest?url={quote(absolute_uri, safe='')}"
+                        elif '.vtt' in original_uri or 'subtitle' in original_uri.lower():
+                            proxy_uri = f"/api/bbc/subtitles?url={quote(absolute_uri, safe='')}"
+                        else:
+                            proxy_uri = f"/api/bbc/proxy/segment?url={quote(absolute_uri, safe='')}"
+
+                        line = line.replace(f'URI="{original_uri}"', f'URI="{proxy_uri}"')
+
+                modified_lines.append(line)
+
+        modified_content = '\n'.join(modified_lines)
+
+        from fastapi.responses import Response
+        return Response(
+            content=modified_content,
+            media_type="application/vnd.apple.mpegurl",
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Cache-Control": "no-cache"
+            }
+        )
+
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Error HTTP al proxy manifest BBC: {e.response.status_code}")
+        raise HTTPException(status_code=e.response.status_code, detail=f"BBC returned {e.response.status_code}")
+    except Exception as e:
+        logger.error(f"Error al proxy manifest BBC: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/bbc/proxy/segment")
+async def proxy_bbc_segment(
+    request: Request,
+    url: str = Query(..., description="URL del segment de vídeo")
+):
+    """
+    Proxy per als segments de vídeo de BBC iPlayer.
+    Simplement reenvia el contingut binari.
+    """
+    require_auth(request)
+
+    import httpx
+
+    try:
+        # Obtenir les cookies de BBC per autenticació
+        from backend.debrid.bbc_cookies import get_bbc_cookies_dict
+        cookies = get_bbc_cookies_dict()
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "*/*",
+            "Accept-Language": "en-GB,en;q=0.9",
+            "Origin": "https://www.bbc.co.uk",
+            "Referer": "https://www.bbc.co.uk/iplayer",
+        }
+
+        async with httpx.AsyncClient(timeout=60.0, cookies=cookies) as client:
+            response = await client.get(url, headers=headers, follow_redirects=True)
+            response.raise_for_status()
+            content = response.content
+
+        # Determinar el content-type
+        content_type = response.headers.get("content-type", "video/mp2t")
+
+        from fastapi.responses import Response
+        return Response(
+            content=content,
+            media_type=content_type,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Cache-Control": "max-age=3600"  # Cache segments for 1 hour
+            }
+        )
+
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Error HTTP al proxy segment BBC: {e.response.status_code}")
+        raise HTTPException(status_code=e.response.status_code, detail=f"BBC returned {e.response.status_code}")
+    except Exception as e:
+        logger.error(f"Error al proxy segment BBC: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/bbc/info")
 async def get_bbc_info(
     request: Request,
