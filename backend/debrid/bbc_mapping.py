@@ -484,6 +484,29 @@ def get_all_bbc_content() -> List[Dict]:
     return result
 
 
+def get_bbc_mapped_ids() -> Dict[str, List[int]]:
+    """
+    Obtenir llista d'IDs de TMDB que tenen mappeig BBC.
+    Retorna un dict amb 'tv' i 'movie' per tipus.
+    """
+    mapping = load_bbc_mapping()
+
+    result = {"tv": [], "movie": []}
+    for key in mapping.keys():
+        tmdb_id, content_type = key.split(":")
+        if content_type in result:
+            result[content_type].append(int(tmdb_id))
+
+    return result
+
+
+def has_bbc_mapping(tmdb_id: int, content_type: str = "tv") -> bool:
+    """Comprova si un contingut té mappeig BBC"""
+    mapping = load_bbc_mapping()
+    key = get_content_key(tmdb_id, content_type)
+    return key in mapping
+
+
 def delete_bbc_mapping(tmdb_id: int, content_type: str = "tv") -> bool:
     """Elimina el mappeig BBC per un contingut"""
     global _BBC_MAPPING_CACHE
