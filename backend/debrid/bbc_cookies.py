@@ -283,3 +283,35 @@ def validate_cookies_format(cookies_data: str) -> tuple[bool, str]:
         return False, f"S'han trobat {valid_lines} cookies però cap de bbc.co.uk. Exporta les cookies mentre estàs a BBC iPlayer."
 
     return True, f"Cookies vàlides: {valid_lines} cookies trobades (inclou cookies de BBC)"
+
+
+def get_bbc_cookies_dict() -> dict:
+    """
+    Obté les cookies de BBC com a diccionari per usar amb httpx/requests
+
+    Returns:
+        Dict amb nom_cookie: valor o dict buit si no hi ha cookies
+    """
+    cookies_str = get_bbc_cookies()
+    if not cookies_str:
+        return {}
+
+    cookies_dict = {}
+    for line in cookies_str.strip().split('\n'):
+        line = line.strip()
+
+        # Ignorar comentaris i línies buides
+        if not line or line.startswith('#'):
+            continue
+
+        # Format Netscape: domain, flag, path, secure, expiration, name, value
+        parts = line.split('\t')
+        if len(parts) >= 7:
+            domain = parts[0]
+            # Només incloure cookies de BBC
+            if 'bbc.co.uk' in domain or 'bbc.com' in domain:
+                name = parts[5]
+                value = parts[6]
+                cookies_dict[name] = value
+
+    return cookies_dict
