@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import TitleAudioPlayer from './TitleAudioPlayer';
 import LazyImage from './LazyImage';
 import { useAuth } from '../context/AuthContext';
+import { useBBC } from '../context/BBCContext';
 import { getPosterUrl } from '../config/api';
 import { TvIcon, MovieIcon, StarIcon, PlayIcon, InfoIcon } from './icons';
 
@@ -108,6 +109,21 @@ const styles = {
     fontSize: '11px',
     fontWeight: '600',
   },
+  bbcBadge: {
+    position: 'absolute',
+    top: '8px',
+    right: '8px',
+    padding: '3px 6px',
+    background: 'linear-gradient(135deg, #000000 0%, #1a1a1a 100%)',
+    borderRadius: '3px',
+    fontSize: '9px',
+    fontWeight: '700',
+    letterSpacing: '0.5px',
+    color: '#ffffff',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
+    zIndex: 5,
+  },
   progressBar: {
     position: 'absolute',
     bottom: 0,
@@ -135,9 +151,19 @@ function MediaCard({ item, type = 'series', width = 180, isTmdb = false }) {
   const [imageError, setImageError] = useState(false);
   const navigate = useNavigate();
   const { isPremium } = useAuth();
+  const { hasBbc } = useBBC();
 
   // Determinar si és contingut només de streaming (TMDB sense fitxers locals)
   const isStreamingOnly = isTmdb || item.is_tmdb;
+
+  // Obtenir el tmdb_id per comprovar BBC
+  const tmdbId = item.tmdb_id || (item.id && typeof item.id === 'string' && item.id.startsWith('tmdb-')
+    ? parseInt(item.id.replace('tmdb-', ''), 10)
+    : null);
+
+  // Comprovar si té BBC disponible
+  const contentType = type === 'movies' ? 'movie' : 'tv';
+  const hasBbcContent = tmdbId ? hasBbc(tmdbId, contentType) : false;
 
   const handleClick = () => {
     // Sempre navegar a la pàgina de detalls (mai directament a stream)
@@ -247,6 +273,10 @@ function MediaCard({ item, type = 'series', width = 180, isTmdb = false }) {
           {isPremium ? <PlayIcon size={48} /> : <InfoIcon size={48} />}
         </button>
 
+        {/* BBC Badge */}
+        {hasBbcContent && (
+          <div style={styles.bbcBadge}>BBC</div>
+        )}
 
         {progress > 0 && (
           <div style={styles.progressBar}>
