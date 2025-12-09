@@ -95,8 +95,7 @@ function Navbar() {
       <div className="navbar-container">
         <div className="navbar-left">
           <Link to="/" className="navbar-logo">
-            <img src="/img/hermes.jpeg" alt="Hermes" />
-            <img src="/img/favico.ico" alt="" />
+            <img src="/img/hermes.png" alt="Hermes" />
           </Link>
 
           <div className="navbar-links">
