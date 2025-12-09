@@ -11553,6 +11553,25 @@ async def list_bbc_content(request: Request):
     }
 
 
+@app.get("/api/bbc/mapped-ids")
+async def get_bbc_mapped_ids_endpoint(request: Request):
+    """
+    Obtenir llista d'IDs de TMDB que tenen mappeig BBC.
+    Endpoint lleuger per saber ràpidament si un contingut té BBC.
+    """
+    require_auth(request)
+
+    from backend.debrid.bbc_mapping import get_bbc_mapped_ids
+
+    ids = get_bbc_mapped_ids()
+
+    return {
+        "status": "success",
+        "tv": ids.get("tv", []),
+        "movie": ids.get("movie", [])
+    }
+
+
 @app.delete("/api/bbc/content/{tmdb_id}")
 async def delete_bbc_content_mapping(
     request: Request,
