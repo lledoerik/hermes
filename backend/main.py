@@ -10609,6 +10609,7 @@ async def proxy_video_stream(
     """
     import httpx
     from starlette.responses import StreamingResponse
+    from starlette.background import BackgroundTask
 
     # Validar que la URL sigui de Real-Debrid (seguretat)
     allowed_domains = [
@@ -10633,40 +10634,45 @@ async def proxy_video_stream(
         headers["Range"] = range_header
 
     try:
-        async with httpx.AsyncClient(timeout=None, follow_redirects=True) as client:
-            # Fer la petició a Real-Debrid
-            async with client.stream("GET", url, headers=headers) as response:
-                # Determinar el status code (200 o 206 per partial content)
-                status_code = response.status_code
+        # Crear client SENSE context manager per mantenir-lo obert durant streaming
+        client = httpx.AsyncClient(timeout=None, follow_redirects=True)
+        response = await client.send(
+            client.build_request("GET", url, headers=headers),
+            stream=True
+        )
 
-                # Headers de resposta
-                response_headers = {
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
-                    "Access-Control-Allow-Headers": "Range",
-                    "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges",
-                    "Accept-Ranges": "bytes",
-                }
+        # Headers de resposta
+        response_headers = {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+            "Access-Control-Allow-Headers": "Range",
+            "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges",
+            "Accept-Ranges": "bytes",
+        }
 
-                # Copiar headers rellevants de Real-Debrid
-                if "content-type" in response.headers:
-                    response_headers["Content-Type"] = response.headers["content-type"]
-                if "content-length" in response.headers:
-                    response_headers["Content-Length"] = response.headers["content-length"]
-                if "content-range" in response.headers:
-                    response_headers["Content-Range"] = response.headers["content-range"]
+        # Copiar headers rellevants de Real-Debrid
+        if "content-type" in response.headers:
+            response_headers["Content-Type"] = response.headers["content-type"]
+        if "content-length" in response.headers:
+            response_headers["Content-Length"] = response.headers["content-length"]
+        if "content-range" in response.headers:
+            response_headers["Content-Range"] = response.headers["content-range"]
 
-                # Funció generadora per streaming
-                async def stream_content():
-                    async for chunk in response.aiter_bytes(chunk_size=1024 * 1024):  # 1MB chunks
-                        yield chunk
+        # Funció generadora per streaming
+        async def stream_content():
+            try:
+                async for chunk in response.aiter_bytes(chunk_size=1024 * 1024):  # 1MB chunks
+                    yield chunk
+            finally:
+                await response.aclose()
+                await client.aclose()
 
-                return StreamingResponse(
-                    stream_content(),
-                    status_code=status_code,
-                    headers=response_headers,
-                    media_type=response_headers.get("Content-Type", "video/mp4")
-                )
+        return StreamingResponse(
+            stream_content(),
+            status_code=response.status_code,
+            headers=response_headers,
+            media_type=response_headers.get("Content-Type", "video/mp4")
+        )
 
     except httpx.RequestError as e:
         logger.error(f"Error proxy vídeo: {e}")
