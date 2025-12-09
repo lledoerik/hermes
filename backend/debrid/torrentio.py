@@ -206,7 +206,12 @@ class TorrentioClient:
     async def _fetch_streams(self, url: str) -> List[TorrentStream]:
         """Obtenir streams d'una URL de Torrentio"""
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "application/json",
+                "Accept-Language": "en-GB,en;q=0.9",
+            }
+            async with httpx.AsyncClient(timeout=15.0, headers=headers) as client:
                 response = await client.get(url)
 
                 if response.status_code != 200:
