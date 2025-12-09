@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LibraryProvider, useLibrary } from './context/LibraryContext';
 import { StreamCacheProvider, useStreamCache } from './context/StreamCacheContext';
+import { BBCProvider } from './context/BBCContext';
 import Navbar from './components/Navbar';
 import LoadingScreen from './components/LoadingScreen';
 import Home from './pages/Home';
@@ -139,7 +140,9 @@ function App() {
     <AuthProvider>
       <LibraryProvider>
         <StreamCacheProvider>
-          <AppContent />
+          <BBCProvider>
+            <AppContent />
+          </BBCProvider>
         </StreamCacheProvider>
       </LibraryProvider>
     </AuthProvider>
