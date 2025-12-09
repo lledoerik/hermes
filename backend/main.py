@@ -10519,9 +10519,15 @@ async def get_debrid_stream(
         if not result:
             raise HTTPException(status_code=500, detail="No s'ha pogut obtenir URL de streaming")
 
+        # Crear URL proxiejada per evitar CORS
+        from urllib.parse import quote
+        original_url = result["url"]
+        proxied_url = f"/api/video/proxy?url={quote(original_url, safe='')}"
+
         response = {
             "status": "success",
-            "url": result["url"],
+            "url": proxied_url,
+            "original_url": original_url,  # Per debug
             "filename": result.get("filename"),
             "filesize": result.get("filesize"),
             "mimetype": result.get("mimetype")
@@ -10569,10 +10575,16 @@ async def get_cached_stream(
                 "message": "El torrent no està en cache"
             }
 
+        # Crear URL proxiejada per evitar CORS
+        from urllib.parse import quote
+        original_url = result["url"]
+        proxied_url = f"/api/video/proxy?url={quote(original_url, safe='')}"
+
         return {
             "status": "success",
             "cached": True,
-            "url": result["url"],
+            "url": proxied_url,
+            "original_url": original_url,
             "filename": result.get("filename"),
             "filesize": result.get("filesize"),
             "mimetype": result.get("mimetype")
@@ -10580,6 +10592,103 @@ async def get_cached_stream(
     except Exception as e:
         logger.error(f"Error obtenint stream cached: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Video Proxy Endpoint (per evitar CORS) ---
+
+@app.get("/api/video/proxy")
+async def proxy_video_stream(
+    request: Request,
+    url: str = Query(..., description="URL del vídeo a proxy-ar")
+):
+    """
+    Proxy per streaming de vídeo (Real-Debrid, etc.)
+
+    Això permet reproduir vídeos de Real-Debrid evitant problemes de CORS.
+    Suporta range requests per a seeking.
+    """
+    import httpx
+    from starlette.responses import StreamingResponse
+
+    # Validar que la URL sigui de Real-Debrid (seguretat)
+    allowed_domains = [
+        "download.real-debrid.com",
+        "real-debrid.com",
+        "rd.download"
+    ]
+
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    if not any(domain in parsed.netloc for domain in allowed_domains):
+        raise HTTPException(status_code=400, detail="URL no permesa - només Real-Debrid")
+
+    # Obtenir headers de range del client (per seeking)
+    range_header = request.headers.get("range")
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    }
+
+    if range_header:
+        headers["Range"] = range_header
+
+    try:
+        async with httpx.AsyncClient(timeout=None, follow_redirects=True) as client:
+            # Fer la petició a Real-Debrid
+            async with client.stream("GET", url, headers=headers) as response:
+                # Determinar el status code (200 o 206 per partial content)
+                status_code = response.status_code
+
+                # Headers de resposta
+                response_headers = {
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+                    "Access-Control-Allow-Headers": "Range",
+                    "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges",
+                    "Accept-Ranges": "bytes",
+                }
+
+                # Copiar headers rellevants de Real-Debrid
+                if "content-type" in response.headers:
+                    response_headers["Content-Type"] = response.headers["content-type"]
+                if "content-length" in response.headers:
+                    response_headers["Content-Length"] = response.headers["content-length"]
+                if "content-range" in response.headers:
+                    response_headers["Content-Range"] = response.headers["content-range"]
+
+                # Funció generadora per streaming
+                async def stream_content():
+                    async for chunk in response.aiter_bytes(chunk_size=1024 * 1024):  # 1MB chunks
+                        yield chunk
+
+                return StreamingResponse(
+                    stream_content(),
+                    status_code=status_code,
+                    headers=response_headers,
+                    media_type=response_headers.get("Content-Type", "video/mp4")
+                )
+
+    except httpx.RequestError as e:
+        logger.error(f"Error proxy vídeo: {e}")
+        raise HTTPException(status_code=502, detail="Error connectant amb el servidor de vídeo")
+    except Exception as e:
+        logger.error(f"Error inesperat proxy vídeo: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.options("/api/video/proxy")
+async def proxy_video_options():
+    """Handle CORS preflight for video proxy"""
+    from starlette.responses import Response
+    return Response(
+        status_code=204,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+            "Access-Control-Allow-Headers": "Range",
+            "Access-Control-Max-Age": "86400",
+        }
+    )
 
 
 # ==================== BBC IPLAYER API ====================
