@@ -10881,7 +10881,7 @@ async def proxy_bbc_segment(
             media_type=content_type,
             headers={
                 "Access-Control-Allow-Origin": "*",
-                "Cache-Control": "max-age=3600"  # Cache segments for 1 hour
+                "Cache-Control": "max-age=3600"
             }
         )
 
