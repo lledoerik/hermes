@@ -206,10 +206,22 @@ class TorrentioClient:
     async def _fetch_streams(self, url: str) -> List[TorrentStream]:
         """Obtenir streams d'una URL de Torrentio"""
         try:
+            # Headers complets per simular un navegador real
+            # Torrentio pot bloquejar peticions que no semblin de navegador
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Accept": "application/json",
-                "Accept-Language": "en-GB,en;q=0.9",
+                "Accept": "application/json, text/plain, */*",
+                "Accept-Language": "en-GB,en;q=0.9,ca;q=0.8,es;q=0.7",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Origin": "https://web.stremio.com",
+                "Referer": "https://web.stremio.com/",
+                "sec-ch-ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-platform": '"Windows"',
+                "sec-fetch-dest": "empty",
+                "sec-fetch-mode": "cors",
+                "sec-fetch-site": "cross-site",
+                "Connection": "keep-alive",
             }
             async with httpx.AsyncClient(timeout=15.0, headers=headers) as client:
                 response = await client.get(url)
