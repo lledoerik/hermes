@@ -86,9 +86,13 @@ function BBCPlayer() {
             }
           }
 
+          // IMPORTANT: Use proxy URL to avoid CORS and geoblocking issues
+          // The proxy will handle authentication and modify manifest URLs
+          const proxyUrl = `${API_URL}/api/bbc/proxy/manifest?url=${encodeURIComponent(url)}`;
+
           // Redirect to DebridPlayer with direct mode params
           const params = new URLSearchParams({
-            directUrl: url,
+            directUrl: proxyUrl,
             directTitle: episodeTitle,
             directBadge: 'BBC iPlayer',
             directQuality: actualQuality || '',
