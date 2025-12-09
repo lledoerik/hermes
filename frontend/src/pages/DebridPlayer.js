@@ -1687,16 +1687,65 @@ function DebridPlayer() {
           setHlsSubtitleTracks(data.subtitleTracks || []);
         });
 
+        // Track retry attempts to avoid infinite loops
+        let networkRetries = 0;
+        let mediaRetries = 0;
+        const MAX_RETRIES = 3;
+
         hls.on(Hls.Events.ERROR, (event, data) => {
+          console.error('HLS error:', data.type, data.details, data.fatal ? '(fatal)' : '');
+
           if (data.fatal) {
-            console.error('HLS fatal error:', data);
+            console.error('HLS fatal error details:', {
+              type: data.type,
+              details: data.details,
+              url: data.url,
+              response: data.response
+            });
+
             if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-              hls.startLoad();
+              networkRetries++;
+              if (networkRetries <= MAX_RETRIES) {
+                console.log(`HLS network error, retry ${networkRetries}/${MAX_RETRIES}...`);
+                setTimeout(() => hls.startLoad(), 1000 * networkRetries);
+              } else {
+                console.error('HLS network error: max retries exceeded');
+                setError('Error de xarxa carregant el vídeo. Comprova la teva connexió.');
+              }
             } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-              hls.recoverMediaError();
+              mediaRetries++;
+              if (mediaRetries <= MAX_RETRIES) {
+                console.log(`HLS media error, retry ${mediaRetries}/${MAX_RETRIES}...`);
+                hls.recoverMediaError();
+              } else {
+                console.error('HLS media error: max retries exceeded');
+                setError('Error de reproducció. Prova amb una altra font.');
+              }
+            } else {
+              // Other fatal errors (e.g., manifest parsing)
+              const errorMsg = data.details === 'manifestLoadError'
+                ? 'No s\'ha pogut carregar el manifest de vídeo. Prova recarregar.'
+                : data.details === 'manifestParsingError'
+                ? 'Format de vídeo no suportat.'
+                : `Error de reproducció: ${data.details}`;
+              setError(errorMsg);
             }
           }
         });
+
+        // Timeout for initial load (30 seconds)
+        const loadTimeout = setTimeout(() => {
+          if (!isPlaying && !error) {
+            console.warn('HLS load timeout - video not playing after 30s');
+            // Don't set error automatically, user might just not have pressed play
+          }
+        }, 30000);
+
+        // Clear timeout when manifest is parsed
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          clearTimeout(loadTimeout);
+        });
+
         hlsRef.current = hls;
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         // Native HLS support (Safari)
