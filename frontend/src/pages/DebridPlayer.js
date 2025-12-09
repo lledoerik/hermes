@@ -1704,8 +1704,9 @@ function DebridPlayer() {
         video.play().catch(e => console.log('Autoplay prevented:', e));
       }
     } else {
-      // Non-HLS stream - set src directly
+      // Non-HLS stream - set src directly and play
       video.src = streamUrl;
+      video.play().catch(e => console.log('Autoplay prevented:', e));
     }
 
     return () => {
@@ -1752,9 +1753,10 @@ function DebridPlayer() {
           </div>
         </div>
       )}
-      {/* Video element */}
+      {/* Video element - key forces remount on source change to avoid stale HLS */}
       {streamUrl && (
         <video
+          key={streamUrl}
           ref={videoRef}
           className="video-element"
           muted={isMuted}
@@ -1763,7 +1765,6 @@ function DebridPlayer() {
           onPlay={handlePlay}
           onPause={handlePause}
           onEnded={handleEnded}
-          autoPlay
           playsInline
           crossOrigin="anonymous"
         >
@@ -1919,7 +1920,7 @@ function DebridPlayer() {
                 <div className="scrub-preview-frame">
                   <video
                     ref={previewVideoRef}
-                    src={streamUrl}
+                    src={streamUrl || undefined}
                     muted
                     preload="metadata"
                   />
