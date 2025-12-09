@@ -10743,9 +10743,8 @@ async def proxy_bbc_manifest(
     """
     Proxy per al manifest HLS de BBC iPlayer.
     Modifica les URLs dels segments per apuntar al nostre proxy.
+    Nota: No requereix autenticació perquè HLS.js fa peticions directes.
     """
-    require_auth(request)
-
     import httpx
     import re
     from urllib.parse import urljoin, quote
@@ -10849,9 +10848,8 @@ async def proxy_bbc_segment(
     """
     Proxy per als segments de vídeo de BBC iPlayer.
     Simplement reenvia el contingut binari.
+    Nota: No requereix autenticació perquè HLS.js fa peticions directes.
     """
-    require_auth(request)
-
     import httpx
 
     try:
