@@ -11392,7 +11392,7 @@ async def get_bbc_content_mapping(
     """
     require_auth(request)
 
-    from backend.debrid.bbc_mapping import get_bbc_mapping_for_content
+    from backend.debrid.bbc_mapping import get_bbc_mapping_for_content, get_bbc_seasons
 
     mapping = get_bbc_mapping_for_content(tmdb_id, content_type)
 
@@ -11402,6 +11402,8 @@ async def get_bbc_content_mapping(
             detail=f"No hi ha mappeig BBC per TMDB {tmdb_id}"
         )
 
+    seasons = get_bbc_seasons(tmdb_id, content_type)
+
     return {
         "status": "success",
         "tmdb_id": tmdb_id,
@@ -11409,8 +11411,82 @@ async def get_bbc_content_mapping(
         "title": mapping.get("title"),
         "bbc_series_id": mapping.get("bbc_series_id"),
         "episode_count": len(mapping.get("episodes", {})),
+        "season_count": len(seasons),
+        "seasons": seasons,
         "last_updated": mapping.get("last_updated"),
         "episodes": mapping.get("episodes", {})
+    }
+
+
+@app.get("/api/bbc/content/{tmdb_id}/seasons")
+async def get_bbc_content_seasons(
+    request: Request,
+    tmdb_id: int,
+    content_type: str = Query("tv", description="Tipus: 'tv' o 'movie'")
+):
+    """
+    Obtenir les temporades/arcs BBC per un contingut.
+    Retorna nom, rang d'episodis i recompte per cada temporada.
+    """
+    require_auth(request)
+
+    from backend.debrid.bbc_mapping import get_bbc_seasons, get_bbc_mapping_for_content
+
+    mapping = get_bbc_mapping_for_content(tmdb_id, content_type)
+    if not mapping:
+        raise HTTPException(status_code=404, detail=f"No hi ha mappeig BBC per TMDB {tmdb_id}")
+
+    seasons = get_bbc_seasons(tmdb_id, content_type)
+
+    return {
+        "status": "success",
+        "tmdb_id": tmdb_id,
+        "title": mapping.get("title"),
+        "seasons": seasons
+    }
+
+
+@app.get("/api/bbc/content/{tmdb_id}/seasons/{season_number}/episodes")
+async def get_bbc_season_episodes(
+    request: Request,
+    tmdb_id: int,
+    season_number: int,
+    content_type: str = Query("tv", description="Tipus: 'tv' o 'movie'")
+):
+    """
+    Obtenir tots els episodis d'una temporada BBC amb metadades completes.
+    Retorna títol, descripció, thumbnail, duració per cada episodi.
+    """
+    require_auth(request)
+
+    from backend.debrid.bbc_mapping import (
+        get_bbc_episodes_for_season,
+        get_bbc_seasons,
+        get_bbc_mapping_for_content
+    )
+
+    mapping = get_bbc_mapping_for_content(tmdb_id, content_type)
+    if not mapping:
+        raise HTTPException(status_code=404, detail=f"No hi ha mappeig BBC per TMDB {tmdb_id}")
+
+    seasons = get_bbc_seasons(tmdb_id, content_type)
+    season_info = next((s for s in seasons if s["season_number"] == season_number), None)
+
+    if not season_info:
+        raise HTTPException(status_code=404, detail=f"Temporada {season_number} no trobada")
+
+    episodes = get_bbc_episodes_for_season(tmdb_id, season_number, content_type)
+
+    return {
+        "status": "success",
+        "tmdb_id": tmdb_id,
+        "season_number": season_number,
+        "season_name": season_info.get("name"),
+        "start_episode": season_info.get("start_episode"),
+        "end_episode": season_info.get("end_episode"),
+        "total_episodes": season_info.get("total_episodes"),
+        "available_episodes": len(episodes),
+        "episodes": episodes
     }
 
 
