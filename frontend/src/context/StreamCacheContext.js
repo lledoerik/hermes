@@ -265,7 +265,11 @@ export function StreamCacheProvider({ children }) {
     });
 
     if (response.data.status === 'success') {
-      const url = response.data.url;
+      let url = response.data.url;
+      // Si la URL és relativa (comença amb /), afegir API_URL per fer-la absoluta
+      if (url && url.startsWith('/')) {
+        url = `${API_URL}${url}`;
+      }
       cacheStreamUrl(torrent.info_hash, url, season, episode);
       return url;
     }

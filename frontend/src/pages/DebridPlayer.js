@@ -710,7 +710,11 @@ function DebridPlayer() {
       }
 
       if (response.data.status === 'success') {
-        const url = response.data.url;
+        let url = response.data.url;
+        // Si la URL és relativa (comença amb /), afegir API_URL per fer-la absoluta
+        if (url && url.startsWith('/')) {
+          url = `${API_URL}${url}`;
+        }
         setStreamUrl(url);
         // Guardar al cache per futures vegades
         // IMPORTANT: Passar season i episode per identificar correctament l'episodi
