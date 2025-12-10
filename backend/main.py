@@ -12146,6 +12146,340 @@ def convert_ttml_to_vtt_regex(ttml_content: str) -> str:
     return "\n".join(vtt_lines)
 
 
+# ==================== BBC CATALOG SCAN & IMPORT ====================
+
+@app.post("/api/bbc/catalog/scan")
+async def scan_bbc_catalog(request: Request):
+    """
+    Escaneja el catàleg complet de BBC iPlayer.
+    Retorna totes les pel·lícules i sèries disponibles.
+
+    ATENCIÓ: Aquesta operació pot trigar uns minuts.
+    """
+    require_admin(request)
+
+    from backend.debrid.bbc_catalog import BBCCatalogScanner
+
+    scanner = BBCCatalogScanner()
+
+    try:
+        result = await scanner.scan_full_catalog()
+        return result
+    except Exception as e:
+        logger.error(f"Error escanejant catàleg BBC: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/bbc/catalog/match")
+async def match_bbc_catalog_with_tmdb(
+    request: Request,
+    programs: List[Dict] = None
+):
+    """
+    Fa matching del catàleg de BBC amb TMDB.
+
+    Si no es proporciona 'programs', primer escaneja el catàleg.
+    """
+    require_admin(request)
+
+    from backend.debrid.bbc_catalog import BBCCatalogScanner, BBCTMDBMatcher, BBCProgram
+
+    # Obtenir TMDB API key
+    tmdb_key = None
+    tmdb_key_file = "/home/user/hermes/storage/tmdb_key.txt"
+    if os.path.exists(tmdb_key_file):
+        with open(tmdb_key_file, 'r') as f:
+            tmdb_key = f.read().strip()
+
+    if not tmdb_key:
+        raise HTTPException(
+            status_code=400,
+            detail="TMDB API key no configurada. Configura-la a storage/tmdb_key.txt"
+        )
+
+    try:
+        # Si no tenim programes, escanejar primer
+        if not programs:
+            scanner = BBCCatalogScanner()
+            catalog = await scanner.scan_full_catalog()
+
+            # Convertir a objectes BBCProgram
+            all_programs = []
+            for film in catalog.get("films", []):
+                all_programs.append(BBCProgram(
+                    programme_id=film["programme_id"],
+                    title=film["title"],
+                    url=film["url"],
+                    is_film=True,
+                    is_series=False,
+                    synopsis=film.get("synopsis"),
+                    thumbnail=film.get("thumbnail")
+                ))
+            for series in catalog.get("series", []):
+                all_programs.append(BBCProgram(
+                    programme_id=series["programme_id"],
+                    title=series["title"],
+                    url=series["url"],
+                    is_film=False,
+                    is_series=True,
+                    synopsis=series.get("synopsis"),
+                    thumbnail=series.get("thumbnail"),
+                    episodes_url=series.get("episodes_url")
+                ))
+        else:
+            all_programs = [
+                BBCProgram(
+                    programme_id=p["programme_id"],
+                    title=p["title"],
+                    url=p["url"],
+                    is_film=p.get("is_film", False),
+                    is_series=p.get("is_series", True)
+                )
+                for p in programs
+            ]
+
+        # Fer matching
+        matcher = BBCTMDBMatcher(tmdb_key)
+        result = await matcher.match_all_programs(all_programs)
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Error fent matching BBC-TMDB: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/bbc/catalog/import-all")
+async def import_all_bbc_to_mapping(
+    request: Request,
+    scan_first: bool = Query(True, description="Escanejar catàleg primer"),
+    min_confidence: float = Query(60.0, description="Confiança mínima per importar (0-100)")
+):
+    """
+    Importa TOT el catàleg de BBC iPlayer al sistema de mapping.
+
+    Procés:
+    1. Escaneja el catàleg de BBC iPlayer (si scan_first=True)
+    2. Fa matching amb TMDB per cada programa
+    3. Per sèries: obté tots els episodis i els mapa
+    4. Guarda tot al sistema de mapping
+
+    ATENCIÓ: Aquesta operació pot trigar bastant (10-30 minuts).
+    """
+    require_admin(request)
+
+    from backend.debrid.bbc_catalog import BBCCatalogScanner, BBCTMDBMatcher, BBCProgram
+    from backend.debrid.bbc_mapping import (
+        import_bbc_episodes_with_metadata,
+        set_bbc_mapping_for_content,
+        get_content_key,
+        load_bbc_mapping,
+        save_bbc_mapping,
+        _BBC_MAPPING_CACHE
+    )
+    from backend.debrid import BBCiPlayerClient
+
+    # Obtenir TMDB API key
+    tmdb_key = None
+    tmdb_key_file = "/home/user/hermes/storage/tmdb_key.txt"
+    if os.path.exists(tmdb_key_file):
+        with open(tmdb_key_file, 'r') as f:
+            tmdb_key = f.read().strip()
+
+    if not tmdb_key:
+        raise HTTPException(
+            status_code=400,
+            detail="TMDB API key no configurada. Configura-la a storage/tmdb_key.txt"
+        )
+
+    results = {
+        "status": "success",
+        "scanned_programs": 0,
+        "matched_programs": 0,
+        "imported_films": 0,
+        "imported_series": 0,
+        "imported_episodes": 0,
+        "failed": [],
+        "skipped_low_confidence": []
+    }
+
+    try:
+        # Pas 1: Escanejar catàleg
+        if scan_first:
+            logger.info("Pas 1: Escanejant catàleg de BBC iPlayer...")
+            scanner = BBCCatalogScanner()
+            catalog = await scanner.scan_full_catalog()
+
+            all_programs = []
+            for film in catalog.get("films", []):
+                all_programs.append(BBCProgram(
+                    programme_id=film["programme_id"],
+                    title=film["title"],
+                    url=film["url"],
+                    is_film=True,
+                    is_series=False,
+                    synopsis=film.get("synopsis"),
+                    thumbnail=film.get("thumbnail")
+                ))
+            for series in catalog.get("series", []):
+                all_programs.append(BBCProgram(
+                    programme_id=series["programme_id"],
+                    title=series["title"],
+                    url=series["url"],
+                    is_film=False,
+                    is_series=True,
+                    synopsis=series.get("synopsis"),
+                    thumbnail=series.get("thumbnail"),
+                    episodes_url=series.get("episodes_url") or series["url"]
+                ))
+
+            results["scanned_programs"] = len(all_programs)
+            logger.info(f"Trobats {len(all_programs)} programes")
+        else:
+            raise HTTPException(status_code=400, detail="scan_first=False no suportat encara")
+
+        # Pas 2: Matching amb TMDB
+        logger.info("Pas 2: Fent matching amb TMDB...")
+        matcher = BBCTMDBMatcher(tmdb_key)
+        match_result = await matcher.match_all_programs(all_programs, min_confidence=min_confidence)
+
+        matched = match_result.get("matched", [])
+        results["matched_programs"] = len(matched)
+        results["skipped_low_confidence"] = [
+            {"title": p["bbc_title"], "confidence": p.get("confidence", 0)}
+            for p in match_result.get("low_confidence", [])
+        ]
+
+        logger.info(f"Matched {len(matched)} programes amb TMDB")
+
+        # Pas 3: Importar al mapping
+        logger.info("Pas 3: Important al sistema de mapping...")
+        bbc_client = BBCiPlayerClient()
+
+        for item in matched:
+            try:
+                tmdb_id = item["tmdb_id"]
+                content_type = item["content_type"]
+                bbc_url = item["bbc_url"]
+                bbc_title = item["bbc_title"]
+
+                if item["is_film"]:
+                    # Pel·lícula: importar directament
+                    set_bbc_mapping_for_content(
+                        tmdb_id=tmdb_id,
+                        content_type="movie",
+                        bbc_series_id=item["bbc_programme_id"],
+                        title=bbc_title,
+                        episodes={1: item["bbc_programme_id"]}  # Les pel·lícules són "episodi 1"
+                    )
+                    results["imported_films"] += 1
+                    logger.debug(f"Importada pel·lícula: {bbc_title}")
+
+                else:
+                    # Sèrie: obtenir episodis i importar
+                    episodes_url = bbc_url
+                    if "/episode/" in episodes_url:
+                        # Convertir URL d'episodi a URL de sèrie
+                        episodes_url = episodes_url.replace("/episode/", "/episodes/")
+
+                    try:
+                        episodes = await bbc_client.get_all_episodes_from_series(episodes_url)
+
+                        if episodes:
+                            count = import_bbc_episodes_with_metadata(
+                                tmdb_id=tmdb_id,
+                                content_type="tv",
+                                episodes=episodes,
+                                bbc_series_id=item["bbc_programme_id"],
+                                title=bbc_title
+                            )
+                            results["imported_series"] += 1
+                            results["imported_episodes"] += count
+                            logger.debug(f"Importada sèrie: {bbc_title} ({count} episodis)")
+                        else:
+                            # No hem pogut obtenir episodis, guardar com a sèrie sense episodis
+                            set_bbc_mapping_for_content(
+                                tmdb_id=tmdb_id,
+                                content_type="tv",
+                                bbc_series_id=item["bbc_programme_id"],
+                                title=bbc_title
+                            )
+                            results["imported_series"] += 1
+
+                    except Exception as ep_err:
+                        logger.warning(f"Error obtenint episodis de {bbc_title}: {ep_err}")
+                        results["failed"].append({
+                            "title": bbc_title,
+                            "error": f"Error episodis: {str(ep_err)}"
+                        })
+
+                # Rate limiting
+                await asyncio.sleep(0.3)
+
+            except Exception as imp_err:
+                logger.error(f"Error importat {item.get('bbc_title', 'unknown')}: {imp_err}")
+                results["failed"].append({
+                    "title": item.get("bbc_title", "unknown"),
+                    "error": str(imp_err)
+                })
+
+        # Guardar mapping
+        save_bbc_mapping()
+
+        logger.info(f"Importació completa: {results['imported_films']} pel·lícules, {results['imported_series']} sèries, {results['imported_episodes']} episodis")
+
+        return results
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error en importació massiva BBC: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/bbc/catalog/status")
+async def get_bbc_catalog_status(request: Request):
+    """
+    Mostra l'estat actual del mapping BBC.
+    Quants programes estan importats, etc.
+    """
+    require_auth(request)
+
+    from backend.debrid.bbc_mapping import load_bbc_mapping
+
+    mapping = load_bbc_mapping()
+
+    films = []
+    series = []
+
+    for key, data in mapping.items():
+        tmdb_id, content_type = key.split(":")
+        item = {
+            "tmdb_id": int(tmdb_id),
+            "title": data.get("title", "Unknown"),
+            "bbc_series_id": data.get("bbc_series_id"),
+            "episode_count": len(data.get("episodes", {})),
+            "season_count": len(data.get("seasons", {}))
+        }
+
+        if content_type == "movie":
+            films.append(item)
+        else:
+            series.append(item)
+
+    return {
+        "status": "success",
+        "total_mapped": len(mapping),
+        "films_count": len(films),
+        "series_count": len(series),
+        "total_episodes": sum(s["episode_count"] for s in series),
+        "films": films,
+        "series": series
+    }
+
+
 # ==================== SUBTITLES API ====================
 
 # Client de subtítols compartit (cache)
