@@ -206,6 +206,17 @@
   font-size: 12px;
 }
 
+.bbc-loading-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  color: #00a0d2;
+  padding: 20px 12px;
+  font-size: 12px;
+}
+
 /* Source Menu (BBC vs Torrentio) */
 .source-menu {
   width: 280px;
