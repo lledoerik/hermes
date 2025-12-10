@@ -507,10 +507,12 @@ function Details() {
 
     setLoadingEpisodes(true);
     setEpisodes([]); // Clear episodes while loading
+    console.log('[Details] loadEpisodes called:', { seasonNum, hasBbcContent, bbcSeasonsLength: bbcSeasons.length, effectiveTmdbId, isTmdbOnly });
     try {
       // BBC CONTENT: Carregar episodis de la temporada/arc BBC
       if (hasBbcContent && bbcSeasons.length > 0) {
         const season = bbcSeasons.find(s => s.season_number === seasonNum);
+        console.log('[Details] BBC content mode, season found:', season?.name);
         if (season) {
           try {
             // Try generic BBC endpoint
@@ -538,12 +540,15 @@ function Details() {
               return;
             }
           } catch (err) {
+            console.log('[Details] Generic BBC endpoint failed, trying One Piece fallback...', err.response?.status);
             // Fallback: Try One Piece specific endpoint
             if (effectiveTmdbId === ONE_PIECE_TMDB_ID) {
               const arcIndex = seasonNum - 1;
               try {
+                console.log(`[Details] Fetching One Piece arc ${arcIndex} episodes...`);
                 const arcRes = await api.get(`/api/bbc/onepiece/arc/${arcIndex}/episodes`);
-                if (arcRes.data.episodes) {
+                console.log('[Details] One Piece arc response:', arcRes.data?.count, 'episodes');
+                if (arcRes.data.episodes && arcRes.data.episodes.length > 0) {
                   const arcEpisodes = arcRes.data.episodes.map(ep => ({
                     ...ep,
                     episode_number: ep.episode_number,
@@ -567,12 +572,12 @@ function Details() {
                   return;
                 }
               } catch (opErr) {
-                console.error('Error loading One Piece arc episodes:', opErr);
+                console.error('[Details] Error loading One Piece arc episodes:', opErr.response?.status, opErr.message);
               }
             }
           }
-          setLoadingEpisodes(false);
-          return;
+          // Si hem arribat aquí, cap endpoint BBC ha funcionat - NO fem return
+          console.log('[Details] BBC endpoints failed, will try TMDB fallback');
         }
       }
 
