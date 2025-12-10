@@ -88,10 +88,26 @@ const TorrentIcon = () => (
   </svg>
 );
 
-// Globe icon (for source switching)
-const GlobeIcon = () => (
+// Stream/Torrent icon (river/stream flowing - for source switching)
+// OPCIÓ A: Tres corrents d'aigua (com cascada/torrent)
+/*
+const StreamIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm6.93 6h-2.95c-.32-1.25-.78-2.45-1.38-3.56 1.84.63 3.37 1.91 4.33 3.56zM12 4.04c.83 1.2 1.48 2.53 1.91 3.96h-3.82c.43-1.43 1.08-2.76 1.91-3.96zM4.26 14C4.1 13.36 4 12.69 4 12s.1-1.36.26-2h3.38c-.08.66-.14 1.32-.14 2 0 .68.06 1.34.14 2H4.26zm.82 2h2.95c.32 1.25.78 2.45 1.38 3.56-1.84-.63-3.37-1.9-4.33-3.56zm2.95-8H5.08c.96-1.66 2.49-2.93 4.33-3.56C8.81 5.55 8.35 6.75 8.03 8zM12 19.96c-.83-1.2-1.48-2.53-1.91-3.96h3.82c-.43 1.43-1.08 2.76-1.91 3.96zM14.34 14H9.66c-.09-.66-.16-1.32-.16-2 0-.68.07-1.35.16-2h4.68c.09.65.16 1.32.16 2 0 .68-.07 1.34-.16 2zm.25 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95c-.96 1.65-2.49 2.93-4.33 3.56zM16.36 14c.08-.66.14-1.32.14-2 0-.68-.06-1.34-.14-2h3.38c.16.64.26 1.31.26 2s-.1 1.36-.26 2h-3.38z"/>
+    <path d="M12 2C10.5 4 8 5.5 8 8c0 2 2.5 3.5 2.5 6S8 17.5 8 20c0 .7.1 1.4.3 2h3.4c-.2-.6-.3-1.3-.3-2 0-2.5 2.5-4 2.5-6s-2.5-4-2.5-6c0-2.5 1.5-4 1.5-6h-3c.4.6.6 1.3.6 2z"/>
+    <path d="M6 10c-.8 1.2-2 2-2 3.5S5.2 16 5.2 18c0 .7-.1 1.3-.2 2h2c.1-.7.2-1.3.2-2 0-2-1.2-2.5-1.2-4.5S6.8 11 7 10H6z" opacity="0.5"/>
+    <path d="M18 10c.8 1.2 2 2 2 3.5s-1.2 2.5-1.2 4.5c0 .7.1 1.3.2 2h-2c-.1-.7-.2-1.3-.2-2 0-2 1.2-2.5 1.2-4.5S17.2 11 17 10h1z" opacity="0.5"/>
+  </svg>
+);
+*/
+
+// OPCIÓ B: Muntanya amb riu (estil minimalista imatge 3) - ACTIVA
+const StreamIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    {/* Muntanya */}
+    <path d="M4 18l5-8 3 4 4-6 4 10H4z" opacity="0.3"/>
+    {/* Riu serpentejant que baixa */}
+    <path d="M20 18c-1 0-1.5-.5-2.5-.5s-1.5.5-2.5.5-1.5-.5-2.5-.5-1.5.5-2.5.5-1.5-.5-2.5-.5-1.5.5-2.5.5v2c1 0 1.5-.5 2.5-.5s1.5.5 2.5.5 1.5-.5 2.5-.5 1.5.5 2.5.5 1.5-.5 2.5-.5 1.5.5 2.5.5v-2z"/>
+    <path d="M18 14c-.8 0-1.2-.4-2-.4s-1.2.4-2 .4-1.2-.4-2-.4-1.2.4-2 .4v1.5c.8 0 1.2-.4 2-.4s1.2.4 2 .4 1.2-.4 2-.4 1.2.4 2 .4V14z" opacity="0.7"/>
   </svg>
 );
 
@@ -2071,14 +2087,14 @@ function DebridPlayer() {
                 </button>
               )}
 
-              {/* Source button (globe icon for switching sources) */}
+              {/* Source button (stream/torrent icon for switching sources) */}
               {hasBbcMapping && (bbcAvailable || torrents.length > 0) && (
                 <button
                   className={`control-btn source-btn ${activeSource === 'bbc' ? 'bbc-active' : ''}`}
                   onClick={(e) => { e.stopPropagation(); setShowSourceMenu(true); }}
                   title="Canviar font"
                 >
-                  <GlobeIcon />
+                  <StreamIcon />
                 </button>
               )}
 
