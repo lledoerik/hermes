@@ -39,6 +39,17 @@ function Admin() {
   const [bbcStatus, setBbcStatus] = useState(null);
   const [bbcCookies, setBbcCookies] = useState('');
   const [bbcLoading, setBbcLoading] = useState(false);
+  const [bbcSyncProgress, setBbcSyncProgress] = useState({
+    running: false,
+    phase: '',
+    current: 0,
+    total: 0,
+    currentItem: '',
+    found: [],
+    notFound: [],
+    errors: [],
+    result: null
+  });
 
   // Sync state
   const [syncStatus, setSyncStatus] = useState(null);
@@ -376,6 +387,100 @@ function Admin() {
     }
   };
 
+  // BBC Catalog Sync with progress
+  const syncBbcCatalog = async () => {
+    setBbcSyncProgress({
+      running: true,
+      phase: 'Iniciant escaneig de BBC iPlayer...',
+      current: 0,
+      total: 100,
+      currentItem: '',
+      found: [],
+      notFound: [],
+      errors: [],
+      result: null
+    });
+
+    try {
+      // Fase 1: Escanejar catàleg BBC
+      setBbcSyncProgress(prev => ({ ...prev, phase: 'Escanejant catàleg de BBC iPlayer...', current: 10 }));
+      addLog('info', 'Iniciant escaneig de BBC iPlayer...');
+
+      const scanResponse = await axios.post('/api/bbc/catalog/scan');
+      const catalog = scanResponse.data;
+
+      const totalPrograms = (catalog.films?.length || 0) + (catalog.series?.length || 0);
+      setBbcSyncProgress(prev => ({
+        ...prev,
+        phase: `Trobats ${totalPrograms} programes. Fent matching amb TMDB...`,
+        current: 30,
+        total: totalPrograms
+      }));
+      addLog('success', `Trobats ${catalog.films_count || 0} pel·lícules i ${catalog.series_count || 0} sèries a BBC`);
+
+      // Fase 2: Matching amb TMDB
+      setBbcSyncProgress(prev => ({ ...prev, phase: 'Fent matching amb TMDB...', current: 40 }));
+
+      const matchResponse = await axios.post('/api/bbc/catalog/match');
+      const matchResult = matchResponse.data;
+
+      const matched = matchResult.matched || [];
+      const unmatched = matchResult.unmatched || [];
+      const lowConfidence = matchResult.low_confidence || [];
+
+      setBbcSyncProgress(prev => ({
+        ...prev,
+        phase: `Matched ${matched.length} programes. Important...`,
+        current: 60,
+        found: matched.map(m => ({ title: m.bbc_title, tmdb_title: m.tmdb_title, confidence: m.confidence })),
+        notFound: unmatched.map(u => u.bbc_title),
+      }));
+      addLog('success', `Matched ${matched.length} programes amb TMDB`);
+
+      // Fase 3: Importar al mapping
+      setBbcSyncProgress(prev => ({ ...prev, phase: 'Important al sistema de mapping...', current: 70 }));
+
+      const importResponse = await axios.post('/api/bbc/catalog/import-all?scan_first=false', {
+        programs: matched
+      });
+
+      // Resultat final
+      const result = {
+        films: importResponse.data?.imported_films || matched.filter(m => m.is_film).length,
+        series: importResponse.data?.imported_series || matched.filter(m => !m.is_film).length,
+        episodes: importResponse.data?.imported_episodes || 0,
+        matched: matched.length,
+        unmatched: unmatched.length,
+        lowConfidence: lowConfidence.length,
+        errors: importResponse.data?.failed || []
+      };
+
+      setBbcSyncProgress(prev => ({
+        ...prev,
+        running: false,
+        phase: 'Completat!',
+        current: 100,
+        result,
+        errors: result.errors.map(e => `${e.title}: ${e.error}`)
+      }));
+
+      addLog('success', `BBC Sync completat: ${result.films} pel·lícules, ${result.series} sèries importades`);
+      showMessage(`Sincronització BBC completada: ${result.matched} programes importats`);
+
+    } catch (error) {
+      console.error('BBC Sync error:', error);
+      const errorMsg = error.response?.data?.detail || error.message || 'Error desconegut';
+      setBbcSyncProgress(prev => ({
+        ...prev,
+        running: false,
+        phase: 'Error!',
+        errors: [...prev.errors, errorMsg]
+      }));
+      addLog('error', `Error sincronitzant BBC: ${errorMsg}`);
+      showMessage(`Error: ${errorMsg}`, 'error');
+    }
+  };
+
   // Manual sync trigger
   const runSyncNow = async () => {
     try {
@@ -681,6 +786,125 @@ function Admin() {
               </button>
             </div>
           )}
+
+          {/* BBC Catalog Sync Section */}
+          <div style={{ marginTop: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1.5rem' }}>
+            <h3 style={{ fontSize: '1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <SyncIcon /> Sincronitzar Catàleg BBC
+            </h3>
+            <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+              Escaneja tot el catàleg de BBC iPlayer i fa matching automàtic amb TMDB.
+              Això permetrà veure el badge BBC a les pel·lícules i sèries disponibles.
+            </p>
+
+            <button
+              className="action-btn"
+              onClick={syncBbcCatalog}
+              disabled={bbcSyncProgress.running}
+              style={{ marginBottom: '1rem' }}
+            >
+              {bbcSyncProgress.running ? 'Sincronitzant...' : 'Sincronitzar Catàleg BBC'}
+            </button>
+
+            {/* Progress Bar */}
+            {bbcSyncProgress.running && (
+              <div style={{ marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.8)' }}>{bbcSyncProgress.phase}</span>
+                  <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>{bbcSyncProgress.current}%</span>
+                </div>
+                <div style={{ height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      height: '100%',
+                      width: `${bbcSyncProgress.current}%`,
+                      background: 'linear-gradient(90deg, #8B0000, #c41e3a)',
+                      transition: 'width 0.3s ease',
+                      borderRadius: '4px'
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Results */}
+            {bbcSyncProgress.result && (
+              <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '1rem', marginBottom: '1rem' }}>
+                <h4 style={{ color: '#4ade80', marginBottom: '0.75rem' }}>✓ Sincronització Completada</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1rem' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#fff' }}>{bbcSyncProgress.result.films}</div>
+                    <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>Pel·lícules</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#fff' }}>{bbcSyncProgress.result.series}</div>
+                    <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>Sèries</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#fff' }}>{bbcSyncProgress.result.episodes}</div>
+                    <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>Episodis</div>
+                  </div>
+                </div>
+                <div style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>
+                  {bbcSyncProgress.result.unmatched > 0 && (
+                    <span>⚠ {bbcSyncProgress.result.unmatched} programes sense match a TMDB</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Found List */}
+            {bbcSyncProgress.found.length > 0 && (
+              <details style={{ marginBottom: '1rem' }}>
+                <summary style={{ cursor: 'pointer', color: '#4ade80', marginBottom: '0.5rem' }}>
+                  ✓ Trobats ({bbcSyncProgress.found.length})
+                </summary>
+                <div style={{ maxHeight: '200px', overflow: 'auto', background: 'rgba(0,0,0,0.2)', borderRadius: '4px', padding: '0.5rem' }}>
+                  {bbcSyncProgress.found.slice(0, 50).map((item, i) => (
+                    <div key={i} style={{ fontSize: '0.8rem', padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <span style={{ color: '#fff' }}>{item.title}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.4)', marginLeft: '8px' }}>→ {item.tmdb_title}</span>
+                      <span style={{ color: '#4ade80', marginLeft: '8px', fontSize: '0.75rem' }}>({Math.round(item.confidence)}%)</span>
+                    </div>
+                  ))}
+                  {bbcSyncProgress.found.length > 50 && (
+                    <div style={{ color: 'rgba(255,255,255,0.5)', padding: '4px 0' }}>...i {bbcSyncProgress.found.length - 50} més</div>
+                  )}
+                </div>
+              </details>
+            )}
+
+            {/* Not Found List */}
+            {bbcSyncProgress.notFound.length > 0 && (
+              <details style={{ marginBottom: '1rem' }}>
+                <summary style={{ cursor: 'pointer', color: '#f97316', marginBottom: '0.5rem' }}>
+                  ⚠ No trobats a TMDB ({bbcSyncProgress.notFound.length})
+                </summary>
+                <div style={{ maxHeight: '150px', overflow: 'auto', background: 'rgba(0,0,0,0.2)', borderRadius: '4px', padding: '0.5rem' }}>
+                  {bbcSyncProgress.notFound.slice(0, 30).map((title, i) => (
+                    <div key={i} style={{ fontSize: '0.8rem', padding: '4px 0', color: 'rgba(255,255,255,0.7)' }}>{title}</div>
+                  ))}
+                  {bbcSyncProgress.notFound.length > 30 && (
+                    <div style={{ color: 'rgba(255,255,255,0.5)', padding: '4px 0' }}>...i {bbcSyncProgress.notFound.length - 30} més</div>
+                  )}
+                </div>
+              </details>
+            )}
+
+            {/* Errors List */}
+            {bbcSyncProgress.errors.length > 0 && (
+              <details>
+                <summary style={{ cursor: 'pointer', color: '#ef4444', marginBottom: '0.5rem' }}>
+                  ✗ Errors ({bbcSyncProgress.errors.length})
+                </summary>
+                <div style={{ maxHeight: '150px', overflow: 'auto', background: 'rgba(239,68,68,0.1)', borderRadius: '4px', padding: '0.5rem' }}>
+                  {bbcSyncProgress.errors.map((err, i) => (
+                    <div key={i} style={{ fontSize: '0.8rem', padding: '4px 0', color: '#fca5a5' }}>{err}</div>
+                  ))}
+                </div>
+              </details>
+            )}
+          </div>
         </div>
       </div>
 
