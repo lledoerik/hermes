@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useStreamCache } from '../context/StreamCacheContext';
 import TitleAudioPlayer from '../components/TitleAudioPlayer';
 import LazyImage from '../components/LazyImage';
-import { API_URL, getBackdropUrl, getPosterUrl, formatDuration } from '../config/api';
+import { API_URL, getBackdropUrl, getPosterUrl, formatDuration, getTmdbImageUrl } from '../config/api';
 import {
   StarIcon,
   PlayIcon,
@@ -1354,28 +1354,27 @@ function Details() {
               <div
                 key={episode.id || episode.episode_number}
                 className="episode-card"
+                title={episode.overview || ''}
+                onClick={() => {
+                  if (isPremium && item?.tmdb_id) {
+                    // Per One Piece: usar temporada/episodi TMDB reals
+                    const seasonToUse = episode._tmdb_season || selectedSeason;
+                    const episodeToUse = episode._tmdb_episode || episode.episode_number;
+                    // Guardar per al preload primerenc de la pròxima visita
+                    saveLastEpisode(item.tmdb_id, seasonToUse, episodeToUse);
+                    navigate(`/debrid/tv/${item.tmdb_id}?s=${seasonToUse}&e=${episodeToUse}`);
+                  }
+                }}
+                style={{ cursor: isPremium && item?.tmdb_id ? 'pointer' : 'default' }}
               >
-                <div
-                  className="episode-thumbnail"
-                  style={{ cursor: isPremium && item?.tmdb_id ? 'pointer' : 'default' }}
-                  onClick={() => {
-                    if (isPremium && item?.tmdb_id) {
-                      // Per One Piece: usar temporada/episodi TMDB reals
-                      const seasonToUse = episode._tmdb_season || selectedSeason;
-                      const episodeToUse = episode._tmdb_episode || episode.episode_number;
-                      // Guardar per al preload primerenc de la pròxima visita
-                      saveLastEpisode(item.tmdb_id, seasonToUse, episodeToUse);
-                      navigate(`/debrid/tv/${item.tmdb_id}?s=${seasonToUse}&e=${episodeToUse}`);
-                    }
-                  }}
-                >
+                <div className="episode-thumbnail">
                   {episode.still_path ? (
                     <LazyImage
-                      src={episode.still_path}
+                      src={getTmdbImageUrl(episode.still_path, 'w300')}
                       alt={episode.name}
                       onError={(e) => {
                         e.target.style.display = 'none';
-                        const fallback = e.target.parentElement?.parentElement?.querySelector('.episode-number');
+                        const fallback = e.target.parentElement?.querySelector('.episode-number');
                         if (fallback) fallback.style.display = 'flex';
                       }}
                     />
@@ -1394,23 +1393,21 @@ function Details() {
                   )}
                 </div>
 
+                <div className="episode-meta">
+                  {(episode.duration || episode.runtime) && (
+                    <span>{formatDuration((episode.runtime || 0) * 60 || episode.duration)}</span>
+                  )}
+                  {episode.vote_average > 0 && (
+                    <span className="rating">★ {episode.vote_average.toFixed(1)}</span>
+                  )}
+                </div>
+
                 <div className="episode-info">
                   <div className="episode-title">
                     {episode.episode_number}. {episode.name || `Episodi ${episode.episode_number}`}
                   </div>
-                  <div className="episode-meta">
-                    {(episode.duration || episode.runtime) && (
-                      <span>{formatDuration((episode.runtime || 0) * 60 || episode.duration)}</span>
-                    )}
-                    {episode.air_date && (
-                      <span>{new Date(episode.air_date).toLocaleDateString('ca-ES')}</span>
-                    )}
-                    {episode.vote_average > 0 && (
-                      <span className="meta-item rating"><StarIcon /> {episode.vote_average.toFixed(1)}</span>
-                    )}
-                  </div>
                   {episode.overview && (
-                    <div className="episode-overview">{episode.overview.slice(0, 120)}{episode.overview.length > 120 ? '...' : ''}</div>
+                    <div className="episode-overview">{episode.overview}</div>
                   )}
                 </div>
               </div>
