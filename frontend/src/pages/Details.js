@@ -1393,17 +1393,11 @@ function Details() {
                   )}
                 </div>
 
-                <div className="episode-meta">
-                  {(episode.duration || episode.runtime) && (
-                    <span>{formatDuration((episode.runtime || 0) * 60 || episode.duration)}</span>
-                  )}
-                  {episode.vote_average > 0 && (
-                    <span className="rating">★ {episode.vote_average.toFixed(1)}</span>
-                  )}
-                </div>
-
                 <div className="episode-info">
                   <div className="episode-title">
+                    {(episode.duration || episode.runtime) && (
+                      <span className="episode-duration">{formatDuration((episode.runtime || 0) * 60 || episode.duration)}</span>
+                    )}
                     {episode.episode_number}. {episode.name || `Episodi ${episode.episode_number}`}
                   </div>
                   {episode.overview && (
