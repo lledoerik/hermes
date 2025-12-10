@@ -10159,6 +10159,143 @@ async def precache_episodes_background() -> int:
     return cached_count
 
 
+async def sync_bbc_catalog_background():
+    """
+    Sincronitza el catàleg de BBC iPlayer amb TMDB.
+    S'executa com a part de la sincronització diària.
+    """
+    results = {
+        "status": "success",
+        "imported_films": 0,
+        "imported_series": 0,
+        "imported_episodes": 0,
+        "errors": []
+    }
+
+    try:
+        # Verificar TMDB API key
+        tmdb_key = None
+        tmdb_key_file = "/home/user/hermes/storage/tmdb_key.txt"
+        if os.path.exists(tmdb_key_file):
+            with open(tmdb_key_file, 'r') as f:
+                tmdb_key = f.read().strip()
+
+        if not tmdb_key:
+            logger.warning("sync_bbc_catalog_background: TMDB key no configurada, saltant sincronització BBC")
+            results["status"] = "skipped"
+            results["reason"] = "TMDB key not configured"
+            return results
+
+        from backend.debrid.bbc_catalog import BBCCatalogScanner, BBCTMDBMatcher, BBCProgram
+        from backend.debrid.bbc_mapping import (
+            import_bbc_episodes_with_metadata,
+            set_bbc_mapping_for_content,
+            save_bbc_mapping
+        )
+        from backend.debrid import BBCiPlayerClient
+
+        logger.info("sync_bbc_catalog_background: Iniciant escaneig de BBC iPlayer...")
+
+        # Pas 1: Escanejar catàleg
+        scanner = BBCCatalogScanner()
+        catalog = await scanner.scan_full_catalog()
+
+        all_programs = []
+        for film in catalog.get("films", []):
+            all_programs.append(BBCProgram(
+                programme_id=film["programme_id"],
+                title=film["title"],
+                url=film["url"],
+                is_film=True,
+                is_series=False,
+                synopsis=film.get("synopsis"),
+                thumbnail=film.get("thumbnail")
+            ))
+        for series in catalog.get("series", []):
+            all_programs.append(BBCProgram(
+                programme_id=series["programme_id"],
+                title=series["title"],
+                url=series["url"],
+                is_film=False,
+                is_series=True,
+                synopsis=series.get("synopsis"),
+                thumbnail=series.get("thumbnail"),
+                episodes_url=series.get("episodes_url") or series["url"]
+            ))
+
+        logger.info(f"sync_bbc_catalog_background: Trobats {len(all_programs)} programes")
+
+        if not all_programs:
+            logger.warning("sync_bbc_catalog_background: No s'han trobat programes a BBC iPlayer")
+            return results
+
+        # Pas 2: Matching amb TMDB
+        matcher = BBCTMDBMatcher(tmdb_key)
+        match_result = await matcher.match_all_programs(all_programs, min_confidence=60.0)
+        matched = match_result.get("matched", [])
+
+        logger.info(f"sync_bbc_catalog_background: Matched {len(matched)} programes amb TMDB")
+
+        # Pas 3: Importar al mapping
+        bbc_client = BBCiPlayerClient()
+
+        for item in matched:
+            try:
+                tmdb_id = item["tmdb_id"]
+                bbc_url = item["bbc_url"]
+                bbc_title = item["bbc_title"]
+
+                if item["is_film"]:
+                    set_bbc_mapping_for_content(
+                        tmdb_id=tmdb_id,
+                        content_type="movie",
+                        bbc_series_id=item["bbc_programme_id"],
+                        title=bbc_title,
+                        episodes={1: item["bbc_programme_id"]}
+                    )
+                    results["imported_films"] += 1
+                else:
+                    episodes_url = bbc_url.replace("/episode/", "/episodes/") if "/episode/" in bbc_url else bbc_url
+
+                    try:
+                        episodes = await bbc_client.get_all_episodes_from_series(episodes_url)
+                        if episodes:
+                            count = import_bbc_episodes_with_metadata(
+                                tmdb_id=tmdb_id,
+                                content_type="tv",
+                                episodes=episodes,
+                                bbc_series_id=item["bbc_programme_id"],
+                                title=bbc_title
+                            )
+                            results["imported_series"] += 1
+                            results["imported_episodes"] += count
+                        else:
+                            set_bbc_mapping_for_content(
+                                tmdb_id=tmdb_id,
+                                content_type="tv",
+                                bbc_series_id=item["bbc_programme_id"],
+                                title=bbc_title
+                            )
+                            results["imported_series"] += 1
+                    except Exception as ep_err:
+                        logger.debug(f"Error episodis {bbc_title}: {ep_err}")
+
+                await asyncio.sleep(0.2)  # Rate limiting
+
+            except Exception as e:
+                results["errors"].append(str(e))
+
+        save_bbc_mapping()
+        logger.info(f"sync_bbc_catalog_background: Completat - {results['imported_films']} films, {results['imported_series']} series, {results['imported_episodes']} episodes")
+
+    except Exception as e:
+        logger.error(f"sync_bbc_catalog_background: Error - {e}")
+        results["status"] = "error"
+        results["error"] = str(e)
+
+    return results
+
+
 async def daily_sync_job():
     """
     Tasca de sincronització diària que s'executa a les 2:30 AM.
@@ -10192,8 +10329,15 @@ async def daily_sync_job():
         seasons_cached = await precache_episodes_background()
         logger.info(f"Temporades cachejades: {seasons_cached}")
 
+        # Sincronitzar catàleg de BBC iPlayer (si tenim TMDB key)
+        bbc_result = await sync_bbc_catalog_background()
+        bbc_films = bbc_result.get('imported_films', 0)
+        bbc_series = bbc_result.get('imported_series', 0)
+        bbc_episodes = bbc_result.get('imported_episodes', 0)
+        logger.info(f"BBC: {bbc_films} pel·lícules, {bbc_series} sèries, {bbc_episodes} episodis")
+
         elapsed = (datetime.now() - start_time).total_seconds()
-        logger.info(f"=== FI SINCRONITZACIÓ DIÀRIA: {total_imported} items, {titles_fixed} títols corregits, {seasons_cached} temporades cachejades en {elapsed:.1f}s ===")
+        logger.info(f"=== FI SINCRONITZACIÓ DIÀRIA: {total_imported} items, {titles_fixed} títols corregits, {seasons_cached} temporades cachejades, BBC: {bbc_films}+{bbc_series} en {elapsed:.1f}s ===")
 
         # Guardar última sincronització
         with get_db() as conn:
@@ -10236,6 +10380,17 @@ async def run_sync_now(background_tasks: BackgroundTasks):
     """Executa la sincronització manualment (en segon pla)."""
     background_tasks.add_task(daily_sync_job)
     return {"status": "started", "message": "Sincronització iniciada en segon pla"}
+
+
+@app.post("/api/sync/bbc")
+async def run_bbc_sync_now(request: Request, background_tasks: BackgroundTasks):
+    """
+    Executa NOMÉS la sincronització de BBC iPlayer (en segon pla).
+    Més ràpid que la sincronització completa.
+    """
+    require_admin(request)
+    background_tasks.add_task(sync_bbc_catalog_background)
+    return {"status": "started", "message": "Sincronització BBC iniciada en segon pla"}
 
 
 # =============================================================================
