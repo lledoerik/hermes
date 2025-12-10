@@ -11506,57 +11506,69 @@ async def get_onepiece_arc_episodes(
             "count": 0
         }
 
+    # Obtenir API key i crear client TMDB
+    api_key = get_tmdb_api_key()
+    if not api_key:
+        raise HTTPException(status_code=500, detail="TMDB API key not configured")
+
+    from backend.metadata.tmdb import TMDBClient
+    tmdb_client = TMDBClient(api_key)
+
     # Obtenir episodis de TMDB per cada temporada
     all_episodes = []
 
-    for season_num in seasons_needed:
-        try:
-            # Trobar el rang d'episodis absoluts per aquesta temporada
-            season_info = next(
-                (s for s in TMDB_SEASON_MAPPING if s[0] == season_num),
-                None
-            )
-            if not season_info:
-                logger.warning(f"[OnePiece] Season {season_num} not found in TMDB_SEASON_MAPPING")
+    try:
+        for season_num in seasons_needed:
+            try:
+                # Trobar el rang d'episodis absoluts per aquesta temporada
+                season_info = next(
+                    (s for s in TMDB_SEASON_MAPPING if s[0] == season_num),
+                    None
+                )
+                if not season_info:
+                    logger.warning(f"[OnePiece] Season {season_num} not found in TMDB_SEASON_MAPPING")
+                    continue
+
+                season_start = season_info[1]
+                logger.info(f"[OnePiece] Fetching TMDB season {season_num} (absolute start: {season_start})")
+
+                # Obtenir episodis de TMDB usant TMDBClient
+                tmdb_response = await tmdb_client._request(
+                    f"/tv/{ONE_PIECE_TMDB_ID}/season/{season_num}",
+                    {"language": "ca-ES"}
+                )
+
+                if tmdb_response and "episodes" in tmdb_response:
+                    episodes_in_season = len(tmdb_response["episodes"])
+                    episodes_added = 0
+                    for ep in tmdb_response["episodes"]:
+                        # Calcular número d'episodi absolut
+                        absolute_ep = season_start + ep["episode_number"] - 1
+
+                        # Filtrar només episodis dins l'arc
+                        if start_ep <= absolute_ep <= end_ep:
+                            all_episodes.append({
+                                "episode_number": absolute_ep,
+                                "episode_in_arc": absolute_ep - start_ep + 1,
+                                "name": ep.get("name", f"Episode {absolute_ep}"),
+                                "overview": ep.get("overview"),
+                                "still_path": ep.get("still_path"),
+                                "air_date": ep.get("air_date"),
+                                "runtime": ep.get("runtime"),
+                                "vote_average": ep.get("vote_average"),
+                                "tmdb_season": season_num,
+                                "tmdb_episode": ep["episode_number"]
+                            })
+                            episodes_added += 1
+                    logger.info(f"[OnePiece] Season {season_num}: {episodes_in_season} episodes fetched, {episodes_added} added to arc")
+                else:
+                    logger.warning(f"[OnePiece] No episodes in TMDB response for season {season_num}")
+
+            except Exception as e:
+                logger.error(f"[OnePiece] Error fetching season {season_num}: {e}")
                 continue
-
-            season_start = season_info[1]
-            logger.info(f"[OnePiece] Fetching TMDB season {season_num} (absolute start: {season_start})")
-
-            # Obtenir episodis de TMDB
-            tmdb_response = await fetch_tmdb(
-                f"/tv/{ONE_PIECE_TMDB_ID}/season/{season_num}"
-            )
-
-            if tmdb_response and "episodes" in tmdb_response:
-                episodes_in_season = len(tmdb_response["episodes"])
-                episodes_added = 0
-                for ep in tmdb_response["episodes"]:
-                    # Calcular número d'episodi absolut
-                    absolute_ep = season_start + ep["episode_number"] - 1
-
-                    # Filtrar només episodis dins l'arc
-                    if start_ep <= absolute_ep <= end_ep:
-                        all_episodes.append({
-                            "episode_number": absolute_ep,
-                            "episode_in_arc": absolute_ep - start_ep + 1,
-                            "name": ep.get("name", f"Episode {absolute_ep}"),
-                            "overview": ep.get("overview"),
-                            "still_path": ep.get("still_path"),
-                            "air_date": ep.get("air_date"),
-                            "runtime": ep.get("runtime"),
-                            "vote_average": ep.get("vote_average"),
-                            "tmdb_season": season_num,
-                            "tmdb_episode": ep["episode_number"]
-                        })
-                        episodes_added += 1
-                logger.info(f"[OnePiece] Season {season_num}: {episodes_in_season} episodes fetched, {episodes_added} added to arc")
-            else:
-                logger.warning(f"[OnePiece] No episodes in TMDB response for season {season_num}")
-
-        except Exception as e:
-            logger.error(f"[OnePiece] Error fetching season {season_num}: {e}")
-            continue
+    finally:
+        await tmdb_client.close()
 
     # Ordenar per número d'episodi absolut
     all_episodes.sort(key=lambda x: x["episode_number"])
