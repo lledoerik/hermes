@@ -1935,9 +1935,15 @@ function DebridPlayer() {
                   </div>
                 );
               })}
-              {groupedTorrents.length === 0 && !loadingTorrents && (
+              {groupedTorrents.length === 0 && !loadingTorrents && !loadingBbc && !bbcAvailable && (
                 <div className="no-torrents">
                   No s'han trobat fonts disponibles
+                </div>
+              )}
+              {groupedTorrents.length === 0 && !loadingTorrents && loadingBbc && (
+                <div className="bbc-loading-message">
+                  <span className="loading-spinner-small"></span>
+                  <span>Carregant BBC iPlayer... pot trigar uns segons</span>
                 </div>
               )}
             </div>
