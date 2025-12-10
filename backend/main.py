@@ -12435,16 +12435,12 @@ async def import_all_bbc_to_mapping(
     from backend.debrid import BBCiPlayerClient
 
     # Obtenir TMDB API key
-    tmdb_key = None
-    tmdb_key_file = "/home/user/hermes/storage/tmdb_key.txt"
-    if os.path.exists(tmdb_key_file):
-        with open(tmdb_key_file, 'r') as f:
-            tmdb_key = f.read().strip()
+    tmdb_key = get_tmdb_api_key()
 
     if not tmdb_key:
         raise HTTPException(
             status_code=400,
-            detail="TMDB API key no configurada. Configura-la a storage/tmdb_key.txt"
+            detail="TMDB API key no configurada"
         )
 
     results = {
