@@ -10388,7 +10388,9 @@ async def run_bbc_sync_now(request: Request, background_tasks: BackgroundTasks):
     Executa NOMÉS la sincronització de BBC iPlayer (en segon pla).
     Més ràpid que la sincronització completa.
     """
-    require_admin(request)
+    admin = require_auth(request)
+    if not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Accés només per administradors")
     background_tasks.add_task(sync_bbc_catalog_background)
     return {"status": "started", "message": "Sincronització BBC iniciada en segon pla"}
 
@@ -12311,7 +12313,9 @@ async def scan_bbc_catalog(request: Request):
 
     ATENCIÓ: Aquesta operació pot trigar uns minuts.
     """
-    require_admin(request)
+    admin = require_auth(request)
+    if not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Accés només per administradors")
 
     from backend.debrid.bbc_catalog import BBCCatalogScanner
 
@@ -12335,7 +12339,9 @@ async def match_bbc_catalog_with_tmdb(
 
     Si no es proporciona 'programs', primer escaneja el catàleg.
     """
-    require_admin(request)
+    admin = require_auth(request)
+    if not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Accés només per administradors")
 
     from backend.debrid.bbc_catalog import BBCCatalogScanner, BBCTMDBMatcher, BBCProgram
 
@@ -12421,7 +12427,9 @@ async def import_all_bbc_to_mapping(
 
     ATENCIÓ: Aquesta operació pot trigar bastant (10-30 minuts).
     """
-    require_admin(request)
+    admin = require_auth(request)
+    if not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Accés només per administradors")
 
     from backend.debrid.bbc_catalog import BBCCatalogScanner, BBCTMDBMatcher, BBCProgram
     from backend.debrid.bbc_mapping import (
