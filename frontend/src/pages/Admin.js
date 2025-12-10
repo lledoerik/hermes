@@ -387,6 +387,31 @@ function Admin() {
     }
   };
 
+  // Import One Piece from BBC
+  const [onePieceImporting, setOnePieceImporting] = useState(false);
+  const [onePieceResult, setOnePieceResult] = useState(null);
+
+  const importOnePiece = async () => {
+    setOnePieceImporting(true);
+    setOnePieceResult(null);
+    addLog('info', 'Iniciant importació de One Piece des de BBC...');
+
+    try {
+      const response = await axios.post('/api/bbc/onepiece/import-all');
+      const result = response.data;
+      setOnePieceResult(result);
+      addLog('success', `One Piece importat: ${result.total_imported} episodis de ${result.total_found} trobats`);
+      showMessage(`One Piece importat! ${result.total_imported} episodis`);
+    } catch (error) {
+      const errMsg = error.response?.data?.detail || error.message;
+      addLog('error', `Error important One Piece: ${errMsg}`);
+      showMessage('Error important One Piece', 'error');
+      setOnePieceResult({ error: errMsg });
+    } finally {
+      setOnePieceImporting(false);
+    }
+  };
+
   // BBC Catalog Sync with progress
   const syncBbcCatalog = async () => {
     setBbcSyncProgress({
@@ -786,6 +811,50 @@ function Admin() {
               </button>
             </div>
           )}
+
+          {/* One Piece Import Section */}
+          <div style={{ marginTop: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1.5rem' }}>
+            <h3 style={{ fontSize: '1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              🏴‍☠️ Importar One Piece (BBC)
+            </h3>
+            <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+              Importa tots els episodis de One Piece disponibles a BBC iPlayer.
+              Això permet reproduir One Piece directament des de BBC.
+            </p>
+
+            <button
+              className="action-btn"
+              onClick={importOnePiece}
+              disabled={onePieceImporting}
+              style={{ marginBottom: '1rem' }}
+            >
+              {onePieceImporting ? 'Important...' : 'Importar One Piece'}
+            </button>
+
+            {onePieceResult && !onePieceResult.error && (
+              <div style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.3)', borderRadius: '8px', padding: '1rem' }}>
+                <div style={{ color: '#4ade80', fontWeight: '600', marginBottom: '0.5rem' }}>
+                  ✓ One Piece importat correctament
+                </div>
+                <div style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.8)' }}>
+                  {onePieceResult.total_imported} episodis importats de {onePieceResult.total_found} trobats
+                </div>
+                {onePieceResult.arcs && (
+                  <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>
+                    Arcs: {onePieceResult.arcs?.map(a => a.arc).join(', ')}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {onePieceResult?.error && (
+              <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', padding: '1rem' }}>
+                <div style={{ color: '#ef4444', fontWeight: '600' }}>
+                  ✗ Error: {onePieceResult.error}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* BBC Catalog Sync Section */}
           <div style={{ marginTop: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1.5rem' }}>
