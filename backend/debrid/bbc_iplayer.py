@@ -81,19 +81,21 @@ class BBCiPlayerClient:
 
         Exemples:
         - https://www.bbc.co.uk/iplayer/episode/m0025643/one-piece-whole-cake-island
+        - https://www.bbc.co.uk/iplayer/episode/m0021ys8
         - m0025643
+        - m0021ys8
         """
-        # Si ja és un ID directe
-        if re.match(r'^[a-z]\d{7}$', url):
+        # Si ja és un ID directe (format: lletra + 7 caràcters alfanumèrics)
+        if re.match(r'^[a-z][a-z0-9]{6,8}$', url):
             return url
 
         # Extreure de la URL
-        match = re.search(r'/episode/([a-z]\d{7})', url)
+        match = re.search(r'/episode/([a-z][a-z0-9]{6,8})', url)
         if match:
             return match.group(1)
 
         # Format alternatiu
-        match = re.search(r'([a-z]\d{7})', url)
+        match = re.search(r'([a-z][a-z0-9]{6,8})', url)
         if match:
             return match.group(1)
 
