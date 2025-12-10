@@ -11538,9 +11538,21 @@ async def get_onepiece_arc_episodes(
                 if tmdb_response and "episodes" in tmdb_response:
                     episodes_in_season = len(tmdb_response["episodes"])
                     episodes_added = 0
+
+                    # Detectar si TMDB usa numeració absoluta o relativa
+                    # One Piece a TMDB usa numeració ABSOLUTA (ep 62, 63... no 1, 2...)
+                    first_ep_num = tmdb_response["episodes"][0]["episode_number"] if tmdb_response["episodes"] else 1
+                    uses_absolute = first_ep_num >= season_start
+
                     for ep in tmdb_response["episodes"]:
-                        # Calcular número d'episodi absolut
-                        absolute_ep = season_start + ep["episode_number"] - 1
+                        ep_num = ep["episode_number"]
+
+                        if uses_absolute:
+                            # Numeració absoluta (One Piece) - usar directament
+                            absolute_ep = ep_num
+                        else:
+                            # Numeració relativa (1-based per temporada)
+                            absolute_ep = season_start + ep_num - 1
 
                         # Filtrar només episodis dins l'arc
                         if start_ep <= absolute_ep <= end_ep:
