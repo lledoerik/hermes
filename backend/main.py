@@ -12413,9 +12413,11 @@ async def import_all_bbc_to_mapping(
 
     Procés:
     1. Escaneja el catàleg de BBC iPlayer (si scan_first=True)
-    2. Fa matching amb TMDB per cada programa
+    2. Fa matching amb TMDB per cada programa (si scan_first=True)
     3. Per sèries: obté tots els episodis i els mapa
     4. Guarda tot al sistema de mapping
+
+    Si scan_first=False, espera rebre els programes ja matched al body.
 
     ATENCIÓ: Aquesta operació pot trigar bastant (10-30 minuts).
     """
@@ -12455,8 +12457,10 @@ async def import_all_bbc_to_mapping(
     }
 
     try:
-        # Pas 1: Escanejar catàleg
+        matched = []
+
         if scan_first:
+            # Pas 1: Escanejar catàleg
             logger.info("Pas 1: Escanejant catàleg de BBC iPlayer...")
             scanner = BBCCatalogScanner()
             catalog = await scanner.scan_full_catalog()
@@ -12486,22 +12490,30 @@ async def import_all_bbc_to_mapping(
 
             results["scanned_programs"] = len(all_programs)
             logger.info(f"Trobats {len(all_programs)} programes")
+
+            # Pas 2: Matching amb TMDB
+            logger.info("Pas 2: Fent matching amb TMDB...")
+            matcher = BBCTMDBMatcher(tmdb_key)
+            match_result = await matcher.match_all_programs(all_programs, min_confidence=min_confidence)
+
+            matched = match_result.get("matched", [])
+            results["matched_programs"] = len(matched)
+            results["skipped_low_confidence"] = [
+                {"title": p["bbc_title"], "confidence": p.get("confidence", 0)}
+                for p in match_result.get("low_confidence", [])
+            ]
+
+            logger.info(f"Matched {len(matched)} programes amb TMDB")
         else:
-            raise HTTPException(status_code=400, detail="scan_first=False no suportat encara")
-
-        # Pas 2: Matching amb TMDB
-        logger.info("Pas 2: Fent matching amb TMDB...")
-        matcher = BBCTMDBMatcher(tmdb_key)
-        match_result = await matcher.match_all_programs(all_programs, min_confidence=min_confidence)
-
-        matched = match_result.get("matched", [])
-        results["matched_programs"] = len(matched)
-        results["skipped_low_confidence"] = [
-            {"title": p["bbc_title"], "confidence": p.get("confidence", 0)}
-            for p in match_result.get("low_confidence", [])
-        ]
-
-        logger.info(f"Matched {len(matched)} programes amb TMDB")
+            # Programes ja matchejats enviats des del frontend
+            try:
+                body = await request.json()
+                matched = body.get("programs", [])
+                results["matched_programs"] = len(matched)
+                logger.info(f"Rebuts {len(matched)} programes ja matchejats")
+            except Exception as e:
+                logger.error(f"Error llegint body: {e}")
+                raise HTTPException(status_code=400, detail="Cal enviar programes al body amb scan_first=False")
 
         # Pas 3: Importar al mapping
         logger.info("Pas 3: Important al sistema de mapping...")
