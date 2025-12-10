@@ -11492,8 +11492,11 @@ async def get_onepiece_arc_episodes(
     start_ep = arc.tmdb_start
     end_ep = min(arc.tmdb_end, 2000)  # Cap per evitar problemes
 
+    logger.info(f"[OnePiece] Loading arc {arc_index} ({arc.name}): episodes {start_ep}-{end_ep}")
+
     # Obtenir les temporades TMDB que cobreixen aquest arc
     seasons_needed = get_seasons_for_arc_range(start_ep, end_ep)
+    logger.info(f"[OnePiece] Seasons needed for arc: {seasons_needed}")
 
     if not seasons_needed:
         return {
@@ -11514,9 +11517,11 @@ async def get_onepiece_arc_episodes(
                 None
             )
             if not season_info:
+                logger.warning(f"[OnePiece] Season {season_num} not found in TMDB_SEASON_MAPPING")
                 continue
 
             season_start = season_info[1]
+            logger.info(f"[OnePiece] Fetching TMDB season {season_num} (absolute start: {season_start})")
 
             # Obtenir episodis de TMDB
             tmdb_response = await fetch_tmdb(
@@ -11524,6 +11529,8 @@ async def get_onepiece_arc_episodes(
             )
 
             if tmdb_response and "episodes" in tmdb_response:
+                episodes_in_season = len(tmdb_response["episodes"])
+                episodes_added = 0
                 for ep in tmdb_response["episodes"]:
                     # Calcular número d'episodi absolut
                     absolute_ep = season_start + ep["episode_number"] - 1
@@ -11542,13 +11549,18 @@ async def get_onepiece_arc_episodes(
                             "tmdb_season": season_num,
                             "tmdb_episode": ep["episode_number"]
                         })
+                        episodes_added += 1
+                logger.info(f"[OnePiece] Season {season_num}: {episodes_in_season} episodes fetched, {episodes_added} added to arc")
+            else:
+                logger.warning(f"[OnePiece] No episodes in TMDB response for season {season_num}")
 
         except Exception as e:
-            logger.error(f"Error fetching season {season_num}: {e}")
+            logger.error(f"[OnePiece] Error fetching season {season_num}: {e}")
             continue
 
     # Ordenar per número d'episodi absolut
     all_episodes.sort(key=lambda x: x["episode_number"])
+    logger.info(f"[OnePiece] Total episodes for arc {arc.name}: {len(all_episodes)}")
 
     return {
         "status": "success",
