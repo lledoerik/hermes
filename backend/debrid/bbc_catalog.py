@@ -4,52 +4,40 @@ BBC iPlayer Catalog Scanner
 Escaneja el catàleg complet de BBC iPlayer i fa matching amb TMDB
 per crear el mapping automàticament.
 
-Categories principals de BBC iPlayer:
-- Films (pel·lícules)
-- Drama
-- Comedy
-- Entertainment
-- Documentaries
-- etc.
+Utilitza l'API interna de BBC iPlayer (ibl.api.bbc.co.uk) per obtenir
+el catàleg complet en format JSON.
 """
 
 import asyncio
 import logging
 import re
+import json
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from datetime import datetime
 
 import httpx
-from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
-# URLs de categories de BBC iPlayer
-BBC_IPLAYER_BASE = "https://www.bbc.co.uk/iplayer"
-BBC_CATEGORIES = {
-    "films": f"{BBC_IPLAYER_BASE}/categories/films/featured",
-    "films_all": f"{BBC_IPLAYER_BASE}/categories/films/all",
-    "drama": f"{BBC_IPLAYER_BASE}/categories/drama-and-soaps/featured",
-    "drama_all": f"{BBC_IPLAYER_BASE}/categories/drama-and-soaps/all",
-    "comedy": f"{BBC_IPLAYER_BASE}/categories/comedy/featured",
-    "comedy_all": f"{BBC_IPLAYER_BASE}/categories/comedy/all",
-    "entertainment": f"{BBC_IPLAYER_BASE}/categories/entertainment/featured",
-    "documentary": f"{BBC_IPLAYER_BASE}/categories/documentaries/featured",
-    "documentary_all": f"{BBC_IPLAYER_BASE}/categories/documentaries/all",
-    "lifestyle": f"{BBC_IPLAYER_BASE}/categories/lifestyle/featured",
-    "music": f"{BBC_IPLAYER_BASE}/categories/music/featured",
-    "news": f"{BBC_IPLAYER_BASE}/categories/news/featured",
-    "science": f"{BBC_IPLAYER_BASE}/categories/science-and-nature/featured",
-    "sport": f"{BBC_IPLAYER_BASE}/categories/sport/featured",
-    "children": f"{BBC_IPLAYER_BASE}/categories/cbbc/featured",
-    "cbeebies": f"{BBC_IPLAYER_BASE}/categories/cbeebies/featured",
-    "signed": f"{BBC_IPLAYER_BASE}/categories/signed/featured",
-    "audio_described": f"{BBC_IPLAYER_BASE}/categories/audio-described/featured",
-}
+# BBC iPlayer Internal API
+BBC_API_BASE = "https://ibl.api.bbc.co.uk/ibl/v1"
 
-# A-Z listing URLs
-BBC_AZ_BASE = f"{BBC_IPLAYER_BASE}/a-z"
+# Categories disponibles a BBC iPlayer
+BBC_CATEGORIES = {
+    "films": "film",
+    "drama": "drama-and-soaps",
+    "comedy": "comedy",
+    "entertainment": "entertainment",
+    "documentaries": "documentaries",
+    "lifestyle": "lifestyle",
+    "music": "music",
+    "news": "news",
+    "science": "science-and-nature",
+    "sport": "sport",
+    "cbbc": "cbbc",
+    "cbeebies": "cbeebies",
+}
 
 
 @dataclass
@@ -62,137 +50,176 @@ class BBCProgram:
     is_series: bool = False
     synopsis: Optional[str] = None
     thumbnail: Optional[str] = None
-    episodes_url: Optional[str] = None  # URL per obtenir episodis (si és sèrie)
+    episodes_url: Optional[str] = None
+    type: Optional[str] = None  # "episode", "series", "brand", "film"
 
 
 class BBCCatalogScanner:
     """
-    Escaneja el catàleg de BBC iPlayer per descobrir tot el contingut disponible.
+    Escaneja el catàleg de BBC iPlayer utilitzant l'API interna.
     """
 
     def __init__(self):
         self.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "application/json",
             "Accept-Language": "en-GB,en;q=0.5",
         }
         self._programs_cache: Dict[str, BBCProgram] = {}
 
-    async def _fetch_page(self, url: str) -> Optional[str]:
-        """Fetch a page from BBC iPlayer"""
+    async def _fetch_json(self, url: str) -> Optional[Dict]:
+        """Fetch JSON from BBC API"""
         try:
             async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
                 response = await client.get(url, headers=self.headers)
                 if response.status_code == 200:
-                    return response.text
+                    return response.json()
                 else:
-                    logger.warning(f"BBC returned {response.status_code} for {url}")
+                    logger.warning(f"BBC API returned {response.status_code} for {url}")
                     return None
         except Exception as e:
             logger.error(f"Error fetching {url}: {e}")
             return None
 
-    def _extract_programs_from_html(self, html: str, is_film_category: bool = False) -> List[BBCProgram]:
+    def _parse_programme(self, item: Dict, is_film_category: bool = False) -> Optional[BBCProgram]:
+        """Parse a programme from API response"""
+        try:
+            # Extreure informació bàsica
+            programme_id = item.get("id") or item.get("pid") or item.get("tleo_id")
+            if not programme_id:
+                return None
+
+            title = item.get("title") or item.get("programme", {}).get("title", "")
+            if not title:
+                return None
+
+            # Determinar tipus
+            item_type = item.get("type", "").lower()
+            is_film = is_film_category or item_type == "film" or item.get("master_brand", {}).get("id") == "bbc_films"
+            is_series = item_type in ("series", "brand", "episode") and not is_film
+
+            # Construir URL
+            if item_type == "episode" or "/episode/" in str(item.get("href", "")):
+                url = f"https://www.bbc.co.uk/iplayer/episode/{programme_id}"
+            else:
+                url = f"https://www.bbc.co.uk/iplayer/episodes/{programme_id}"
+
+            # Sinopsi
+            synopsis = (
+                item.get("synopsis") or
+                item.get("synopses", {}).get("medium") or
+                item.get("synopses", {}).get("short") or
+                item.get("programme", {}).get("synopses", {}).get("medium")
+            )
+
+            # Thumbnail
+            images = item.get("images", {}) or item.get("image", {})
+            if isinstance(images, dict):
+                thumbnail = images.get("standard") or images.get("promotional") or images.get("default")
+                if isinstance(thumbnail, dict):
+                    thumbnail = thumbnail.get("url")
+            else:
+                thumbnail = None
+
+            return BBCProgram(
+                programme_id=programme_id,
+                title=title,
+                url=url,
+                is_film=is_film,
+                is_series=is_series,
+                synopsis=synopsis,
+                thumbnail=thumbnail,
+                episodes_url=url if is_series else None,
+                type=item_type
+            )
+        except Exception as e:
+            logger.debug(f"Error parsing programme: {e}")
+            return None
+
+    async def scan_category_api(self, category_id: str, is_film: bool = False) -> List[BBCProgram]:
         """
-        Extreu programes d'una pàgina HTML de BBC iPlayer.
+        Escaneja una categoria utilitzant l'API de BBC.
         """
         programs = []
-        soup = BeautifulSoup(html, 'html.parser')
+        page = 1
+        per_page = 200
 
-        # BBC utilitza diverses estructures, intentem trobar-les totes
+        while True:
+            url = f"{BBC_API_BASE}/categories/{category_id}/programmes?per_page={per_page}&page={page}"
+            logger.info(f"Scanning BBC API: {url}")
 
-        # Patró 1: Cards de programes
-        cards = soup.find_all('div', {'class': re.compile(r'content-item|programme|card', re.I)})
+            data = await self._fetch_json(url)
+            if not data:
+                break
 
-        for card in cards:
-            try:
-                # Buscar link al programa
-                link = card.find('a', href=re.compile(r'/iplayer/(episode|episodes)/'))
-                if not link:
-                    continue
+            # Extreure programes
+            category_programmes = data.get("category_programmes", {})
+            elements = category_programmes.get("elements", [])
 
-                href = link.get('href', '')
+            if not elements:
+                # Provar format alternatiu
+                elements = data.get("programmes", []) or data.get("elements", [])
 
-                # Extreure programme_id
-                match = re.search(r'/iplayer/(?:episode|episodes)/([a-z0-9]+)', href)
-                if not match:
-                    continue
+            logger.info(f"Found {len(elements)} elements in page {page}")
 
-                programme_id = match.group(1)
+            for item in elements:
+                prog = self._parse_programme(item, is_film_category=is_film)
+                if prog and prog.programme_id not in self._programs_cache:
+                    programs.append(prog)
+                    self._programs_cache[prog.programme_id] = prog
 
-                # Evitar duplicats
-                if programme_id in self._programs_cache:
-                    continue
+            # Comprovar si hi ha més pàgines
+            total = category_programmes.get("count", 0) or data.get("total", 0)
+            if page * per_page >= total or len(elements) < per_page:
+                break
 
-                # Extreure títol
-                title_elem = card.find(['h2', 'h3', 'p', 'span'], {'class': re.compile(r'title|heading|name', re.I)})
-                title = title_elem.get_text(strip=True) if title_elem else link.get_text(strip=True)
-
-                if not title or len(title) < 2:
-                    continue
-
-                # Determinar si és episodi (sèrie) o pel·lícula
-                is_episode = '/episode/' in href
-                is_episodes = '/episodes/' in href
-
-                # Extreure sinopsi
-                synopsis_elem = card.find(['p', 'span'], {'class': re.compile(r'synopsis|description|subtitle', re.I)})
-                synopsis = synopsis_elem.get_text(strip=True) if synopsis_elem else None
-
-                # Extreure thumbnail
-                img = card.find('img')
-                thumbnail = img.get('src') or img.get('data-src') if img else None
-
-                # Construir URL completa
-                full_url = f"https://www.bbc.co.uk{href}" if href.startswith('/') else href
-
-                program = BBCProgram(
-                    programme_id=programme_id,
-                    title=title,
-                    url=full_url,
-                    is_film=is_film_category or (is_episode and not is_episodes),
-                    is_series=is_episodes or (not is_film_category and not is_episode),
-                    synopsis=synopsis,
-                    thumbnail=thumbnail,
-                    episodes_url=full_url if is_episodes else None
-                )
-
-                programs.append(program)
-                self._programs_cache[programme_id] = program
-
-            except Exception as e:
-                logger.debug(f"Error parsing card: {e}")
-                continue
+            page += 1
+            await asyncio.sleep(0.3)
 
         return programs
 
-    async def scan_category(self, category_url: str, is_film: bool = False) -> List[BBCProgram]:
+    async def scan_az_api(self, letter: str) -> List[BBCProgram]:
         """
-        Escaneja una categoria de BBC iPlayer.
+        Escaneja una lletra de l'A-Z utilitzant l'API.
         """
-        logger.info(f"Scanning BBC category: {category_url}")
+        programs = []
+        page = 1
+        per_page = 200
 
-        html = await self._fetch_page(category_url)
-        if not html:
-            return []
+        # Normalitzar lletra
+        letter_param = letter.lower() if letter != "0-9" else "0-9"
 
-        programs = self._extract_programs_from_html(html, is_film_category=is_film)
-        logger.info(f"Found {len(programs)} programs in category")
+        while True:
+            url = f"{BBC_API_BASE}/atoz/{letter_param}/programmes?per_page={per_page}&page={page}"
+            logger.info(f"Scanning BBC A-Z API: {url}")
 
-        return programs
+            data = await self._fetch_json(url)
+            if not data:
+                break
 
-    async def scan_az_letter(self, letter: str) -> List[BBCProgram]:
-        """
-        Escaneja una lletra del llistat A-Z de BBC iPlayer.
-        """
-        url = f"{BBC_AZ_BASE}/{letter.lower()}"
-        logger.info(f"Scanning BBC A-Z: {letter}")
+            # Extreure programes
+            atoz_programmes = data.get("atoz_programmes", {})
+            elements = atoz_programmes.get("elements", [])
 
-        html = await self._fetch_page(url)
-        if not html:
-            return []
+            if not elements:
+                elements = data.get("programmes", []) or data.get("elements", [])
 
-        programs = self._extract_programs_from_html(html)
+            logger.info(f"Found {len(elements)} elements for letter {letter}, page {page}")
+
+            for item in elements:
+                prog = self._parse_programme(item)
+                if prog and prog.programme_id not in self._programs_cache:
+                    programs.append(prog)
+                    self._programs_cache[prog.programme_id] = prog
+
+            # Comprovar paginació
+            total = atoz_programmes.get("count", 0) or data.get("total", 0)
+            if page * per_page >= total or len(elements) < per_page:
+                break
+
+            page += 1
+            await asyncio.sleep(0.3)
+
         return programs
 
     async def scan_all_az(self, progress_callback=None) -> List[BBCProgram]:
@@ -206,10 +233,8 @@ class BBCCatalogScanner:
             if progress_callback:
                 progress_callback(f"Scanning A-Z: {letter.upper()}", i / len(letters) * 100)
 
-            programs = await self.scan_az_letter(letter)
+            programs = await self.scan_az_api(letter)
             all_programs.extend(programs)
-
-            # Petit delay per no sobrecarregar BBC
             await asyncio.sleep(0.5)
 
         return all_programs
@@ -221,15 +246,13 @@ class BBCCatalogScanner:
         all_programs = []
         categories = list(BBC_CATEGORIES.items())
 
-        for i, (name, url) in enumerate(categories):
+        for i, (name, category_id) in enumerate(categories):
             if progress_callback:
                 progress_callback(f"Scanning category: {name}", i / len(categories) * 100)
 
-            is_film = 'film' in name.lower()
-            programs = await self.scan_category(url, is_film=is_film)
+            is_film = name == "films"
+            programs = await self.scan_category_api(category_id, is_film=is_film)
             all_programs.extend(programs)
-
-            # Petit delay per no sobrecarregar BBC
             await asyncio.sleep(0.5)
 
         return all_programs
