@@ -838,6 +838,20 @@
   object-fit: cover;
 }
 
+/* Hover overlay for better play icon visibility */
+.episode-thumbnail::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0);
+  transition: background 0.2s ease;
+  z-index: 1;
+}
+
+.episode-card:hover .episode-thumbnail::before {
+  background: rgba(0, 0, 0, 0.5);
+}
+
 .episode-number {
   position: absolute;
   top: 50%;
@@ -858,6 +872,7 @@
   justify-content: center;
   transition: transform 0.2s ease;
   color: white;
+  z-index: 2;
 }
 
 .episode-play-icon svg {
@@ -885,26 +900,10 @@
   background: var(--color-primary);
 }
 
-.episode-meta {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
-  padding: 8px 12px 0;
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.episode-meta .rating {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: #ffc107;
-}
-
 .episode-info {
   flex: 1;
   min-width: 0;
-  padding: 8px 12px 12px;
+  padding: 10px 12px 12px;
   display: flex;
   flex-direction: column;
 }
@@ -916,6 +915,16 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.episode-duration {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.5);
+  flex-shrink: 0;
 }
 
 .episode-overview {
@@ -1232,17 +1241,17 @@
     aspect-ratio: 16 / 9;
   }
 
-  .episode-meta {
-    padding: 6px 10px 0;
-    font-size: 11px;
-  }
-
   .episode-info {
-    padding: 6px 10px 10px;
+    padding: 8px 10px 10px;
   }
 
   .episode-title {
     font-size: 13px;
+    gap: 6px;
+  }
+
+  .episode-duration {
+    font-size: 11px;
   }
 
   .episode-overview {
