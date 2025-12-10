@@ -10174,11 +10174,7 @@ async def sync_bbc_catalog_background():
 
     try:
         # Verificar TMDB API key
-        tmdb_key = None
-        tmdb_key_file = "/home/user/hermes/storage/tmdb_key.txt"
-        if os.path.exists(tmdb_key_file):
-            with open(tmdb_key_file, 'r') as f:
-                tmdb_key = f.read().strip()
+        tmdb_key = get_tmdb_api_key()
 
         if not tmdb_key:
             logger.warning("sync_bbc_catalog_background: TMDB key no configurada, saltant sincronització BBC")
@@ -12346,16 +12342,12 @@ async def match_bbc_catalog_with_tmdb(
     from backend.debrid.bbc_catalog import BBCCatalogScanner, BBCTMDBMatcher, BBCProgram
 
     # Obtenir TMDB API key
-    tmdb_key = None
-    tmdb_key_file = "/home/user/hermes/storage/tmdb_key.txt"
-    if os.path.exists(tmdb_key_file):
-        with open(tmdb_key_file, 'r') as f:
-            tmdb_key = f.read().strip()
+    tmdb_key = get_tmdb_api_key()
 
     if not tmdb_key:
         raise HTTPException(
             status_code=400,
-            detail="TMDB API key no configurada. Configura-la a storage/tmdb_key.txt"
+            detail="TMDB API key no configurada"
         )
 
     try:

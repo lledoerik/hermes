@@ -25,7 +25,7 @@ BBC_API_BASE = "https://ibl.api.bbc.co.uk/ibl/v1"
 
 # Categories disponibles a BBC iPlayer
 BBC_CATEGORIES = {
-    "films": "film",
+    "films": "films",
     "drama": "drama-and-soaps",
     "comedy": "comedy",
     "entertainment": "entertainment",
