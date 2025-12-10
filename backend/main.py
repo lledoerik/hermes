@@ -11532,11 +11532,8 @@ async def get_onepiece_arc_episodes(
                 season_start = season_info[1]
                 logger.info(f"[OnePiece] Fetching TMDB season {season_num} (absolute start: {season_start})")
 
-                # Obtenir episodis de TMDB usant TMDBClient
-                tmdb_response = await tmdb_client._request(
-                    f"/tv/{ONE_PIECE_TMDB_ID}/season/{season_num}",
-                    {"language": "ca-ES"}
-                )
+                # Usar el mètode existent que ja funciona
+                tmdb_response = await tmdb_client.get_tv_season_details(ONE_PIECE_TMDB_ID, season_num)
 
                 if tmdb_response and "episodes" in tmdb_response:
                     episodes_in_season = len(tmdb_response["episodes"])
@@ -11566,6 +11563,8 @@ async def get_onepiece_arc_episodes(
 
             except Exception as e:
                 logger.error(f"[OnePiece] Error fetching season {season_num}: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
                 continue
     finally:
         await tmdb_client.close()
