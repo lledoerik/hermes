@@ -1395,10 +1395,10 @@ function Details() {
 
                 <div className="episode-info">
                   <div className="episode-title">
+                    <span className="episode-name">{episode.episode_number}. {episode.name || `Episodi ${episode.episode_number}`}</span>
                     {(episode.duration || episode.runtime) && (
                       <span className="episode-duration">{formatDuration((episode.runtime || 0) * 60 || episode.duration)}</span>
                     )}
-                    {episode.episode_number}. {episode.name || `Episodi ${episode.episode_number}`}
                   </div>
                   {episode.overview && (
                     <div className="episode-overview">{episode.overview}</div>
