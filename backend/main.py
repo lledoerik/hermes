@@ -11977,11 +11977,11 @@ async def get_bbc_episode_stream(
         )
 
     client = BBCiPlayerClient()
-    upgrade_1080p = quality == "1080p"
+    quality_param = "1080" if quality == "1080p" else "best"
 
-    stream_url = await client.get_stream_url(programme_id, upgrade_1080p=upgrade_1080p)
+    stream_info = await client.get_stream_info(programme_id, quality=quality_param)
 
-    if not stream_url:
+    if not stream_info or not stream_info.url:
         raise HTTPException(
             status_code=503,
             detail="No s'ha pogut obtenir el stream de BBC"
@@ -11992,8 +11992,8 @@ async def get_bbc_episode_stream(
         "tmdb_id": tmdb_id,
         "episode": episode,
         "programme_id": programme_id,
-        "quality": quality,
-        "stream_url": stream_url
+        "quality": stream_info.quality or quality,
+        "stream_url": stream_info.url
     }
 
 
