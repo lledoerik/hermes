@@ -12806,7 +12806,7 @@ async def run_bbc_bulk_import(tmdb_key: str, min_confidence: float):
     global bbc_bulk_import_status
 
     try:
-        from backend.debrid.bbc_catalog import BBCTMDBMatcher, BBCProgram
+        from backend.debrid.bbc_catalog import BBCCatalogScanner, BBCTMDBMatcher, BBCProgram
         from backend.debrid.bbc_mapping import (
             import_bbc_episodes_with_metadata,
             set_bbc_mapping_for_content,
@@ -12814,25 +12814,26 @@ async def run_bbc_bulk_import(tmdb_key: str, min_confidence: float):
         )
         from backend.debrid import BBCiPlayerClient
 
-        # Phase 1: Scanning BBC catalog using yt-dlp (more robust than API)
+        # Phase 1: Scanning BBC catalog using API with cookies
         bbc_bulk_import_status["phase"] = "scanning"
         bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
-        logger.info("BBC Bulk Import: Fase 1 - Escanejant catàleg BBC iPlayer amb yt-dlp...")
+        logger.info("BBC Bulk Import: Fase 1 - Escanejant catàleg BBC iPlayer amb API (amb cookies)...")
 
-        bbc_client = BBCiPlayerClient()
+        scanner = BBCCatalogScanner()
 
         def update_scan_progress(msg, percent):
             bbc_bulk_import_status["current_program"] = msg
             bbc_bulk_import_status["progress_percent"] = int(percent * 0.2)  # 0-20%
             bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
 
-        catalog = await bbc_client.scan_full_catalog_ytdlp(progress_callback=update_scan_progress)
+        catalog = await scanner.scan_full_catalog(progress_callback=update_scan_progress)
 
         if not bbc_bulk_import_status["running"]:
             bbc_bulk_import_status["phase"] = "stopped"
             bbc_bulk_import_status["completed_at"] = datetime.now().isoformat()
             return
 
+        # Extract programs from catalog result
         all_programs = []
         for film in catalog.get("films", []):
             all_programs.append(BBCProgram(
@@ -12841,32 +12842,25 @@ async def run_bbc_bulk_import(tmdb_key: str, min_confidence: float):
                 url=film["url"],
                 is_film=True,
                 is_series=False,
-                synopsis=film.get("description"),
+                synopsis=film.get("synopsis"),
                 thumbnail=film.get("thumbnail")
             ))
         for series in catalog.get("series", []):
-            # Per sèries, construir URL d'episodis
-            series_url = series["url"]
-            if "/episode/" in series_url:
-                # Convertir URL d'episodi a URL de sèrie
-                prog_id = series["programme_id"]
-                series_url = f"https://www.bbc.co.uk/iplayer/episodes/{prog_id}"
-
             all_programs.append(BBCProgram(
                 programme_id=series["programme_id"],
                 title=series["title"],
                 url=series["url"],
                 is_film=False,
                 is_series=True,
-                synopsis=series.get("description"),
+                synopsis=series.get("synopsis"),
                 thumbnail=series.get("thumbnail"),
-                episodes_url=series_url
+                episodes_url=series.get("episodes_url") or series["url"]
             ))
 
         bbc_bulk_import_status["scanned_programs"] = len(all_programs)
         bbc_bulk_import_status["progress_percent"] = 20
         bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
-        logger.info(f"BBC Bulk Import: Trobats {len(all_programs)} programes")
+        logger.info(f"BBC Bulk Import: Trobats {len(all_programs)} programes (API result: {catalog.get('total_programs', 0)})")
 
         if not all_programs:
             bbc_bulk_import_status["phase"] = "completed"
