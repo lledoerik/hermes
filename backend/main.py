@@ -12847,6 +12847,189 @@ async def download_subtitle(file_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ============================================================================
+# 3CAT - Local One Piece files (Catalan dub)
+# ============================================================================
+
+# Path to local One Piece files - configure this
+THREECAT_ONEPIECE_PATH = os.environ.get("THREECAT_ONEPIECE_PATH", "/home/user/Videos/OnePiece")
+
+def get_3cat_episode_path(episode: int) -> Optional[str]:
+    """
+    Find the local file for a One Piece episode.
+    Files are in format: 01x{episode} - {title}.mp4
+    Organized in 6 season folders.
+    """
+    import glob
+
+    if not os.path.exists(THREECAT_ONEPIECE_PATH):
+        return None
+
+    # Episode format: 01x001, 01x002, ... 01x516
+    episode_pattern = f"01x{episode:03d}"
+
+    # Search in all subdirectories (seasons)
+    for season_dir in sorted(glob.glob(os.path.join(THREECAT_ONEPIECE_PATH, "*"))):
+        if os.path.isdir(season_dir):
+            # Look for files matching the pattern
+            for filepath in glob.glob(os.path.join(season_dir, f"{episode_pattern}*")):
+                if filepath.endswith(('.mp4', '.mkv', '.avi')):
+                    return filepath
+
+    # Also check root directory
+    for filepath in glob.glob(os.path.join(THREECAT_ONEPIECE_PATH, f"{episode_pattern}*")):
+        if filepath.endswith(('.mp4', '.mkv', '.avi')):
+            return filepath
+
+    return None
+
+
+@app.get("/api/3cat/onepiece/check/{episode}")
+async def check_3cat_onepiece_availability(
+    request: Request,
+    episode: int
+):
+    """
+    Check if a One Piece episode is available locally (3CAT Catalan dub)
+    """
+    require_auth(request)
+
+    filepath = get_3cat_episode_path(episode)
+
+    if filepath and os.path.exists(filepath):
+        filename = os.path.basename(filepath)
+        return {
+            "available": True,
+            "episode": episode,
+            "filename": filename,
+            "language": "Català"
+        }
+
+    return {
+        "available": False,
+        "episode": episode
+    }
+
+
+@app.get("/api/3cat/onepiece/stream/{episode}")
+async def get_3cat_onepiece_stream(
+    request: Request,
+    episode: int
+):
+    """
+    Get stream URL for a local One Piece episode
+    """
+    require_auth(request)
+
+    filepath = get_3cat_episode_path(episode)
+
+    if not filepath or not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail=f"Episode {episode} not found locally")
+
+    # Return a URL that points to our local file streaming endpoint
+    filename = os.path.basename(filepath)
+    encoded_path = urllib.parse.quote(filepath)
+
+    return {
+        "url": f"/api/3cat/video?path={encoded_path}",
+        "filename": filename,
+        "episode": episode,
+        "language": "Català",
+        "quality": "HD"
+    }
+
+
+@app.get("/api/3cat/video")
+async def stream_3cat_video(
+    request: Request,
+    path: str
+):
+    """
+    Stream a local video file with range support
+    """
+    require_auth(request)
+
+    filepath = urllib.parse.unquote(path)
+
+    # Security check - only allow files from THREECAT_ONEPIECE_PATH
+    if not filepath.startswith(THREECAT_ONEPIECE_PATH):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="File not found")
+
+    file_size = os.path.getsize(filepath)
+
+    # Handle range requests for video seeking
+    range_header = request.headers.get("range")
+
+    if range_header:
+        # Parse range header
+        range_match = re.match(r"bytes=(\d+)-(\d*)", range_header)
+        if range_match:
+            start = int(range_match.group(1))
+            end = int(range_match.group(2)) if range_match.group(2) else file_size - 1
+
+            if start >= file_size:
+                raise HTTPException(status_code=416, detail="Range not satisfiable")
+
+            end = min(end, file_size - 1)
+            content_length = end - start + 1
+
+            def iter_file():
+                with open(filepath, "rb") as f:
+                    f.seek(start)
+                    remaining = content_length
+                    while remaining > 0:
+                        chunk_size = min(8192, remaining)
+                        chunk = f.read(chunk_size)
+                        if not chunk:
+                            break
+                        remaining -= len(chunk)
+                        yield chunk
+
+            # Determine content type
+            content_type = "video/mp4"
+            if filepath.endswith(".mkv"):
+                content_type = "video/x-matroska"
+            elif filepath.endswith(".avi"):
+                content_type = "video/x-msvideo"
+
+            return StreamingResponse(
+                iter_file(),
+                status_code=206,
+                media_type=content_type,
+                headers={
+                    "Content-Range": f"bytes {start}-{end}/{file_size}",
+                    "Accept-Ranges": "bytes",
+                    "Content-Length": str(content_length),
+                    "Access-Control-Allow-Origin": "*"
+                }
+            )
+
+    # No range header - return full file
+    def iter_full_file():
+        with open(filepath, "rb") as f:
+            while chunk := f.read(8192):
+                yield chunk
+
+    content_type = "video/mp4"
+    if filepath.endswith(".mkv"):
+        content_type = "video/x-matroska"
+    elif filepath.endswith(".avi"):
+        content_type = "video/x-msvideo"
+
+    return StreamingResponse(
+        iter_full_file(),
+        media_type=content_type,
+        headers={
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(file_size),
+            "Access-Control-Allow-Origin": "*"
+        }
+    )
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(

@@ -94,6 +94,13 @@ const VidsrcIcon = () => (
   </svg>
 );
 
+// 3CAT icon (Catalan TV)
+const ThreeCatIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+  </svg>
+);
+
 // Stream/Torrent icon (river/stream flowing - for source switching)
 // OPCIÓ A: Tres corrents d'aigua (com cascada/torrent)
 /*
@@ -386,6 +393,11 @@ function DebridPlayer() {
       return `https://vidsrc.to/embed/tv/${tmdbId}/${season}/${episode}`;
     }
   }, [type, tmdbId, season, episode]);
+
+  // 3CAT local files state (Catalan dub - One Piece only)
+  const [threeCatAvailable, setThreeCatAvailable] = useState(false);
+  const [threeCatStream, setThreeCatStream] = useState(null);
+  const [loadingThreeCat, setLoadingThreeCat] = useState(false);
 
   // Episode navigation state
   const [showEpisodesList, setShowEpisodesList] = useState(false);
@@ -955,6 +967,53 @@ function DebridPlayer() {
     return null;
   }, [tmdbId, type, episode, bbcAvailable, hasBbcMapping, bbcContentInfo, isOnePiece]);
 
+  // 3CAT functions (local One Piece files in Catalan)
+  const check3CatAvailability = useCallback(async () => {
+    // 3CAT is only for One Piece
+    if (!isOnePiece || !episode) {
+      setThreeCatAvailable(false);
+      return false;
+    }
+
+    try {
+      const response = await axios.get(`${API_URL}/api/3cat/onepiece/check/${episode}`);
+      if (response.data.available) {
+        setThreeCatAvailable(true);
+        return true;
+      }
+    } catch (err) {
+      console.log('3CAT check failed:', err.message);
+    }
+
+    setThreeCatAvailable(false);
+    return false;
+  }, [isOnePiece, episode]);
+
+  const load3CatStream = useCallback(async () => {
+    if (!isOnePiece || !episode || !threeCatAvailable) return null;
+
+    setLoadingThreeCat(true);
+    try {
+      const response = await axios.get(`${API_URL}/api/3cat/onepiece/stream/${episode}`);
+      if (response.data.url) {
+        const streamData = {
+          url: `${API_URL}${response.data.url}`,
+          filename: response.data.filename,
+          language: response.data.language,
+          quality: response.data.quality
+        };
+        setThreeCatStream(streamData);
+        return streamData;
+      }
+    } catch (err) {
+      console.error('Error loading 3CAT stream:', err);
+      setThreeCatAvailable(false);
+    } finally {
+      setLoadingThreeCat(false);
+    }
+    return null;
+  }, [isOnePiece, episode, threeCatAvailable]);
+
   const changeSource = useCallback(async (source) => {
     if (source === activeSource) {
       setShowSourceMenu(false);
@@ -973,7 +1032,31 @@ function DebridPlayer() {
       setShowVidsrc(false);
     }
 
-    if (source === 'bbc') {
+    if (source === '3cat') {
+      // Switch to 3CAT (local Catalan dub)
+      if (!threeCatStream) {
+        setLoadingThreeCat(true);
+        try {
+          const stream = await load3CatStream();
+          if (stream) {
+            setStreamUrl(stream.url);
+            setActiveSource('3cat');
+          } else {
+            setError('No s\'ha pogut carregar 3CAT');
+            setTimeout(() => setError(null), 3000);
+          }
+        } catch (err) {
+          console.error('Error loading 3CAT stream:', err);
+          setError('Error carregant 3CAT');
+          setTimeout(() => setError(null), 3000);
+        } finally {
+          setLoadingThreeCat(false);
+        }
+      } else {
+        setStreamUrl(threeCatStream.url);
+        setActiveSource('3cat');
+      }
+    } else if (source === 'bbc') {
       // Switch to BBC
       if (!bbcStream) {
         setLoadingBbc(true);
@@ -1546,7 +1629,30 @@ function DebridPlayer() {
       // Check debrid status first
       const isConfigured = await checkDebridStatus();
 
-      // Check BBC availability first for ANY content (prioritary source)
+      // Priority 1: Check 3CAT availability (One Piece only - local Catalan dub)
+      const threeCatIsAvailable = await check3CatAvailability();
+      if (threeCatIsAvailable) {
+        setLoadingThreeCat(true);
+        const threeCatData = await load3CatStream();
+        setLoadingThreeCat(false);
+
+        if (threeCatData) {
+          // 3CAT stream loaded successfully - use it as primary
+          setStreamUrl(threeCatData.url);
+          setActiveSource('3cat');
+          setDebridConfigured(true);
+          // Still load torrents in background as fallback
+          if (isConfigured) {
+            searchTorrents();
+          }
+          // Also check BBC availability in background
+          checkBbcAvailability();
+          setLoadingTorrents(false);
+          return;
+        }
+      }
+
+      // Priority 2: Check BBC availability for ANY content
       // This works for: One Piece, any imported BBC series, BBC movies
       const bbcIsAvailable = await checkBbcAvailability();
       if (bbcIsAvailable) {
@@ -1569,7 +1675,7 @@ function DebridPlayer() {
         }
       }
 
-      // Default: Load torrents (BBC not available)
+      // Default: Load torrents (3CAT and BBC not available)
       if (isConfigured) {
         searchTorrents();
       } else {
@@ -1621,8 +1727,34 @@ function DebridPlayer() {
       nextEpisodePreloadedRef.current = false;
       // Reset qualitats desactivades
       setDisabledQualities(new Set());
+      // Reset 3CAT stream for new episode
+      setThreeCatStream(null);
 
-      // Check BBC availability first (priority source)
+      // Priority 1: Check 3CAT availability (One Piece only - local Catalan dub)
+      const threeCatIsAvailable = await check3CatAvailability();
+      if (isCancelled) return;
+
+      if (threeCatIsAvailable) {
+        setLoadingThreeCat(true);
+        const threeCatData = await load3CatStream();
+        if (isCancelled) return;
+        setLoadingThreeCat(false);
+
+        if (threeCatData) {
+          // 3CAT stream loaded successfully - use it as primary
+          setStreamUrl(threeCatData.url);
+          setActiveSource('3cat');
+          // Still load torrents in background as fallback
+          if (debridConfigured) {
+            searchTorrents();
+          }
+          // Also check BBC availability in background
+          checkBbcAvailability();
+          return;
+        }
+      }
+
+      // Priority 2: Check BBC availability (priority source)
       const bbcIsAvailable = await checkBbcAvailability();
       if (isCancelled) return;
 
@@ -1650,7 +1782,7 @@ function DebridPlayer() {
         setActiveSource('torrentio');
       }
 
-      // Fallback: Load torrents if BBC not available or failed
+      // Fallback: Load torrents if 3CAT and BBC not available or failed
       if (debridConfigured) {
         searchTorrents();
       }
@@ -2033,6 +2165,13 @@ function DebridPlayer() {
           {!isDirectMode && activeSource === 'bbc' && bbcStream?.quality && (
             <span className="quality-badge direct-quality">{bbcStream.quality}</span>
           )}
+          {/* 3CAT source badge */}
+          {!isDirectMode && activeSource === '3cat' && (
+            <span className="source-badge threecat-badge">3CAT</span>
+          )}
+          {!isDirectMode && activeSource === '3cat' && threeCatStream?.language && (
+            <span className="quality-badge direct-quality">{threeCatStream.language}</span>
+          )}
           {/* VidSrc source badge */}
           {!isDirectMode && activeSource === 'vidsrc' && (
             <span className="source-badge vidsrc-badge">VidSrc</span>
@@ -2234,6 +2373,25 @@ function DebridPlayer() {
               </button>
             </div>
             <div className="quality-menu-content">
+              {/* 3CAT option - only for One Piece, shown first as priority */}
+              {isOnePiece && (
+                <div
+                  className={`quality-option source-option ${activeSource === '3cat' ? 'active' : ''} ${!threeCatAvailable ? 'disabled' : ''}`}
+                  onClick={() => { if (threeCatAvailable) { changeSource('3cat'); setShowSourceMenu(false); }}}
+                >
+                  <span className="source-icon"><ThreeCatIcon /></span>
+                  <div className="source-info">
+                    <span className="source-name">3CAT</span>
+                    <span className="source-detail">Català (local)</span>
+                  </div>
+                  {loadingThreeCat && <span className="loading-spinner-small"></span>}
+                  {threeCatAvailable && !loadingThreeCat && <span className="source-badge-quality">CAT</span>}
+                  {!threeCatAvailable && !loadingThreeCat && (
+                    <span className="source-detail unavailable">No disponible</span>
+                  )}
+                </div>
+              )}
+
               {/* BBC iPlayer option - only show when BBC mapping exists */}
               {hasBbcMapping && (
                 <div
