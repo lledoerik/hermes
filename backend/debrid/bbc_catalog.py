@@ -464,18 +464,37 @@ class TMDBBBCScanner:
     async def find_bbc_programme_id(self, tmdb_id: int, title: str, content_type: str) -> Optional[str]:
         """
         Intenta trobar el BBC programme ID per un títol de TMDB.
-        Cerca a l'API de BBC iPlayer pel títol.
+        Prova múltiples mètodes de cerca.
         """
+        cookies = get_bbc_cookies_dict()
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "application/json"
+        }
+
+        # Mètode 1: Search suggest API
+        pid = await self._search_bbc_suggest(title, cookies, headers)
+        if pid:
+            return pid
+
+        # Mètode 2: Search API complet
+        pid = await self._search_bbc_full(title, cookies, headers)
+        if pid:
+            return pid
+
+        # Mètode 3: Cerca directa per A-Z (primera lletra del títol)
+        pid = await self._search_bbc_az(title, cookies, headers)
+        if pid:
+            return pid
+
+        logger.debug(f"Could not find BBC PID for '{title}' (TMDB: {tmdb_id})")
+        return None
+
+    async def _search_bbc_suggest(self, title: str, cookies: dict, headers: dict) -> Optional[str]:
+        """Cerca via suggest API"""
         try:
-            # Cercar a BBC iPlayer API pel títol
             search_url = f"{BBC_API_BASE}/search/suggest"
             params = {"q": title, "rights": "web", "api_key": "D2FgtcTxGqqIgLsfBWTJdrQh2tVdeaAp"}
-            cookies = get_bbc_cookies_dict()
-
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                "Accept": "application/json"
-            }
 
             async with httpx.AsyncClient(timeout=10.0, cookies=cookies) as client:
                 response = await client.get(search_url, params=params, headers=headers)
@@ -484,21 +503,106 @@ class TMDBBBCScanner:
                     data = response.json()
                     results = data.get("search_suggest", {}).get("results", [])
 
-                    # Buscar coincidència pel títol
-                    title_lower = title.lower()
-                    for result in results:
-                        result_title = (result.get("title") or "").lower()
-                        if result_title == title_lower or title_lower in result_title:
-                            pid = result.get("id") or result.get("pid") or result.get("tleo_id")
-                            if pid:
-                                return pid
-
-                    # Si no hi ha match exacte, retornar el primer resultat
                     if results:
-                        return results[0].get("id") or results[0].get("pid")
+                        # Buscar coincidència pel títol
+                        title_lower = title.lower()
+                        for result in results:
+                            result_title = (result.get("title") or "").lower()
+                            if result_title == title_lower or title_lower in result_title or result_title in title_lower:
+                                pid = result.get("id") or result.get("pid") or result.get("tleo_id")
+                                if pid:
+                                    logger.debug(f"Found via suggest: '{title}' -> {pid}")
+                                    return pid
+
+                        # Retornar el primer resultat si hi ha
+                        first = results[0]
+                        pid = first.get("id") or first.get("pid") or first.get("tleo_id")
+                        if pid:
+                            logger.debug(f"Found via suggest (first result): '{title}' -> {pid}")
+                            return pid
+                else:
+                    logger.debug(f"BBC suggest API returned {response.status_code} for '{title}'")
 
         except Exception as e:
-            logger.debug(f"Error finding BBC PID for '{title}': {e}")
+            logger.debug(f"Error in BBC suggest search for '{title}': {e}")
+
+        return None
+
+    async def _search_bbc_full(self, title: str, cookies: dict, headers: dict) -> Optional[str]:
+        """Cerca via search API complet"""
+        try:
+            search_url = f"{BBC_API_BASE}/search"
+            params = {
+                "q": title,
+                "rights": "web",
+                "page": 1,
+                "page_size": 10,
+                "api_key": "D2FgtcTxGqqIgLsfBWTJdrQh2tVdeaAp"
+            }
+
+            async with httpx.AsyncClient(timeout=10.0, cookies=cookies) as client:
+                response = await client.get(search_url, params=params, headers=headers)
+
+                if response.status_code == 200:
+                    data = response.json()
+                    # L'estructura pot variar
+                    results = (
+                        data.get("search", {}).get("results", []) or
+                        data.get("results", []) or
+                        data.get("programmes", [])
+                    )
+
+                    if results:
+                        title_lower = title.lower()
+                        for result in results:
+                            result_title = (result.get("title") or result.get("name") or "").lower()
+                            if result_title == title_lower or title_lower in result_title or result_title in title_lower:
+                                pid = result.get("id") or result.get("pid") or result.get("tleo_id") or result.get("programme_id")
+                                if pid:
+                                    logger.debug(f"Found via full search: '{title}' -> {pid}")
+                                    return pid
+
+                        # Primer resultat
+                        first = results[0]
+                        pid = first.get("id") or first.get("pid") or first.get("tleo_id") or first.get("programme_id")
+                        if pid:
+                            logger.debug(f"Found via full search (first): '{title}' -> {pid}")
+                            return pid
+
+        except Exception as e:
+            logger.debug(f"Error in BBC full search for '{title}': {e}")
+
+        return None
+
+    async def _search_bbc_az(self, title: str, cookies: dict, headers: dict) -> Optional[str]:
+        """Cerca via A-Z listing"""
+        try:
+            # Obtenir primera lletra
+            first_char = title[0].lower() if title else "a"
+            if not first_char.isalpha():
+                first_char = "0-9"
+
+            az_url = f"{BBC_API_BASE}/atoz/{first_char}/programmes"
+            params = {"rights": "web", "page": 1, "per_page": 200, "api_key": "D2FgtcTxGqqIgLsfBWTJdrQh2tVdeaAp"}
+
+            async with httpx.AsyncClient(timeout=15.0, cookies=cookies) as client:
+                response = await client.get(az_url, params=params, headers=headers)
+
+                if response.status_code == 200:
+                    data = response.json()
+                    programmes = data.get("atoz_programmes", {}).get("elements", [])
+
+                    title_lower = title.lower()
+                    for prog in programmes:
+                        prog_title = (prog.get("title") or "").lower()
+                        if prog_title == title_lower or title_lower in prog_title or prog_title in title_lower:
+                            pid = prog.get("id") or prog.get("pid") or prog.get("tleo_id")
+                            if pid:
+                                logger.debug(f"Found via A-Z: '{title}' -> {pid}")
+                                return pid
+
+        except Exception as e:
+            logger.debug(f"Error in BBC A-Z search for '{title}': {e}")
 
         return None
 
