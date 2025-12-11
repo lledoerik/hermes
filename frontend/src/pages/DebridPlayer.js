@@ -599,9 +599,12 @@ function DebridPlayer() {
 
       setTorrents(streams);
 
-      // Si no s'han trobat torrents, mostrar error
+      // Si no s'han trobat torrents, només mostrar error si BBC tampoc està disponible
       if (streams.length === 0) {
-        setError('No s\'han trobat fonts disponibles per aquest contingut');
+        // No mostrar error si BBC està disponible com a alternativa
+        if (!bbcAvailable) {
+          setError('No s\'han trobat fonts disponibles per aquest contingut');
+        }
         return;
       }
 
@@ -672,7 +675,7 @@ function DebridPlayer() {
     } finally {
       setLoadingTorrents(false);
     }
-  }, [mediaType, tmdbId, season, episode, type, getCachedTorrents, cacheTorrents]);
+  }, [mediaType, tmdbId, season, episode, type, getCachedTorrents, cacheTorrents, bbcAvailable]);
 
   // Get stream URL from selected torrent
   const getStreamUrl = useCallback(async (torrent, keepTime = false) => {
@@ -1932,9 +1935,15 @@ function DebridPlayer() {
                   </div>
                 );
               })}
-              {groupedTorrents.length === 0 && !loadingTorrents && (
+              {groupedTorrents.length === 0 && !loadingTorrents && !loadingBbc && !bbcAvailable && (
                 <div className="no-torrents">
                   No s'han trobat fonts disponibles
+                </div>
+              )}
+              {groupedTorrents.length === 0 && !loadingTorrents && loadingBbc && (
+                <div className="bbc-loading-message">
+                  <span className="loading-spinner-small"></span>
+                  <span>Carregant BBC iPlayer... pot trigar uns segons</span>
                 </div>
               )}
             </div>
