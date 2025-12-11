@@ -1019,7 +1019,7 @@ function Admin() {
               <div style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '8px', padding: '1rem', marginBottom: '1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                   <span style={{ color: '#3b82f6', fontWeight: '600' }}>
-                    {bbcImportStatus.phase === 'scanning' && 'Escanejant catàleg BBC...'}
+                    {bbcImportStatus.phase === 'scanning' && 'Escanejant catàleg BBC (categories, canals, A-Z)...'}
                     {bbcImportStatus.phase === 'matching' && 'Fent matching amb TMDB...'}
                     {bbcImportStatus.phase === 'importing' && 'Important contingut...'}
                     {bbcImportStatus.phase === 'starting' && 'Iniciant...'}
@@ -1031,15 +1031,15 @@ function Admin() {
                 </div>
                 {bbcImportStatus.current_program && (
                   <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>
-                    Processant: {bbcImportStatus.current_program}
+                    {bbcImportStatus.current_program}
                   </div>
                 )}
                 <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                  <span>Escanejats: {bbcImportStatus.scanned_programs}</span>
-                  <span>Matched: {bbcImportStatus.matched_programs}</span>
-                  <span>Pel·lícules: {bbcImportStatus.imported_films}</span>
-                  <span>Sèries: {bbcImportStatus.imported_series}</span>
-                  <span>Episodis: {bbcImportStatus.imported_episodes}</span>
+                  <span>Escanejats: {bbcImportStatus.scanned_programs || 0}</span>
+                  <span>Matched: {bbcImportStatus.matched_programs || 0}</span>
+                  <span>Pel·lícules: {bbcImportStatus.imported_films || 0}</span>
+                  <span>Sèries: {bbcImportStatus.imported_series || 0}</span>
+                  <span>Episodis: {bbcImportStatus.imported_episodes || 0}</span>
                 </div>
               </div>
             )}
