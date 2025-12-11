@@ -94,7 +94,15 @@ stream_url_cache = SimpleCache(default_ttl=14400)  # 4h per URLs de Real-Debrid
 
 # Client httpx global amb connection pooling per reutilitzar connexions
 import httpx
+import asyncio
 _http_client: httpx.AsyncClient = None
+
+# Semàfor per limitar connexions concurrents als proxies de streaming
+# Evita sobrecàrrega del servidor amb massa streams simultanis
+MAX_CONCURRENT_STREAMS = 20
+MAX_CONCURRENT_BBC_SEGMENTS = 50
+_stream_semaphore: asyncio.Semaphore = None
+_bbc_segment_semaphore: asyncio.Semaphore = None
 
 
 def get_http_client() -> httpx.AsyncClient:
@@ -103,6 +111,22 @@ def get_http_client() -> httpx.AsyncClient:
     if _http_client is None:
         raise RuntimeError("HTTP client not initialized. App must be started first.")
     return _http_client
+
+
+def get_stream_semaphore() -> asyncio.Semaphore:
+    """Obtenir el semàfor per limitar streams concurrents."""
+    global _stream_semaphore
+    if _stream_semaphore is None:
+        _stream_semaphore = asyncio.Semaphore(MAX_CONCURRENT_STREAMS)
+    return _stream_semaphore
+
+
+def get_bbc_segment_semaphore() -> asyncio.Semaphore:
+    """Obtenir el semàfor per limitar segments BBC concurrents."""
+    global _bbc_segment_semaphore
+    if _bbc_segment_semaphore is None:
+        _bbc_segment_semaphore = asyncio.Semaphore(MAX_CONCURRENT_BBC_SEGMENTS)
+    return _bbc_segment_semaphore
 
 
 # Lifespan per gestionar startup/shutdown
@@ -11157,7 +11181,7 @@ async def proxy_bbc_segment(
     """
     Proxy per als segments de vídeo de BBC iPlayer.
     Simplement reenvia el contingut binari.
-    Inclou retry amb backoff exponencial per errors de xarxa.
+    Inclou retry amb backoff exponencial i límit de connexions concurrents.
     """
     import httpx
     import asyncio
@@ -11165,57 +11189,61 @@ async def proxy_bbc_segment(
     MAX_RETRIES = 3
     BASE_DELAY = 0.5  # 500ms inicial
 
-    # Obtenir les cookies de BBC per autenticació
-    from backend.debrid.bbc_cookies import get_bbc_cookies_dict
-    cookies = get_bbc_cookies_dict()
+    # Limitar connexions concurrents per evitar sobrecàrrega
+    semaphore = get_bbc_segment_semaphore()
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "*/*",
-        "Accept-Language": "en-GB,en;q=0.9",
-        "Origin": "https://www.bbc.co.uk",
-        "Referer": "https://www.bbc.co.uk/iplayer",
-    }
+    async with semaphore:
+        # Obtenir les cookies de BBC per autenticació
+        from backend.debrid.bbc_cookies import get_bbc_cookies_dict
+        cookies = get_bbc_cookies_dict()
 
-    last_error = None
-    for attempt in range(MAX_RETRIES):
-        try:
-            async with httpx.AsyncClient(timeout=30.0, cookies=cookies) as client:
-                response = await client.get(url, headers=headers, follow_redirects=True)
-                response.raise_for_status()
-                content = response.content
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "*/*",
+            "Accept-Language": "en-GB,en;q=0.9",
+            "Origin": "https://www.bbc.co.uk",
+            "Referer": "https://www.bbc.co.uk/iplayer",
+        }
 
-            # Determinar el content-type
-            content_type = response.headers.get("content-type", "video/mp2t")
+        last_error = None
+        for attempt in range(MAX_RETRIES):
+            try:
+                async with httpx.AsyncClient(timeout=30.0, cookies=cookies) as client:
+                    response = await client.get(url, headers=headers, follow_redirects=True)
+                    response.raise_for_status()
+                    content = response.content
 
-            from fastapi.responses import Response
-            return Response(
-                content=content,
-                media_type=content_type,
-                headers={
-                    "Access-Control-Allow-Origin": "*",
-                    "Cache-Control": "max-age=86400"  # 24h per segments (són immutables)
-                }
-            )
+                # Determinar el content-type
+                content_type = response.headers.get("content-type", "video/mp2t")
 
-        except (httpx.TimeoutException, httpx.ConnectError, httpx.ReadError) as e:
-            last_error = e
-            if attempt < MAX_RETRIES - 1:
-                delay = BASE_DELAY * (2 ** attempt)  # Exponential backoff
-                logger.warning(f"Retry {attempt + 1}/{MAX_RETRIES} segment BBC després de {delay}s: {type(e).__name__}")
-                await asyncio.sleep(delay)
-            continue
-        except httpx.HTTPStatusError as e:
-            # No retry per errors HTTP (404, 403, etc.)
-            logger.error(f"Error HTTP al proxy segment BBC: {e.response.status_code}")
-            raise HTTPException(status_code=e.response.status_code, detail=f"BBC returned {e.response.status_code}")
-        except Exception as e:
-            logger.error(f"Error al proxy segment BBC: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
+                from fastapi.responses import Response
+                return Response(
+                    content=content,
+                    media_type=content_type,
+                    headers={
+                        "Access-Control-Allow-Origin": "*",
+                        "Cache-Control": "max-age=86400"  # 24h per segments (són immutables)
+                    }
+                )
 
-    # Si arribem aquí, tots els retries han fallat
-    logger.error(f"Segment BBC fallat després de {MAX_RETRIES} intents: {last_error}")
-    raise HTTPException(status_code=504, detail="Timeout obtenint segment de BBC")
+            except (httpx.TimeoutException, httpx.ConnectError, httpx.ReadError) as e:
+                last_error = e
+                if attempt < MAX_RETRIES - 1:
+                    delay = BASE_DELAY * (2 ** attempt)  # Exponential backoff
+                    logger.warning(f"Retry {attempt + 1}/{MAX_RETRIES} segment BBC després de {delay}s: {type(e).__name__}")
+                    await asyncio.sleep(delay)
+                continue
+            except httpx.HTTPStatusError as e:
+                # No retry per errors HTTP (404, 403, etc.)
+                logger.error(f"Error HTTP al proxy segment BBC: {e.response.status_code}")
+                raise HTTPException(status_code=e.response.status_code, detail=f"BBC returned {e.response.status_code}")
+            except Exception as e:
+                logger.error(f"Error al proxy segment BBC: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        # Si arribem aquí, tots els retries han fallat
+        logger.error(f"Segment BBC fallat després de {MAX_RETRIES} intents: {last_error}")
+        raise HTTPException(status_code=504, detail="Timeout obtenint segment de BBC")
 
 
 @app.get("/api/bbc/info")
