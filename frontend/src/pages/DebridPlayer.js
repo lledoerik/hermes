@@ -1575,6 +1575,8 @@ function DebridPlayer() {
 
   // Re-fetch sources when episode changes (prioritize BBC)
   useEffect(() => {
+    let isCancelled = false;
+
     const loadSourcesForEpisode = async () => {
       if (type === 'movie') return;
 
@@ -1585,9 +1587,12 @@ function DebridPlayer() {
 
       // Check BBC availability first (priority source)
       const bbcIsAvailable = await checkBbcAvailability();
+      if (isCancelled) return;
+
       if (bbcIsAvailable) {
         setLoadingBbc(true);
         const bbcData = await loadBbcStream();
+        if (isCancelled) return;
         setLoadingBbc(false);
 
         if (bbcData) {
@@ -1599,18 +1604,28 @@ function DebridPlayer() {
             searchTorrents();
           }
           return;
+        } else {
+          // BBC failed - reset to torrentio if it was bbc before
+          setActiveSource('torrentio');
         }
+      } else {
+        // BBC not available - ensure we're on torrentio
+        setActiveSource('torrentio');
       }
 
-      // Fallback: Load torrents if BBC not available
+      // Fallback: Load torrents if BBC not available or failed
       if (debridConfigured) {
         searchTorrents();
       }
     };
 
     loadSourcesForEpisode();
+
+    return () => {
+      isCancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [episode]); // Only re-run when episode number changes
+  }, [episode, type, debridConfigured]); // Re-run when episode, type, or debrid status changes
 
   // Scroll to current episode when episodes list opens
   useEffect(() => {
@@ -1861,10 +1876,9 @@ function DebridPlayer() {
           </div>
         </div>
       )}
-      {/* Video element - key forces remount on source change to avoid stale HLS */}
+      {/* Video element - HLS.js useEffect handles stream changes without remount */}
       {streamUrl && (
         <video
-          key={streamUrl}
           ref={videoRef}
           className="video-element"
           muted={isMuted}
