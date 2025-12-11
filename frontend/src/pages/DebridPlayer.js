@@ -88,6 +88,12 @@ const TorrentIcon = () => (
   </svg>
 );
 
+const VidsrcIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zM9 8l7 4-7 4V8z"/>
+  </svg>
+);
+
 // Stream/Torrent icon (river/stream flowing - for source switching)
 // OPCIÓ A: Tres corrents d'aigua (com cascada/torrent)
 /*
@@ -366,10 +372,20 @@ function DebridPlayer() {
   const [bbcAvailable, setBbcAvailable] = useState(false);
   const [bbcContentInfo, setBbcContentInfo] = useState(null); // Generic BBC content info
   const [bbcArcInfo, setBbcArcInfo] = useState(null); // For One Piece arcs (backwards compat)
-  const [activeSource, setActiveSource] = useState('torrentio'); // 'bbc' or 'torrentio'
+  const [activeSource, setActiveSource] = useState('torrentio'); // 'bbc', 'torrentio', or 'vidsrc'
   const [loadingBbc, setLoadingBbc] = useState(false);
   const [showSourceMenu, setShowSourceMenu] = useState(false);
   const [hasBbcMapping, setHasBbcMapping] = useState(false); // Whether this content has BBC mapping
+
+  // VidSrc embed state
+  const [showVidsrc, setShowVidsrc] = useState(false);
+  const vidsrcUrl = useMemo(() => {
+    if (type === 'movie') {
+      return `https://vidsrc.cc/v2/embed/movie/${tmdbId}`;
+    } else {
+      return `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season}/${episode}`;
+    }
+  }, [type, tmdbId, season, episode]);
 
   // Episode navigation state
   const [showEpisodesList, setShowEpisodesList] = useState(false);
@@ -599,12 +615,9 @@ function DebridPlayer() {
 
       setTorrents(streams);
 
-      // Si no s'han trobat torrents, només mostrar error si BBC tampoc està disponible
+      // No mostrar error si no hi ha torrents - tenim vidsrc com a fallback sempre disponible
       if (streams.length === 0) {
-        // No mostrar error si BBC està disponible com a alternativa
-        if (!bbcAvailable) {
-          setError('No s\'han trobat fonts disponibles per aquest contingut');
-        }
+        // Just return, vidsrc is always available as fallback
         return;
       }
 
@@ -955,6 +968,11 @@ function DebridPlayer() {
     setShowSourceMenu(false);
     setError(null);
 
+    // Clear vidsrc when switching away from it
+    if (activeSource === 'vidsrc') {
+      setShowVidsrc(false);
+    }
+
     if (source === 'bbc') {
       // Switch to BBC
       if (!bbcStream) {
@@ -980,6 +998,10 @@ function DebridPlayer() {
         setStreamUrl(bbcStream.url);
         setActiveSource('bbc');
       }
+    } else if (source === 'vidsrc') {
+      // Switch to VidSrc embed
+      setActiveSource('vidsrc');
+      setShowVidsrc(true);
     } else {
       // Switch to Torrentio
       if (selectedTorrent) {
@@ -1914,8 +1936,20 @@ function DebridPlayer() {
           </div>
         </div>
       )}
+      {/* VidSrc iframe - shown when vidsrc is active */}
+      {activeSource === 'vidsrc' && showVidsrc && (
+        <iframe
+          src={vidsrcUrl}
+          className="vidsrc-iframe"
+          allowFullScreen
+          allow="autoplay; fullscreen; picture-in-picture"
+          referrerPolicy="origin"
+          title="VidSrc Player"
+        />
+      )}
+
       {/* Video element - HLS.js useEffect handles stream changes without remount */}
-      {streamUrl && (
+      {streamUrl && activeSource !== 'vidsrc' && (
         <video
           ref={videoRef}
           className="video-element"
@@ -1999,13 +2033,27 @@ function DebridPlayer() {
           {!isDirectMode && activeSource === 'bbc' && bbcStream?.quality && (
             <span className="quality-badge direct-quality">{bbcStream.quality}</span>
           )}
+          {/* VidSrc source badge */}
+          {!isDirectMode && activeSource === 'vidsrc' && (
+            <span className="source-badge vidsrc-badge">VidSrc</span>
+          )}
           <h1>{title}</h1>
           {subtitle && <span>{subtitle}</span>}
         </div>
+        {/* Source button in top bar when vidsrc is active */}
+        {activeSource === 'vidsrc' && (
+          <button
+            className="control-btn source-btn-top"
+            onClick={(e) => { e.stopPropagation(); setShowSourceMenu(true); }}
+            title="Canviar font"
+          >
+            <StreamIcon />
+          </button>
+        )}
       </div>
 
-      {/* Controls */}
-      {streamUrl && (
+      {/* Controls - hide when vidsrc is active since iframe has its own controls */}
+      {streamUrl && activeSource !== 'vidsrc' && (
         <div className="controls-container">
           {/* Time display above progress bar */}
           <div className="time-row">
@@ -2129,16 +2177,14 @@ function DebridPlayer() {
                 </button>
               )}
 
-              {/* Source button (stream/torrent icon for switching sources) - show when any sources available */}
-              {(bbcAvailable || torrents.length > 0) && (
-                <button
-                  className={`control-btn source-btn ${activeSource === 'bbc' ? 'bbc-active' : ''}`}
-                  onClick={(e) => { e.stopPropagation(); setShowSourceMenu(true); }}
-                  title="Canviar font"
-                >
-                  <StreamIcon />
-                </button>
-              )}
+              {/* Source button - always show since vidsrc is always available */}
+              <button
+                className={`control-btn source-btn ${activeSource === 'bbc' ? 'bbc-active' : ''}`}
+                onClick={(e) => { e.stopPropagation(); setShowSourceMenu(true); }}
+                title="Canviar font"
+              >
+                <StreamIcon />
+              </button>
 
               {/* Quality button - opens quality menu */}
               {activeSource === 'torrentio' && groupedTorrents.length > 0 && (
@@ -2232,18 +2278,27 @@ function DebridPlayer() {
                 </div>
               )}
 
+              {/* VidSrc option - always available */}
+              <div
+                className={`quality-option source-option ${activeSource === 'vidsrc' ? 'active' : ''}`}
+                onClick={() => {
+                  setActiveSource('vidsrc');
+                  setShowVidsrc(true);
+                  setShowSourceMenu(false);
+                }}
+              >
+                <span className="source-icon"><VidsrcIcon /></span>
+                <div className="source-info">
+                  <span className="source-name">VidSrc</span>
+                  <span className="source-detail">Embed extern</span>
+                </div>
+              </div>
+
               {/* Loading state */}
-              {loadingTorrents && torrents.length === 0 && (
+              {loadingTorrents && torrents.length === 0 && !hasBbcMapping && (
                 <div className="source-loading">
                   <span className="loading-spinner-small"></span>
                   <span>Cercant fonts...</span>
-                </div>
-              )}
-
-              {/* No sources available */}
-              {!loadingTorrents && torrents.length === 0 && !hasBbcMapping && (
-                <div className="no-torrents">
-                  No s'han trobat fonts disponibles
                 </div>
               )}
             </div>
