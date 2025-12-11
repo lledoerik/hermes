@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { API_URL } from '../config/api';
 import {
@@ -388,69 +388,57 @@ function Admin() {
     }
   };
 
-  // Import BBC Catalog (all content)
-  const [bbcImportStatus, setBbcImportStatus] = useState(null);
-  const bbcImportPollingRef = useRef(null);
+  // Import BBC single series by URL
+  const [bbcSingleImport, setBbcSingleImport] = useState({
+    url: '',
+    tmdbId: '',
+    title: '',
+    loading: false,
+    result: null
+  });
 
-  const startBbcCatalogImport = async () => {
+  const importBbcSeries = async () => {
+    if (!bbcSingleImport.url || !bbcSingleImport.tmdbId) {
+      showMessage('Cal introduir URL de BBC i TMDB ID', 'error');
+      return;
+    }
+
+    setBbcSingleImport(prev => ({ ...prev, loading: true, result: null }));
+    addLog('info', `Importat sèrie BBC: ${bbcSingleImport.url}`);
+
     try {
-      addLog('info', 'Iniciant importació de tot el catàleg BBC...');
-      await axios.post('/api/admin/bbc/import-all/start?min_confidence=60');
+      const params = new URLSearchParams({
+        url: bbcSingleImport.url,
+        tmdb_id: bbcSingleImport.tmdbId,
+        content_type: 'tv'
+      });
+      if (bbcSingleImport.title) {
+        params.append('title', bbcSingleImport.title);
+      }
 
-      // Start polling for status
-      bbcImportPollingRef.current = setInterval(async () => {
-        try {
-          const statusRes = await axios.get('/api/admin/bbc/import-all/status');
-          setBbcImportStatus(statusRes.data);
+      const response = await axios.post(`/api/bbc/import?${params.toString()}`);
+      const result = response.data;
 
-          if (!statusRes.data.running && statusRes.data.phase !== 'starting') {
-            // Import finished
-            clearInterval(bbcImportPollingRef.current);
-            bbcImportPollingRef.current = null;
+      setBbcSingleImport(prev => ({
+        ...prev,
+        loading: false,
+        result: { success: true, ...result }
+      }));
 
-            if (statusRes.data.phase === 'completed') {
-              addLog('success', `Catàleg BBC importat: ${statusRes.data.imported_films} pel·lícules, ${statusRes.data.imported_series} sèries, ${statusRes.data.imported_episodes} episodis`);
-              showMessage('Catàleg BBC importat correctament!');
-            } else if (statusRes.data.phase === 'error') {
-              addLog('error', `Error important catàleg BBC: ${statusRes.data.error}`);
-              showMessage('Error important catàleg BBC', 'error');
-            }
-          }
-        } catch (e) {
-          console.error('Error polling BBC import status:', e);
-        }
-      }, 2000);
-
-      // Initial status fetch
-      const initialStatus = await axios.get('/api/admin/bbc/import-all/status');
-      setBbcImportStatus(initialStatus.data);
-
+      addLog('success', `Importats ${result.imported_count} episodis de ${result.title || 'sèrie'}`);
+      showMessage(`Importats ${result.imported_count} episodis!`);
     } catch (error) {
       const errMsg = error.response?.data?.detail || error.message;
-      addLog('error', `Error iniciant importació BBC: ${errMsg}`);
-      showMessage('Error iniciant importació BBC', 'error');
-      setBbcImportStatus({ phase: 'error', error: errMsg, running: false });
+      setBbcSingleImport(prev => ({
+        ...prev,
+        loading: false,
+        result: { success: false, error: errMsg }
+      }));
+      addLog('error', `Error important sèrie: ${errMsg}`);
+      showMessage('Error important sèrie', 'error');
     }
   };
 
-  const stopBbcCatalogImport = async () => {
-    try {
-      await axios.post('/api/admin/bbc/import-all/stop');
-      addLog('info', 'Aturant importació BBC...');
-      showMessage('Aturant importació...');
-    } catch (error) {
-      console.error('Error stopping BBC import:', error);
-    }
-  };
-
-  // Cleanup polling on unmount
-  useEffect(() => {
-    return () => {
-      if (bbcImportPollingRef.current) {
-        clearInterval(bbcImportPollingRef.current);
-      }
-    };
-  }, []);
 
   // BBC Catalog Sync with progress
   const syncBbcCatalog = async () => {
@@ -852,103 +840,88 @@ function Admin() {
             </div>
           )}
 
-          {/* BBC Catalog Import Section */}
+          {/* BBC Single Series Import */}
           <div style={{ marginTop: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1.5rem' }}>
             <h3 style={{ fontSize: '1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <DownloadIcon /> Importar Catàleg BBC
+              <DownloadIcon /> Importar Sèrie BBC per URL
             </h3>
             <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '1rem', fontSize: '0.9rem' }}>
-              Importa totes les pel·lícules i sèries disponibles a BBC iPlayer.
-              Això permet reproduir contingut directament des de BBC amb els episodis mapejats.
+              Importa una sèrie específica de BBC iPlayer introduint la seva URL i el TMDB ID corresponent.
             </p>
 
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
+              <input
+                type="text"
+                placeholder="URL de BBC iPlayer (ex: https://www.bbc.co.uk/iplayer/episodes/m0021y5y)"
+                value={bbcSingleImport.url}
+                onChange={(e) => setBbcSingleImport(prev => ({ ...prev, url: e.target.value }))}
+                style={{
+                  padding: '0.75rem',
+                  background: 'rgba(0,0,0,0.3)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '6px',
+                  color: '#fff',
+                  fontSize: '0.9rem'
+                }}
+              />
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input
+                  type="number"
+                  placeholder="TMDB ID (ex: 37854)"
+                  value={bbcSingleImport.tmdbId}
+                  onChange={(e) => setBbcSingleImport(prev => ({ ...prev, tmdbId: e.target.value }))}
+                  style={{
+                    flex: 1,
+                    padding: '0.75rem',
+                    background: 'rgba(0,0,0,0.3)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '6px',
+                    color: '#fff',
+                    fontSize: '0.9rem'
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder="Títol (opcional)"
+                  value={bbcSingleImport.title}
+                  onChange={(e) => setBbcSingleImport(prev => ({ ...prev, title: e.target.value }))}
+                  style={{
+                    flex: 1,
+                    padding: '0.75rem',
+                    background: 'rgba(0,0,0,0.3)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '6px',
+                    color: '#fff',
+                    fontSize: '0.9rem'
+                  }}
+                />
+              </div>
               <button
                 className="action-btn"
-                onClick={startBbcCatalogImport}
-                disabled={bbcImportStatus?.running}
+                onClick={importBbcSeries}
+                disabled={bbcSingleImport.loading || !bbcSingleImport.url || !bbcSingleImport.tmdbId}
               >
-                {bbcImportStatus?.running ? 'Important...' : 'Importar Tot el Catàleg'}
+                {bbcSingleImport.loading ? 'Important...' : 'Importar Sèrie'}
               </button>
-              {bbcImportStatus?.running && (
-                <button
-                  className="action-btn"
-                  onClick={stopBbcCatalogImport}
-                  style={{ background: 'rgba(239,68,68,0.2)', borderColor: 'rgba(239,68,68,0.5)' }}
-                >
-                  Aturar
-                </button>
-              )}
             </div>
 
-            {/* Progress display */}
-            {bbcImportStatus?.running && (
-              <div style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '8px', padding: '1rem', marginBottom: '1rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                  <span style={{ color: '#3b82f6', fontWeight: '600' }}>
-                    {bbcImportStatus.phase === 'scanning' && 'Escanejant catàleg BBC...'}
-                    {bbcImportStatus.phase === 'matching' && 'Fent matching amb TMDB...'}
-                    {bbcImportStatus.phase === 'importing' && 'Important contingut...'}
-                    {bbcImportStatus.phase === 'starting' && 'Iniciant...'}
-                  </span>
-                  <span style={{ color: 'rgba(255,255,255,0.7)' }}>{bbcImportStatus.progress_percent}%</span>
-                </div>
-                <div style={{ background: 'rgba(255,255,255,0.1)', borderRadius: '4px', height: '8px', overflow: 'hidden' }}>
-                  <div style={{ background: '#3b82f6', height: '100%', width: `${bbcImportStatus.progress_percent}%`, transition: 'width 0.3s' }} />
-                </div>
-                {bbcImportStatus.current_program && (
-                  <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>
-                    Processant: {bbcImportStatus.current_program}
-                  </div>
-                )}
-                <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                  <span>Escanejats: {bbcImportStatus.scanned_programs}</span>
-                  <span>Matched: {bbcImportStatus.matched_programs}</span>
-                  <span>Pel·lícules: {bbcImportStatus.imported_films}</span>
-                  <span>Sèries: {bbcImportStatus.imported_series}</span>
-                  <span>Episodis: {bbcImportStatus.imported_episodes}</span>
-                </div>
-              </div>
-            )}
-
-            {/* Success result */}
-            {bbcImportStatus?.phase === 'completed' && !bbcImportStatus?.running && (
+            {/* Import result */}
+            {bbcSingleImport.result?.success && (
               <div style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.3)', borderRadius: '8px', padding: '1rem' }}>
-                <div style={{ color: '#4ade80', fontWeight: '600', marginBottom: '0.5rem' }}>
-                  Catàleg BBC importat correctament
+                <div style={{ color: '#4ade80', fontWeight: '600' }}>
+                  Importats {bbcSingleImport.result.imported_count} episodis de "{bbcSingleImport.result.title}"
                 </div>
-                <div style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.8)' }}>
-                  {bbcImportStatus.imported_films} pel·lícules, {bbcImportStatus.imported_series} sèries, {bbcImportStatus.imported_episodes} episodis
-                </div>
-                {bbcImportStatus.skipped_low_confidence > 0 && (
-                  <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)' }}>
-                    {bbcImportStatus.skipped_low_confidence} programes saltats per baixa confiança de matching
-                  </div>
-                )}
               </div>
             )}
-
-            {/* Error result */}
-            {bbcImportStatus?.phase === 'error' && (
+            {bbcSingleImport.result && !bbcSingleImport.result.success && (
               <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', padding: '1rem' }}>
                 <div style={{ color: '#ef4444', fontWeight: '600' }}>
-                  Error: {bbcImportStatus.error}
-                </div>
-              </div>
-            )}
-
-            {/* Stopped result */}
-            {bbcImportStatus?.phase === 'stopped' && (
-              <div style={{ background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: '8px', padding: '1rem' }}>
-                <div style={{ color: '#fbbf24', fontWeight: '600', marginBottom: '0.5rem' }}>
-                  Importació aturada
-                </div>
-                <div style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.8)' }}>
-                  Importats fins ara: {bbcImportStatus.imported_films} pel·lícules, {bbcImportStatus.imported_series} sèries, {bbcImportStatus.imported_episodes} episodis
+                  Error: {bbcSingleImport.result.error}
                 </div>
               </div>
             )}
           </div>
+
         </div>
       </div>
 
