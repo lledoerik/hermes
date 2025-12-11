@@ -11,6 +11,7 @@ import sqlite3
 import logging
 import asyncio
 import unicodedata
+import urllib.parse
 from pathlib import Path
 from typing import Optional, List, Dict
 from contextlib import contextmanager, asynccontextmanager
