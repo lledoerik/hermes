@@ -165,6 +165,36 @@ class BBCiPlayerClient:
 
         return upgraded
 
+    def _extract_best_url_from_info(self, info: dict, quality: str) -> tuple[Optional[str], Optional[str]]:
+        """
+        Extreu la millor URL de streaming del JSON de yt-dlp
+        Evita fer una segona crida a yt-dlp reutilitzant el JSON ja obtingut.
+        """
+        # Extreure la URL del JSON
+        base_url = info.get("url")
+
+        # Si no hi ha URL directa, buscar al manifest_url
+        if not base_url:
+            base_url = info.get("manifest_url")
+
+        # També podem buscar en els formats
+        if not base_url and info.get("formats"):
+            # Buscar el millor format amb video
+            for fmt in reversed(info.get("formats", [])):
+                if fmt.get("url") and fmt.get("vcodec") != "none":
+                    base_url = fmt.get("url")
+                    break
+
+        if not base_url:
+            logger.warning("No s'ha trobat cap URL de streaming al JSON")
+            return None, None
+
+        # Determinar la qualitat actual
+        height = info.get("height", 720)
+        current_quality = f"{height}p" if height else "720p"
+
+        return base_url, current_quality
+
     async def _verify_url_accessible(self, url: str) -> bool:
         """Verifica si una URL és accessible (no retorna 404)"""
         try:
@@ -220,8 +250,17 @@ class BBCiPlayerClient:
 
             info = json.loads(result)
 
-            # Obtenir URL directa
-            stream_url, actual_quality = await self._get_best_url_with_1080p(url, quality)
+            # Obtenir URL directa reutilitzant el JSON ja obtingut (evita 2a crida yt-dlp)
+            stream_url, actual_quality = self._extract_best_url_from_info(info, quality)
+
+            # Si no s'ha pogut extreure la URL del JSON, intentar upgrade a 1080p
+            if stream_url and quality in ["best", "1080"]:
+                upgraded_url = self._upgrade_to_1080p(stream_url)
+                if upgraded_url != stream_url:
+                    is_accessible = await self._verify_url_accessible(upgraded_url)
+                    if is_accessible:
+                        stream_url = upgraded_url
+                        actual_quality = "1080p"
 
             # Processar subtítols
             subtitles = {}
