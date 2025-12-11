@@ -300,12 +300,15 @@ class BBCCatalogScanner:
                 html = response.text
 
                 # Buscar el JSON incrustat a la pàgina (redux state)
-                # Patró: window.__IPLAYER_REDUX_STATE__ = {...};
+                # Els patrons són ordenats per prioritat
                 patterns = [
-                    r'window\.__IPLAYER_REDUX_STATE__\s*=\s*(\{.+?\});?\s*</script>',
-                    r'window\.__PRELOADED_STATE__\s*=\s*(\{.+?\});?\s*</script>',
-                    r'<script[^>]*id="initial-data"[^>]*>(\{.+?\})</script>',
-                    r'data-redux-state=["\'](\{.+?\})["\']',
+                    # Patró principal de BBC iPlayer
+                    r'window\.__IPLAYER_REDUX_STATE__\s*=\s*(\{.*\});?\s*</script>',
+                    # Alternatius
+                    r'window\.__PRELOADED_STATE__\s*=\s*(\{.*\});?\s*</script>',
+                    r'<script[^>]*id="initial-data"[^>]*>\s*(\{.*\})\s*</script>',
+                    # JSON dins de data attributes
+                    r'data-redux-state=["\'](\{[^"\']+\})["\']',
                 ]
 
                 json_data = None
@@ -313,10 +316,14 @@ class BBCCatalogScanner:
                     match = re.search(pattern, html, re.DOTALL)
                     if match:
                         try:
-                            json_data = json.loads(match.group(1))
-                            logger.info(f"Found embedded JSON for letter {letter}")
+                            raw_json = match.group(1)
+                            # Netejar el JSON si cal
+                            raw_json = raw_json.strip().rstrip(';')
+                            json_data = json.loads(raw_json)
+                            logger.info(f"Found embedded JSON for letter {letter} (pattern matched)")
                             break
-                        except json.JSONDecodeError:
+                        except json.JSONDecodeError as e:
+                            logger.debug(f"JSON decode failed for pattern: {e}")
                             continue
 
                 if json_data:
@@ -326,15 +333,19 @@ class BBCCatalogScanner:
                         if prog.programme_id not in self._programs_cache:
                             programs.append(prog)
                             self._programs_cache[prog.programme_id] = prog
-                    logger.info(f"Extracted {len(programmes)} programmes from web for letter {letter}")
-                else:
-                    # Fallback: parsejar HTML directament
-                    programmes = self._parse_html_programmes(html)
-                    for prog in programmes:
-                        if prog.programme_id not in self._programs_cache:
-                            programs.append(prog)
-                            self._programs_cache[prog.programme_id] = prog
-                    logger.info(f"Parsed {len(programmes)} programmes from HTML for letter {letter}")
+                    logger.info(f"Extracted {len(programmes)} programmes from Redux for letter {letter}")
+
+                # SEMPRE parsejar HTML com a complement (troba coses que el JSON pot no tenir)
+                html_programmes = self._parse_html_programmes(html)
+                new_from_html = 0
+                for prog in html_programmes:
+                    if prog.programme_id not in self._programs_cache:
+                        programs.append(prog)
+                        self._programs_cache[prog.programme_id] = prog
+                        new_from_html += 1
+
+                if new_from_html > 0:
+                    logger.info(f"Found {new_from_html} additional programmes from HTML for letter {letter}")
 
         except Exception as e:
             logger.error(f"Error scanning A-Z web for letter {letter}: {e}")
@@ -344,40 +355,84 @@ class BBCCatalogScanner:
     def _extract_programmes_from_redux(self, redux_state: Dict) -> List[BBCProgram]:
         """
         Extreu programes del redux state de la pàgina web.
+        Fa una cerca recursiva per trobar tots els programes.
         """
         programs = []
+        seen_ids = set()
 
-        # Buscar en diferents ubicacions possibles
-        locations = [
-            redux_state.get("programmes", {}),
-            redux_state.get("atoz", {}).get("programmes", {}),
-            redux_state.get("entities", {}).get("programmes", {}),
-            redux_state.get("data", {}).get("programmes", {}),
+        def extract_from_dict(d: Dict, depth: int = 0):
+            """Extreu programes recursivament d'un diccionari."""
+            if depth > 10:  # Limitar profunditat
+                return
+
+            for key, value in d.items():
+                # Si la clau sembla un PID de BBC (8+ chars alfanumèrics)
+                if isinstance(key, str) and len(key) >= 7 and key.isalnum() and isinstance(value, dict):
+                    if "title" in value or "name" in value:
+                        prog = self._parse_redux_programme(value, key)
+                        if prog and prog.programme_id not in seen_ids:
+                            programs.append(prog)
+                            seen_ids.add(prog.programme_id)
+
+                # Si el valor és un dict amb camps de programa
+                if isinstance(value, dict):
+                    if ("title" in value or "name" in value) and ("id" in value or "pid" in value or "tleoId" in value):
+                        prog = self._parse_redux_programme(value)
+                        if prog and prog.programme_id not in seen_ids:
+                            programs.append(prog)
+                            seen_ids.add(prog.programme_id)
+                    # Continuar buscant recursivament
+                    extract_from_dict(value, depth + 1)
+
+                # Si el valor és una llista, processar cada element
+                elif isinstance(value, list):
+                    for item in value:
+                        if isinstance(item, dict):
+                            if ("title" in item or "name" in item):
+                                prog = self._parse_redux_programme(item)
+                                if prog and prog.programme_id not in seen_ids:
+                                    programs.append(prog)
+                                    seen_ids.add(prog.programme_id)
+                            extract_from_dict(item, depth + 1)
+
+        # Buscar en ubicacions conegudes primer
+        known_paths = [
+            ["programmes"],
+            ["atoz", "programmes"],
+            ["atoz", "items"],
+            ["entities", "programmes"],
+            ["entities", "tleos"],
+            ["data", "programmes"],
+            ["data", "items"],
+            ["header", "programmes"],
+            ["navigation", "items"],
         ]
 
-        for location in locations:
-            if isinstance(location, dict):
-                for pid, prog_data in location.items():
+        for path in known_paths:
+            obj = redux_state
+            for key in path:
+                if isinstance(obj, dict):
+                    obj = obj.get(key, {})
+                else:
+                    break
+
+            if isinstance(obj, dict) and obj:
+                for pid, prog_data in obj.items():
                     if isinstance(prog_data, dict):
                         prog = self._parse_redux_programme(prog_data, pid)
-                        if prog:
+                        if prog and prog.programme_id not in seen_ids:
                             programs.append(prog)
-            elif isinstance(location, list):
-                for prog_data in location:
-                    if isinstance(prog_data, dict):
-                        prog = self._parse_redux_programme(prog_data)
-                        if prog:
-                            programs.append(prog)
-
-        # També buscar en llistes d'episodis/programes
-        for key in ["items", "elements", "results", "programmes"]:
-            items = redux_state.get(key, [])
-            if isinstance(items, list):
-                for item in items:
+                            seen_ids.add(prog.programme_id)
+            elif isinstance(obj, list):
+                for item in obj:
                     if isinstance(item, dict):
                         prog = self._parse_redux_programme(item)
-                        if prog:
+                        if prog and prog.programme_id not in seen_ids:
                             programs.append(prog)
+                            seen_ids.add(prog.programme_id)
+
+        # Cerca recursiva general
+        extract_from_dict(redux_state)
 
         return programs
 
@@ -421,30 +476,90 @@ class BBCCatalogScanner:
 
     def _parse_html_programmes(self, html: str) -> List[BBCProgram]:
         """
-        Parseja programes directament de l'HTML si no trobem JSON.
+        Parseja programes directament de l'HTML.
+        Utilitza múltiples patrons per capturar tot el possible.
         """
         import re
+        from html import unescape
 
         programs = []
+        seen_pids = set()
 
-        # Buscar patrons d'enllaços a programes
-        # Pattern: /iplayer/episodes/{pid} o /iplayer/episode/{pid}
-        episode_pattern = r'href=["\']?/iplayer/episodes?/([a-z0-9]+)["\']?[^>]*>([^<]+)</a>'
+        # Patró 1: Enllaços a episodis/sèries
+        # /iplayer/episodes/{pid} o /iplayer/episode/{pid}
+        patterns = [
+            # Enllaços amb text
+            r'href=["\']?/iplayer/episodes?/([a-z0-9]+)["\']?[^>]*>([^<]+)</a>',
+            # Enllaços en data attributes
+            r'data-pid=["\']([a-z0-9]+)["\']',
+            r'data-programme-id=["\']([a-z0-9]+)["\']',
+            r'data-tleo-id=["\']([a-z0-9]+)["\']',
+            # Href sense text (agafarem el títol d'un altre lloc)
+            r'href=["\']?/iplayer/episodes?/([a-z0-9]{7,})["\']',
+            # Programes en JSON-LD
+            r'"url"\s*:\s*"https?://www\.bbc\.co\.uk/iplayer/episodes?/([a-z0-9]+)"',
+        ]
 
-        for match in re.finditer(episode_pattern, html, re.IGNORECASE):
-            pid = match.group(1)
-            title = match.group(2).strip()
+        # Extreure títols per PID (de diversos llocs)
+        pid_titles = {}
 
-            if pid and title and len(pid) >= 7:
-                prog = BBCProgram(
-                    programme_id=pid,
-                    title=title,
-                    url=f"https://www.bbc.co.uk/iplayer/episodes/{pid}",
-                    is_film=False,
-                    is_series=True,
-                    episodes_url=f"https://www.bbc.co.uk/iplayer/episodes/{pid}"
-                )
-                programs.append(prog)
+        # Buscar títols en diversos formats
+        title_patterns = [
+            r'href=["\']?/iplayer/episodes?/([a-z0-9]+)["\'][^>]*>\s*<[^>]*class="[^"]*title[^"]*"[^>]*>([^<]+)',
+            r'data-pid=["\']([a-z0-9]+)["\'][^>]*>\s*<[^>]*>([^<]+)',
+            r'aria-label=["\']([^"\']+)["\'][^>]*href=["\']?/iplayer/episodes?/([a-z0-9]+)',
+        ]
+
+        for pattern in title_patterns:
+            for match in re.finditer(pattern, html, re.IGNORECASE | re.DOTALL):
+                groups = match.groups()
+                if len(groups) >= 2:
+                    # Depenent del patró, el PID pot ser al grup 1 o 2
+                    if groups[0] and len(groups[0]) >= 7 and groups[0].isalnum():
+                        pid_titles[groups[0]] = unescape(groups[1].strip())
+                    elif groups[1] and len(groups[1]) >= 7 and groups[1].isalnum():
+                        pid_titles[groups[1]] = unescape(groups[0].strip())
+
+        # Processar tots els patrons
+        for i, pattern in enumerate(patterns):
+            for match in re.finditer(pattern, html, re.IGNORECASE):
+                groups = match.groups()
+                pid = None
+                title = None
+
+                if len(groups) >= 2:
+                    pid = groups[0]
+                    title = unescape(groups[1].strip()) if groups[1] else None
+                elif len(groups) >= 1:
+                    pid = groups[0]
+
+                if pid and len(pid) >= 7 and pid.isalnum() and pid not in seen_pids:
+                    # Buscar títol si no el tenim
+                    if not title:
+                        title = pid_titles.get(pid)
+
+                    # Si encara no tenim títol, buscar-lo a prop en l'HTML
+                    if not title:
+                        # Buscar en un context proper
+                        context_start = max(0, match.start() - 500)
+                        context_end = min(len(html), match.end() + 500)
+                        context = html[context_start:context_end]
+
+                        title_match = re.search(r'class="[^"]*title[^"]*"[^>]*>([^<]+)', context)
+                        if title_match:
+                            title = unescape(title_match.group(1).strip())
+
+                    if title and len(title) > 1:
+                        seen_pids.add(pid)
+                        prog = BBCProgram(
+                            programme_id=pid,
+                            title=title,
+                            url=f"https://www.bbc.co.uk/iplayer/episodes/{pid}",
+                            is_film=False,
+                            is_series=True,
+                            episodes_url=f"https://www.bbc.co.uk/iplayer/episodes/{pid}"
+                        )
+                        programs.append(prog)
 
         return programs
 
