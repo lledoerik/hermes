@@ -278,6 +278,21 @@
   text-transform: uppercase;
 }
 
+.source-badge-quality.cached {
+  background: rgba(78, 205, 196, 0.3);
+  color: #4ecdc4;
+}
+
+.source-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+}
+
 .source-btn.bbc-active {
   color: #4ecdc4;
 }
@@ -651,6 +666,18 @@
 .control-btn svg {
   width: 24px;
   height: 24px;
+}
+
+/* Quality badge (read-only display) */
+.quality-badge-display {
+  background: rgba(50, 132, 146, 0.3);
+  color: #4ecdc4;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 /* Track menu (audio/subtitles) */
