@@ -12859,7 +12859,13 @@ async def run_bbc_bulk_import(tmdb_key: str, min_confidence: float):
         bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
         logger.info("BBC Bulk Import: Fase 2 - Cercant BBC programme IDs...")
 
+        # Log first 5 titles for debugging
+        logger.info(f"First 5 TMDB titles to search:")
+        for t in tmdb_titles[:5]:
+            logger.info(f"  - {t['title']} (TMDB: {t['tmdb_id']}, type: {t['content_type']})")
+
         matched = []
+        not_found = []
         for idx, title in enumerate(tmdb_titles):
             if not bbc_bulk_import_status["running"]:
                 bbc_bulk_import_status["phase"] = "stopped"
@@ -12890,14 +12896,21 @@ async def run_bbc_bulk_import(tmdb_key: str, min_confidence: float):
                     "year": title.get("year"),
                     "overview": title.get("overview"),
                 })
-                logger.debug(f"Matched: {title['title']} -> BBC PID: {bbc_pid}")
+                # Log first 10 successful matches
+                if len(matched) <= 10:
+                    logger.info(f"✓ Found BBC PID: '{title['title']}' -> {bbc_pid}")
+            else:
+                not_found.append(title['title'])
+                # Log first 10 failures
+                if len(not_found) <= 10:
+                    logger.info(f"✗ Not found: '{title['title']}' (TMDB: {title['tmdb_id']})")
 
             # Rate limiting per BBC search API
             await asyncio.sleep(0.3)
 
             # Log progress cada 50 títols
             if (idx + 1) % 50 == 0:
-                logger.info(f"BBC Bulk Import: Progress {idx + 1}/{len(tmdb_titles)} - {len(matched)} matched")
+                logger.info(f"BBC Bulk Import: Progress {idx + 1}/{len(tmdb_titles)} - {len(matched)} matched, {len(not_found)} not found")
 
         bbc_bulk_import_status["matched_programs"] = len(matched)
         bbc_bulk_import_status["skipped_low_confidence"] = len(tmdb_titles) - len(matched)
