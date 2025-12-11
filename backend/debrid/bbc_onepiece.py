@@ -268,7 +268,11 @@ def import_bbc_episodes_from_list(episodes: List[Dict], arc_start_episode: int =
     import re
     imported = 0
 
-    for idx, ep in enumerate(episodes):
+    # BBC retorna episodis en ordre invers (més nous primer)
+    # Invertim la llista per tenir-los en ordre cronològic
+    episodes_ordered = list(reversed(episodes))
+
+    for idx, ep in enumerate(episodes_ordered):
         programme_id = ep.get("programme_id") or ep.get("id")
         title = ep.get("title", "")
 
