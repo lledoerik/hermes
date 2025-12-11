@@ -12872,7 +12872,7 @@ async def run_bbc_bulk_import(tmdb_key: str, min_confidence: float):
         # Phase 2: Matching with TMDB
         bbc_bulk_import_status["phase"] = "matching"
         bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
-        logger.info("BBC Bulk Import: Fase 2 - Fent matching amb TMDB...")
+        logger.info(f"BBC Bulk Import: Fase 2 - Fent matching amb TMDB (API key: {tmdb_key[:8]}...)")
 
         if not bbc_bulk_import_status["running"]:
             bbc_bulk_import_status["phase"] = "stopped"
@@ -12880,8 +12880,21 @@ async def run_bbc_bulk_import(tmdb_key: str, min_confidence: float):
             return
 
         matcher = BBCTMDBMatcher(tmdb_key)
-        match_result = await matcher.match_all_programs(all_programs, min_confidence=min_confidence)
+
+        def update_match_progress(msg, percent):
+            bbc_bulk_import_status["current_program"] = msg
+            bbc_bulk_import_status["progress_percent"] = 20 + int(percent * 0.20)  # 20-40%
+            bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
+
+        match_result = await matcher.match_all_programs(
+            all_programs,
+            progress_callback=update_match_progress,
+            min_confidence=min_confidence
+        )
         matched = match_result.get("matched", [])
+        unmatched_count = match_result.get("unmatched_count", 0)
+        low_conf_count = match_result.get("low_confidence_count", 0)
+        logger.info(f"BBC Bulk Import: TMDB result - matched={len(matched)}, unmatched={unmatched_count}, low_conf={low_conf_count}")
 
         bbc_bulk_import_status["matched_programs"] = len(matched)
         bbc_bulk_import_status["skipped_low_confidence"] = len(match_result.get("low_confidence", []))
@@ -12899,7 +12912,8 @@ async def run_bbc_bulk_import(tmdb_key: str, min_confidence: float):
             bbc_bulk_import_status["completed_at"] = datetime.now().isoformat()
             return
 
-        # bbc_client already created in Phase 1
+        # Create BBC client for fetching episode details
+        bbc_client = BBCiPlayerClient()
         total_to_import = len(matched)
 
         for idx, item in enumerate(matched):
