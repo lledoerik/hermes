@@ -12854,6 +12854,13 @@ async def download_subtitle(file_id: str):
 # Path to local One Piece files - configure this
 THREECAT_ONEPIECE_PATH = os.environ.get("THREECAT_ONEPIECE_PATH", "/home/user/Videos/OnePiece")
 
+# Log 3CAT path configuration on startup
+if os.path.exists(THREECAT_ONEPIECE_PATH):
+    print(f"✓ 3CAT One Piece path configured: {THREECAT_ONEPIECE_PATH}")
+else:
+    print(f"⚠ 3CAT One Piece path not found: {THREECAT_ONEPIECE_PATH}")
+    print(f"  Set THREECAT_ONEPIECE_PATH environment variable to enable local One Piece files")
+
 def get_3cat_episode_path(episode: int) -> Optional[str]:
     """
     Find the local file for a One Piece episode.
@@ -12863,6 +12870,7 @@ def get_3cat_episode_path(episode: int) -> Optional[str]:
     import glob
 
     if not os.path.exists(THREECAT_ONEPIECE_PATH):
+        print(f"3CAT: Path does not exist: {THREECAT_ONEPIECE_PATH}")
         return None
 
     # Episode format: 01x01, 01x02, ... 01x100, ... 01x516 (2-digit minimum)
@@ -12905,9 +12913,15 @@ async def check_3cat_onepiece_availability(
             "language": "Català"
         }
 
+    # Return debug info about why it's not available
+    path_exists = os.path.exists(THREECAT_ONEPIECE_PATH)
     return {
         "available": False,
-        "episode": episode
+        "episode": episode,
+        "debug": {
+            "configured_path": THREECAT_ONEPIECE_PATH,
+            "path_exists": path_exists
+        }
     }
 
 
