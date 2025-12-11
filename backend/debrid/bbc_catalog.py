@@ -69,6 +69,263 @@ BBC_CHANNELS = [
     "s4c",
 ]
 
+# JustWatch API configuration
+JUSTWATCH_API_BASE = "https://apis.justwatch.com/content"
+JUSTWATCH_GRAPHQL = "https://apis.justwatch.com/graphql"
+JUSTWATCH_BBC_PROVIDER_ID = 38  # BBC iPlayer provider ID in JustWatch
+
+
+class JustWatchBBCScanner:
+    """
+    Escaneja el catàleg de BBC iPlayer utilitzant JustWatch.
+    JustWatch té el catàleg complet i actualitzat.
+    """
+
+    def __init__(self):
+        self.headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+
+    async def get_provider_id(self) -> Optional[int]:
+        """
+        Obté el provider ID de BBC iPlayer a JustWatch.
+        """
+        url = f"{JUSTWATCH_API_BASE}/providers/locale/en_GB"
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(url, headers=self.headers)
+                if response.status_code == 200:
+                    providers = response.json()
+                    for provider in providers:
+                        name = provider.get("clear_name", "").lower()
+                        tech_name = provider.get("technical_name", "").lower()
+                        if "bbc" in name and "iplayer" in name:
+                            logger.info(f"Found BBC iPlayer provider: ID={provider.get('id')}, name={provider.get('clear_name')}")
+                            return provider.get("id")
+                        if "bbciplayer" in tech_name or "bbc_iplayer" in tech_name:
+                            return provider.get("id")
+        except Exception as e:
+            logger.error(f"Error getting JustWatch provider ID: {e}")
+
+        return JUSTWATCH_BBC_PROVIDER_ID  # Fallback to known ID
+
+    async def scan_all_content(self, progress_callback=None) -> List[Dict]:
+        """
+        Escaneja tot el contingut de BBC iPlayer via JustWatch.
+        Retorna llista de títols amb informació bàsica.
+        """
+        all_titles = []
+
+        # Escanejar pel·lícules
+        if progress_callback:
+            progress_callback("JustWatch: Scanning movies...", 0)
+
+        movies = await self._scan_content_type("movie", progress_callback, 0, 40)
+        all_titles.extend(movies)
+        logger.info(f"JustWatch: Found {len(movies)} movies")
+
+        # Escanejar sèries
+        if progress_callback:
+            progress_callback("JustWatch: Scanning TV shows...", 40)
+
+        shows = await self._scan_content_type("show", progress_callback, 40, 100)
+        all_titles.extend(shows)
+        logger.info(f"JustWatch: Found {len(shows)} TV shows")
+
+        logger.info(f"JustWatch total: {len(all_titles)} titles")
+        return all_titles
+
+    async def _scan_content_type(self, content_type: str, progress_callback, start_pct: float, end_pct: float) -> List[Dict]:
+        """
+        Escaneja un tipus de contingut (movie o show) de JustWatch.
+        """
+        titles = []
+        page = 1
+        page_size = 100
+        total_pages = 1
+
+        while page <= total_pages:
+            url = f"{JUSTWATCH_API_BASE}/titles/en_GB/popular"
+
+            params = {
+                "body": json.dumps({
+                    "providers": ["bip"],  # BBC iPlayer short code
+                    "content_types": [content_type],
+                    "page": page,
+                    "page_size": page_size,
+                })
+            }
+
+            # Alternative: direct filter endpoint
+            filter_url = f"{JUSTWATCH_API_BASE}/titles/en_GB/popular"
+            payload = {
+                "providers": ["bip"],
+                "content_types": [content_type],
+                "page": page,
+                "page_size": page_size,
+            }
+
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    response = await client.post(filter_url, json=payload, headers=self.headers)
+
+                    if response.status_code != 200:
+                        # Try alternative endpoint
+                        alt_url = f"{JUSTWATCH_API_BASE}/titles/en_GB/list"
+                        response = await client.post(alt_url, json=payload, headers=self.headers)
+
+                    if response.status_code == 200:
+                        data = response.json()
+                        items = data.get("items", [])
+
+                        if not items:
+                            break
+
+                        for item in items:
+                            title_info = {
+                                "justwatch_id": item.get("id"),
+                                "title": item.get("title"),
+                                "original_title": item.get("original_title"),
+                                "content_type": content_type,
+                                "year": item.get("original_release_year"),
+                                "tmdb_id": None,
+                                "imdb_id": None,
+                            }
+
+                            # Extreure IDs externs
+                            for scoring in item.get("scoring", []):
+                                if scoring.get("provider_type") == "tmdb:id":
+                                    title_info["tmdb_id"] = scoring.get("value")
+                                elif scoring.get("provider_type") == "imdb:id":
+                                    title_info["imdb_id"] = scoring.get("value")
+
+                            titles.append(title_info)
+
+                        # Actualitzar paginació
+                        total_pages = data.get("total_pages", 1)
+                        total_results = data.get("total_results", len(items))
+
+                        if progress_callback:
+                            pct = start_pct + (page / max(total_pages, 1)) * (end_pct - start_pct)
+                            progress_callback(f"JustWatch: {content_type}s page {page}/{total_pages}", pct)
+
+                        page += 1
+                        await asyncio.sleep(0.5)  # Rate limiting
+                    else:
+                        logger.warning(f"JustWatch API returned {response.status_code}")
+                        break
+
+            except Exception as e:
+                logger.error(f"Error scanning JustWatch {content_type}s: {e}")
+                break
+
+        return titles
+
+    async def scan_via_graphql(self, progress_callback=None) -> List[Dict]:
+        """
+        Escaneja BBC iPlayer via GraphQL API de JustWatch (més robust).
+        """
+        all_titles = []
+
+        # GraphQL query per obtenir contingut d'un provider
+        query = """
+        query GetPopularTitles($country: Country!, $providers: [String!], $after: String, $first: Int, $filter: TitleFilter) {
+            popularTitles(country: $country, providers: $providers, after: $after, first: $first, filter: $filter) {
+                edges {
+                    node {
+                        id
+                        objectType
+                        content(country: $country, language: "en") {
+                            title
+                            originalReleaseYear
+                            externalIds {
+                                tmdbId
+                                imdbId
+                            }
+                        }
+                    }
+                }
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
+                totalCount
+            }
+        }
+        """
+
+        for content_type in ["MOVIE", "SHOW"]:
+            cursor = None
+            page = 0
+
+            while True:
+                variables = {
+                    "country": "GB",
+                    "providers": ["bip"],
+                    "first": 100,
+                    "filter": {"objectTypes": [content_type]},
+                }
+
+                if cursor:
+                    variables["after"] = cursor
+
+                try:
+                    async with httpx.AsyncClient(timeout=30.0) as client:
+                        response = await client.post(
+                            JUSTWATCH_GRAPHQL,
+                            json={"query": query, "variables": variables},
+                            headers=self.headers
+                        )
+
+                        if response.status_code == 200:
+                            data = response.json()
+                            result = data.get("data", {}).get("popularTitles", {})
+
+                            edges = result.get("edges", [])
+                            if not edges:
+                                break
+
+                            for edge in edges:
+                                node = edge.get("node", {})
+                                content = node.get("content", {})
+                                external_ids = content.get("externalIds", {})
+
+                                title_info = {
+                                    "justwatch_id": node.get("id"),
+                                    "title": content.get("title"),
+                                    "content_type": "movie" if content_type == "MOVIE" else "show",
+                                    "year": content.get("originalReleaseYear"),
+                                    "tmdb_id": external_ids.get("tmdbId"),
+                                    "imdb_id": external_ids.get("imdbId"),
+                                }
+                                all_titles.append(title_info)
+
+                            page_info = result.get("pageInfo", {})
+                            if not page_info.get("hasNextPage"):
+                                break
+
+                            cursor = page_info.get("endCursor")
+                            page += 1
+
+                            if progress_callback:
+                                total = result.get("totalCount", 0)
+                                pct = min(95, (len(all_titles) / max(total, 1)) * 100)
+                                progress_callback(f"JustWatch GraphQL: {len(all_titles)} titles", pct)
+
+                            await asyncio.sleep(0.3)
+                        else:
+                            logger.warning(f"JustWatch GraphQL returned {response.status_code}")
+                            break
+
+                except Exception as e:
+                    logger.error(f"Error with JustWatch GraphQL: {e}")
+                    break
+
+        return all_titles
+
 
 @dataclass
 class BBCProgram:
@@ -776,60 +1033,102 @@ class BBCCatalogScanner:
     async def scan_full_catalog(self, progress_callback=None) -> Dict[str, Any]:
         """
         Escaneja el catàleg complet de BBC iPlayer:
-        1. Contingut destacat/popular/boxsets/nou (0-10%)
-        2. Grups i col·leccions (10-20%)
-        3. Totes les categories - 21 categories (20-45%)
-        4. Tots els canals - BBC One, Two, etc. (45-60%)
-        5. Tot l'abecedari A-Z (60-95%)
+        0. JustWatch (catàleg complet amb TMDB IDs) (0-15%)
+        1. Contingut destacat/popular/boxsets/nou (15-20%)
+        2. Grups i col·leccions (20-25%)
+        3. Totes les categories - 21 categories (25-45%)
+        4. Tots els canals - BBC One, Two, etc. (45-55%)
+        5. Tot l'abecedari A-Z amb web scraping (55-95%)
 
         Retorna un diccionari amb totes les pel·lícules i sèries trobades.
         """
         self._programs_cache = {}  # Reset cache
+        self._justwatch_data = []  # Store JustWatch results with TMDB IDs
 
-        # Fase 1: Escanejar contingut destacat/popular/boxsets/nou (0-10%)
+        # Fase 0: JustWatch (catàleg complet) (0-15%)
         if progress_callback:
-            progress_callback("Scanning featured, boxsets, new content...", 0)
+            progress_callback("JustWatch: Getting complete BBC iPlayer catalog...", 0)
+
+        try:
+            jw_scanner = JustWatchBBCScanner()
+
+            def jw_progress(msg, pct):
+                if progress_callback:
+                    progress_callback(msg, pct * 0.15)
+
+            # Provar GraphQL primer (més robust)
+            jw_titles = await jw_scanner.scan_via_graphql(jw_progress)
+
+            # Si GraphQL falla, provar REST API
+            if not jw_titles:
+                jw_titles = await jw_scanner.scan_all_content(jw_progress)
+
+            self._justwatch_data = jw_titles
+            logger.info(f"JustWatch: Found {len(jw_titles)} titles with TMDB IDs")
+
+            # Convertir JustWatch titles a BBCProgram (sense BBC PID però amb TMDB)
+            for title in jw_titles:
+                # Generar un ID temporal basat en JustWatch
+                jw_id = str(title.get("justwatch_id", ""))
+                if jw_id and title.get("title"):
+                    # Crear programa amb les dades de JustWatch
+                    prog = BBCProgram(
+                        programme_id=f"jw_{jw_id}",  # Prefix per identificar origen
+                        title=title.get("title"),
+                        url="",  # No tenim URL de BBC encara
+                        is_film=title.get("content_type") == "movie",
+                        is_series=title.get("content_type") == "show",
+                    )
+                    self._programs_cache[prog.programme_id] = prog
+
+            logger.info(f"After JustWatch: {len(self._programs_cache)} programs")
+        except Exception as e:
+            logger.warning(f"JustWatch scan failed (continuing with BBC sources): {e}")
+
+        # Fase 1: Escanejar contingut destacat/popular/boxsets/nou (15-20%)
+        if progress_callback:
+            progress_callback("Scanning featured, boxsets, new content...", 15)
         await self.scan_featured_api()
         logger.info(f"After featured/boxsets: {len(self._programs_cache)} programs")
 
-        # Fase 2: Escanejar grups i col·leccions (10-20%)
+        # Fase 2: Escanejar grups i col·leccions (20-25%)
         if progress_callback:
-            progress_callback("Scanning groups and collections...", 10)
+            progress_callback("Scanning groups and collections...", 20)
         await self.scan_groups_api()
         logger.info(f"After groups: {len(self._programs_cache)} programs")
 
-        # Fase 3: Escanejar totes les categories (20-45%)
+        # Fase 3: Escanejar totes les categories (25-45%)
         if progress_callback:
-            progress_callback("Scanning all 21 categories...", 20)
+            progress_callback("Scanning all 21 categories...", 25)
 
         def category_progress(msg, pct):
             if progress_callback:
-                # Map 0-100% to 20-45%
-                progress_callback(msg, 20 + (pct * 0.25))
+                # Map 0-100% to 25-45%
+                progress_callback(msg, 25 + (pct * 0.20))
 
         await self.scan_all_categories(category_progress)
         logger.info(f"After categories: {len(self._programs_cache)} programs")
 
-        # Fase 4: Escanejar tots els canals (45-60%)
+        # Fase 4: Escanejar tots els canals (45-55%)
         if progress_callback:
             progress_callback("Scanning all BBC channels...", 45)
 
         def channel_progress(msg, pct):
             if progress_callback:
-                # Map 0-100% to 45-60%
-                progress_callback(msg, 45 + (pct * 0.15))
+                # Map 0-100% to 45-55%
+                progress_callback(msg, 45 + (pct * 0.10))
 
         await self.scan_all_channels(channel_progress)
         logger.info(f"After channels: {len(self._programs_cache)} programs")
 
-        # Fase 5: Escanejar A-Z complet (60-95%)
+        # Fase 5: Escanejar A-Z complet amb web scraping (55-95%)
         if progress_callback:
-            progress_callback("Scanning complete A-Z listing...", 60)
+            progress_callback("Scanning complete A-Z (API + Web scraping)...", 55)
 
         def az_progress(msg, pct):
             if progress_callback:
-                # Map 0-100% to 60-95%
-                progress_callback(msg, 60 + (pct * 0.35))
+                # Map 0-100% to 55-95%
+                progress_callback(msg, 55 + (pct * 0.40))
 
         await self.scan_all_az(az_progress)
         logger.info(f"After A-Z: {len(self._programs_cache)} programs")
