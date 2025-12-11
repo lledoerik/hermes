@@ -327,6 +327,182 @@ class JustWatchBBCScanner:
         return all_titles
 
 
+class TMDBBBCScanner:
+    """
+    Escaneja el contingut de BBC iPlayer utilitzant TMDB Discover API.
+
+    TMDB té informació de quins títols estan disponibles a cada streaming provider.
+    Això ens dona directament els TMDB IDs sense necessitat de fer matching!
+
+    Provider ID per BBC iPlayer a TMDB: 38
+    """
+
+    # BBC iPlayer provider ID a TMDB
+    BBC_IPLAYER_PROVIDER_ID = 38
+
+    def __init__(self, tmdb_api_key: str):
+        self.api_key = tmdb_api_key
+        self.base_url = "https://api.themoviedb.org/3"
+
+    async def discover_all_content(self, progress_callback=None) -> List[Dict]:
+        """
+        Descobreix tot el contingut disponible a BBC iPlayer via TMDB Discover API.
+        Retorna llista de títols amb TMDB IDs.
+        """
+        all_titles = []
+
+        # Escanejar pel·lícules
+        if progress_callback:
+            progress_callback("TMDB Discover: Scanning BBC iPlayer movies...", 0)
+
+        movies = await self._discover_content_type("movie", progress_callback, 0, 45)
+        all_titles.extend(movies)
+        logger.info(f"TMDB Discover: Found {len(movies)} movies on BBC iPlayer")
+
+        # Escanejar sèries
+        if progress_callback:
+            progress_callback("TMDB Discover: Scanning BBC iPlayer TV shows...", 45)
+
+        shows = await self._discover_content_type("tv", progress_callback, 45, 95)
+        all_titles.extend(shows)
+        logger.info(f"TMDB Discover: Found {len(shows)} TV shows on BBC iPlayer")
+
+        if progress_callback:
+            progress_callback("TMDB Discover: Complete!", 100)
+
+        logger.info(f"TMDB Discover total: {len(all_titles)} titles on BBC iPlayer")
+        return all_titles
+
+    async def _discover_content_type(
+        self,
+        content_type: str,
+        progress_callback,
+        start_pct: float,
+        end_pct: float
+    ) -> List[Dict]:
+        """
+        Descobreix un tipus de contingut (movie o tv) disponible a BBC iPlayer.
+        """
+        titles = []
+        page = 1
+        total_pages = 1
+
+        # Endpoint: /discover/movie o /discover/tv
+        endpoint = f"{self.base_url}/discover/{content_type}"
+
+        while page <= total_pages and page <= 500:  # TMDB max 500 pages
+            params = {
+                "api_key": self.api_key,
+                "language": "en-GB",
+                "watch_region": "GB",  # UK
+                "with_watch_providers": str(self.BBC_IPLAYER_PROVIDER_ID),
+                "sort_by": "popularity.desc",
+                "page": page
+            }
+
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    response = await client.get(endpoint, params=params)
+
+                    if response.status_code == 200:
+                        data = response.json()
+                        results = data.get("results", [])
+                        total_pages = min(data.get("total_pages", 1), 500)
+                        total_results = data.get("total_results", 0)
+
+                        for item in results:
+                            title_info = {
+                                "tmdb_id": item.get("id"),
+                                "title": item.get("title") or item.get("name"),
+                                "original_title": item.get("original_title") or item.get("original_name"),
+                                "content_type": content_type,
+                                "year": None,
+                                "overview": item.get("overview"),
+                                "poster_path": item.get("poster_path"),
+                                "vote_average": item.get("vote_average"),
+                            }
+
+                            # Extreure any
+                            date_str = item.get("release_date") or item.get("first_air_date") or ""
+                            if date_str and len(date_str) >= 4:
+                                try:
+                                    title_info["year"] = int(date_str[:4])
+                                except ValueError:
+                                    pass
+
+                            titles.append(title_info)
+
+                        # Progress callback
+                        if progress_callback and total_pages > 0:
+                            pct = start_pct + ((page / total_pages) * (end_pct - start_pct))
+                            progress_callback(
+                                f"TMDB Discover: {content_type}s page {page}/{total_pages} ({len(titles)} found)",
+                                pct
+                            )
+
+                        logger.debug(f"TMDB Discover {content_type} page {page}/{total_pages}: {len(results)} results")
+
+                        page += 1
+                        await asyncio.sleep(0.25)  # Rate limiting
+
+                    elif response.status_code == 401:
+                        logger.error("TMDB API key invalid (401)")
+                        break
+                    elif response.status_code == 429:
+                        logger.warning("TMDB rate limited, waiting...")
+                        await asyncio.sleep(2)
+                    else:
+                        logger.warning(f"TMDB Discover returned {response.status_code}: {response.text[:200]}")
+                        break
+
+            except Exception as e:
+                logger.error(f"Error in TMDB Discover {content_type}: {e}")
+                break
+
+        return titles
+
+    async def find_bbc_programme_id(self, tmdb_id: int, title: str, content_type: str) -> Optional[str]:
+        """
+        Intenta trobar el BBC programme ID per un títol de TMDB.
+        Cerca a l'API de BBC iPlayer pel títol.
+        """
+        try:
+            # Cercar a BBC iPlayer API pel títol
+            search_url = f"{BBC_API_BASE}/search/suggest"
+            params = {"q": title, "rights": "web", "api_key": "D2FgtcTxGqqIgLsfBWTJdrQh2tVdeaAp"}
+            cookies = get_bbc_cookies_dict()
+
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Accept": "application/json"
+            }
+
+            async with httpx.AsyncClient(timeout=10.0, cookies=cookies) as client:
+                response = await client.get(search_url, params=params, headers=headers)
+
+                if response.status_code == 200:
+                    data = response.json()
+                    results = data.get("search_suggest", {}).get("results", [])
+
+                    # Buscar coincidència pel títol
+                    title_lower = title.lower()
+                    for result in results:
+                        result_title = (result.get("title") or "").lower()
+                        if result_title == title_lower or title_lower in result_title:
+                            pid = result.get("id") or result.get("pid") or result.get("tleo_id")
+                            if pid:
+                                return pid
+
+                    # Si no hi ha match exacte, retornar el primer resultat
+                    if results:
+                        return results[0].get("id") or results[0].get("pid")
+
+        except Exception as e:
+            logger.debug(f"Error finding BBC PID for '{title}': {e}")
+
+        return None
+
+
 @dataclass
 class BBCProgram:
     """Representa un programa de BBC iPlayer"""
@@ -1212,7 +1388,16 @@ class BBCTMDBMatcher:
 
                     if results:
                         # Retornar el primer resultat (més rellevant)
+                        logger.debug(f"TMDB match for '{title}': {results[0].get('name') or results[0].get('title')}")
                         return results[0]
+                    else:
+                        logger.debug(f"TMDB: No results for '{title}' ({content_type})")
+                elif response.status_code == 401:
+                    logger.error(f"TMDB API key invalid/unauthorized (401) for '{title}'")
+                elif response.status_code == 429:
+                    logger.warning(f"TMDB rate limited (429) for '{title}'")
+                else:
+                    logger.warning(f"TMDB API error {response.status_code} for '{title}': {response.text[:200]}")
 
             return None
 
@@ -1289,6 +1474,11 @@ class BBCTMDBMatcher:
         unmatched = []
         low_confidence = []
 
+        # Log first 5 programs for debugging
+        logger.info(f"Starting TMDB matching for {len(programs)} programs (min_confidence={min_confidence})")
+        for p in programs[:5]:
+            logger.info(f"  Sample program: '{p.title}' (id={p.programme_id}, film={p.is_film}, series={p.is_series})")
+
         for i, program in enumerate(programs):
             if progress_callback:
                 progress_callback(
@@ -1297,6 +1487,10 @@ class BBCTMDBMatcher:
                 )
 
             result = await self.match_program(program)
+
+            # Log progress every 50 programs
+            if (i + 1) % 50 == 0:
+                logger.info(f"TMDB matching progress: {i + 1}/{len(programs)} - matched={len(matched)}, unmatched={len(unmatched)}, low_conf={len(low_confidence)}")
 
             if result:
                 match_data = {
