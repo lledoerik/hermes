@@ -12851,15 +12851,18 @@ async def download_subtitle(file_id: str):
 # 3CAT - Local One Piece files (Catalan dub)
 # ============================================================================
 
-# Path to local One Piece files - configure this
-THREECAT_ONEPIECE_PATH = os.environ.get("THREECAT_ONEPIECE_PATH", "/home/user/Videos/OnePiece")
+# Path to local One Piece files - configure in .env file
+# Uses HERMES_3CAT_ONEPIECE_PATH from .env (or legacy THREECAT_ONEPIECE_PATH)
+THREECAT_ONEPIECE_PATH = os.environ.get("HERMES_3CAT_ONEPIECE_PATH") or os.environ.get("THREECAT_ONEPIECE_PATH", "")
 
 # Log 3CAT path configuration on startup
-if os.path.exists(THREECAT_ONEPIECE_PATH):
-    print(f"✓ 3CAT One Piece path configured: {THREECAT_ONEPIECE_PATH}")
+if THREECAT_ONEPIECE_PATH:
+    if os.path.exists(THREECAT_ONEPIECE_PATH):
+        print(f"✓ 3CAT One Piece: {THREECAT_ONEPIECE_PATH}")
+    else:
+        print(f"⚠ 3CAT One Piece path configured but not found: {THREECAT_ONEPIECE_PATH}")
 else:
-    print(f"⚠ 3CAT One Piece path not found: {THREECAT_ONEPIECE_PATH}")
-    print(f"  Set THREECAT_ONEPIECE_PATH environment variable to enable local One Piece files")
+    print(f"ℹ 3CAT One Piece: No configurat (afegeix HERMES_3CAT_ONEPIECE_PATH al .env)")
 
 def get_3cat_episode_path(episode: int) -> Optional[str]:
     """
@@ -12869,8 +12872,7 @@ def get_3cat_episode_path(episode: int) -> Optional[str]:
     """
     import glob
 
-    if not os.path.exists(THREECAT_ONEPIECE_PATH):
-        print(f"3CAT: Path does not exist: {THREECAT_ONEPIECE_PATH}")
+    if not THREECAT_ONEPIECE_PATH or not os.path.exists(THREECAT_ONEPIECE_PATH):
         return None
 
     # Episode format: 01x01, 01x02, ... 01x100, ... 01x516 (2-digit minimum)
@@ -12914,13 +12916,13 @@ async def check_3cat_onepiece_availability(
         }
 
     # Return debug info about why it's not available
-    path_exists = os.path.exists(THREECAT_ONEPIECE_PATH)
     return {
         "available": False,
         "episode": episode,
         "debug": {
-            "configured_path": THREECAT_ONEPIECE_PATH,
-            "path_exists": path_exists
+            "configured_path": THREECAT_ONEPIECE_PATH or "(no configurat)",
+            "path_exists": bool(THREECAT_ONEPIECE_PATH) and os.path.exists(THREECAT_ONEPIECE_PATH),
+            "hint": "Configura HERMES_3CAT_ONEPIECE_PATH al fitxer .env" if not THREECAT_ONEPIECE_PATH else None
         }
     }
 
