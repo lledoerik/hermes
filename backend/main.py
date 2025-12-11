@@ -12962,13 +12962,15 @@ async def stream_3cat_video(
     path: str
 ):
     """
-    Stream a local video file with range support
+    Stream a local video file with range support.
+    Note: No auth required - security is enforced by path validation below.
+    The <video> element can't send auth headers, so we rely on path restriction.
     """
-    require_auth(request)
-
     filepath = urllib.parse.unquote(path)
 
     # Security check - only allow files from THREECAT_ONEPIECE_PATH
+    if not THREECAT_ONEPIECE_PATH:
+        raise HTTPException(status_code=500, detail="3CAT path not configured")
     if not filepath.startswith(THREECAT_ONEPIECE_PATH):
         raise HTTPException(status_code=403, detail="Access denied")
 
