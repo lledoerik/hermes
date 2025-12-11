@@ -12865,8 +12865,8 @@ def get_3cat_episode_path(episode: int) -> Optional[str]:
     if not os.path.exists(THREECAT_ONEPIECE_PATH):
         return None
 
-    # Episode format: 01x001, 01x002, ... 01x516
-    episode_pattern = f"01x{episode:03d}"
+    # Episode format: 01x01, 01x02, ... 01x100, ... 01x516 (2-digit minimum)
+    episode_pattern = f"01x{episode:02d}"
 
     # Search in all subdirectories (seasons)
     for season_dir in sorted(glob.glob(os.path.join(THREECAT_ONEPIECE_PATH, "*"))):
