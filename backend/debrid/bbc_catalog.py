@@ -18,6 +18,8 @@ from datetime import datetime
 
 import httpx
 
+from backend.debrid.bbc_cookies import get_bbc_cookies_dict
+
 logger = logging.getLogger(__name__)
 
 # BBC iPlayer Internal API
@@ -66,11 +68,27 @@ class BBCCatalogScanner:
             "Accept-Language": "en-GB,en;q=0.5",
         }
         self._programs_cache: Dict[str, BBCProgram] = {}
+        self._cookies: Optional[Dict[str, str]] = None
+
+    def _load_cookies(self) -> Dict[str, str]:
+        """Load BBC cookies for authenticated requests"""
+        if self._cookies is None:
+            try:
+                self._cookies = get_bbc_cookies_dict() or {}
+                if self._cookies:
+                    logger.info(f"Loaded {len(self._cookies)} BBC cookies for catalog scanning")
+                else:
+                    logger.warning("No BBC cookies available - API requests may be geo-blocked")
+            except Exception as e:
+                logger.warning(f"Could not load BBC cookies: {e}")
+                self._cookies = {}
+        return self._cookies
 
     async def _fetch_json(self, url: str) -> Optional[Dict]:
-        """Fetch JSON from BBC API"""
+        """Fetch JSON from BBC API with cookie authentication"""
+        cookies = self._load_cookies()
         try:
-            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, cookies=cookies) as client:
                 response = await client.get(url, headers=self.headers)
                 if response.status_code == 200:
                     return response.json()
