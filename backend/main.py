@@ -45,26 +45,27 @@ scheduler = AsyncIOScheduler()
 # Cache en memòria per a TMDB (episodis, detalls de sèries)
 # TTL: 24 hores per defecte
 class SimpleCache:
-    """Cache simple en memòria amb TTL."""
+    """Cache simple en memòria amb TTL per entrada."""
     def __init__(self, default_ttl: int = 86400):  # 24h per defecte
-        self._cache: Dict[str, tuple] = {}  # key -> (value, timestamp)
-        self._ttl = default_ttl
+        self._cache: Dict[str, tuple] = {}  # key -> (value, timestamp, ttl)
+        self._default_ttl = default_ttl
 
     def get(self, key: str):
         """Obtenir valor del cache si no ha expirat."""
         if key in self._cache:
-            value, timestamp = self._cache[key]
+            value, timestamp, ttl = self._cache[key]
             import time
-            if time.time() - timestamp < self._ttl:
+            if time.time() - timestamp < ttl:
                 return value
             else:
                 del self._cache[key]
         return None
 
     def set(self, key: str, value, ttl: int = None):
-        """Guardar valor al cache."""
+        """Guardar valor al cache amb TTL opcional (usa default si no especificat)."""
         import time
-        self._cache[key] = (value, time.time())
+        actual_ttl = ttl if ttl is not None else self._default_ttl
+        self._cache[key] = (value, time.time(), actual_ttl)
 
     def clear(self):
         """Netejar tot el cache."""
@@ -74,16 +75,50 @@ class SimpleCache:
         """Retorna el nombre d'elements al cache."""
         return len(self._cache)
 
+    def cleanup_expired(self):
+        """Eliminar entrades expirades del cache."""
+        import time
+        current_time = time.time()
+        expired_keys = [
+            key for key, (_, timestamp, ttl) in self._cache.items()
+            if current_time - timestamp >= ttl
+        ]
+        for key in expired_keys:
+            del self._cache[key]
+        return len(expired_keys)
+
 # Instàncies de cache globals
 tmdb_cache = SimpleCache(default_ttl=86400)  # 24h per episodis/detalls
 torrents_cache = SimpleCache(default_ttl=1800)  # 30min per torrents
 stream_url_cache = SimpleCache(default_ttl=14400)  # 4h per URLs de Real-Debrid
 
+# Client httpx global amb connection pooling per reutilitzar connexions
+import httpx
+_http_client: httpx.AsyncClient = None
+
+
+def get_http_client() -> httpx.AsyncClient:
+    """Obtenir el client HTTP global amb connection pooling."""
+    global _http_client
+    if _http_client is None:
+        raise RuntimeError("HTTP client not initialized. App must be started first.")
+    return _http_client
+
+
 # Lifespan per gestionar startup/shutdown
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Gestiona l'inici i tancament de l'aplicació."""
-    # Startup
+    global _http_client
+
+    # Startup - crear client HTTP global amb connection pooling
+    _http_client = httpx.AsyncClient(
+        timeout=httpx.Timeout(30.0, connect=10.0),
+        limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+        follow_redirects=True,
+    )
+    logger.info("HTTP client global iniciat amb connection pooling")
+
     scheduler.add_job(
         daily_sync_job,
         CronTrigger(hour=2, minute=30),
@@ -99,6 +134,12 @@ async def lifespan(app: FastAPI):
     # Shutdown
     scheduler.shutdown()
     logger.info("Scheduler aturat")
+
+    # Tancar client HTTP
+    if _http_client:
+        await _http_client.aclose()
+        _http_client = None
+        logger.info("HTTP client global tancat")
 
 
 # Crear app FastAPI
@@ -11116,47 +11157,65 @@ async def proxy_bbc_segment(
     """
     Proxy per als segments de vídeo de BBC iPlayer.
     Simplement reenvia el contingut binari.
-    Nota: No requereix autenticació perquè HLS.js fa peticions directes.
+    Inclou retry amb backoff exponencial per errors de xarxa.
     """
     import httpx
+    import asyncio
 
-    try:
-        # Obtenir les cookies de BBC per autenticació
-        from backend.debrid.bbc_cookies import get_bbc_cookies_dict
-        cookies = get_bbc_cookies_dict()
+    MAX_RETRIES = 3
+    BASE_DELAY = 0.5  # 500ms inicial
 
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "*/*",
-            "Accept-Language": "en-GB,en;q=0.9",
-            "Origin": "https://www.bbc.co.uk",
-            "Referer": "https://www.bbc.co.uk/iplayer",
-        }
+    # Obtenir les cookies de BBC per autenticació
+    from backend.debrid.bbc_cookies import get_bbc_cookies_dict
+    cookies = get_bbc_cookies_dict()
 
-        async with httpx.AsyncClient(timeout=60.0, cookies=cookies) as client:
-            response = await client.get(url, headers=headers, follow_redirects=True)
-            response.raise_for_status()
-            content = response.content
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "*/*",
+        "Accept-Language": "en-GB,en;q=0.9",
+        "Origin": "https://www.bbc.co.uk",
+        "Referer": "https://www.bbc.co.uk/iplayer",
+    }
 
-        # Determinar el content-type
-        content_type = response.headers.get("content-type", "video/mp2t")
+    last_error = None
+    for attempt in range(MAX_RETRIES):
+        try:
+            async with httpx.AsyncClient(timeout=30.0, cookies=cookies) as client:
+                response = await client.get(url, headers=headers, follow_redirects=True)
+                response.raise_for_status()
+                content = response.content
 
-        from fastapi.responses import Response
-        return Response(
-            content=content,
-            media_type=content_type,
-            headers={
-                "Access-Control-Allow-Origin": "*",
-                "Cache-Control": "max-age=3600"
-            }
-        )
+            # Determinar el content-type
+            content_type = response.headers.get("content-type", "video/mp2t")
 
-    except httpx.HTTPStatusError as e:
-        logger.error(f"Error HTTP al proxy segment BBC: {e.response.status_code}")
-        raise HTTPException(status_code=e.response.status_code, detail=f"BBC returned {e.response.status_code}")
-    except Exception as e:
-        logger.error(f"Error al proxy segment BBC: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+            from fastapi.responses import Response
+            return Response(
+                content=content,
+                media_type=content_type,
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Cache-Control": "max-age=86400"  # 24h per segments (són immutables)
+                }
+            )
+
+        except (httpx.TimeoutException, httpx.ConnectError, httpx.ReadError) as e:
+            last_error = e
+            if attempt < MAX_RETRIES - 1:
+                delay = BASE_DELAY * (2 ** attempt)  # Exponential backoff
+                logger.warning(f"Retry {attempt + 1}/{MAX_RETRIES} segment BBC després de {delay}s: {type(e).__name__}")
+                await asyncio.sleep(delay)
+            continue
+        except httpx.HTTPStatusError as e:
+            # No retry per errors HTTP (404, 403, etc.)
+            logger.error(f"Error HTTP al proxy segment BBC: {e.response.status_code}")
+            raise HTTPException(status_code=e.response.status_code, detail=f"BBC returned {e.response.status_code}")
+        except Exception as e:
+            logger.error(f"Error al proxy segment BBC: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    # Si arribem aquí, tots els retries han fallat
+    logger.error(f"Segment BBC fallat després de {MAX_RETRIES} intents: {last_error}")
+    raise HTTPException(status_code=504, detail="Timeout obtenint segment de BBC")
 
 
 @app.get("/api/bbc/info")
