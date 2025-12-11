@@ -1543,12 +1543,14 @@ function DebridPlayer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mediaInfo, loadMediaInfo, loadEpisodes, searchTorrents, checkDebridStatus, isDirectMode, directUrl, tmdbId, type, episode]);
 
-  // Auto-get stream when torrent is selected
+  // Auto-get stream when torrent is selected (only if not using BBC)
   useEffect(() => {
+    // Don't auto-load torrent stream if BBC is the active source or loading
+    if (activeSource === 'bbc' || loadingBbc) return;
     if (selectedTorrent && !streamUrl && !loadingStream) {
       getStreamUrl(selectedTorrent);
     }
-  }, [selectedTorrent, streamUrl, loadingStream, getStreamUrl]);
+  }, [selectedTorrent, streamUrl, loadingStream, getStreamUrl, activeSource, loadingBbc]);
 
   // Note: Fullscreen is triggered on first tap (requires user gesture)
 
@@ -1571,15 +1573,42 @@ function DebridPlayer() {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
-  // Re-fetch torrents when episode changes
+  // Re-fetch sources when episode changes (prioritize BBC)
   useEffect(() => {
-    if (debridConfigured && type !== 'movie') {
+    const loadSourcesForEpisode = async () => {
+      if (type === 'movie') return;
+
       // Reset el flag de precàrrega del següent episodi
       nextEpisodePreloadedRef.current = false;
       // Reset qualitats desactivades
       setDisabledQualities(new Set());
-      searchTorrents();
-    }
+
+      // Check BBC availability first (priority source)
+      const bbcIsAvailable = await checkBbcAvailability();
+      if (bbcIsAvailable) {
+        setLoadingBbc(true);
+        const bbcData = await loadBbcStream();
+        setLoadingBbc(false);
+
+        if (bbcData) {
+          // BBC stream loaded successfully - use it as primary
+          setStreamUrl(bbcData.url);
+          setActiveSource('bbc');
+          // Still load torrents in background as fallback
+          if (debridConfigured) {
+            searchTorrents();
+          }
+          return;
+        }
+      }
+
+      // Fallback: Load torrents if BBC not available
+      if (debridConfigured) {
+        searchTorrents();
+      }
+    };
+
+    loadSourcesForEpisode();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [episode]); // Only re-run when episode number changes
 
