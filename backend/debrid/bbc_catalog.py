@@ -237,7 +237,7 @@ class BBCCatalogScanner:
 
         while True:
             url = f"{BBC_API_BASE}/atoz/{letter_param}/programmes?per_page={per_page}&page={page}"
-            logger.info(f"Scanning BBC A-Z API: {url}")
+            logger.debug(f"Scanning BBC A-Z API: {url}")
 
             data = await self._fetch_json(url)
             if not data:
@@ -250,7 +250,7 @@ class BBCCatalogScanner:
             if not elements:
                 elements = data.get("programmes", []) or data.get("elements", [])
 
-            logger.info(f"Found {len(elements)} elements for letter {letter}, page {page}")
+            logger.debug(f"Found {len(elements)} elements for letter {letter}, page {page}")
 
             for item in elements:
                 prog = self._parse_programme(item)
@@ -268,20 +268,215 @@ class BBCCatalogScanner:
 
         return programs
 
+    async def scan_az_web(self, letter: str) -> List[BBCProgram]:
+        """
+        Escaneja una lletra de l'A-Z fent scraping de la pàgina web.
+        Això retorna TOTS els programes, no només els de l'API.
+        """
+        import re
+        import json
+
+        programs = []
+        cookies = self._load_cookies()
+
+        # La web utilitza lletres en minúscula
+        letter_param = letter.lower() if letter != "0-9" else "0-9"
+        url = f"https://www.bbc.co.uk/iplayer/a-z/{letter_param}"
+
+        logger.info(f"Scanning BBC A-Z Web: {url}")
+
+        try:
+            async with httpx.AsyncClient(timeout=60.0, follow_redirects=True, cookies=cookies) as client:
+                response = await client.get(url, headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "en-GB,en;q=0.5",
+                })
+
+                if response.status_code != 200:
+                    logger.warning(f"BBC A-Z Web returned {response.status_code} for {url}")
+                    return programs
+
+                html = response.text
+
+                # Buscar el JSON incrustat a la pàgina (redux state)
+                # Patró: window.__IPLAYER_REDUX_STATE__ = {...};
+                patterns = [
+                    r'window\.__IPLAYER_REDUX_STATE__\s*=\s*(\{.+?\});?\s*</script>',
+                    r'window\.__PRELOADED_STATE__\s*=\s*(\{.+?\});?\s*</script>',
+                    r'<script[^>]*id="initial-data"[^>]*>(\{.+?\})</script>',
+                    r'data-redux-state=["\'](\{.+?\})["\']',
+                ]
+
+                json_data = None
+                for pattern in patterns:
+                    match = re.search(pattern, html, re.DOTALL)
+                    if match:
+                        try:
+                            json_data = json.loads(match.group(1))
+                            logger.info(f"Found embedded JSON for letter {letter}")
+                            break
+                        except json.JSONDecodeError:
+                            continue
+
+                if json_data:
+                    # Extreure programes del JSON
+                    programmes = self._extract_programmes_from_redux(json_data)
+                    for prog in programmes:
+                        if prog.programme_id not in self._programs_cache:
+                            programs.append(prog)
+                            self._programs_cache[prog.programme_id] = prog
+                    logger.info(f"Extracted {len(programmes)} programmes from web for letter {letter}")
+                else:
+                    # Fallback: parsejar HTML directament
+                    programmes = self._parse_html_programmes(html)
+                    for prog in programmes:
+                        if prog.programme_id not in self._programs_cache:
+                            programs.append(prog)
+                            self._programs_cache[prog.programme_id] = prog
+                    logger.info(f"Parsed {len(programmes)} programmes from HTML for letter {letter}")
+
+        except Exception as e:
+            logger.error(f"Error scanning A-Z web for letter {letter}: {e}")
+
+        return programs
+
+    def _extract_programmes_from_redux(self, redux_state: Dict) -> List[BBCProgram]:
+        """
+        Extreu programes del redux state de la pàgina web.
+        """
+        programs = []
+
+        # Buscar en diferents ubicacions possibles
+        locations = [
+            redux_state.get("programmes", {}),
+            redux_state.get("atoz", {}).get("programmes", {}),
+            redux_state.get("entities", {}).get("programmes", {}),
+            redux_state.get("data", {}).get("programmes", {}),
+        ]
+
+        for location in locations:
+            if isinstance(location, dict):
+                for pid, prog_data in location.items():
+                    if isinstance(prog_data, dict):
+                        prog = self._parse_redux_programme(prog_data, pid)
+                        if prog:
+                            programs.append(prog)
+            elif isinstance(location, list):
+                for prog_data in location:
+                    if isinstance(prog_data, dict):
+                        prog = self._parse_redux_programme(prog_data)
+                        if prog:
+                            programs.append(prog)
+
+        # També buscar en llistes d'episodis/programes
+        for key in ["items", "elements", "results", "programmes"]:
+            items = redux_state.get(key, [])
+            if isinstance(items, list):
+                for item in items:
+                    if isinstance(item, dict):
+                        prog = self._parse_redux_programme(item)
+                        if prog:
+                            programs.append(prog)
+
+        return programs
+
+    def _parse_redux_programme(self, data: Dict, pid: str = None) -> Optional[BBCProgram]:
+        """
+        Parseja un programa del redux state.
+        """
+        try:
+            programme_id = pid or data.get("id") or data.get("pid") or data.get("tleoId")
+            if not programme_id:
+                return None
+
+            title = data.get("title") or data.get("name") or ""
+            if not title:
+                return None
+
+            # Determinar tipus
+            prog_type = data.get("type", "").lower()
+            is_film = prog_type == "film" or data.get("isFilm", False)
+            is_series = prog_type in ("series", "brand", "episode") or data.get("isSeries", False)
+
+            if not is_film and not is_series:
+                is_series = True  # Default a sèrie
+
+            # URL
+            url = data.get("url") or f"https://www.bbc.co.uk/iplayer/episodes/{programme_id}"
+
+            return BBCProgram(
+                programme_id=programme_id,
+                title=title,
+                url=url,
+                is_film=is_film,
+                is_series=is_series,
+                synopsis=data.get("synopsis") or data.get("description") or data.get("shortSynopsis"),
+                thumbnail=data.get("image") or data.get("thumbnail") or data.get("imageUrl"),
+                episodes_url=url if is_series else None
+            )
+        except Exception as e:
+            logger.debug(f"Error parsing redux programme: {e}")
+            return None
+
+    def _parse_html_programmes(self, html: str) -> List[BBCProgram]:
+        """
+        Parseja programes directament de l'HTML si no trobem JSON.
+        """
+        import re
+
+        programs = []
+
+        # Buscar patrons d'enllaços a programes
+        # Pattern: /iplayer/episodes/{pid} o /iplayer/episode/{pid}
+        episode_pattern = r'href=["\']?/iplayer/episodes?/([a-z0-9]+)["\']?[^>]*>([^<]+)</a>'
+
+        for match in re.finditer(episode_pattern, html, re.IGNORECASE):
+            pid = match.group(1)
+            title = match.group(2).strip()
+
+            if pid and title and len(pid) >= 7:
+                prog = BBCProgram(
+                    programme_id=pid,
+                    title=title,
+                    url=f"https://www.bbc.co.uk/iplayer/episodes/{pid}",
+                    is_film=False,
+                    is_series=True,
+                    episodes_url=f"https://www.bbc.co.uk/iplayer/episodes/{pid}"
+                )
+                programs.append(prog)
+
+        return programs
+
     async def scan_all_az(self, progress_callback=None) -> List[BBCProgram]:
         """
         Escaneja tot l'abecedari A-Z de BBC iPlayer.
+        Utilitza tant l'API com web scraping per màxima cobertura.
         """
         all_programs = []
         letters = list("abcdefghijklmnopqrstuvwxyz") + ["0-9"]
 
         for i, letter in enumerate(letters):
-            if progress_callback:
-                progress_callback(f"Scanning A-Z: {letter.upper()}", i / len(letters) * 100)
+            before_count = len(self._programs_cache)
 
-            programs = await self.scan_az_api(letter)
-            all_programs.extend(programs)
-            await asyncio.sleep(0.5)
+            # Primera passada: API
+            if progress_callback:
+                progress_callback(f"A-Z API: {letter.upper()}", (i / len(letters)) * 100)
+
+            api_programs = await self.scan_az_api(letter)
+            all_programs.extend(api_programs)
+
+            # Segona passada: Web scraping (per trobar el que l'API es deixa)
+            if progress_callback:
+                progress_callback(f"A-Z Web: {letter.upper()}", (i / len(letters)) * 100)
+
+            web_programs = await self.scan_az_web(letter)
+            all_programs.extend(web_programs)
+
+            after_count = len(self._programs_cache)
+            logger.info(f"Letter {letter.upper()}: found {after_count - before_count} new programs (API: {len(api_programs)}, Web: {len(web_programs)})")
+
+            await asyncio.sleep(0.3)
 
         return all_programs
 
