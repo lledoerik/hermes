@@ -381,9 +381,9 @@ function DebridPlayer() {
   const [showVidsrc, setShowVidsrc] = useState(false);
   const vidsrcUrl = useMemo(() => {
     if (type === 'movie') {
-      return `https://vidsrc.cc/v2/embed/movie/${tmdbId}`;
+      return `https://vidsrc.to/embed/movie/${tmdbId}`;
     } else {
-      return `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season}/${episode}`;
+      return `https://vidsrc.to/embed/tv/${tmdbId}/${season}/${episode}`;
     }
   }, [type, tmdbId, season, episode]);
 
