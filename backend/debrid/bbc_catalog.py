@@ -1212,7 +1212,16 @@ class BBCTMDBMatcher:
 
                     if results:
                         # Retornar el primer resultat (més rellevant)
+                        logger.debug(f"TMDB match for '{title}': {results[0].get('name') or results[0].get('title')}")
                         return results[0]
+                    else:
+                        logger.debug(f"TMDB: No results for '{title}' ({content_type})")
+                elif response.status_code == 401:
+                    logger.error(f"TMDB API key invalid/unauthorized (401) for '{title}'")
+                elif response.status_code == 429:
+                    logger.warning(f"TMDB rate limited (429) for '{title}'")
+                else:
+                    logger.warning(f"TMDB API error {response.status_code} for '{title}': {response.text[:200]}")
 
             return None
 
@@ -1289,6 +1298,11 @@ class BBCTMDBMatcher:
         unmatched = []
         low_confidence = []
 
+        # Log first 5 programs for debugging
+        logger.info(f"Starting TMDB matching for {len(programs)} programs (min_confidence={min_confidence})")
+        for p in programs[:5]:
+            logger.info(f"  Sample program: '{p.title}' (id={p.programme_id}, film={p.is_film}, series={p.is_series})")
+
         for i, program in enumerate(programs):
             if progress_callback:
                 progress_callback(
@@ -1297,6 +1311,10 @@ class BBCTMDBMatcher:
                 )
 
             result = await self.match_program(program)
+
+            # Log progress every 50 programs
+            if (i + 1) % 50 == 0:
+                logger.info(f"TMDB matching progress: {i + 1}/{len(programs)} - matched={len(matched)}, unmatched={len(unmatched)}, low_conf={len(low_confidence)}")
 
             if result:
                 match_data = {
