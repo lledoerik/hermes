@@ -679,6 +679,140 @@ class BBCiPlayerClient:
             logger.error(f"Error descobrint temporades: {e}")
             return []
 
+    async def scan_category_ytdlp(self, category_url: str) -> List[Dict]:
+        """
+        Escaneja una categoria de BBC iPlayer utilitzant yt-dlp.
+        Més robust que l'API perquè utilitza el mateix mecanisme que el reproductor.
+
+        Args:
+            category_url: URL de la categoria (ex: https://www.bbc.co.uk/iplayer/categories/drama-and-soaps/all)
+
+        Returns:
+            Llista de programes amb id, title, url, is_film, is_series
+        """
+        try:
+            logger.info(f"Escanejant categoria amb yt-dlp: {category_url}")
+
+            result = await self._run_ytdlp([
+                "--flat-playlist",
+                "-J",
+                "--no-warnings",
+                category_url
+            ])
+
+            if not result:
+                logger.warning(f"No s'ha obtingut resultat per {category_url}")
+                return []
+
+            info = json.loads(result)
+            entries = info.get("entries", [])
+
+            programs = []
+            seen_ids = set()
+
+            for entry in entries:
+                prog_id = entry.get("id") or entry.get("url", "").split("/")[-1]
+                if not prog_id or prog_id in seen_ids:
+                    continue
+
+                seen_ids.add(prog_id)
+                title = entry.get("title", "")
+                url = entry.get("url") or entry.get("webpage_url") or f"https://www.bbc.co.uk/iplayer/episode/{prog_id}"
+
+                # Determinar si és film o sèrie
+                # Els films normalment tenen /episode/ i no tenen temporades
+                is_episode_url = "/episode/" in url
+                duration = entry.get("duration", 0)
+
+                # Heurística: films > 60min, episodis < 60min
+                is_film = is_episode_url and duration and duration > 3600
+
+                programs.append({
+                    "programme_id": prog_id,
+                    "title": title,
+                    "url": url,
+                    "is_film": is_film,
+                    "is_series": not is_film,
+                    "duration": duration,
+                    "description": entry.get("description", ""),
+                    "thumbnail": entry.get("thumbnail")
+                })
+
+            logger.info(f"Trobats {len(programs)} programes a {category_url}")
+            return programs
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Error parsing JSON de {category_url}: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Error escanejant categoria {category_url}: {e}")
+            return []
+
+    async def scan_full_catalog_ytdlp(self, progress_callback=None) -> Dict[str, List[Dict]]:
+        """
+        Escaneja el catàleg complet de BBC iPlayer utilitzant yt-dlp.
+        Escaneja totes les categories principals.
+
+        Args:
+            progress_callback: Funció opcional per reportar progrés (message, percent)
+
+        Returns:
+            Dict amb 'films' i 'series' llistes
+        """
+        categories = [
+            ("drama", "https://www.bbc.co.uk/iplayer/categories/drama-and-soaps/all"),
+            ("comedy", "https://www.bbc.co.uk/iplayer/categories/comedy/all"),
+            ("entertainment", "https://www.bbc.co.uk/iplayer/categories/entertainment/all"),
+            ("documentaries", "https://www.bbc.co.uk/iplayer/categories/documentaries/all"),
+            ("films", "https://www.bbc.co.uk/iplayer/categories/films/all"),
+            ("lifestyle", "https://www.bbc.co.uk/iplayer/categories/lifestyle/all"),
+            ("music", "https://www.bbc.co.uk/iplayer/categories/music/all"),
+            ("news", "https://www.bbc.co.uk/iplayer/categories/news/all"),
+            ("science", "https://www.bbc.co.uk/iplayer/categories/science-and-nature/all"),
+            ("sport", "https://www.bbc.co.uk/iplayer/categories/sport/all"),
+            ("cbbc", "https://www.bbc.co.uk/iplayer/categories/cbbc/all"),
+            ("cbeebies", "https://www.bbc.co.uk/iplayer/categories/cbeebies/all"),
+        ]
+
+        all_programs = {}
+        films = []
+        series = []
+
+        for idx, (name, url) in enumerate(categories):
+            if progress_callback:
+                progress_callback(f"Escanejant {name}...", int((idx / len(categories)) * 100))
+
+            programs = await self.scan_category_ytdlp(url)
+
+            for prog in programs:
+                prog_id = prog["programme_id"]
+                if prog_id not in all_programs:
+                    all_programs[prog_id] = prog
+
+                    # La categoria "films" marca com a pel·lícula
+                    if name == "films" or prog.get("is_film"):
+                        prog["is_film"] = True
+                        prog["is_series"] = False
+                        films.append(prog)
+                    else:
+                        prog["is_film"] = False
+                        prog["is_series"] = True
+                        series.append(prog)
+
+            # Rate limiting
+            await asyncio.sleep(1)
+
+        if progress_callback:
+            progress_callback("Escaneig completat!", 100)
+
+        logger.info(f"Catàleg BBC: {len(films)} pel·lícules, {len(series)} sèries")
+
+        return {
+            "films": films,
+            "series": series,
+            "total": len(all_programs)
+        }
+
     async def _run_ytdlp(self, args: List[str]) -> Optional[str]:
         """
         Executar yt-dlp com a subprocess asíncron
