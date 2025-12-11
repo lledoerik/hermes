@@ -977,9 +977,13 @@ function DebridPlayer() {
 
     try {
       const response = await axios.get(`${API_URL}/api/3cat/onepiece/check/${episode}`);
+      console.log('3CAT check response:', response.data);
       if (response.data.available) {
+        console.log('✓ 3CAT available for episode', episode);
         setThreeCatAvailable(true);
         return true;
+      } else if (response.data.debug) {
+        console.log('3CAT not available:', response.data.debug);
       }
     } catch (err) {
       console.log('3CAT check failed:', err.message);
