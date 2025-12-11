@@ -18,8 +18,9 @@ import json
 import logging
 import re
 import subprocess
+import time
 from dataclasses import dataclass
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 
 import httpx
 
@@ -34,6 +35,45 @@ BBC_BITRATES = {
     "540p": 2812000,    # SD+
     "396p": 1500000,    # SD
 }
+
+# Cache per URLs de BBC (les URLs expiren ràpidament, ~30 min és un bon TTL)
+_BBC_STREAM_CACHE: Dict[str, Tuple[Any, float]] = {}
+BBC_CACHE_TTL = 1800  # 30 minuts
+
+
+def _get_cached_stream(programme_id: str, quality: str) -> Optional[Any]:
+    """Obtenir stream del cache si encara és vàlid"""
+    cache_key = f"{programme_id}:{quality}"
+    if cache_key in _BBC_STREAM_CACHE:
+        stream, timestamp = _BBC_STREAM_CACHE[cache_key]
+        if time.time() - timestamp < BBC_CACHE_TTL:
+            logger.info(f"[BBCCache] Hit per {programme_id} ({quality})")
+            return stream
+        else:
+            # Cache expirat, eliminar
+            del _BBC_STREAM_CACHE[cache_key]
+            logger.debug(f"[BBCCache] Expirat per {programme_id}")
+    return None
+
+
+def _set_cached_stream(programme_id: str, quality: str, stream: Any) -> None:
+    """Guardar stream al cache"""
+    cache_key = f"{programme_id}:{quality}"
+    _BBC_STREAM_CACHE[cache_key] = (stream, time.time())
+    logger.info(f"[BBCCache] Guardat {programme_id} ({quality})")
+
+
+def _clear_expired_cache() -> None:
+    """Netejar entrades expirades del cache"""
+    current_time = time.time()
+    expired_keys = [
+        key for key, (_, timestamp) in _BBC_STREAM_CACHE.items()
+        if current_time - timestamp >= BBC_CACHE_TTL
+    ]
+    for key in expired_keys:
+        del _BBC_STREAM_CACHE[key]
+    if expired_keys:
+        logger.debug(f"[BBCCache] Netejades {len(expired_keys)} entrades expirades")
 
 
 @dataclass
@@ -125,6 +165,36 @@ class BBCiPlayerClient:
 
         return upgraded
 
+    def _extract_best_url_from_info(self, info: dict, quality: str) -> tuple[Optional[str], Optional[str]]:
+        """
+        Extreu la millor URL de streaming del JSON de yt-dlp
+        Evita fer una segona crida a yt-dlp reutilitzant el JSON ja obtingut.
+        """
+        # Extreure la URL del JSON
+        base_url = info.get("url")
+
+        # Si no hi ha URL directa, buscar al manifest_url
+        if not base_url:
+            base_url = info.get("manifest_url")
+
+        # També podem buscar en els formats
+        if not base_url and info.get("formats"):
+            # Buscar el millor format amb video
+            for fmt in reversed(info.get("formats", [])):
+                if fmt.get("url") and fmt.get("vcodec") != "none":
+                    base_url = fmt.get("url")
+                    break
+
+        if not base_url:
+            logger.warning("No s'ha trobat cap URL de streaming al JSON")
+            return None, None
+
+        # Determinar la qualitat actual
+        height = info.get("height", 720)
+        current_quality = f"{height}p" if height else "720p"
+
+        return base_url, current_quality
+
     async def _verify_url_accessible(self, url: str) -> bool:
         """Verifica si una URL és accessible (no retorna 404)"""
         try:
@@ -157,6 +227,14 @@ class BBCiPlayerClient:
             logger.error(f"No s'ha pogut extreure programme_id de: {url_or_id}")
             return None
 
+        # Comprovar cache primer (evita crides yt-dlp innecessàries)
+        cached = _get_cached_stream(programme_id, quality)
+        if cached:
+            return cached
+
+        # Netejar cache expirat periòdicament
+        _clear_expired_cache()
+
         url = f"{self.base_url}/{programme_id}"
 
         try:
@@ -172,8 +250,17 @@ class BBCiPlayerClient:
 
             info = json.loads(result)
 
-            # Obtenir URL directa
-            stream_url, actual_quality = await self._get_best_url_with_1080p(url, quality)
+            # Obtenir URL directa reutilitzant el JSON ja obtingut (evita 2a crida yt-dlp)
+            stream_url, actual_quality = self._extract_best_url_from_info(info, quality)
+
+            # Si no s'ha pogut extreure la URL del JSON, intentar upgrade a 1080p
+            if stream_url and quality in ["best", "1080"]:
+                upgraded_url = self._upgrade_to_1080p(stream_url)
+                if upgraded_url != stream_url:
+                    is_accessible = await self._verify_url_accessible(upgraded_url)
+                    if is_accessible:
+                        stream_url = upgraded_url
+                        actual_quality = "1080p"
 
             # Processar subtítols
             subtitles = {}
@@ -185,7 +272,7 @@ class BBCiPlayerClient:
             # Extreure temporada/episodi del títol si existeix
             season, episode = self._extract_season_episode(info.get("title", ""))
 
-            return BBCStream(
+            stream = BBCStream(
                 programme_id=programme_id,
                 title=info.get("title", ""),
                 description=info.get("description"),
@@ -199,6 +286,11 @@ class BBCiPlayerClient:
                 episode=episode,
                 quality=actual_quality
             )
+
+            # Guardar al cache
+            _set_cached_stream(programme_id, quality, stream)
+
+            return stream
 
         except json.JSONDecodeError as e:
             logger.error(f"Error parsejant JSON de yt-dlp: {e}")
@@ -589,48 +681,50 @@ class BBCiPlayerClient:
 
     async def _run_ytdlp(self, args: List[str]) -> Optional[str]:
         """
-        Executar yt-dlp com a subprocess
+        Executar yt-dlp com a subprocess asíncron
 
         Utilitza cookies de BBC si estan configurades per autenticar-se.
-        Nota: Usem subprocess.run síncron perquè asyncio subprocess
-        no funciona correctament a Windows.
+        Utilitza asyncio.to_thread() per no bloquejar l'event loop.
         """
         import sys
         import shutil
         import subprocess
+        import asyncio
+
+        def _run_sync(args_list: List[str], cookie_file_path: Optional[str]) -> tuple:
+            """Execució síncrona en thread separat"""
+            ytdlp_path = shutil.which("yt-dlp")
+
+            if ytdlp_path:
+                cmd = [ytdlp_path]
+            else:
+                cmd = [sys.executable, "-m", "yt_dlp"]
+
+            if cookie_file_path:
+                cmd.extend(["--cookies", cookie_file_path])
+
+            cmd.extend(args_list)
+
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            return result.returncode, result.stdout, result.stderr
 
         try:
             # Utilitzar context manager per gestionar el fitxer de cookies temporal
             with BBCCookieFile() as cookie_file:
-                # Intentar trobar yt-dlp de diverses maneres
-                ytdlp_path = shutil.which("yt-dlp")
+                logger.debug(f"Executant yt-dlp en thread separat...")
 
-                if ytdlp_path:
-                    # yt-dlp trobat al PATH
-                    cmd = [ytdlp_path]
-                else:
-                    # Fallback: usar python -m yt_dlp
-                    cmd = [sys.executable, "-m", "yt_dlp"]
-
-                # Afegir cookies si disponibles
-                if cookie_file:
-                    cmd.extend(["--cookies", cookie_file])
-                    logger.debug("Utilitzant cookies de BBC configurades")
-
-                cmd.extend(args)
-
-                logger.debug(f"Executant: {' '.join(cmd[:3])}...")  # No mostrar tot per seguretat
-
-                # Usar subprocess.run síncron (funciona a Windows)
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=60  # 60 segons timeout
+                # Executar en thread separat per no bloquejar l'event loop
+                returncode, stdout, stderr = await asyncio.to_thread(
+                    _run_sync, args, cookie_file
                 )
 
-                if result.returncode != 0:
-                    error_msg = result.stderr or "Error desconegut"
+                if returncode != 0:
+                    error_msg = stderr or "Error desconegut"
                     logger.error(f"yt-dlp error: {error_msg}")
 
                     # Errors comuns
@@ -653,7 +747,7 @@ class BBCiPlayerClient:
 
                     return None
 
-                return result.stdout if result.stdout else None
+                return stdout if stdout else None
 
         except subprocess.TimeoutExpired:
             logger.error("Timeout executant yt-dlp")
