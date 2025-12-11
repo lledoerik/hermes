@@ -339,7 +339,8 @@ function DebridPlayer() {
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
-  
+  const [showQualityMenu, setShowQualityMenu] = useState(false);
+
   // Quality mode state - true = automàtic, false = manual
   const [isAutoQuality, setIsAutoQuality] = useState(true);
 
@@ -2139,11 +2140,15 @@ function DebridPlayer() {
                 </button>
               )}
 
-              {/* Quality badge (read-only, shows current quality) */}
-              {(selectedTorrent || (activeSource === 'bbc' && bbcStream?.quality)) && (
-                <div className="quality-badge-display">
-                  {activeSource === 'bbc' ? bbcStream?.quality : parseQuality(selectedTorrent?.name)}
-                </div>
+              {/* Quality button - opens quality menu */}
+              {activeSource === 'torrentio' && groupedTorrents.length > 0 && (
+                <button
+                  className="control-btn"
+                  onClick={(e) => { e.stopPropagation(); setShowQualityMenu(true); }}
+                  title="Qualitat"
+                >
+                  <SettingsIcon />
+                </button>
               )}
               <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}>
                 {isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
@@ -2172,7 +2177,7 @@ function DebridPlayer() {
         </div>
       )}
 
-      {/* Source menu (BBC + Torrentio qualities) */}
+      {/* Source menu (BBC vs Torrentio) */}
       {showSourceMenu && (
         <div className="quality-menu-overlay" onClick={(e) => e.stopPropagation()}>
           <div className="quality-menu source-menu">
@@ -2187,16 +2192,14 @@ function DebridPlayer() {
               {hasBbcMapping && (
                 <div
                   className={`quality-option source-option ${activeSource === 'bbc' ? 'active' : ''} ${!bbcAvailable ? 'disabled' : ''}`}
-                  onClick={() => bbcAvailable && changeSource('bbc')}
+                  onClick={() => { if (bbcAvailable) { changeSource('bbc'); setShowSourceMenu(false); }}}
                 >
                   <span className="source-icon"><BBCIcon /></span>
                   <div className="source-info">
                     <span className="source-name">BBC iPlayer</span>
-                    {/* Show arc info for One Piece */}
                     {bbcArcInfo && bbcAvailable && (
                       <span className="source-detail">Arc: {bbcArcInfo.arc}</span>
                     )}
-                    {/* Show generic BBC content title */}
                     {bbcContentInfo && bbcAvailable && !bbcArcInfo && (
                       <span className="source-detail">{bbcContentInfo.title}</span>
                     )}
@@ -2212,61 +2215,25 @@ function DebridPlayer() {
                 </div>
               )}
 
-              {/* Torrentio quality options - each quality as separate server */}
-              {groupedTorrents.map((group, index) => {
-                const isDisabled = disabledQualities.has(group.quality);
-                const isActive = activeSource === 'torrentio' && !isAutoQuality && currentQuality === group.quality;
-                return (
-                  <div
-                    key={index}
-                    className={`quality-option source-option ${isActive ? 'active' : ''} ${isDisabled ? 'disabled' : ''}`}
-                    onClick={() => {
-                      if (!isDisabled) {
-                        // Switch to torrentio and select this quality
-                        if (activeSource !== 'torrentio') {
-                          setActiveSource('torrentio');
-                        }
-                        changeTorrent(group.quality);
-                        setShowSourceMenu(false);
-                      }
-                    }}
-                  >
-                    <span className="source-icon"><TorrentIcon /></span>
-                    <div className="source-info">
-                      <span className="source-name">Torrentio</span>
-                      <span className="source-detail">{group.torrents.length} font{group.torrents.length !== 1 ? 's' : ''}</span>
-                    </div>
-                    <span className={`source-badge-quality ${group.hasCached ? 'cached' : ''}`}>
-                      {group.quality}
-                      {group.hasCached && ' ⚡'}
-                    </span>
-                  </div>
-                );
-              })}
-
-              {/* Auto quality option */}
-              {groupedTorrents.length > 0 && (
+              {/* Torrentio option */}
+              {torrents.length > 0 && (
                 <div
-                  className={`quality-option source-option ${activeSource === 'torrentio' && isAutoQuality ? 'active' : ''}`}
-                  onClick={() => {
-                    if (activeSource !== 'torrentio') {
-                      setActiveSource('torrentio');
-                    }
-                    changeTorrent('auto');
-                    setShowSourceMenu(false);
-                  }}
+                  className={`quality-option source-option ${activeSource === 'torrentio' ? 'active' : ''}`}
+                  onClick={() => { changeSource('torrentio'); setShowSourceMenu(false); }}
                 >
                   <span className="source-icon"><TorrentIcon /></span>
                   <div className="source-info">
                     <span className="source-name">Torrentio</span>
-                    <span className="source-detail">Selecció automàtica</span>
+                    <span className="source-detail">{torrents.filter(t => t.cached).length} en cache</span>
                   </div>
-                  <span className="source-badge-quality">Auto</span>
+                  {selectedTorrent && (
+                    <span className="source-badge-quality">{parseQuality(selectedTorrent.name)}</span>
+                  )}
                 </div>
               )}
 
               {/* Loading state */}
-              {loadingTorrents && groupedTorrents.length === 0 && (
+              {loadingTorrents && torrents.length === 0 && (
                 <div className="source-loading">
                   <span className="loading-spinner-small"></span>
                   <span>Cercant fonts...</span>
@@ -2274,11 +2241,48 @@ function DebridPlayer() {
               )}
 
               {/* No sources available */}
-              {!loadingTorrents && groupedTorrents.length === 0 && !hasBbcMapping && (
+              {!loadingTorrents && torrents.length === 0 && !hasBbcMapping && (
                 <div className="no-torrents">
                   No s'han trobat fonts disponibles
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quality menu (Predeterminada + available qualities) */}
+      {showQualityMenu && (
+        <div className="quality-menu-overlay" onClick={(e) => e.stopPropagation()}>
+          <div className="quality-menu">
+            <div className="quality-menu-header">
+              <h3>Qualitat</h3>
+              <button className="close-btn" onClick={() => setShowQualityMenu(false)}>
+                <CloseIcon />
+              </button>
+            </div>
+            <div className="quality-menu-content">
+              {/* Predeterminada (Auto) option */}
+              <div
+                className={`quality-option ${isAutoQuality ? 'active' : ''}`}
+                onClick={() => { changeTorrent('auto'); setShowQualityMenu(false); }}
+              >
+                <span className="quality-value">Predeterminada ({autoSelectedQuality})</span>
+              </div>
+              {/* Available qualities */}
+              {groupedTorrents.map((group, index) => {
+                const isDisabled = disabledQualities.has(group.quality);
+                return (
+                  <div
+                    key={index}
+                    className={`quality-option ${!isAutoQuality && currentQuality === group.quality ? 'active' : ''} ${group.hasCached ? 'cached' : ''} ${isDisabled ? 'disabled' : ''}`}
+                    onClick={() => { if (!isDisabled) { changeTorrent(group.quality); setShowQualityMenu(false); }}}
+                  >
+                    <span className="quality-value">{group.quality}</span>
+                    {group.hasCached && <span className="cached-icon">⚡</span>}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
