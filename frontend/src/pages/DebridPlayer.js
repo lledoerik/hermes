@@ -339,8 +339,7 @@ function DebridPlayer() {
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
-  const [showQualityMenu, setShowQualityMenu] = useState(false);
-
+  
   // Quality mode state - true = automàtic, false = manual
   const [isAutoQuality, setIsAutoQuality] = useState(true);
 
@@ -697,7 +696,7 @@ function DebridPlayer() {
     if (cachedUrl) {
       console.log('[Player] Usant stream URL del cache (instantani!)');
       setStreamUrl(cachedUrl);
-      setShowQualityMenu(false);
+      setShowSourceMenu(false);
       return;
     }
 
@@ -707,7 +706,7 @@ function DebridPlayer() {
 
     setLoadingStream(true);
     setError(null);
-    setShowQualityMenu(false);
+    setShowSourceMenu(false);
 
     try {
       const params = {
@@ -804,7 +803,7 @@ function DebridPlayer() {
         getStreamUrl(torrent, true);
       }
     }
-    setShowQualityMenu(false);
+    setShowSourceMenu(false);
   }, [groupedTorrents, selectedTorrent, streamUrl, getStreamUrl, autoSelectedQuality]);
 
   // Change language filter
@@ -1318,7 +1317,7 @@ function DebridPlayer() {
   // Handle touch events (mobile) - double tap detection
   const handleTouchTap = useCallback((e) => {
     // Ignore if any menu is open
-    if (showQualityMenu || showLanguageMenu || showEpisodesList || showAudioMenu || showEndedOverlay) {
+    if (showSourceMenu || showLanguageMenu || showEpisodesList || showAudioMenu || showEndedOverlay) {
       return;
     }
 
@@ -1391,12 +1390,12 @@ function DebridPlayer() {
         tapTimeoutRef.current = null;
       }, 300);
     }
-  }, [showQualityMenu, showLanguageMenu, showEpisodesList, showAudioMenu, showEndedOverlay, getTapZone, skipBack, skipForward, togglePlay, streamUrl, showControls, isPlaying, isFullscreen, enterFullscreenMobile, showDoubleTapFeedback]);
+  }, [showSourceMenu, showLanguageMenu, showEpisodesList, showAudioMenu, showEndedOverlay, getTapZone, skipBack, skipForward, togglePlay, streamUrl, showControls, isPlaying, isFullscreen, enterFullscreenMobile, showDoubleTapFeedback]);
 
   // Handle click events (desktop) - immediate pause/play
   const handleVideoClick = useCallback((e) => {
     // Ignore if any menu is open
-    if (showQualityMenu || showLanguageMenu || showEpisodesList || showAudioMenu || showEndedOverlay) {
+    if (showSourceMenu || showLanguageMenu || showEpisodesList || showAudioMenu || showEndedOverlay) {
       return;
     }
 
@@ -1419,7 +1418,7 @@ function DebridPlayer() {
     controlsTimeoutRef.current = setTimeout(() => {
       setShowControls(false);
     }, 3000);
-  }, [showQualityMenu, showLanguageMenu, showEpisodesList, showAudioMenu, showEndedOverlay, togglePlay, streamUrl]);
+  }, [showSourceMenu, showLanguageMenu, showEpisodesList, showAudioMenu, showEndedOverlay, togglePlay, streamUrl]);
 
   // Hide controls after inactivity
   const handleMouseMove = useCallback(() => {
@@ -1429,20 +1428,20 @@ function DebridPlayer() {
       clearTimeout(controlsTimeoutRef.current);
     }
 
-    if (isPlaying && !showQualityMenu && !showLanguageMenu) {
+    if (isPlaying && !showSourceMenu && !showLanguageMenu) {
       controlsTimeoutRef.current = setTimeout(() => {
         setShowControls(false);
       }, 3000);
     }
-  }, [isPlaying, showQualityMenu, showLanguageMenu]);
+  }, [isPlaying, showSourceMenu, showLanguageMenu]);
 
   // Keyboard controls
   useEffect(() => {
     const handleKeyDown = (e) => {
       // Handle escape for various menus/overlays
       if (e.key === 'Escape') {
-        if (showQualityMenu) {
-          setShowQualityMenu(false);
+        if (showSourceMenu) {
+          setShowSourceMenu(false);
           return;
         }
         if (showLanguageMenu) {
@@ -1465,7 +1464,7 @@ function DebridPlayer() {
       }
 
       // Don't handle other keys if overlays are open
-      if (showQualityMenu || showLanguageMenu || showEpisodesList || showEndedOverlay) {
+      if (showSourceMenu || showLanguageMenu || showEpisodesList || showEndedOverlay) {
         return;
       }
 
@@ -1505,7 +1504,7 @@ function DebridPlayer() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlay, skipBack, skipForward, toggleFullscreen, toggleMute, isFullscreen, showQualityMenu, showLanguageMenu, showEpisodesList, showEndedOverlay, nextEpisode, goToNextEpisode]);
+  }, [togglePlay, skipBack, skipForward, toggleFullscreen, toggleMute, isFullscreen, showSourceMenu, showLanguageMenu, showEpisodesList, showEndedOverlay, nextEpisode, goToNextEpisode]);
 
   // Initial load
   useEffect(() => {
@@ -1983,55 +1982,6 @@ function DebridPlayer() {
         </div>
       )}
 
-      {/* Quality Menu */}
-      {showQualityMenu && (
-        <div className="quality-menu-overlay" onClick={(e) => e.stopPropagation()}>
-          <div className="quality-menu">
-            <div className="quality-menu-header">
-              <h3>Qualitat</h3>
-              <button className="close-btn" onClick={() => setShowQualityMenu(false)}>
-                <CloseIcon />
-              </button>
-            </div>
-            <div className="quality-menu-content">
-              {/* Opció Automàtic sempre primer */}
-              <div
-                className={`quality-option ${isAutoQuality ? 'active' : ''}`}
-                onClick={() => changeTorrent('auto')}
-              >
-                <span className="quality-value">Automàtic ({autoSelectedQuality})</span>
-              </div>
-              {/* Qualitats manuals: 4K, 1080p, 720p */}
-              {groupedTorrents.map((group, index) => {
-                const isDisabled = disabledQualities.has(group.quality);
-                return (
-                  <div
-                    key={index}
-                    className={`quality-option ${
-                      !isAutoQuality && currentQuality === group.quality ? 'active' : ''
-                    } ${group.hasCached ? 'cached' : ''} ${isDisabled ? 'disabled' : ''}`}
-                    onClick={() => !isDisabled && changeTorrent(group.quality)}
-                  >
-                    <span className="quality-value">{group.quality}</span>
-                    {group.hasCached && <span className="cached-icon">⚡</span>}
-                  </div>
-                );
-              })}
-              {groupedTorrents.length === 0 && !loadingTorrents && !loadingBbc && !bbcAvailable && (
-                <div className="no-torrents">
-                  No s'han trobat fonts disponibles
-                </div>
-              )}
-              {groupedTorrents.length === 0 && !loadingTorrents && loadingBbc && (
-                <div className="bbc-loading-message">
-                  <span className="loading-spinner-small"></span>
-                  <span>Carregant BBC iPlayer... pot trigar uns segons</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Top bar */}
       <div className="top-bar">
@@ -2178,8 +2128,8 @@ function DebridPlayer() {
                 </button>
               )}
 
-              {/* Source button (stream/torrent icon for switching sources) */}
-              {hasBbcMapping && (bbcAvailable || torrents.length > 0) && (
+              {/* Source button (stream/torrent icon for switching sources) - show when any sources available */}
+              {(bbcAvailable || torrents.length > 0) && (
                 <button
                   className={`control-btn source-btn ${activeSource === 'bbc' ? 'bbc-active' : ''}`}
                   onClick={(e) => { e.stopPropagation(); setShowSourceMenu(true); }}
@@ -2189,14 +2139,12 @@ function DebridPlayer() {
                 </button>
               )}
 
-              {/* Quality button */}
-              <button
-                className="control-btn"
-                onClick={(e) => { e.stopPropagation(); setShowQualityMenu(true); }}
-                title="Canviar qualitat"
-              >
-                <SettingsIcon />
-              </button>
+              {/* Quality badge (read-only, shows current quality) */}
+              {(selectedTorrent || (activeSource === 'bbc' && bbcStream?.quality)) && (
+                <div className="quality-badge-display">
+                  {activeSource === 'bbc' ? bbcStream?.quality : parseQuality(selectedTorrent?.name)}
+                </div>
+              )}
               <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}>
                 {isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
               </button>
@@ -2224,64 +2172,113 @@ function DebridPlayer() {
         </div>
       )}
 
-      {/* Source menu (BBC vs Torrentio) */}
-      {showSourceMenu && hasBbcMapping && (
+      {/* Source menu (BBC + Torrentio qualities) */}
+      {showSourceMenu && (
         <div className="quality-menu-overlay" onClick={(e) => e.stopPropagation()}>
           <div className="quality-menu source-menu">
             <div className="quality-menu-header">
-              <h3>Font</h3>
+              <h3>Servidor</h3>
               <button className="close-btn" onClick={() => setShowSourceMenu(false)}>
                 <CloseIcon />
               </button>
             </div>
             <div className="quality-menu-content">
-              {/* BBC iPlayer option */}
-              <div
-                className={`quality-option source-option ${activeSource === 'bbc' ? 'active' : ''} ${!bbcAvailable ? 'disabled' : ''}`}
-                onClick={() => bbcAvailable && changeSource('bbc')}
-              >
-                <span className="source-icon"><BBCIcon /></span>
-                <div className="source-info">
-                  <span className="source-name">BBC iPlayer</span>
-                  {/* Show arc info for One Piece */}
-                  {bbcArcInfo && bbcAvailable && (
-                    <span className="source-detail">Arc: {bbcArcInfo.arc}</span>
-                  )}
-                  {/* Show generic BBC content title */}
-                  {bbcContentInfo && bbcAvailable && !bbcArcInfo && (
-                    <span className="source-detail">{bbcContentInfo.title}</span>
-                  )}
-                  {!bbcAvailable && bbcArcInfo?.reason === 'arc_not_on_bbc' && (
-                    <span className="source-detail unavailable">Arc no disponible</span>
-                  )}
-                  {!bbcAvailable && !bbcArcInfo && (
-                    <span className="source-detail unavailable">Episodi no disponible</span>
-                  )}
+              {/* BBC iPlayer option - only show when BBC mapping exists */}
+              {hasBbcMapping && (
+                <div
+                  className={`quality-option source-option ${activeSource === 'bbc' ? 'active' : ''} ${!bbcAvailable ? 'disabled' : ''}`}
+                  onClick={() => bbcAvailable && changeSource('bbc')}
+                >
+                  <span className="source-icon"><BBCIcon /></span>
+                  <div className="source-info">
+                    <span className="source-name">BBC iPlayer</span>
+                    {/* Show arc info for One Piece */}
+                    {bbcArcInfo && bbcAvailable && (
+                      <span className="source-detail">Arc: {bbcArcInfo.arc}</span>
+                    )}
+                    {/* Show generic BBC content title */}
+                    {bbcContentInfo && bbcAvailable && !bbcArcInfo && (
+                      <span className="source-detail">{bbcContentInfo.title}</span>
+                    )}
+                    {!bbcAvailable && bbcArcInfo?.reason === 'arc_not_on_bbc' && (
+                      <span className="source-detail unavailable">Arc no disponible</span>
+                    )}
+                    {!bbcAvailable && !bbcArcInfo && (
+                      <span className="source-detail unavailable">Episodi no disponible</span>
+                    )}
+                  </div>
+                  {loadingBbc && <span className="loading-spinner-small"></span>}
+                  {bbcAvailable && !loadingBbc && <span className="source-badge-quality">HD</span>}
                 </div>
-                {loadingBbc && <span className="loading-spinner-small"></span>}
-                {bbcAvailable && !loadingBbc && <span className="source-badge-quality">HD</span>}
-              </div>
+              )}
 
-              {/* Torrentio option */}
-              <div
-                className={`quality-option source-option ${activeSource === 'torrentio' ? 'active' : ''} ${torrents.length === 0 ? 'disabled' : ''}`}
-                onClick={() => torrents.length > 0 && changeSource('torrentio')}
-              >
-                <span className="source-icon"><TorrentIcon /></span>
-                <div className="source-info">
-                  <span className="source-name">Torrentio</span>
-                  {torrents.length > 0 && (
-                    <span className="source-detail">{torrents.filter(t => t.cached).length} en cache</span>
-                  )}
-                  {torrents.length === 0 && !loadingTorrents && (
-                    <span className="source-detail unavailable">No disponible</span>
-                  )}
+              {/* Torrentio quality options - each quality as separate server */}
+              {groupedTorrents.map((group, index) => {
+                const isDisabled = disabledQualities.has(group.quality);
+                const isActive = activeSource === 'torrentio' && !isAutoQuality && currentQuality === group.quality;
+                return (
+                  <div
+                    key={index}
+                    className={`quality-option source-option ${isActive ? 'active' : ''} ${isDisabled ? 'disabled' : ''}`}
+                    onClick={() => {
+                      if (!isDisabled) {
+                        // Switch to torrentio and select this quality
+                        if (activeSource !== 'torrentio') {
+                          setActiveSource('torrentio');
+                        }
+                        changeTorrent(group.quality);
+                        setShowSourceMenu(false);
+                      }
+                    }}
+                  >
+                    <span className="source-icon"><TorrentIcon /></span>
+                    <div className="source-info">
+                      <span className="source-name">Torrentio</span>
+                      <span className="source-detail">{group.torrents.length} font{group.torrents.length !== 1 ? 's' : ''}</span>
+                    </div>
+                    <span className={`source-badge-quality ${group.hasCached ? 'cached' : ''}`}>
+                      {group.quality}
+                      {group.hasCached && ' ⚡'}
+                    </span>
+                  </div>
+                );
+              })}
+
+              {/* Auto quality option */}
+              {groupedTorrents.length > 0 && (
+                <div
+                  className={`quality-option source-option ${activeSource === 'torrentio' && isAutoQuality ? 'active' : ''}`}
+                  onClick={() => {
+                    if (activeSource !== 'torrentio') {
+                      setActiveSource('torrentio');
+                    }
+                    changeTorrent('auto');
+                    setShowSourceMenu(false);
+                  }}
+                >
+                  <span className="source-icon"><TorrentIcon /></span>
+                  <div className="source-info">
+                    <span className="source-name">Torrentio</span>
+                    <span className="source-detail">Selecció automàtica</span>
+                  </div>
+                  <span className="source-badge-quality">Auto</span>
                 </div>
-                {loadingTorrents && <span className="loading-spinner-small"></span>}
-                {torrents.length > 0 && selectedTorrent && (
-                  <span className="source-badge-quality">{parseQuality(selectedTorrent.name)}</span>
-                )}
-              </div>
+              )}
+
+              {/* Loading state */}
+              {loadingTorrents && groupedTorrents.length === 0 && (
+                <div className="source-loading">
+                  <span className="loading-spinner-small"></span>
+                  <span>Cercant fonts...</span>
+                </div>
+              )}
+
+              {/* No sources available */}
+              {!loadingTorrents && groupedTorrents.length === 0 && !hasBbcMapping && (
+                <div className="no-torrents">
+                  No s'han trobat fonts disponibles
+                </div>
+              )}
             </div>
           </div>
         </div>
