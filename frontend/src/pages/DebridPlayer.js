@@ -952,19 +952,30 @@ function DebridPlayer() {
     const currentPlayTime = videoRef.current?.currentTime || 0;
     resumeTimeRef.current = currentPlayTime;
 
+    setShowSourceMenu(false);
+    setError(null);
+
     if (source === 'bbc') {
       // Switch to BBC
       if (!bbcStream) {
         setLoadingBbc(true);
-        const stream = await loadBbcStream();
-        if (stream) {
-          setStreamUrl(stream.url);
-          setActiveSource('bbc');
-        } else {
-          // BBC failed, stay on torrentio
-          console.log('BBC stream not available, staying on torrentio');
+        try {
+          const stream = await loadBbcStream();
+          if (stream) {
+            setStreamUrl(stream.url);
+            setActiveSource('bbc');
+          } else {
+            // BBC failed, stay on torrentio
+            setError('No s\'ha pogut carregar BBC iPlayer. Provant fonts alternatives...');
+            setTimeout(() => setError(null), 3000);
+          }
+        } catch (err) {
+          console.error('Error loading BBC stream:', err);
+          setError('Error carregant BBC iPlayer');
+          setTimeout(() => setError(null), 3000);
+        } finally {
+          setLoadingBbc(false);
         }
-        setLoadingBbc(false);
       } else {
         setStreamUrl(bbcStream.url);
         setActiveSource('bbc');
@@ -976,13 +987,17 @@ function DebridPlayer() {
         if (cachedUrl) {
           setStreamUrl(cachedUrl);
         } else {
-          await getStreamUrl(selectedTorrent, true);
+          try {
+            await getStreamUrl(selectedTorrent, true);
+          } catch (err) {
+            console.error('Error loading torrent stream:', err);
+            setError('Error carregant stream');
+            setTimeout(() => setError(null), 3000);
+          }
         }
       }
       setActiveSource('torrentio');
     }
-
-    setShowSourceMenu(false);
   }, [activeSource, bbcStream, loadBbcStream, selectedTorrent, getCachedStreamUrl, getStreamUrl, season, episode]);
 
   // Video event handlers
@@ -1575,6 +1590,8 @@ function DebridPlayer() {
 
   // Re-fetch sources when episode changes (prioritize BBC)
   useEffect(() => {
+    let isCancelled = false;
+
     const loadSourcesForEpisode = async () => {
       if (type === 'movie') return;
 
@@ -1585,9 +1602,12 @@ function DebridPlayer() {
 
       // Check BBC availability first (priority source)
       const bbcIsAvailable = await checkBbcAvailability();
+      if (isCancelled) return;
+
       if (bbcIsAvailable) {
         setLoadingBbc(true);
         const bbcData = await loadBbcStream();
+        if (isCancelled) return;
         setLoadingBbc(false);
 
         if (bbcData) {
@@ -1599,18 +1619,28 @@ function DebridPlayer() {
             searchTorrents();
           }
           return;
+        } else {
+          // BBC failed - reset to torrentio if it was bbc before
+          setActiveSource('torrentio');
         }
+      } else {
+        // BBC not available - ensure we're on torrentio
+        setActiveSource('torrentio');
       }
 
-      // Fallback: Load torrents if BBC not available
+      // Fallback: Load torrents if BBC not available or failed
       if (debridConfigured) {
         searchTorrents();
       }
     };
 
     loadSourcesForEpisode();
+
+    return () => {
+      isCancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [episode]); // Only re-run when episode number changes
+  }, [episode, type, debridConfigured]); // Re-run when episode, type, or debrid status changes
 
   // Scroll to current episode when episodes list opens
   useEffect(() => {
@@ -1636,7 +1666,7 @@ function DebridPlayer() {
     };
   }, []);
 
-  // Timeout automàtic de càrrega (10 segons)
+  // Timeout automàtic de càrrega Torrentio (10 segons)
   useEffect(() => {
     if (loadingStream && selectedTorrent) {
       loadingTimerRef.current = setTimeout(() => {
@@ -1672,6 +1702,29 @@ function DebridPlayer() {
       }
     };
   }, [loadingStream, selectedTorrent]);
+
+  // Timeout automàtic de càrrega BBC (15 segons) - fa fallback a Torrentio
+  useEffect(() => {
+    let bbcTimeoutId = null;
+
+    if (loadingBbc && activeSource === 'bbc') {
+      bbcTimeoutId = setTimeout(() => {
+        console.warn('BBC loading timeout - switching to Torrentio');
+        setLoadingBbc(false);
+        setActiveSource('torrentio');
+        // Intentar carregar torrent si n'hi ha un seleccionat
+        if (selectedTorrent && !streamUrl) {
+          getStreamUrl(selectedTorrent, true);
+        }
+      }, 15000); // 15 segons per BBC (pot ser més lent)
+    }
+
+    return () => {
+      if (bbcTimeoutId) {
+        clearTimeout(bbcTimeoutId);
+      }
+    };
+  }, [loadingBbc, activeSource, selectedTorrent, streamUrl, getStreamUrl]);
 
   // Save progress on unmount
   useEffect(() => {
@@ -1861,10 +1914,9 @@ function DebridPlayer() {
           </div>
         </div>
       )}
-      {/* Video element - key forces remount on source change to avoid stale HLS */}
+      {/* Video element - HLS.js useEffect handles stream changes without remount */}
       {streamUrl && (
         <video
-          key={streamUrl}
           ref={videoRef}
           className="video-element"
           muted={isMuted}
@@ -1890,9 +1942,10 @@ function DebridPlayer() {
       )}
 
       {/* Loading overlay */}
-      {(loadingTorrents || loadingStream) && (
+      {(loadingTorrents || loadingStream || loadingBbc) && (
         <div className="loading-overlay">
           <div className="spinner"></div>
+          {loadingBbc && <p className="loading-text">Carregant BBC iPlayer...</p>}
         </div>
       )}
 
