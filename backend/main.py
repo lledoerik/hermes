@@ -12690,6 +12690,298 @@ async def import_all_bbc_to_mapping(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ==================== BBC BULK IMPORT (Background) ====================
+
+# Global state for BBC bulk import tracking
+bbc_bulk_import_status = {
+    "running": False,
+    "phase": None,  # "scanning", "matching", "importing"
+    "scanned_programs": 0,
+    "matched_programs": 0,
+    "current_program": None,
+    "imported_films": 0,
+    "imported_series": 0,
+    "imported_episodes": 0,
+    "failed_count": 0,
+    "skipped_low_confidence": 0,
+    "progress_percent": 0,
+    "started_at": None,
+    "completed_at": None,
+    "error": None,
+    "last_update": None
+}
+
+
+@app.post("/api/admin/bbc/import-all/start")
+async def start_bbc_bulk_import(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    min_confidence: float = Query(60.0, description="Confiança mínima per importar (0-100)")
+):
+    """
+    Inicia una importació massiva de TOT el catàleg de BBC iPlayer.
+
+    Procés en background:
+    1. Escaneja el catàleg complet de BBC iPlayer (categories + A-Z)
+    2. Fa matching amb TMDB per cada programa
+    3. Per cada sèrie: obté tots els episodis
+    4. Importa tot al sistema de mapping
+
+    ATENCIÓ: Pot trigar 15-30 minuts depenent del nombre de programes.
+    Consulta el progrés amb GET /api/admin/bbc/import-all/status
+    """
+    global bbc_bulk_import_status
+
+    admin = require_auth(request)
+    if not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Accés només per administradors")
+
+    if bbc_bulk_import_status["running"]:
+        raise HTTPException(status_code=400, detail="Ja hi ha una importació BBC en curs")
+
+    tmdb_key = get_tmdb_api_key()
+    if not tmdb_key:
+        raise HTTPException(status_code=400, detail="TMDB API key no configurada")
+
+    # Reset status
+    bbc_bulk_import_status = {
+        "running": True,
+        "phase": "starting",
+        "scanned_programs": 0,
+        "matched_programs": 0,
+        "current_program": None,
+        "imported_films": 0,
+        "imported_series": 0,
+        "imported_episodes": 0,
+        "failed_count": 0,
+        "skipped_low_confidence": 0,
+        "progress_percent": 0,
+        "started_at": datetime.now().isoformat(),
+        "completed_at": None,
+        "error": None,
+        "last_update": datetime.now().isoformat()
+    }
+
+    # Start background task
+    background_tasks.add_task(
+        run_bbc_bulk_import,
+        tmdb_key,
+        min_confidence
+    )
+
+    return {
+        "status": "started",
+        "message": "Importació massiva de BBC iPlayer iniciada",
+        "min_confidence": min_confidence,
+        "status_endpoint": "/api/admin/bbc/import-all/status"
+    }
+
+
+@app.get("/api/admin/bbc/import-all/status")
+async def get_bbc_bulk_import_status(request: Request):
+    """Retorna l'estat actual de la importació massiva de BBC."""
+    require_auth(request)
+    return bbc_bulk_import_status
+
+
+@app.post("/api/admin/bbc/import-all/stop")
+async def stop_bbc_bulk_import(request: Request):
+    """Atura la importació massiva de BBC en curs."""
+    global bbc_bulk_import_status
+
+    admin = require_auth(request)
+    if not admin.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Accés només per administradors")
+
+    if bbc_bulk_import_status["running"]:
+        bbc_bulk_import_status["running"] = False
+        bbc_bulk_import_status["phase"] = "stopping"
+        bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
+        return {"status": "stopping", "message": "Aturant importació BBC..."}
+    return {"status": "not_running", "message": "No hi ha cap importació BBC en curs"}
+
+
+async def run_bbc_bulk_import(tmdb_key: str, min_confidence: float):
+    """Background task per importar massivament tot el contingut de BBC iPlayer."""
+    global bbc_bulk_import_status
+
+    try:
+        from backend.debrid.bbc_catalog import BBCCatalogScanner, BBCTMDBMatcher, BBCProgram
+        from backend.debrid.bbc_mapping import (
+            import_bbc_episodes_with_metadata,
+            set_bbc_mapping_for_content,
+            save_bbc_mapping
+        )
+        from backend.debrid import BBCiPlayerClient
+
+        # Phase 1: Scanning BBC catalog
+        bbc_bulk_import_status["phase"] = "scanning"
+        bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
+        logger.info("BBC Bulk Import: Fase 1 - Escanejant catàleg BBC iPlayer...")
+
+        scanner = BBCCatalogScanner()
+        catalog = await scanner.scan_full_catalog()
+
+        if not bbc_bulk_import_status["running"]:
+            bbc_bulk_import_status["phase"] = "stopped"
+            bbc_bulk_import_status["completed_at"] = datetime.now().isoformat()
+            return
+
+        all_programs = []
+        for film in catalog.get("films", []):
+            all_programs.append(BBCProgram(
+                programme_id=film["programme_id"],
+                title=film["title"],
+                url=film["url"],
+                is_film=True,
+                is_series=False,
+                synopsis=film.get("synopsis"),
+                thumbnail=film.get("thumbnail")
+            ))
+        for series in catalog.get("series", []):
+            all_programs.append(BBCProgram(
+                programme_id=series["programme_id"],
+                title=series["title"],
+                url=series["url"],
+                is_film=False,
+                is_series=True,
+                synopsis=series.get("synopsis"),
+                thumbnail=series.get("thumbnail"),
+                episodes_url=series.get("episodes_url") or series["url"]
+            ))
+
+        bbc_bulk_import_status["scanned_programs"] = len(all_programs)
+        bbc_bulk_import_status["progress_percent"] = 20
+        bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
+        logger.info(f"BBC Bulk Import: Trobats {len(all_programs)} programes")
+
+        if not all_programs:
+            bbc_bulk_import_status["phase"] = "completed"
+            bbc_bulk_import_status["error"] = "No s'han trobat programes a BBC iPlayer"
+            bbc_bulk_import_status["completed_at"] = datetime.now().isoformat()
+            bbc_bulk_import_status["running"] = False
+            return
+
+        # Phase 2: Matching with TMDB
+        bbc_bulk_import_status["phase"] = "matching"
+        bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
+        logger.info("BBC Bulk Import: Fase 2 - Fent matching amb TMDB...")
+
+        if not bbc_bulk_import_status["running"]:
+            bbc_bulk_import_status["phase"] = "stopped"
+            bbc_bulk_import_status["completed_at"] = datetime.now().isoformat()
+            return
+
+        matcher = BBCTMDBMatcher(tmdb_key)
+        match_result = await matcher.match_all_programs(all_programs, min_confidence=min_confidence)
+        matched = match_result.get("matched", [])
+
+        bbc_bulk_import_status["matched_programs"] = len(matched)
+        bbc_bulk_import_status["skipped_low_confidence"] = len(match_result.get("low_confidence", []))
+        bbc_bulk_import_status["progress_percent"] = 40
+        bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
+        logger.info(f"BBC Bulk Import: Matched {len(matched)} programes amb TMDB")
+
+        # Phase 3: Importing to mapping
+        bbc_bulk_import_status["phase"] = "importing"
+        bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
+        logger.info("BBC Bulk Import: Fase 3 - Important al sistema de mapping...")
+
+        if not bbc_bulk_import_status["running"]:
+            bbc_bulk_import_status["phase"] = "stopped"
+            bbc_bulk_import_status["completed_at"] = datetime.now().isoformat()
+            return
+
+        bbc_client = BBCiPlayerClient()
+        total_to_import = len(matched)
+
+        for idx, item in enumerate(matched):
+            if not bbc_bulk_import_status["running"]:
+                bbc_bulk_import_status["phase"] = "stopped"
+                bbc_bulk_import_status["completed_at"] = datetime.now().isoformat()
+                save_bbc_mapping()  # Save what we've done so far
+                return
+
+            try:
+                tmdb_id = item["tmdb_id"]
+                bbc_url = item["bbc_url"]
+                bbc_title = item["bbc_title"]
+
+                bbc_bulk_import_status["current_program"] = bbc_title
+                bbc_bulk_import_status["progress_percent"] = 40 + int((idx / total_to_import) * 55)
+                bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
+
+                if item["is_film"]:
+                    set_bbc_mapping_for_content(
+                        tmdb_id=tmdb_id,
+                        content_type="movie",
+                        bbc_series_id=item["bbc_programme_id"],
+                        title=bbc_title,
+                        episodes={1: item["bbc_programme_id"]}
+                    )
+                    bbc_bulk_import_status["imported_films"] += 1
+                else:
+                    episodes_url = bbc_url.replace("/episode/", "/episodes/") if "/episode/" in bbc_url else bbc_url
+
+                    try:
+                        episodes = await bbc_client.get_all_episodes_from_series(episodes_url)
+                        if episodes:
+                            count = import_bbc_episodes_with_metadata(
+                                tmdb_id=tmdb_id,
+                                content_type="tv",
+                                episodes=episodes,
+                                bbc_series_id=item["bbc_programme_id"],
+                                title=bbc_title
+                            )
+                            bbc_bulk_import_status["imported_series"] += 1
+                            bbc_bulk_import_status["imported_episodes"] += count
+                        else:
+                            set_bbc_mapping_for_content(
+                                tmdb_id=tmdb_id,
+                                content_type="tv",
+                                bbc_series_id=item["bbc_programme_id"],
+                                title=bbc_title
+                            )
+                            bbc_bulk_import_status["imported_series"] += 1
+                    except Exception as ep_err:
+                        logger.debug(f"Error episodis {bbc_title}: {ep_err}")
+                        bbc_bulk_import_status["failed_count"] += 1
+
+                await asyncio.sleep(0.3)  # Rate limiting
+
+            except Exception as e:
+                logger.error(f"Error important {item.get('bbc_title', 'unknown')}: {e}")
+                bbc_bulk_import_status["failed_count"] += 1
+
+        # Save final mapping
+        save_bbc_mapping()
+
+        # Mark as completed
+        bbc_bulk_import_status["phase"] = "completed"
+        bbc_bulk_import_status["progress_percent"] = 100
+        bbc_bulk_import_status["current_program"] = None
+        bbc_bulk_import_status["completed_at"] = datetime.now().isoformat()
+        bbc_bulk_import_status["running"] = False
+        bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
+
+        logger.info(
+            f"BBC Bulk Import: Completat! "
+            f"{bbc_bulk_import_status['imported_films']} pel·lícules, "
+            f"{bbc_bulk_import_status['imported_series']} sèries, "
+            f"{bbc_bulk_import_status['imported_episodes']} episodis"
+        )
+
+    except Exception as e:
+        logger.error(f"BBC Bulk Import: Error - {e}")
+        import traceback
+        traceback.print_exc()
+        bbc_bulk_import_status["phase"] = "error"
+        bbc_bulk_import_status["error"] = str(e)
+        bbc_bulk_import_status["running"] = False
+        bbc_bulk_import_status["completed_at"] = datetime.now().isoformat()
+        bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
+
+
 @app.get("/api/bbc/catalog/status")
 async def get_bbc_catalog_status(request: Request):
     """
