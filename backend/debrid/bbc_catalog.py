@@ -25,8 +25,9 @@ logger = logging.getLogger(__name__)
 # BBC iPlayer Internal API
 BBC_API_BASE = "https://ibl.api.bbc.co.uk/ibl/v1"
 
-# Categories disponibles a BBC iPlayer
+# Categories disponibles a BBC iPlayer (llista completa)
 BBC_CATEGORIES = {
+    # Gèneres principals
     "films": "films",
     "drama": "drama-and-soaps",
     "comedy": "comedy",
@@ -37,9 +38,36 @@ BBC_CATEGORIES = {
     "news": "news",
     "science": "science-and-nature",
     "sport": "sport",
+    # Categories addicionals
+    "arts": "arts",
+    "food": "food",
+    "history": "history",
+    "archive": "archive",
+    # Contingut infantil
     "cbbc": "cbbc",
     "cbeebies": "cbeebies",
+    # Accessibilitat
+    "audio-described": "audio-described",
+    "signed": "signed",
+    # Regional
+    "northern-ireland": "northern-ireland",
+    "scotland": "scotland",
+    "wales": "wales",
 }
+
+# Canals BBC per escaneig addicional
+BBC_CHANNELS = [
+    "bbc_one",
+    "bbc_two",
+    "bbc_three",
+    "bbc_four",
+    "cbbc",
+    "cbeebies",
+    "bbc_news",
+    "bbc_parliament",
+    "bbc_alba",
+    "s4c",
+]
 
 
 @dataclass
@@ -275,27 +303,158 @@ class BBCCatalogScanner:
 
         return all_programs
 
+    async def scan_channel_api(self, channel_id: str) -> List[BBCProgram]:
+        """
+        Escaneja un canal de BBC (BBC One, BBC Two, etc.)
+        """
+        programs = []
+        page = 1
+        per_page = 200
+
+        while True:
+            url = f"{BBC_API_BASE}/channels/{channel_id}/highlights?per_page={per_page}&page={page}"
+            logger.info(f"Scanning BBC Channel: {channel_id}, page {page}")
+
+            data = await self._fetch_json(url)
+            if not data:
+                # Provar endpoint alternatiu
+                url = f"{BBC_API_BASE}/channels/{channel_id}/programmes?per_page={per_page}&page={page}"
+                data = await self._fetch_json(url)
+                if not data:
+                    break
+
+            # Extreure programes
+            channel_programmes = data.get("channel_highlights", {}) or data.get("channel_programmes", {})
+            elements = channel_programmes.get("elements", [])
+
+            if not elements:
+                elements = data.get("programmes", []) or data.get("elements", [])
+
+            logger.info(f"Found {len(elements)} elements in channel {channel_id}, page {page}")
+
+            for item in elements:
+                prog = self._parse_programme(item)
+                if prog and prog.programme_id not in self._programs_cache:
+                    programs.append(prog)
+                    self._programs_cache[prog.programme_id] = prog
+
+            # Comprovar paginació
+            total = channel_programmes.get("count", 0) or data.get("total", 0)
+            if page * per_page >= total or len(elements) < per_page:
+                break
+
+            page += 1
+            await asyncio.sleep(0.3)
+
+        return programs
+
+    async def scan_all_channels(self, progress_callback=None) -> List[BBCProgram]:
+        """
+        Escaneja tots els canals de BBC.
+        """
+        all_programs = []
+
+        for i, channel_id in enumerate(BBC_CHANNELS):
+            if progress_callback:
+                progress_callback(f"Scanning channel: {channel_id}", i / len(BBC_CHANNELS) * 100)
+
+            programs = await self.scan_channel_api(channel_id)
+            all_programs.extend(programs)
+            await asyncio.sleep(0.5)
+
+        return all_programs
+
+    async def scan_featured_api(self) -> List[BBCProgram]:
+        """
+        Escaneja contingut destacat/popular de BBC iPlayer.
+        """
+        programs = []
+        endpoints = [
+            f"{BBC_API_BASE}/home/highlights",
+            f"{BBC_API_BASE}/groups/popular/episodes",
+            f"{BBC_API_BASE}/groups/featured/episodes",
+            f"{BBC_API_BASE}/groups/most-popular/episodes",
+        ]
+
+        for url in endpoints:
+            logger.info(f"Scanning BBC featured: {url}")
+            data = await self._fetch_json(url)
+            if not data:
+                continue
+
+            # Extreure programes de diferents formats de resposta
+            for key in ["home_highlights", "group_episodes", "elements", "programmes"]:
+                container = data.get(key, {})
+                if isinstance(container, dict):
+                    elements = container.get("elements", [])
+                elif isinstance(container, list):
+                    elements = container
+                else:
+                    continue
+
+                for item in elements:
+                    prog = self._parse_programme(item)
+                    if prog and prog.programme_id not in self._programs_cache:
+                        programs.append(prog)
+                        self._programs_cache[prog.programme_id] = prog
+
+            await asyncio.sleep(0.3)
+
+        return programs
+
     async def scan_full_catalog(self, progress_callback=None) -> Dict[str, Any]:
         """
         Escaneja el catàleg complet de BBC iPlayer:
-        1. Totes les categories
-        2. Tot l'abecedari A-Z
+        1. Contingut destacat/popular
+        2. Totes les categories (21 categories)
+        3. Tots els canals (BBC One, Two, etc.)
+        4. Tot l'abecedari A-Z
 
         Retorna un diccionari amb totes les pel·lícules i sèries trobades.
         """
         self._programs_cache = {}  # Reset cache
 
-        # Escanejar categories
+        # Fase 1: Escanejar contingut destacat/popular (0-10%)
         if progress_callback:
-            progress_callback("Scanning categories...", 0)
+            progress_callback("Scanning featured content...", 0)
+        await self.scan_featured_api()
+        logger.info(f"After featured: {len(self._programs_cache)} programs")
 
-        await self.scan_all_categories(progress_callback)
-
-        # Escanejar A-Z
+        # Fase 2: Escanejar totes les categories (10-40%)
         if progress_callback:
-            progress_callback("Scanning A-Z listing...", 50)
+            progress_callback("Scanning all categories...", 10)
 
-        await self.scan_all_az(progress_callback)
+        def category_progress(msg, pct):
+            if progress_callback:
+                # Map 0-100% to 10-40%
+                progress_callback(msg, 10 + (pct * 0.3))
+
+        await self.scan_all_categories(category_progress)
+        logger.info(f"After categories: {len(self._programs_cache)} programs")
+
+        # Fase 3: Escanejar tots els canals (40-60%)
+        if progress_callback:
+            progress_callback("Scanning all channels...", 40)
+
+        def channel_progress(msg, pct):
+            if progress_callback:
+                # Map 0-100% to 40-60%
+                progress_callback(msg, 40 + (pct * 0.2))
+
+        await self.scan_all_channels(channel_progress)
+        logger.info(f"After channels: {len(self._programs_cache)} programs")
+
+        # Fase 4: Escanejar A-Z complet (60-95%)
+        if progress_callback:
+            progress_callback("Scanning A-Z listing...", 60)
+
+        def az_progress(msg, pct):
+            if progress_callback:
+                # Map 0-100% to 60-95%
+                progress_callback(msg, 60 + (pct * 0.35))
+
+        await self.scan_all_az(az_progress)
+        logger.info(f"After A-Z: {len(self._programs_cache)} programs")
 
         # Separar pel·lícules i sèries
         films = [p for p in self._programs_cache.values() if p.is_film]
@@ -303,6 +462,8 @@ class BBCCatalogScanner:
 
         if progress_callback:
             progress_callback("Scan complete!", 100)
+
+        logger.info(f"Full catalog scan complete: {len(films)} films, {len(series)} series, {len(self._programs_cache)} total")
 
         return {
             "status": "success",
