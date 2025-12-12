@@ -12,7 +12,8 @@ import asyncio
 import logging
 import re
 import json
-from typing import Dict, List, Optional, Any
+import unicodedata
+from typing import Dict, List, Optional
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -408,7 +409,6 @@ class TMDBBBCScanner:
                         data = response.json()
                         results = data.get("results", [])
                         total_pages = min(data.get("total_pages", 1), 500)
-                        total_results = data.get("total_results", 0)
 
                         for item in results:
                             title_info = {
@@ -461,10 +461,15 @@ class TMDBBBCScanner:
 
         return titles
 
-    async def find_bbc_programme_id(self, tmdb_id: int, title: str, content_type: str) -> Optional[str]:
+    async def find_bbc_programme_id(self, tmdb_id: int, title: str, _content_type: str = "") -> Optional[str]:
         """
         Intenta trobar el BBC programme ID per un títol de TMDB.
         Prova múltiples mètodes de cerca.
+
+        Args:
+            tmdb_id: ID de TMDB del títol
+            title: Títol per cercar
+            _content_type: Reservat per ús futur (filtrar per movie/tv)
         """
         cookies = get_bbc_cookies_dict()
         headers = {
@@ -490,6 +495,70 @@ class TMDBBBCScanner:
         logger.debug(f"Could not find BBC PID for '{title}' (TMDB: {tmdb_id})")
         return None
 
+    def _normalize_title(self, title: str) -> str:
+        """Normalitza un títol per comparació més robusta"""
+        # Normalitzar Unicode
+        normalized = unicodedata.normalize('NFKD', title)
+        # Convertir a minúscules
+        normalized = normalized.lower()
+        # Eliminar articles inicials
+        for article in ["the ", "a ", "an "]:
+            if normalized.startswith(article):
+                normalized = normalized[len(article):]
+                break
+        # Eliminar anys entre parèntesis: "Doctor Who (2005)" -> "Doctor Who"
+        normalized = re.sub(r'\s*\(\d{4}\)\s*$', '', normalized)
+        # Eliminar subtítols després de ":" o "-"
+        normalized = re.sub(r'\s*[:\-]\s*.+$', '', normalized)
+        # Eliminar puntuació i espais extres
+        normalized = re.sub(r'[^\w\s]', '', normalized)
+        normalized = ' '.join(normalized.split())
+        return normalized.strip()
+
+    def _titles_match(self, title1: str, title2: str) -> bool:
+        """Comprova si dos títols coincideixen amb tolerància"""
+        n1 = self._normalize_title(title1)
+        n2 = self._normalize_title(title2)
+
+        # Cas especial: títols buits
+        if not n1 or not n2:
+            return False
+
+        # Coincidència exacta normalitzada
+        if n1 == n2:
+            return True
+
+        # Comparació per paraules - evita falsos positius amb títols curts
+        words1 = set(n1.split())
+        words2 = set(n2.split())
+
+        # Si un conjunt de paraules és subset de l'altre (coincidència completa de paraules)
+        # Exemple: {"doctor", "who"} és subset de {"doctor", "who", "series", "1"}
+        if words1 and words2:
+            if words1.issubset(words2) or words2.issubset(words1):
+                # Només acceptar si el títol més curt té almenys 2 paraules
+                # o si és una sola paraula de més de 5 caràcters
+                shorter_words = words1 if len(words1) <= len(words2) else words2
+                if len(shorter_words) >= 2:
+                    return True
+                elif len(shorter_words) == 1:
+                    word = list(shorter_words)[0]
+                    if len(word) >= 6:  # Paraules llargues com "sherlock", "peaky"
+                        return True
+
+            # Similaritat de Jaccard
+            intersection = len(words1 & words2)
+            union = len(words1 | words2)
+            if union > 0 and intersection > 0:
+                similarity = intersection / union
+                # Requerim almenys 1 paraula en comú + threshold
+                min_words = min(len(words1), len(words2))
+                threshold = 0.75 if min_words <= 2 else 0.6
+                if similarity >= threshold:
+                    return True
+
+        return False
+
     async def _search_bbc_suggest(self, title: str, cookies: dict, headers: dict) -> Optional[str]:
         """Cerca via suggest API"""
         try:
@@ -504,22 +573,17 @@ class TMDBBBCScanner:
                     results = data.get("search_suggest", {}).get("results", [])
 
                     if results:
-                        # Buscar coincidència pel títol
-                        title_lower = title.lower()
+                        # Buscar coincidència pel títol amb normalització
                         for result in results:
-                            result_title = (result.get("title") or "").lower()
-                            if result_title == title_lower or title_lower in result_title or result_title in title_lower:
+                            result_title = result.get("title") or ""
+                            if self._titles_match(title, result_title):
                                 pid = result.get("id") or result.get("pid") or result.get("tleo_id")
                                 if pid:
                                     logger.debug(f"Found via suggest: '{title}' -> {pid}")
                                     return pid
 
-                        # Retornar el primer resultat si hi ha
-                        first = results[0]
-                        pid = first.get("id") or first.get("pid") or first.get("tleo_id")
-                        if pid:
-                            logger.debug(f"Found via suggest (first result): '{title}' -> {pid}")
-                            return pid
+                        # NO retornem "primer resultat" si _titles_match ha fallat
+                        # Seria un fals positiu. Millor no trobar res que trobar incorrecte.
                 else:
                     logger.debug(f"BBC suggest API returned {response.status_code} for '{title}'")
 
@@ -553,21 +617,16 @@ class TMDBBBCScanner:
                     )
 
                     if results:
-                        title_lower = title.lower()
                         for result in results:
-                            result_title = (result.get("title") or result.get("name") or "").lower()
-                            if result_title == title_lower or title_lower in result_title or result_title in title_lower:
+                            result_title = result.get("title") or result.get("name") or ""
+                            if self._titles_match(title, result_title):
                                 pid = result.get("id") or result.get("pid") or result.get("tleo_id") or result.get("programme_id")
                                 if pid:
                                     logger.debug(f"Found via full search: '{title}' -> {pid}")
                                     return pid
 
-                        # Primer resultat
-                        first = results[0]
-                        pid = first.get("id") or first.get("pid") or first.get("tleo_id") or first.get("programme_id")
-                        if pid:
-                            logger.debug(f"Found via full search (first): '{title}' -> {pid}")
-                            return pid
+                        # NO retornem "primer resultat" sense verificació
+                        # Evita falsos positius com "House" -> "Houseboat"
 
         except Exception as e:
             logger.debug(f"Error in BBC full search for '{title}': {e}")
@@ -577,8 +636,9 @@ class TMDBBBCScanner:
     async def _search_bbc_az(self, title: str, cookies: dict, headers: dict) -> Optional[str]:
         """Cerca via A-Z listing"""
         try:
-            # Obtenir primera lletra
-            first_char = title[0].lower() if title else "a"
+            # Obtenir primera lletra (del títol normalitzat sense articles)
+            normalized = self._normalize_title(title)
+            first_char = normalized[0].lower() if normalized else "a"
             if not first_char.isalpha():
                 first_char = "0-9"
 
@@ -592,10 +652,9 @@ class TMDBBBCScanner:
                     data = response.json()
                     programmes = data.get("atoz_programmes", {}).get("elements", [])
 
-                    title_lower = title.lower()
                     for prog in programmes:
-                        prog_title = (prog.get("title") or "").lower()
-                        if prog_title == title_lower or title_lower in prog_title or prog_title in title_lower:
+                        prog_title = prog.get("title") or ""
+                        if self._titles_match(title, prog_title):
                             pid = prog.get("id") or prog.get("pid") or prog.get("tleo_id")
                             if pid:
                                 logger.debug(f"Found via A-Z: '{title}' -> {pid}")
