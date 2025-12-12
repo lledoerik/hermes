@@ -10590,10 +10590,21 @@ async def sync_bbc_catalog_background():
                 # Guardar a bbc_content (per tenir registre de TOT)
                 with get_db() as conn:
                     cursor = conn.cursor()
+                    # Usar INSERT amb ON CONFLICT per preservar added_date original
                     cursor.execute("""
-                        INSERT OR REPLACE INTO bbc_content
-                        (programme_id, title, synopsis, thumbnail, url, is_film, is_series, tmdb_id, tmdb_confidence, last_updated)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                        INSERT INTO bbc_content
+                        (programme_id, title, synopsis, thumbnail, url, is_film, is_series, tmdb_id, tmdb_confidence, last_updated, added_date)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        ON CONFLICT(programme_id) DO UPDATE SET
+                            title = excluded.title,
+                            synopsis = excluded.synopsis,
+                            thumbnail = excluded.thumbnail,
+                            url = excluded.url,
+                            is_film = excluded.is_film,
+                            is_series = excluded.is_series,
+                            tmdb_id = excluded.tmdb_id,
+                            tmdb_confidence = excluded.tmdb_confidence,
+                            last_updated = CURRENT_TIMESTAMP
                     """, (
                         programme_id,
                         bbc_title,
@@ -10636,6 +10647,14 @@ async def sync_bbc_catalog_background():
 
                                 # Guardar episodis a bbc_episodes
                                 await save_bbc_episodes_to_db(programme_id, episodes)
+
+                                # Actualitzar comptador d'episodis a bbc_content
+                                with get_db() as conn:
+                                    cursor = conn.cursor()
+                                    cursor.execute("""
+                                        UPDATE bbc_content SET episodes_count = ? WHERE programme_id = ?
+                                    """, (len(episodes), programme_id))
+                                    conn.commit()
 
                                 # Intentar obtenir subtítols del primer episodi
                                 if episodes and len(episodes) > 0:
@@ -10698,14 +10717,25 @@ async def sync_bbc_catalog_background():
                         if not ep_programme_id:
                             continue
 
+                        # Usar INSERT amb ON CONFLICT per preservar added_date
                         cursor.execute("""
-                            INSERT OR REPLACE INTO bbc_episodes
-                            (bbc_content_id, programme_id, episode_number, title, synopsis, thumbnail, duration, url)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            INSERT INTO bbc_episodes
+                            (bbc_content_id, programme_id, episode_number, season_number, title, synopsis, thumbnail, duration, url, added_date)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                            ON CONFLICT(programme_id) DO UPDATE SET
+                                bbc_content_id = excluded.bbc_content_id,
+                                episode_number = excluded.episode_number,
+                                season_number = excluded.season_number,
+                                title = excluded.title,
+                                synopsis = excluded.synopsis,
+                                thumbnail = excluded.thumbnail,
+                                duration = excluded.duration,
+                                url = excluded.url
                         """, (
                             content_id,
                             ep_programme_id,
                             ep.get("episode_number") or idx + 1,
+                            ep.get("season_number") or 1,
                             ep.get("title"),
                             ep.get("description") or ep.get("synopsis"),
                             ep.get("thumbnail"),
@@ -10728,10 +10758,13 @@ async def sync_bbc_catalog_background():
                         cursor = conn.cursor()
                         for lang, sub_url in stream_info.subtitles.items():
                             if sub_url:
+                                # Usar INSERT amb ON CONFLICT per preservar added_date i subtitle_content
                                 cursor.execute("""
-                                    INSERT OR REPLACE INTO bbc_subtitles
-                                    (programme_id, language, subtitle_url, downloaded)
-                                    VALUES (?, ?, ?, 0)
+                                    INSERT INTO bbc_subtitles
+                                    (programme_id, language, subtitle_url, downloaded, added_date)
+                                    VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP)
+                                    ON CONFLICT(programme_id, language) DO UPDATE SET
+                                        subtitle_url = excluded.subtitle_url
                                 """, (programme_id, lang, sub_url))
                                 results["subtitles_saved"] += 1
                         conn.commit()
@@ -12733,6 +12766,14 @@ async def list_all_bbc_content(
     """
     require_auth(request)
 
+    # Validar paràmetres
+    if limit < 1:
+        limit = 50
+    if limit > 200:
+        limit = 200
+    if page < 1:
+        page = 1
+
     with get_db() as conn:
         cursor = conn.cursor()
 
@@ -12876,13 +12917,15 @@ async def get_bbc_subtitles(request: Request, programme_id: str, download: bool 
             try:
                 stream_info = await client.get_stream_info(programme_id, quality="best")
                 if stream_info and stream_info.subtitles:
-                    # Guardar a la BD
+                    # Guardar a la BD (preservant added_date i subtitle_content)
                     for lang, sub_url in stream_info.subtitles.items():
                         if sub_url:
                             cursor.execute("""
-                                INSERT OR REPLACE INTO bbc_subtitles
-                                (programme_id, language, subtitle_url, downloaded)
-                                VALUES (?, ?, ?, 0)
+                                INSERT INTO bbc_subtitles
+                                (programme_id, language, subtitle_url, downloaded, added_date)
+                                VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP)
+                                ON CONFLICT(programme_id, language) DO UPDATE SET
+                                    subtitle_url = excluded.subtitle_url
                             """, (programme_id, lang, sub_url))
                     conn.commit()
 
