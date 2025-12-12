@@ -36,14 +36,20 @@ import json
 import os
 import logging
 import re
+import sys
+from pathlib import Path
 from typing import Dict, Optional, List, Any
 from datetime import datetime
+
+# Afegir path per imports
+sys.path.append(str(Path(__file__).parent.parent.parent))
+from config import settings
 
 logger = logging.getLogger(__name__)
 
 # Directori per guardar els mappings
-BBC_MAPPING_DIR = "/home/user/hermes/data/bbc_mappings"
-BBC_MAPPING_FILE = os.path.join(BBC_MAPPING_DIR, "bbc_content_mapping.json")
+BBC_MAPPING_DIR = str(settings.DATA_DIR / "bbc_mappings")
+BBC_MAPPING_FILE = str(settings.DATA_DIR / "bbc_mappings" / "bbc_content_mapping.json")
 
 # Cache en memòria
 _BBC_MAPPING_CACHE: Dict = {}

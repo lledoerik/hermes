@@ -18,6 +18,7 @@ BASE_DIR = Path(__file__).parent.parent
 DATABASE_PATH = BASE_DIR / "storage" / "hermes.db"
 CACHE_DIR = BASE_DIR / "storage" / "cache"
 METADATA_DIR = BASE_DIR / "storage" / "metadata"
+DATA_DIR = BASE_DIR / "data"
 
 # === ENTORN ===
 # Detectar si estem en mode producció

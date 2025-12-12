@@ -13,6 +13,12 @@ Per actualitzar els IDs de BBC:
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Tuple
 import logging
+import sys
+from pathlib import Path
+
+# Afegir path per imports
+sys.path.append(str(Path(__file__).parent.parent.parent))
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +212,7 @@ ONE_PIECE_ARCS: List[OnePieceArc] = [
 BBC_EPISODE_MAPPING: Dict[int, str] = {}
 
 # Fitxer on guardar el mappeig persistent
-BBC_MAPPING_FILE = "/home/user/hermes/data/bbc_onepiece_mapping.json"
+BBC_MAPPING_FILE = str(settings.DATA_DIR / "bbc_onepiece_mapping.json")
 
 
 def load_bbc_mapping():
