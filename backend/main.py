@@ -12919,96 +12919,75 @@ async def run_bbc_bulk_import(tmdb_key: str, min_confidence: float):
         bbc_bulk_import_status["scanned_programs"] = len(bbc_programs)
         logger.info(f"BBC Bulk Import: BBC catalog té {len(bbc_programs)} programes")
 
-        # Crear lookup de BBC per títol normalitzat -> BBC data
-        bbc_lookup = {}
-        for prog in bbc_programs:
-            norm = normalize_title(prog.get("title", ""))
-            if norm and norm not in bbc_lookup:
-                bbc_lookup[norm] = prog
-            # Variants
-            for variant in normalize_title_variants(prog.get("title", "")):
-                if variant and variant not in bbc_lookup:
-                    bbc_lookup[variant] = prog
-
-        logger.info(f"BBC Bulk Import: Creat BBC lookup amb {len(bbc_lookup)} variants")
-
-        # Phase 3: Per cada títol de TMDB, buscar BBC PID
+        # Phase 3: Matching BBC titles amb TMDB lookup
         bbc_bulk_import_status["phase"] = "matching"
         bbc_bulk_import_status["progress_percent"] = 50
         bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
-        logger.info(f"BBC Bulk Import: Fase 3 - Buscant BBC PIDs per {len(tmdb_titles)} títols TMDB...")
+        logger.info("BBC Bulk Import: Fase 3 - Fent match entre BBC i TMDB per títol...")
+
+        def find_tmdb_match(bbc_title):
+            """Intenta trobar match amb múltiples estratègies"""
+            # 1. Match exacte amb variants
+            for variant in normalize_title_variants(bbc_title):
+                if variant in tmdb_lookup:
+                    return tmdb_lookup[variant], "exact"
+
+            # 2. Match per substring (BBC title conté TMDB title o viceversa)
+            norm_bbc = normalize_title(bbc_title)
+            if len(norm_bbc) >= 4:  # Mínim 4 chars per evitar falsos positius
+                for tmdb_norm, tmdb_data in tmdb_titles_normalized:
+                    if len(tmdb_norm) >= 4:
+                        # BBC conté TMDB
+                        if tmdb_norm in norm_bbc:
+                            return tmdb_data, "substring"
+                        # TMDB conté BBC
+                        if norm_bbc in tmdb_norm:
+                            return tmdb_data, "substring"
+
+            return None, None
 
         matched = []
         not_matched = []
-        match_types = {"cache": 0, "search": 0}
+        match_types = {"exact": 0, "substring": 0}
 
-        for idx, tmdb_item in enumerate(tmdb_titles):
+        for idx, bbc_prog in enumerate(bbc_programs):
             if not bbc_bulk_import_status["running"]:
                 return
 
-            tmdb_title = tmdb_item.get("title", "")
-            tmdb_id = tmdb_item.get("tmdb_id")
+            bbc_title = bbc_prog.get("title", "")
+            tmdb_data, match_type = find_tmdb_match(bbc_title)
 
-            # Actualitzar progrés
-            if (idx + 1) % 50 == 0:
-                pct = 50 + int((idx / len(tmdb_titles)) * 20)  # 50-70%
-                bbc_bulk_import_status["progress_percent"] = pct
-                bbc_bulk_import_status["current_program"] = f"Buscant: {tmdb_title[:40]}..."
-                bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
-                logger.info(f"BBC Bulk Import: Progress {idx + 1}/{len(tmdb_titles)} - {len(matched)} matched")
-
-            # 1. Primer buscar al cache de BBC scan
-            bbc_prog = None
-            match_type = None
-
-            for variant in normalize_title_variants(tmdb_title):
-                if variant in bbc_lookup:
-                    bbc_prog = bbc_lookup[variant]
-                    match_type = "cache"
-                    break
-
-            # 2. Si no trobat, buscar via API de BBC
-            if not bbc_prog:
-                bbc_pid = await tmdb_scanner.find_bbc_programme_id(
-                    tmdb_id=tmdb_id,
-                    title=tmdb_title,
-                    content_type=tmdb_item.get("content_type", "tv")
-                )
-                if bbc_pid:
-                    bbc_prog = {
-                        "programme_id": bbc_pid,
-                        "title": tmdb_title,
-                        "url": f"https://www.bbc.co.uk/iplayer/episode/{bbc_pid}",
-                        "is_film": tmdb_item.get("content_type") == "movie",
-                        "is_series": tmdb_item.get("content_type") == "tv",
-                    }
-                    match_type = "search"
-                # Rate limiting per BBC search
-                await asyncio.sleep(0.1)
-
-            if bbc_prog:
+            if tmdb_data:
                 matched.append({
-                    "tmdb_id": tmdb_id,
-                    "bbc_title": bbc_prog.get("title", tmdb_title),
+                    "tmdb_id": tmdb_data["tmdb_id"],
+                    "bbc_title": bbc_title,
                     "bbc_programme_id": bbc_prog["programme_id"],
                     "bbc_url": bbc_prog.get("url", f"https://www.bbc.co.uk/iplayer/episode/{bbc_prog['programme_id']}"),
-                    "is_film": bbc_prog.get("is_film", tmdb_item.get("content_type") == "movie"),
-                    "is_series": bbc_prog.get("is_series", tmdb_item.get("content_type") == "tv"),
-                    "year": tmdb_item.get("year"),
-                    "overview": tmdb_item.get("overview"),
+                    "is_film": bbc_prog["is_film"],
+                    "is_series": bbc_prog["is_series"],
+                    "year": tmdb_data.get("year"),
+                    "overview": tmdb_data.get("overview"),
                 })
                 match_types[match_type] = match_types.get(match_type, 0) + 1
-                if len(matched) <= 15:
-                    logger.info(f"✓ Match ({match_type}): '{tmdb_title}' -> BBC {bbc_prog['programme_id']}")
+                if len(matched) <= 10:
+                    logger.info(f"✓ Match ({match_type}): '{bbc_title}' -> TMDB {tmdb_data['tmdb_id']}")
             else:
-                not_matched.append(tmdb_title)
+                not_matched.append(bbc_title)
+                if len(not_matched) <= 10:
+                    logger.debug(f"✗ No TMDB match: '{bbc_title}'")
 
-        bbc_bulk_import_status["scanned_programs"] = len(tmdb_titles)
+            # Progress
+            if (idx + 1) % 100 == 0:
+                pct = 50 + int((idx / len(bbc_programs)) * 10)  # 50-60%
+                bbc_bulk_import_status["progress_percent"] = pct
+                bbc_bulk_import_status["current_program"] = f"Matching: {idx + 1}/{len(bbc_programs)}"
+                logger.info(f"BBC Bulk Import: Match progress {idx + 1}/{len(bbc_programs)} - {len(matched)} matched")
+
         bbc_bulk_import_status["matched_programs"] = len(matched)
         bbc_bulk_import_status["skipped_low_confidence"] = len(not_matched)
-        bbc_bulk_import_status["progress_percent"] = 70
-        logger.info(f"BBC Bulk Import: {len(matched)} matched de {len(tmdb_titles)} TMDB titles")
-        logger.info(f"BBC Bulk Import: Match types - cache: {match_types.get('cache', 0)}, search: {match_types.get('search', 0)}")
+        bbc_bulk_import_status["progress_percent"] = 60
+        logger.info(f"BBC Bulk Import: {len(matched)} matched de {len(bbc_programs)} BBC programs")
+        logger.info(f"BBC Bulk Import: Match types - exact: {match_types.get('exact', 0)}, substring: {match_types.get('substring', 0)}")
 
         # Phase 4: Importing to mapping
         bbc_bulk_import_status["phase"] = "importing"
@@ -13044,7 +13023,7 @@ async def run_bbc_bulk_import(tmdb_key: str, min_confidence: float):
                 bbc_title = item["bbc_title"]
 
                 bbc_bulk_import_status["current_program"] = bbc_title
-                bbc_bulk_import_status["progress_percent"] = 70 + int((idx / total_to_import) * 30)  # 70-100%
+                bbc_bulk_import_status["progress_percent"] = 60 + int((idx / total_to_import) * 40)  # 60-100%
                 bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
 
                 if item["is_film"]:
