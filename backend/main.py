@@ -12805,16 +12805,16 @@ async def run_bbc_bulk_import(tmdb_key: str, min_confidence: float):
     """
     Background task per importar massivament tot el contingut de BBC iPlayer.
 
-    Utilitza TMDB Discover API per trobar tot el contingut disponible a BBC iPlayer.
-    Això és molt més fiable que escanejar BBC i fer matching perquè:
-    - TMDB ja sap quins títols estan a BBC iPlayer
-    - Obtenim els TMDB IDs directament (sense matching!)
-    - Només cal trobar els BBC programme IDs corresponents
+    Flux:
+    1. Escanejar BBC catalog → Obtenir tots els títols amb BBC PIDs
+    2. TMDB Discover → Obtenir tots els títols de BBC iPlayer amb TMDB IDs
+    3. Fer match entre BBC titles i TMDB titles per nom
+    4. Importar els que coincideixen (tenim BBC PID + TMDB ID)
     """
     global bbc_bulk_import_status
 
     try:
-        from backend.debrid.bbc_catalog import TMDBBBCScanner
+        from backend.debrid.bbc_catalog import TMDBBBCScanner, BBCCatalogScanner
         from backend.debrid.bbc_mapping import (
             import_bbc_episodes_with_metadata,
             set_bbc_mapping_for_content,
@@ -12822,97 +12822,143 @@ async def run_bbc_bulk_import(tmdb_key: str, min_confidence: float):
         )
         from backend.debrid import BBCiPlayerClient
 
-        # Phase 1: Descobrir contingut BBC iPlayer via TMDB Discover API
+        # Phase 1: TMDB Discover - Obtenir títols amb TMDB IDs
         bbc_bulk_import_status["phase"] = "scanning"
         bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
-        logger.info("BBC Bulk Import: Fase 1 - Descobrint catàleg BBC iPlayer via TMDB Discover API...")
+        logger.info("BBC Bulk Import: Fase 1 - TMDB Discover per obtenir catàleg BBC iPlayer...")
 
-        scanner = TMDBBBCScanner(tmdb_key)
+        tmdb_scanner = TMDBBBCScanner(tmdb_key)
 
-        def update_discover_progress(msg, percent):
+        def update_tmdb_progress(msg, percent):
             bbc_bulk_import_status["current_program"] = msg
-            bbc_bulk_import_status["progress_percent"] = int(percent * 0.30)  # 0-30%
+            bbc_bulk_import_status["progress_percent"] = int(percent * 0.25)  # 0-25%
             bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
 
-        # TMDB Discover ens dona tots els títols de BBC iPlayer amb TMDB IDs!
-        tmdb_titles = await scanner.discover_all_content(progress_callback=update_discover_progress)
+        tmdb_titles = await tmdb_scanner.discover_all_content(progress_callback=update_tmdb_progress)
 
         if not bbc_bulk_import_status["running"]:
-            bbc_bulk_import_status["phase"] = "stopped"
-            bbc_bulk_import_status["completed_at"] = datetime.now().isoformat()
             return
 
-        bbc_bulk_import_status["scanned_programs"] = len(tmdb_titles)
-        bbc_bulk_import_status["progress_percent"] = 30
-        bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
-        logger.info(f"BBC Bulk Import: TMDB Discover va trobar {len(tmdb_titles)} títols a BBC iPlayer")
+        logger.info(f"BBC Bulk Import: TMDB Discover va trobar {len(tmdb_titles)} títols")
 
         if not tmdb_titles:
             bbc_bulk_import_status["phase"] = "completed"
-            bbc_bulk_import_status["error"] = "No s'han trobat títols a TMDB per BBC iPlayer. Verifica la TMDB API key."
+            bbc_bulk_import_status["error"] = "No s'han trobat títols a TMDB. Verifica la API key."
             bbc_bulk_import_status["completed_at"] = datetime.now().isoformat()
             bbc_bulk_import_status["running"] = False
             return
 
-        # Phase 2: Trobar BBC programme IDs per cada títol de TMDB
-        bbc_bulk_import_status["phase"] = "matching"
+        # Crear lookup per títol normalitzat -> TMDB data
+        def normalize_title(t):
+            import re
+            t = t.lower().strip()
+            t = re.sub(r'[^\w\s]', '', t)  # Treure puntuació
+            t = re.sub(r'\s+', ' ', t)  # Normalitzar espais
+            return t
+
+        tmdb_lookup = {}
+        for t in tmdb_titles:
+            norm = normalize_title(t["title"])
+            tmdb_lookup[norm] = t
+            # També afegir títol original si és diferent
+            if t.get("original_title") and t["original_title"] != t["title"]:
+                norm_orig = normalize_title(t["original_title"])
+                tmdb_lookup[norm_orig] = t
+
+        logger.info(f"BBC Bulk Import: Creat lookup amb {len(tmdb_lookup)} títols normalitzats")
+
+        # Phase 2: Escanejar BBC catalog per obtenir BBC PIDs
+        bbc_bulk_import_status["phase"] = "scanning_bbc"
+        bbc_bulk_import_status["progress_percent"] = 25
         bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
-        logger.info("BBC Bulk Import: Fase 2 - Cercant BBC programme IDs...")
+        logger.info("BBC Bulk Import: Fase 2 - Escanejant catàleg BBC per obtenir PIDs...")
 
-        matched = []
-        for idx, title in enumerate(tmdb_titles):
-            if not bbc_bulk_import_status["running"]:
-                bbc_bulk_import_status["phase"] = "stopped"
-                bbc_bulk_import_status["completed_at"] = datetime.now().isoformat()
-                return
+        bbc_scanner = BBCCatalogScanner()
 
-            # Actualitzar progrés
-            pct = 30 + int((idx / len(tmdb_titles)) * 20)  # 30-50%
-            bbc_bulk_import_status["current_program"] = f"Cercant BBC PID: {title['title'][:40]}..."
-            bbc_bulk_import_status["progress_percent"] = pct
+        def update_bbc_progress(msg, percent):
+            bbc_bulk_import_status["current_program"] = msg
+            bbc_bulk_import_status["progress_percent"] = 25 + int(percent * 0.25)  # 25-50%
             bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
 
-            # Cercar BBC programme ID pel títol
-            bbc_pid = await scanner.find_bbc_programme_id(
-                tmdb_id=title["tmdb_id"],
-                title=title["title"],
-                content_type=title["content_type"]
-            )
+        bbc_catalog = await bbc_scanner.scan_full_catalog(progress_callback=update_bbc_progress)
 
-            if bbc_pid:
-                matched.append({
-                    "tmdb_id": title["tmdb_id"],
-                    "bbc_title": title["title"],
-                    "bbc_programme_id": bbc_pid,
-                    "bbc_url": f"https://www.bbc.co.uk/iplayer/episode/{bbc_pid}",
-                    "is_film": title["content_type"] == "movie",
-                    "is_series": title["content_type"] == "tv",
-                    "year": title.get("year"),
-                    "overview": title.get("overview"),
-                })
-                logger.debug(f"Matched: {title['title']} -> BBC PID: {bbc_pid}")
+        if not bbc_bulk_import_status["running"]:
+            return
 
-            # Rate limiting per BBC search API
-            await asyncio.sleep(0.3)
+        # Combinar films i series de BBC
+        bbc_programs = []
+        for film in bbc_catalog.get("films", []):
+            bbc_programs.append({**film, "is_film": True, "is_series": False})
+        for series in bbc_catalog.get("series", []):
+            bbc_programs.append({**series, "is_film": False, "is_series": True})
 
-            # Log progress cada 50 títols
-            if (idx + 1) % 50 == 0:
-                logger.info(f"BBC Bulk Import: Progress {idx + 1}/{len(tmdb_titles)} - {len(matched)} matched")
+        bbc_bulk_import_status["scanned_programs"] = len(bbc_programs)
+        logger.info(f"BBC Bulk Import: BBC catalog té {len(bbc_programs)} programes")
 
-        bbc_bulk_import_status["matched_programs"] = len(matched)
-        bbc_bulk_import_status["skipped_low_confidence"] = len(tmdb_titles) - len(matched)
+        # Phase 3: Matching BBC titles amb TMDB lookup
+        bbc_bulk_import_status["phase"] = "matching"
         bbc_bulk_import_status["progress_percent"] = 50
         bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
-        logger.info(f"BBC Bulk Import: Trobats {len(matched)} BBC programme IDs de {len(tmdb_titles)} títols TMDB")
+        logger.info("BBC Bulk Import: Fase 3 - Fent match entre BBC i TMDB per títol...")
 
-        # Phase 3: Importing to mapping
+        matched = []
+        not_matched = []
+
+        for idx, bbc_prog in enumerate(bbc_programs):
+            if not bbc_bulk_import_status["running"]:
+                return
+
+            bbc_title = bbc_prog.get("title", "")
+            norm_title = normalize_title(bbc_title)
+
+            # Buscar a TMDB lookup
+            tmdb_data = tmdb_lookup.get(norm_title)
+
+            if tmdb_data:
+                matched.append({
+                    "tmdb_id": tmdb_data["tmdb_id"],
+                    "bbc_title": bbc_title,
+                    "bbc_programme_id": bbc_prog["programme_id"],
+                    "bbc_url": bbc_prog.get("url", f"https://www.bbc.co.uk/iplayer/episode/{bbc_prog['programme_id']}"),
+                    "is_film": bbc_prog["is_film"],
+                    "is_series": bbc_prog["is_series"],
+                    "year": tmdb_data.get("year"),
+                    "overview": tmdb_data.get("overview"),
+                })
+                if len(matched) <= 10:
+                    logger.info(f"✓ Match: '{bbc_title}' -> TMDB {tmdb_data['tmdb_id']}")
+            else:
+                not_matched.append(bbc_title)
+                if len(not_matched) <= 10:
+                    logger.debug(f"✗ No TMDB match: '{bbc_title}'")
+
+            # Progress
+            if (idx + 1) % 100 == 0:
+                pct = 50 + int((idx / len(bbc_programs)) * 10)  # 50-60%
+                bbc_bulk_import_status["progress_percent"] = pct
+                bbc_bulk_import_status["current_program"] = f"Matching: {idx + 1}/{len(bbc_programs)}"
+                logger.info(f"BBC Bulk Import: Match progress {idx + 1}/{len(bbc_programs)} - {len(matched)} matched")
+
+        bbc_bulk_import_status["matched_programs"] = len(matched)
+        bbc_bulk_import_status["skipped_low_confidence"] = len(not_matched)
+        bbc_bulk_import_status["progress_percent"] = 60
+        logger.info(f"BBC Bulk Import: {len(matched)} matched de {len(bbc_programs)} BBC programs ({len(tmdb_titles)} TMDB titles)")
+
+        # Phase 4: Importing to mapping
         bbc_bulk_import_status["phase"] = "importing"
         bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
-        logger.info("BBC Bulk Import: Fase 3 - Important al sistema de mapping...")
+        logger.info(f"BBC Bulk Import: Fase 4 - Important {len(matched)} títols al sistema de mapping...")
 
         if not bbc_bulk_import_status["running"]:
             bbc_bulk_import_status["phase"] = "stopped"
             bbc_bulk_import_status["completed_at"] = datetime.now().isoformat()
+            return
+
+        if not matched:
+            bbc_bulk_import_status["phase"] = "completed"
+            bbc_bulk_import_status["error"] = "No s'han trobat coincidències entre BBC i TMDB."
+            bbc_bulk_import_status["completed_at"] = datetime.now().isoformat()
+            bbc_bulk_import_status["running"] = False
             return
 
         # Create BBC client for fetching episode details
@@ -12932,7 +12978,7 @@ async def run_bbc_bulk_import(tmdb_key: str, min_confidence: float):
                 bbc_title = item["bbc_title"]
 
                 bbc_bulk_import_status["current_program"] = bbc_title
-                bbc_bulk_import_status["progress_percent"] = 50 + int((idx / total_to_import) * 50)  # 50-100%
+                bbc_bulk_import_status["progress_percent"] = 60 + int((idx / total_to_import) * 40)  # 60-100%
                 bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
 
                 if item["is_film"]:
