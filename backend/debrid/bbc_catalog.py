@@ -519,21 +519,44 @@ class TMDBBBCScanner:
         """Comprova si dos títols coincideixen amb tolerància"""
         n1 = self._normalize_title(title1)
         n2 = self._normalize_title(title2)
+
+        # Cas especial: títols buits
+        if not n1 or not n2:
+            return False
+
         # Coincidència exacta normalitzada
         if n1 == n2:
             return True
-        # Un conté l'altre
-        if n1 in n2 or n2 in n1:
-            return True
-        # Similaritat de Jaccard (paraules en comú)
+
+        # Comparació per paraules - evita falsos positius amb títols curts
         words1 = set(n1.split())
         words2 = set(n2.split())
+
+        # Si un conjunt de paraules és subset de l'altre (coincidència completa de paraules)
+        # Exemple: {"doctor", "who"} és subset de {"doctor", "who", "series", "1"}
         if words1 and words2:
+            if words1.issubset(words2) or words2.issubset(words1):
+                # Només acceptar si el títol més curt té almenys 2 paraules
+                # o si és una sola paraula de més de 5 caràcters
+                shorter_words = words1 if len(words1) <= len(words2) else words2
+                if len(shorter_words) >= 2:
+                    return True
+                elif len(shorter_words) == 1:
+                    word = list(shorter_words)[0]
+                    if len(word) >= 6:  # Paraules llargues com "sherlock", "peaky"
+                        return True
+
+            # Similaritat de Jaccard
             intersection = len(words1 & words2)
             union = len(words1 | words2)
-            similarity = intersection / union if union > 0 else 0
-            if similarity >= 0.6:  # 60% de paraules en comú
-                return True
+            if union > 0 and intersection > 0:
+                similarity = intersection / union
+                # Requerim almenys 1 paraula en comú + threshold
+                min_words = min(len(words1), len(words2))
+                threshold = 0.75 if min_words <= 2 else 0.6
+                if similarity >= threshold:
+                    return True
+
         return False
 
     async def _search_bbc_suggest(self, title: str, cookies: dict, headers: dict) -> Optional[str]:
@@ -559,13 +582,8 @@ class TMDBBBCScanner:
                                     logger.debug(f"Found via suggest: '{title}' -> {pid}")
                                     return pid
 
-                        # NOMÉS retornar primer resultat si el títol comença igual
-                        first_title = results[0].get("title") or ""
-                        if self._normalize_title(title)[:5] == self._normalize_title(first_title)[:5]:
-                            pid = results[0].get("id") or results[0].get("pid") or results[0].get("tleo_id")
-                            if pid:
-                                logger.debug(f"Found via suggest (first, prefix match): '{title}' -> {pid}")
-                                return pid
+                        # NO retornem "primer resultat" si _titles_match ha fallat
+                        # Seria un fals positiu. Millor no trobar res que trobar incorrecte.
                 else:
                     logger.debug(f"BBC suggest API returned {response.status_code} for '{title}'")
 
@@ -607,13 +625,8 @@ class TMDBBBCScanner:
                                     logger.debug(f"Found via full search: '{title}' -> {pid}")
                                     return pid
 
-                        # NOMÉS primer resultat si prefix coincideix
-                        first_title = results[0].get("title") or results[0].get("name") or ""
-                        if self._normalize_title(title)[:5] == self._normalize_title(first_title)[:5]:
-                            pid = results[0].get("id") or results[0].get("pid") or results[0].get("tleo_id") or results[0].get("programme_id")
-                            if pid:
-                                logger.debug(f"Found via full search (first, prefix match): '{title}' -> {pid}")
-                                return pid
+                        # NO retornem "primer resultat" sense verificació
+                        # Evita falsos positius com "House" -> "Houseboat"
 
         except Exception as e:
             logger.debug(f"Error in BBC full search for '{title}': {e}")
