@@ -1,27 +1,70 @@
-/* Error Boundary Styles */
+/* ============================================
+   ERROR BOUNDARY - Luxury Minimalist
+   Elegant • Refined • Venice-inspired
+   ============================================ */
 
 .error-boundary {
   position: fixed;
   inset: 0;
-  background: linear-gradient(to bottom right, var(--bg-primary), var(--bg-secondary));
+  background: linear-gradient(
+    135deg,
+    var(--black-pure) 0%,
+    var(--gray-900) 50%,
+    var(--black-pure) 100%
+  );
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
-  padding: var(--space-xl);
+  z-index: var(--z-modal);
+  padding: var(--space-8);
+  overflow-y: auto;
 }
+
+/* Ambient background effect */
+.error-boundary::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 800px;
+  height: 800px;
+  background: radial-gradient(
+    circle,
+    rgba(255, 107, 107, 0.06) 0%,
+    transparent 70%
+  );
+  animation: errorPulse 3s ease-in-out infinite;
+}
+
+@keyframes errorPulse {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.15);
+    opacity: 0.7;
+  }
+}
+
+/* ============================================
+   CONTENT - Centered & Elegant
+   ============================================ */
 
 .error-boundary__content {
-  max-width: 600px;
+  position: relative;
+  z-index: 1;
+  max-width: 720px;
   width: 100%;
   text-align: center;
-  animation: fadeInUp 0.5s ease;
+  animation: errorFadeInUp var(--duration-normal) var(--ease-out);
 }
 
-@keyframes fadeInUp {
+@keyframes errorFadeInUp {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(32px);
   }
   to {
     opacity: 1;
@@ -29,106 +72,491 @@
   }
 }
 
+/* ============================================
+   ICON - Premium Error Symbol
+   ============================================ */
+
 .error-boundary__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 80px;
-  height: 80px;
-  margin-bottom: var(--space-xl);
+  width: 96px;
+  height: 96px;
+  margin: 0 auto var(--space-8);
   color: var(--color-error);
-  background: rgba(var(--color-error-rgb), 0.1);
-  border-radius: var(--radius-circle);
-  animation: pulse 2s ease-in-out infinite;
+  background: var(--bg-elevated);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 107, 107, 0.2);
+  border-radius: 50%;
+  box-shadow:
+    0 8px 32px rgba(255, 107, 107, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  animation: iconFloat 3s ease-in-out infinite;
 }
 
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
+@keyframes iconFloat {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-8px) scale(1.02);
+  }
 }
+
+.error-boundary__icon svg {
+  width: 48px;
+  height: 48px;
+  stroke-width: 2;
+}
+
+/* ============================================
+   TYPOGRAPHY - Clean & Refined
+   ============================================ */
 
 .error-boundary__title {
-  font-size: var(--font-size-3xl);
-  font-weight: var(--font-weight-bold);
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
   color: var(--text-primary);
-  margin-bottom: var(--space-lg);
+  margin-bottom: var(--space-4);
+  line-height: var(--leading-tight);
 }
 
 .error-boundary__message {
-  font-size: var(--font-size-lg);
+  font-family: var(--font-text);
+  font-size: var(--text-base);
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-wide);
   color: var(--text-secondary);
-  margin-bottom: var(--space-3xl);
-  line-height: var(--line-height-relaxed);
+  margin-bottom: var(--space-10);
+  line-height: var(--leading-relaxed);
+  max-width: 560px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
+/* ============================================
+   ERROR DETAILS - Glassmorphism Card
+   ============================================ */
+
 .error-boundary__details {
-  background: var(--bg-glass);
+  background: var(--bg-elevated);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
-  padding: var(--space-lg);
-  margin-bottom: var(--space-xl);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  margin-bottom: var(--space-8);
   text-align: left;
+  box-shadow: var(--shadow-xl);
+  transition: all var(--transition-smooth);
+}
+
+.error-boundary__details:hover {
+  border-color: var(--border-lighter);
+  box-shadow: var(--shadow-2xl);
+}
+
+.error-boundary__details[open] {
+  border-color: rgba(255, 107, 107, 0.3);
 }
 
 .error-boundary__details summary {
-  font-size: var(--font-size-sm);
+  font-family: var(--font-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-wide);
   color: var(--text-secondary);
   cursor: pointer;
   user-select: none;
-  font-weight: var(--font-weight-medium);
-  margin-bottom: var(--space-md);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+  list-style: none;
+}
+
+.error-boundary__details summary::-webkit-details-marker {
+  display: none;
+}
+
+.error-boundary__details summary::after {
+  content: '▼';
+  font-size: 10px;
+  color: var(--text-tertiary);
+  transition: transform var(--transition-smooth);
+}
+
+.error-boundary__details[open] summary::after {
+  transform: rotate(180deg);
 }
 
 .error-boundary__details summary:hover {
   color: var(--text-primary);
+  background: var(--bg-glass);
 }
+
+/* ============================================
+   STACK TRACE - Monospace Display
+   ============================================ */
 
 .error-boundary__stack {
   font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--color-error-light);
+  font-size: 11px;
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-error);
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 300px;
+  max-height: 320px;
   overflow-y: auto;
-  padding: var(--space-md);
-  background: rgba(0, 0, 0, 0.3);
+  padding: var(--space-4);
+  margin-top: var(--space-4);
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 107, 107, 0.15);
+  border-radius: var(--radius-md);
+  line-height: var(--leading-relaxed);
+}
+
+/* Custom scrollbar for stack trace */
+.error-boundary__stack::-webkit-scrollbar {
+  width: 8px;
+}
+
+.error-boundary__stack::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
   border-radius: var(--radius-sm);
 }
 
+.error-boundary__stack::-webkit-scrollbar-thumb {
+  background: rgba(255, 107, 107, 0.3);
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.error-boundary__stack::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 107, 107, 0.5);
+}
+
+/* ============================================
+   ERROR INFO - Additional Details
+   ============================================ */
+
+.error-boundary__info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+}
+
+.error-boundary__info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+}
+
+.error-boundary__info-label {
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  font-weight: var(--weight-medium);
+}
+
+.error-boundary__info-value {
+  color: var(--text-secondary);
+  text-align: right;
+  word-break: break-all;
+}
+
+/* ============================================
+   ACTIONS - Primary CTAs
+   ============================================ */
+
 .error-boundary__actions {
   display: flex;
-  gap: var(--space-md);
+  gap: var(--space-4);
   justify-content: center;
   flex-wrap: wrap;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
+.error-boundary__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-8);
+  font-family: var(--font-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-wide);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-smooth);
+  min-width: 160px;
+}
+
+.error-boundary__btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Primary button - Reload */
+.error-boundary__btn--primary {
+  background: var(--white);
+  border: none;
+  color: var(--black-pure);
+  box-shadow: 0 4px 16px rgba(255, 255, 255, 0.15);
+}
+
+.error-boundary__btn--primary:hover {
+  background: var(--gray-100);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(255, 255, 255, 0.25);
+}
+
+.error-boundary__btn--primary:active {
+  transform: translateY(0);
+}
+
+/* Secondary button - Go Home */
+.error-boundary__btn--secondary {
+  background: var(--bg-glass);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-light);
+  color: var(--text-primary);
+}
+
+.error-boundary__btn--secondary:hover {
+  background: var(--bg-glass-hover);
+  border-color: var(--border-lighter);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-xl);
+}
+
+.error-boundary__btn--secondary:active {
+  transform: translateY(0);
+}
+
+/* Tertiary button - Copy Error */
+.error-boundary__btn--tertiary {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+}
+
+.error-boundary__btn--tertiary:hover {
+  background: var(--bg-glass);
+  border-color: var(--border-light);
+  color: var(--text-primary);
+}
+
+.error-boundary__btn--tertiary:active {
+  transform: scale(0.98);
+}
+
+/* ============================================
+   RESPONSIVE - Mobile Adaptations
+   ============================================ */
+
+/* Tablet */
+@media (max-width: 1023px) {
+  .error-boundary {
+    padding: var(--space-6);
+  }
+
+  .error-boundary__icon {
+    width: 88px;
+    height: 88px;
+  }
+
+  .error-boundary__icon svg {
+    width: 44px;
+    height: 44px;
+  }
+
   .error-boundary__title {
-    font-size: var(--font-size-2xl);
+    font-size: var(--text-2xl);
   }
 
   .error-boundary__message {
-    font-size: var(--font-size-base);
+    font-size: var(--text-sm);
+    margin-bottom: var(--space-8);
+  }
+
+  .error-boundary__actions {
+    gap: var(--space-3);
+  }
+
+  .error-boundary__btn {
+    min-width: 140px;
+    padding: var(--space-3) var(--space-6);
+  }
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .error-boundary {
+    padding: var(--space-4);
+  }
+
+  .error-boundary::before {
+    width: 600px;
+    height: 600px;
+  }
+
+  .error-boundary__icon {
+    width: 80px;
+    height: 80px;
+    margin-bottom: var(--space-6);
+  }
+
+  .error-boundary__icon svg {
+    width: 40px;
+    height: 40px;
+  }
+
+  .error-boundary__title {
+    font-size: var(--text-xl);
+    margin-bottom: var(--space-3);
+  }
+
+  .error-boundary__message {
+    font-size: var(--text-sm);
+    margin-bottom: var(--space-6);
+  }
+
+  .error-boundary__details {
+    padding: var(--space-4);
+    margin-bottom: var(--space-6);
+  }
+
+  .error-boundary__details summary {
+    font-size: var(--text-xs);
+  }
+
+  .error-boundary__stack {
+    font-size: 10px;
+    max-height: 240px;
+    padding: var(--space-3);
+  }
+
+  .error-boundary__info-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+  }
+
+  .error-boundary__info-value {
+    text-align: left;
   }
 
   .error-boundary__actions {
     flex-direction: column;
+    gap: var(--space-3);
   }
 
-  .error-boundary__actions button {
+  .error-boundary__btn {
     width: 100%;
+    min-width: unset;
+    padding: var(--space-4);
   }
 }
 
-/* Reduced motion */
+/* ============================================
+   ACCESSIBILITY
+   ============================================ */
+
+.error-boundary__btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 4px;
+}
+
+.error-boundary__details summary:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+
+/* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
-  .error-boundary__content {
+  .error-boundary::before,
+  .error-boundary__content,
+  .error-boundary__icon,
+  .error-boundary__btn {
     animation: none;
   }
 
+  .error-boundary__details summary::after {
+    transition: none;
+  }
+
+  .error-boundary__btn:hover {
+    transform: none;
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .error-boundary {
+    background: var(--black-pure);
+  }
+
+  .error-boundary::before {
+    opacity: 0;
+  }
+
   .error-boundary__icon {
-    animation: none;
+    border-width: 2px;
+    border-color: var(--color-error);
+  }
+
+  .error-boundary__details {
+    border-width: 2px;
+  }
+
+  .error-boundary__btn--primary {
+    border: 2px solid var(--black-pure);
+  }
+
+  .error-boundary__btn--secondary,
+  .error-boundary__btn--tertiary {
+    border-width: 2px;
+  }
+}
+
+/* ============================================
+   COPY SUCCESS FEEDBACK
+   ============================================ */
+
+.error-boundary__btn--copied {
+  background: rgba(0, 184, 169, 0.2);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  pointer-events: none;
+}
+
+.error-boundary__btn--copied svg {
+  animation: checkmark var(--duration-fast) var(--ease-out);
+}
+
+@keyframes checkmark {
+  0% {
+    transform: scale(0) rotate(-45deg);
+  }
+  50% {
+    transform: scale(1.2) rotate(0deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
   }
 }

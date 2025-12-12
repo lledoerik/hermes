@@ -1,143 +1,430 @@
-/* Toast Notification System */
+/* ============================================
+   TOAST NOTIFICATIONS - Luxury Minimalist
+   Elegant • Glassmorphism • Venice-inspired
+   ============================================ */
 
 .toast-container {
   position: fixed;
-  bottom: var(--space-xl);
-  right: var(--space-xl);
-  z-index: 10000;
+  bottom: var(--space-8);
+  right: var(--space-8);
+  z-index: var(--z-toast);
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
-  max-width: 420px;
-  width: calc(100% - 2 * var(--space-xl));
+  gap: var(--space-3);
+  max-width: 480px;
+  width: calc(100% - 2 * var(--space-8));
   pointer-events: none;
 }
 
+/* ============================================
+   TOAST BASE - Premium Glassmorphism
+   ============================================ */
+
 .toast {
   display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  padding: var(--space-lg);
-  background: rgba(30, 41, 59, 0.98);
-  backdrop-filter: blur(16px);
-  border-radius: var(--radius-lg);
-  border-left: 4px solid;
-  box-shadow: var(--shadow-xl);
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  background: var(--bg-elevated);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-2xl);
   color: var(--text-primary);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
+  font-family: var(--font-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-wide);
+  line-height: var(--leading-relaxed);
   pointer-events: auto;
-  animation: slideInRight 0.3s var(--transition-spring);
-  transition: all var(--transition-normal);
+  animation: toastSlideIn var(--duration-normal) var(--ease-out);
+  transition: all var(--transition-smooth);
+  will-change: transform, opacity;
+  position: relative;
+  overflow: hidden;
 }
 
-@keyframes slideInRight {
+/* Elegant accent bar - left side */
+.toast::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: currentColor;
+  border-radius: var(--radius-full) 0 0 var(--radius-full);
+}
+
+@keyframes toastSlideIn {
   from {
-    transform: translateX(100%);
+    transform: translateX(120%) scale(0.96);
     opacity: 0;
   }
   to {
-    transform: translateX(0);
+    transform: translateX(0) scale(1);
     opacity: 1;
   }
 }
 
 .toast:hover {
-  transform: translateX(-4px);
-  box-shadow: var(--shadow-2xl);
+  transform: translateX(-8px) scale(1.01);
+  box-shadow: 0 16px 64px rgba(0, 0, 0, 0.5);
+  border-color: var(--border-lighter);
 }
+
+/* Exit animation */
+.toast.toast-exit {
+  animation: toastSlideOut var(--duration-fast) var(--ease-in) forwards;
+}
+
+@keyframes toastSlideOut {
+  from {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(120%) scale(0.96);
+    opacity: 0;
+  }
+}
+
+/* ============================================
+   TOAST ICON - Refined & Elegant
+   ============================================ */
 
 .toast__icon {
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-top: 2px; /* Optical alignment */
+  color: inherit;
+}
+
+.toast__icon svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2.5;
+}
+
+/* ============================================
+   TOAST CONTENT - Clean Typography
+   ============================================ */
+
+.toast__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0; /* Enable text truncation */
 }
 
 .toast__message {
-  flex: 1;
-  line-height: var(--line-height-normal);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-wide);
+  line-height: var(--leading-relaxed);
+  word-wrap: break-word;
 }
+
+.toast__description {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-wide);
+  line-height: var(--leading-relaxed);
+  opacity: 0.9;
+}
+
+/* ============================================
+   CLOSE BUTTON - Subtle & Refined
+   ============================================ */
 
 .toast__close {
   flex-shrink: 0;
   background: none;
   border: none;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   cursor: pointer;
-  padding: var(--space-xs);
-  border-radius: var(--radius-sm);
+  padding: var(--space-1);
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all var(--transition-fast);
+  width: 24px;
+  height: 24px;
+  margin-top: 2px; /* Optical alignment */
+}
+
+.toast__close svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.5;
 }
 
 .toast__close:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-glass);
   color: var(--text-primary);
 }
 
 .toast__close:active {
-  transform: scale(0.95);
+  transform: scale(0.92);
+  background: var(--bg-glass-hover);
 }
 
-/* Toast Types */
+/* ============================================
+   TOAST TYPES - Color Variations
+   ============================================ */
+
+/* Success - Primary Turquoise */
 .toast--success {
-  border-left-color: var(--color-success);
+  color: var(--color-primary);
+  border-color: rgba(0, 184, 169, 0.3);
 }
 
 .toast--success .toast__icon {
-  color: var(--color-success);
+  color: var(--color-primary);
 }
 
+.toast--success:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 16px 64px rgba(0, 184, 169, 0.2);
+}
+
+/* Error - Elegant Red */
 .toast--error {
-  border-left-color: var(--color-error);
+  color: var(--color-error);
+  border-color: rgba(255, 107, 107, 0.3);
 }
 
 .toast--error .toast__icon {
   color: var(--color-error);
 }
 
+.toast--error:hover {
+  border-color: var(--color-error);
+  box-shadow: 0 16px 64px rgba(255, 107, 107, 0.2);
+}
+
+/* Warning - Refined Amber */
 .toast--warning {
-  border-left-color: var(--color-warning);
+  color: var(--color-warning);
+  border-color: rgba(251, 191, 36, 0.3);
 }
 
 .toast--warning .toast__icon {
   color: var(--color-warning);
 }
 
+.toast--warning:hover {
+  border-color: var(--color-warning);
+  box-shadow: 0 16px 64px rgba(251, 191, 36, 0.2);
+}
+
+/* Info - Primary Turquoise */
 .toast--info {
-  border-left-color: var(--color-primary);
+  color: var(--color-primary);
+  border-color: rgba(0, 184, 169, 0.3);
 }
 
 .toast--info .toast__icon {
   color: var(--color-primary);
 }
 
-/* Mobile adjustments */
+.toast--info:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 16px 64px rgba(0, 184, 169, 0.2);
+}
+
+/* ============================================
+   TOAST WITH PROGRESS BAR
+   ============================================ */
+
+.toast--with-progress {
+  padding-bottom: var(--space-6);
+}
+
+.toast__progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--border-subtle);
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+  overflow: hidden;
+}
+
+.toast__progress-bar {
+  height: 100%;
+  background: currentColor;
+  transition: width linear;
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+  box-shadow: 0 0 8px currentColor;
+}
+
+/* ============================================
+   RESPONSIVE - Mobile Adaptations
+   ============================================ */
+
+/* Tablet */
+@media (max-width: 1023px) {
+  .toast-container {
+    bottom: var(--space-6);
+    right: var(--space-6);
+    width: calc(100% - 2 * var(--space-6));
+    max-width: 440px;
+  }
+
+  .toast {
+    padding: var(--space-4) var(--space-5);
+  }
+}
+
+/* Mobile - Bottom Center Position */
 @media (max-width: 768px) {
   .toast-container {
-    bottom: var(--space-lg);
-    right: var(--space-lg);
-    left: var(--space-lg);
+    bottom: var(--space-4);
+    right: var(--space-4);
+    left: var(--space-4);
     width: auto;
     max-width: none;
   }
 
   .toast {
-    padding: var(--space-md);
-    font-size: var(--font-size-xs);
+    padding: var(--space-4);
+    gap: var(--space-3);
+    border-radius: var(--radius-lg);
+    animation: toastSlideUp var(--duration-normal) var(--ease-out);
+  }
+
+  @keyframes toastSlideUp {
+    from {
+      transform: translateY(120%) scale(0.96);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
+  }
+
+  .toast:hover {
+    transform: translateY(-4px) scale(1.01);
+  }
+
+  .toast.toast-exit {
+    animation: toastSlideDown var(--duration-fast) var(--ease-in) forwards;
+  }
+
+  @keyframes toastSlideDown {
+    from {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
+    to {
+      transform: translateY(120%) scale(0.96);
+      opacity: 0;
+    }
+  }
+
+  .toast__message {
+    font-size: var(--text-xs);
+  }
+
+  .toast__description {
+    font-size: 10px;
+  }
+
+  .toast__icon svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .toast__close svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  /* Mobile: Active state instead of hover */
+  .toast:active {
+    transform: scale(0.98);
   }
 }
 
-/* Reduced motion */
+/* ============================================
+   ACCESSIBILITY
+   ============================================ */
+
+.toast__close:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
   .toast {
-    animation: none;
+    animation: toastFadeIn var(--duration-fast) linear;
+  }
+
+  @keyframes toastFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 
   .toast:hover {
     transform: none;
   }
+
+  .toast.toast-exit {
+    animation: toastFadeOut var(--duration-fast) linear forwards;
+  }
+
+  @keyframes toastFadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+
+  .toast__progress-bar {
+    transition: none;
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .toast {
+    border-width: 2px;
+    border-color: currentColor;
+  }
+
+  .toast::before {
+    width: 4px;
+  }
+}
+
+/* ============================================
+   STACKING BEHAVIOR
+   ============================================ */
+
+.toast-container .toast:not(:last-child) {
+  margin-bottom: var(--space-2);
+  opacity: 0.95;
+  transform: scale(0.98);
+}
+
+.toast-container .toast:not(:last-child):hover {
+  opacity: 1;
+  transform: translateX(-8px) scale(1);
+  z-index: 1;
+}
+
+/* Limit to 5 visible toasts */
+.toast-container .toast:nth-child(n+6) {
+  display: none;
 }
