@@ -1,0 +1,239 @@
+/* Next Episode Suggestion Styles (Netflix-style) */
+
+.next-episode-suggestion {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: var(--space-3xl);
+  z-index: 300;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.next-episode-suggestion__overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.9) 0%,
+    rgba(0, 0, 0, 0.6) 50%,
+    transparent 100%
+  );
+}
+
+.next-episode-suggestion__content {
+  position: relative;
+  max-width: 480px;
+  background: rgba(30, 41, 59, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-xl);
+  padding: var(--space-xl);
+  box-shadow: var(--shadow-2xl);
+  animation: slideInRight 0.4s var(--transition-spring);
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.next-episode-suggestion__close {
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  color: var(--text-primary);
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-circle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  z-index: 1;
+}
+
+.next-episode-suggestion__close:hover {
+  background: rgba(0, 0, 0, 0.8);
+  transform: scale(1.1);
+}
+
+.next-episode-suggestion__close:active {
+  transform: scale(0.95);
+}
+
+.next-episode-suggestion__info {
+  margin-bottom: var(--space-xl);
+}
+
+.next-episode-suggestion__label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-sm);
+}
+
+.next-episode-suggestion__title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-sm);
+  line-height: var(--line-height-tight);
+}
+
+.next-episode-suggestion__episode-number {
+  display: inline-block;
+  background: var(--color-primary);
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-xs);
+  margin-right: var(--space-sm);
+}
+
+.next-episode-suggestion__overview {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: var(--line-height-normal);
+  margin: 0;
+}
+
+.next-episode-suggestion__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-lg);
+}
+
+.next-episode-suggestion__play-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-xl);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  box-shadow: var(--shadow-primary);
+}
+
+.next-episode-suggestion__play-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-primary-lg);
+}
+
+.next-episode-suggestion__play-btn:active {
+  transform: scale(0.98);
+}
+
+/* Countdown Circle */
+.next-episode-suggestion__countdown {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+}
+
+.next-episode-suggestion__countdown-ring {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.next-episode-suggestion__countdown-ring-bg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 3;
+}
+
+.next-episode-suggestion__countdown-ring-progress {
+  fill: none;
+  stroke: var(--color-primary);
+  stroke-width: 3;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 0;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear;
+}
+
+.next-episode-suggestion__countdown-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Mobile Adjustments */
+@media (max-width: 768px) {
+  .next-episode-suggestion {
+    padding: var(--space-xl);
+    align-items: center;
+    justify-content: center;
+  }
+
+  .next-episode-suggestion__content {
+    max-width: 100%;
+    padding: var(--space-lg);
+  }
+
+  .next-episode-suggestion__title {
+    font-size: var(--font-size-base);
+  }
+
+  .next-episode-suggestion__overview {
+    font-size: var(--font-size-xs);
+  }
+
+  .next-episode-suggestion__actions {
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .next-episode-suggestion__play-btn {
+    width: 100%;
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .next-episode-suggestion,
+  .next-episode-suggestion__content {
+    animation: none;
+  }
+
+  .next-episode-suggestion__countdown-ring-progress {
+    transition: none;
+  }
+}

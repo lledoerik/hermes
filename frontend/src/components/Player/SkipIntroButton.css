@@ -1,0 +1,79 @@
+/* Skip Intro Button Styles (Netflix-style) */
+
+.skip-intro-button {
+  position: absolute;
+  bottom: 120px;
+  right: var(--space-3xl);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-xl);
+  background: rgba(255, 255, 255, 0.95);
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--bg-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+  box-shadow: var(--shadow-lg);
+  z-index: 200;
+  animation: slideInFromRight 0.3s var(--transition-spring);
+  transition: all var(--transition-normal);
+}
+
+@keyframes slideInFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.skip-intro-button:hover {
+  background: var(--text-primary);
+  border-color: var(--color-primary);
+  transform: scale(1.05);
+  box-shadow: var(--shadow-xl);
+}
+
+.skip-intro-button:active {
+  transform: scale(0.98);
+}
+
+.skip-intro-button:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 3px;
+}
+
+.skip-intro-button svg {
+  flex-shrink: 0;
+}
+
+.skip-intro-button span {
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* Mobile Adjustments */
+@media (max-width: 768px) {
+  .skip-intro-button {
+    bottom: 100px;
+    right: var(--space-lg);
+    padding: var(--space-sm) var(--space-lg);
+    font-size: var(--font-size-xs);
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .skip-intro-button {
+    animation: none;
+  }
+
+  .skip-intro-button:hover {
+    transform: none;
+  }
+}
