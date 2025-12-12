@@ -45,32 +45,56 @@ scheduler = AsyncIOScheduler()
 
 # Cache en memòria per a TMDB (episodis, detalls de sèries)
 # TTL: 24 hores per defecte
+import time as _time_module  # Import global per evitar imports repetits
+
 class SimpleCache:
-    """Cache simple en memòria amb TTL per entrada."""
-    def __init__(self, default_ttl: int = 86400):  # 24h per defecte
+    """
+    Cache simple en memòria amb TTL per entrada.
+    Optimitzat amb límit de mida i neteja automàtica.
+    """
+    def __init__(self, default_ttl: int = 86400, max_size: int = 10000):
         self._cache: Dict[str, tuple] = {}  # key -> (value, timestamp, ttl)
         self._default_ttl = default_ttl
+        self._max_size = max_size
+        self._hits = 0
+        self._misses = 0
 
     def get(self, key: str):
         """Obtenir valor del cache si no ha expirat."""
         if key in self._cache:
             value, timestamp, ttl = self._cache[key]
-            import time
-            if time.time() - timestamp < ttl:
+            if _time_module.time() - timestamp < ttl:
+                self._hits += 1
                 return value
             else:
                 del self._cache[key]
+        self._misses += 1
         return None
 
     def set(self, key: str, value, ttl: int = None):
-        """Guardar valor al cache amb TTL opcional (usa default si no especificat)."""
-        import time
+        """Guardar valor al cache amb TTL opcional."""
+        # Netejar si s'excedeix el límit de mida
+        if len(self._cache) >= self._max_size:
+            self._evict_oldest()
+
         actual_ttl = ttl if ttl is not None else self._default_ttl
-        self._cache[key] = (value, time.time(), actual_ttl)
+        self._cache[key] = (value, _time_module.time(), actual_ttl)
+
+    def _evict_oldest(self):
+        """Eliminar les entrades més antigues (25% del cache)."""
+        if not self._cache:
+            return
+        # Ordenar per timestamp i eliminar el 25% més antic
+        sorted_items = sorted(self._cache.items(), key=lambda x: x[1][1])
+        to_remove = max(1, len(sorted_items) // 4)
+        for key, _ in sorted_items[:to_remove]:
+            del self._cache[key]
 
     def clear(self):
         """Netejar tot el cache."""
         self._cache.clear()
+        self._hits = 0
+        self._misses = 0
 
     def size(self) -> int:
         """Retorna el nombre d'elements al cache."""
@@ -78,8 +102,7 @@ class SimpleCache:
 
     def cleanup_expired(self):
         """Eliminar entrades expirades del cache."""
-        import time
-        current_time = time.time()
+        current_time = _time_module.time()
         expired_keys = [
             key for key, (_, timestamp, ttl) in self._cache.items()
             if current_time - timestamp >= ttl
@@ -87,6 +110,18 @@ class SimpleCache:
         for key in expired_keys:
             del self._cache[key]
         return len(expired_keys)
+
+    @property
+    def stats(self) -> Dict[str, any]:
+        """Estadístiques del cache."""
+        total = self._hits + self._misses
+        return {
+            "entries": len(self._cache),
+            "hits": self._hits,
+            "misses": self._misses,
+            "hit_rate": f"{(self._hits / total * 100):.1f}%" if total > 0 else "0%",
+            "max_size": self._max_size
+        }
 
 # Instàncies de cache globals
 tmdb_cache = SimpleCache(default_ttl=86400)  # 24h per episodis/detalls
@@ -184,6 +219,10 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"]
 )
+
+# Middleware de compressió GZip per respostes (redueix ~70% el tràfic)
+from starlette.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)  # Comprimir respostes > 1KB
 
 # === DATABASE ===
 
@@ -565,8 +604,186 @@ def init_all_tables():
             )
         """)
 
+        # === TAULES BBC IPAL CONTINGUT ===
+        # Taula per contingut BBC que no té match a TMDB (BBC-only content)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS bbc_content (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                programme_id TEXT UNIQUE NOT NULL,
+                title TEXT NOT NULL,
+                synopsis TEXT,
+                thumbnail TEXT,
+                url TEXT,
+                is_film INTEGER DEFAULT 0,
+                is_series INTEGER DEFAULT 1,
+                tmdb_id INTEGER,
+                tmdb_confidence REAL,
+                episodes_count INTEGER DEFAULT 0,
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                added_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Taula per episodis BBC (associats a bbc_content)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS bbc_episodes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                bbc_content_id INTEGER,
+                programme_id TEXT UNIQUE NOT NULL,
+                episode_number INTEGER,
+                season_number INTEGER DEFAULT 1,
+                title TEXT,
+                synopsis TEXT,
+                thumbnail TEXT,
+                duration INTEGER,
+                url TEXT,
+                added_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (bbc_content_id) REFERENCES bbc_content(id)
+            )
+        """)
+
+        # Taula per subtítols BBC
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS bbc_subtitles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                programme_id TEXT NOT NULL,
+                language TEXT DEFAULT 'en',
+                format TEXT DEFAULT 'ttml',
+                subtitle_url TEXT,
+                subtitle_content TEXT,
+                downloaded INTEGER DEFAULT 0,
+                added_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(programme_id, language)
+            )
+        """)
+
+        # === ÍNDEXS PER OPTIMITZACIÓ DE RENDIMENT ===
+        # Índexs crítics per accelerar consultes freqüents
+        indexes = [
+            # Índexs per series - consultades constantment
+            ("idx_series_tmdb_id", "series", "tmdb_id"),
+            ("idx_series_media_type", "series", "media_type"),
+            ("idx_series_content_type", "series", "content_type"),
+            ("idx_series_anilist_id", "series", "anilist_id"),
+            ("idx_series_name_normalized", "series", "name_normalized"),
+            # Índexs per media_files - JOINs freqüents
+            ("idx_media_files_series_id", "media_files", "series_id"),
+            ("idx_media_files_season_episode", "media_files", "series_id, season_number, episode_number"),
+            # Índexs per streaming_progress - continue watching
+            ("idx_streaming_progress_user", "streaming_progress", "user_id"),
+            ("idx_streaming_progress_user_tmdb", "streaming_progress", "user_id, tmdb_id"),
+            ("idx_streaming_progress_updated", "streaming_progress", "updated_date DESC"),
+            # Índexs per watch_progress
+            ("idx_watch_progress_user", "watch_progress", "user_id"),
+            ("idx_watch_progress_updated", "watch_progress", "updated_date DESC"),
+            # Índexs per watchlist
+            ("idx_watchlist_user", "watchlist", "user_id"),
+            ("idx_watchlist_user_tmdb", "watchlist", "user_id, tmdb_id, media_type"),
+            # Índexs per books i audiobooks
+            ("idx_books_author", "books", "author_id"),
+            ("idx_audiobooks_author", "audiobooks", "author_id"),
+            ("idx_audiobook_files_audiobook", "audiobook_files", "audiobook_id"),
+            # Índex per metadata_cache
+            ("idx_metadata_cache_expires", "metadata_cache", "expires_date"),
+            # Índexs per taules BBC
+            ("idx_bbc_content_programme", "bbc_content", "programme_id"),
+            ("idx_bbc_content_tmdb", "bbc_content", "tmdb_id"),
+            ("idx_bbc_episodes_content", "bbc_episodes", "bbc_content_id"),
+            ("idx_bbc_episodes_programme", "bbc_episodes", "programme_id"),
+            ("idx_bbc_subtitles_programme", "bbc_subtitles", "programme_id"),
+        ]
+
+        for idx_name, table, columns in indexes:
+            try:
+                cursor.execute(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({columns})")
+            except Exception as e:
+                logger.debug(f"Índex {idx_name}: {e}")
+
+        # Migració: Afegir columna name_normalized per ordenació ràpida
+        try:
+            cursor.execute("ALTER TABLE series ADD COLUMN name_normalized TEXT")
+        except:
+            pass  # Ja existeix
+
+        # Actualitzar name_normalized per registres existents (una sola vegada)
+        try:
+            cursor.execute("""
+                UPDATE series
+                SET name_normalized = LOWER(name)
+                WHERE name_normalized IS NULL AND name IS NOT NULL
+            """)
+        except Exception as e:
+            logger.debug(f"Actualització name_normalized: {e}")
+
+        # === FULL-TEXT SEARCH (FTS5) PER CERQUES RÀPIDES ===
+        # Crear taula virtual FTS5 per cerques instantànies
+        try:
+            cursor.execute("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS series_fts USING fts5(
+                    name,
+                    title,
+                    title_english,
+                    title_romaji,
+                    title_native,
+                    original_title,
+                    overview,
+                    content='series',
+                    content_rowid='id',
+                    tokenize='unicode61 remove_diacritics 2'
+                )
+            """)
+        except Exception as e:
+            logger.debug(f"FTS5 series_fts: {e}")
+
+        # Poblar FTS amb dades existents (una sola vegada)
+        try:
+            cursor.execute("SELECT COUNT(*) FROM series_fts")
+            fts_count = cursor.fetchone()[0]
+            if fts_count == 0:
+                cursor.execute("""
+                    INSERT INTO series_fts(rowid, name, title, title_english, title_romaji, title_native, original_title, overview)
+                    SELECT id, name, title, title_english, title_romaji, title_native, original_title, overview
+                    FROM series
+                """)
+                logger.info("FTS5 series_fts poblat amb dades existents")
+        except Exception as e:
+            logger.debug(f"Poblament FTS5: {e}")
+
+        # Crear triggers per mantenir FTS sincronitzat
+        fts_triggers = [
+            # Trigger INSERT
+            """
+            CREATE TRIGGER IF NOT EXISTS series_fts_insert AFTER INSERT ON series BEGIN
+                INSERT INTO series_fts(rowid, name, title, title_english, title_romaji, title_native, original_title, overview)
+                VALUES (NEW.id, NEW.name, NEW.title, NEW.title_english, NEW.title_romaji, NEW.title_native, NEW.original_title, NEW.overview);
+            END
+            """,
+            # Trigger DELETE
+            """
+            CREATE TRIGGER IF NOT EXISTS series_fts_delete AFTER DELETE ON series BEGIN
+                INSERT INTO series_fts(series_fts, rowid, name, title, title_english, title_romaji, title_native, original_title, overview)
+                VALUES ('delete', OLD.id, OLD.name, OLD.title, OLD.title_english, OLD.title_romaji, OLD.title_native, OLD.original_title, OLD.overview);
+            END
+            """,
+            # Trigger UPDATE
+            """
+            CREATE TRIGGER IF NOT EXISTS series_fts_update AFTER UPDATE ON series BEGIN
+                INSERT INTO series_fts(series_fts, rowid, name, title, title_english, title_romaji, title_native, original_title, overview)
+                VALUES ('delete', OLD.id, OLD.name, OLD.title, OLD.title_english, OLD.title_romaji, OLD.title_native, OLD.original_title, OLD.overview);
+                INSERT INTO series_fts(rowid, name, title, title_english, title_romaji, title_native, original_title, overview)
+                VALUES (NEW.id, NEW.name, NEW.title, NEW.title_english, NEW.title_romaji, NEW.title_native, NEW.original_title, NEW.overview);
+            END
+            """
+        ]
+
+        for trigger_sql in fts_triggers:
+            try:
+                cursor.execute(trigger_sql)
+            except Exception as e:
+                logger.debug(f"Trigger FTS: {e}")
+
         conn.commit()
-        logger.info("Totes les taules inicialitzades correctament")
+        logger.info("Totes les taules, índexs i FTS inicialitzats correctament")
 
 # Inicialitzar taules al arrancar
 init_all_tables()
@@ -2019,30 +2236,31 @@ async def root():
 
 @app.get("/api/library/stats")
 async def get_stats():
-    """Retorna estadístiques de la biblioteca"""
+    """Retorna estadístiques de la biblioteca (optimitzat: 2 consultes en lloc de 5)"""
     with get_db() as conn:
         cursor = conn.cursor()
-        
-        # Series
-        cursor.execute("SELECT COUNT(*) FROM series WHERE media_type = 'series'")
-        series_count = cursor.fetchone()[0]
-        
-        # Pel·lícules
-        cursor.execute("SELECT COUNT(*) FROM series WHERE media_type = 'movie'")
-        movies_count = cursor.fetchone()[0]
-        
-        # Arxius
-        cursor.execute("SELECT COUNT(*) FROM media_files")
-        files_count = cursor.fetchone()[0]
-        
-        # Durada total
-        cursor.execute("SELECT SUM(duration) FROM media_files")
-        total_duration = cursor.fetchone()[0] or 0
-        
-        # Mida total
-        cursor.execute("SELECT SUM(file_size) FROM media_files")
-        total_size = cursor.fetchone()[0] or 0
-        
+
+        # Consulta única per series i pel·lícules (amb índex idx_series_media_type)
+        cursor.execute("""
+            SELECT
+                SUM(CASE WHEN media_type = 'series' THEN 1 ELSE 0 END) as series_count,
+                SUM(CASE WHEN media_type = 'movie' THEN 1 ELSE 0 END) as movies_count
+            FROM series
+        """)
+        row = cursor.fetchone()
+        series_count = row[0] or 0
+        movies_count = row[1] or 0
+
+        # Consulta única per arxius, durada i mida
+        cursor.execute("""
+            SELECT COUNT(*), COALESCE(SUM(duration), 0), COALESCE(SUM(file_size), 0)
+            FROM media_files
+        """)
+        row = cursor.fetchone()
+        files_count = row[0] or 0
+        total_duration = row[1] or 0
+        total_size = row[2] or 0
+
         return {
             "series": series_count,
             "movies": movies_count,
@@ -2087,11 +2305,29 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
             where_conditions.append(f"s.content_type IN ({placeholders})")
             count_params.extend(content_types)
 
-        # Search filter (inclou títols alternatius per qualsevol idioma)
+        # Search filter - usa FTS5 per cerques ràpides (O(log n) en lloc de O(n))
+        fts_ids = None
         if search:
-            where_conditions.append("(s.name LIKE ? OR s.title LIKE ? OR s.title_english LIKE ? OR s.title_romaji LIKE ? OR s.title_native LIKE ? OR s.original_title LIKE ?)")
-            search_pattern = f"%{search}%"
-            count_params.extend([search_pattern] * 6)
+            try:
+                # Cercar amb FTS5 (molt més ràpid que LIKE)
+                fts_query = f'"{search}"* OR {search}'  # Cerca parcial i exacta
+                cursor.execute("""
+                    SELECT rowid FROM series_fts WHERE series_fts MATCH ?
+                """, (fts_query,))
+                fts_ids = [row[0] for row in cursor.fetchall()]
+                if fts_ids:
+                    placeholders = ','.join(['?' for _ in fts_ids])
+                    where_conditions.append(f"s.id IN ({placeholders})")
+                    count_params.extend(fts_ids)
+                else:
+                    # Si FTS no troba res, retornar buit
+                    return {"items": [], "total": 0, "page": page, "limit": limit, "total_pages": 0}
+            except Exception as e:
+                # Fallback a LIKE si FTS falla
+                logger.debug(f"FTS fallback a LIKE: {e}")
+                where_conditions.append("(s.name LIKE ? OR s.title LIKE ? OR s.title_english LIKE ? OR s.title_romaji LIKE ? OR s.title_native LIKE ? OR s.original_title LIKE ?)")
+                search_pattern = f"%{search}%"
+                count_params.extend([search_pattern] * 6)
 
         # Category-specific filters
         if category == "popular":
@@ -2129,18 +2365,18 @@ async def get_series(content_type: str = None, page: int = 1, limit: int = 50, s
         # Sorting basat en categoria o sort_by
         if category == "popular":
             # Populars: ordenar per rating DESC (les millor valorades amb mínim vots)
-            query += " ORDER BY COALESCE(s.rating, 0) DESC, s.name COLLATE NOACCENT"
+            query += " ORDER BY COALESCE(s.rating, 0) DESC, s.name_normalized"
         elif category in ["on_the_air", "airing_today"]:
             # En emissió / Avui: ordenar per popularitat
-            query += " ORDER BY COALESCE(s.popularity, 0) DESC, s.name COLLATE NOACCENT"
+            query += " ORDER BY COALESCE(s.popularity, 0) DESC, s.name_normalized"
         elif sort_by == "year":
-            query += " ORDER BY s.year DESC, s.name COLLATE NOACCENT"
+            query += " ORDER BY s.year DESC, s.name_normalized"
         elif sort_by == "episodes":
-            query += " ORDER BY episode_count DESC, s.name COLLATE NOACCENT"
+            query += " ORDER BY episode_count DESC, s.name_normalized"
         elif sort_by == "seasons":
-            query += " ORDER BY season_count DESC, s.name COLLATE NOACCENT"
+            query += " ORDER BY season_count DESC, s.name_normalized"
         else:
-            query += " ORDER BY s.name COLLATE NOACCENT"
+            query += " ORDER BY s.name_normalized"
 
         # Pagination
         offset = (page - 1) * limit
@@ -2236,11 +2472,28 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
             where_conditions.append(f"s.content_type IN ({placeholders})")
             count_params.extend(content_types)
 
-        # Search filter (inclou títols alternatius per qualsevol idioma)
+        # Search filter - usa FTS5 per cerques ràpides (O(log n) en lloc de O(n))
         if search:
-            where_conditions.append("(s.name LIKE ? OR s.title LIKE ? OR s.title_english LIKE ? OR s.title_romaji LIKE ? OR s.title_native LIKE ? OR s.original_title LIKE ?)")
-            search_pattern = f"%{search}%"
-            count_params.extend([search_pattern] * 6)
+            try:
+                # Cercar amb FTS5 (molt més ràpid que LIKE)
+                fts_query = f'"{search}"* OR {search}'  # Cerca parcial i exacta
+                cursor.execute("""
+                    SELECT rowid FROM series_fts WHERE series_fts MATCH ?
+                """, (fts_query,))
+                fts_ids = [row[0] for row in cursor.fetchall()]
+                if fts_ids:
+                    placeholders = ','.join(['?' for _ in fts_ids])
+                    where_conditions.append(f"s.id IN ({placeholders})")
+                    count_params.extend(fts_ids)
+                else:
+                    # Si FTS no troba res, retornar buit
+                    return {"items": [], "total": 0, "page": page, "limit": limit, "total_pages": 0}
+            except Exception as e:
+                # Fallback a LIKE si FTS falla
+                logger.debug(f"FTS fallback a LIKE: {e}")
+                where_conditions.append("(s.name LIKE ? OR s.title LIKE ? OR s.title_english LIKE ? OR s.title_romaji LIKE ? OR s.title_native LIKE ? OR s.original_title LIKE ?)")
+                search_pattern = f"%{search}%"
+                count_params.extend([search_pattern] * 6)
 
         # Category-specific filters
         if category == "popular":
@@ -2281,19 +2534,19 @@ async def get_movies(content_type: str = None, page: int = 1, limit: int = 50, s
         # Sorting basat en categoria o sort_by
         if category == "popular":
             # Populars: ordenar per rating DESC (les millor valorades amb mínim vots)
-            query += " ORDER BY COALESCE(s.rating, 0) DESC, s.name COLLATE NOACCENT"
+            query += " ORDER BY COALESCE(s.rating, 0) DESC, s.name_normalized"
         elif category == "now_playing":
             # Cartellera: ordenar per popularitat
-            query += " ORDER BY COALESCE(s.popularity, 0) DESC, s.name COLLATE NOACCENT"
+            query += " ORDER BY COALESCE(s.popularity, 0) DESC, s.name_normalized"
         elif category == "upcoming":
             # Pròximament: ordenar per data d'estrena ASC (properes primer)
-            query += " ORDER BY s.release_date ASC, s.name COLLATE NOACCENT"
+            query += " ORDER BY s.release_date ASC, s.name_normalized"
         elif sort_by == "year":
-            query += " ORDER BY s.year DESC, s.name COLLATE NOACCENT"
+            query += " ORDER BY s.year DESC, s.name_normalized"
         elif sort_by == "duration":
-            query += " ORDER BY m.duration DESC, s.name COLLATE NOACCENT"
+            query += " ORDER BY m.duration DESC, s.name_normalized"
         else:
-            query += " ORDER BY s.name COLLATE NOACCENT"
+            query += " ORDER BY s.name_normalized"
 
         # Pagination
         offset = (page - 1) * limit
@@ -5432,7 +5685,7 @@ async def get_authors():
             FROM authors a
             LEFT JOIN books b ON a.id = b.author_id
             GROUP BY a.id
-            ORDER BY a.name COLLATE NOACCENT
+            ORDER BY a.name
         """)
         authors = [dict(row) for row in cursor.fetchall()]
         return authors
@@ -5708,7 +5961,7 @@ async def get_audiobook_authors():
             FROM audiobook_authors a
             LEFT JOIN audiobooks ab ON a.id = ab.author_id
             GROUP BY a.id
-            ORDER BY a.name COLLATE NOACCENT
+            ORDER BY a.name
         """)
         authors = [dict(row) for row in cursor.fetchall()]
         return authors
@@ -10227,27 +10480,26 @@ async def precache_episodes_background() -> int:
 
 async def sync_bbc_catalog_background():
     """
-    Sincronitza el catàleg de BBC iPlayer amb TMDB.
-    S'executa com a part de la sincronització diària.
+    Sincronitza el catàleg COMPLET de BBC iPlayer.
+    - Importa contingut amb match TMDB (alta i baixa confiança)
+    - Guarda contingut sense match a bbc_content
+    - Descarrega subtítols quan estan disponibles
     """
     results = {
         "status": "success",
+        "total_scanned": 0,
+        "imported_with_tmdb": 0,
+        "imported_low_confidence": 0,
+        "imported_bbc_only": 0,
         "imported_films": 0,
         "imported_series": 0,
         "imported_episodes": 0,
-        "errors": []
+        "subtitles_saved": 0,
+        "errors": [],
+        "skipped": []
     }
 
     try:
-        # Verificar TMDB API key
-        tmdb_key = get_tmdb_api_key()
-
-        if not tmdb_key:
-            logger.warning("sync_bbc_catalog_background: TMDB key no configurada, saltant sincronització BBC")
-            results["status"] = "skipped"
-            results["reason"] = "TMDB key not configured"
-            return results
-
         from backend.debrid.bbc_catalog import BBCCatalogScanner, BBCTMDBMatcher, BBCProgram
         from backend.debrid.bbc_mapping import (
             import_bbc_episodes_with_metadata,
@@ -10256,7 +10508,10 @@ async def sync_bbc_catalog_background():
         )
         from backend.debrid import BBCiPlayerClient
 
-        logger.info("sync_bbc_catalog_background: Iniciant escaneig de BBC iPlayer...")
+        # Verificar TMDB API key (opcional ara - podem importar sense ella)
+        tmdb_key = get_tmdb_api_key()
+
+        logger.info("sync_bbc_catalog_background: Iniciant escaneig COMPLET de BBC iPlayer...")
 
         # Pas 1: Escanejar catàleg
         scanner = BBCCatalogScanner()
@@ -10285,73 +10540,268 @@ async def sync_bbc_catalog_background():
                 episodes_url=series.get("episodes_url") or series["url"]
             ))
 
+        results["total_scanned"] = len(all_programs)
         logger.info(f"sync_bbc_catalog_background: Trobats {len(all_programs)} programes")
 
         if not all_programs:
             logger.warning("sync_bbc_catalog_background: No s'han trobat programes a BBC iPlayer")
             return results
 
-        # Pas 2: Matching amb TMDB
-        matcher = BBCTMDBMatcher(tmdb_key)
-        match_result = await matcher.match_all_programs(all_programs, min_confidence=60.0)
-        matched = match_result.get("matched", [])
+        # Pas 2: Matching amb TMDB (si tenim key)
+        matched = []
+        low_confidence = []
+        unmatched = []
 
-        logger.info(f"sync_bbc_catalog_background: Matched {len(matched)} programes amb TMDB")
+        if tmdb_key:
+            matcher = BBCTMDBMatcher(tmdb_key)
+            # Baixar threshold a 45% per capturar més matches
+            match_result = await matcher.match_all_programs(all_programs, min_confidence=45.0)
+            matched = match_result.get("matched", [])
+            low_confidence = match_result.get("low_confidence", [])
+            unmatched = match_result.get("unmatched", [])
 
-        # Pas 3: Importar al mapping
+            logger.info(f"sync_bbc_catalog_background: TMDB matches - alta_conf={len(matched)}, baixa_conf={len(low_confidence)}, sense_match={len(unmatched)}")
+        else:
+            # Sense TMDB key, tot és unmatched
+            logger.warning("sync_bbc_catalog_background: TMDB key no configurada, important com BBC-only")
+            for prog in all_programs:
+                unmatched.append({
+                    "bbc_programme_id": prog.programme_id,
+                    "bbc_title": prog.title,
+                    "bbc_url": prog.url,
+                    "is_film": prog.is_film,
+                    "is_series": prog.is_series,
+                    "synopsis": prog.synopsis,
+                    "thumbnail": prog.thumbnail
+                })
+
+        # Pas 3: Importar al mapping i bbc_content
         bbc_client = BBCiPlayerClient()
 
-        for item in matched:
+        # Funció auxiliar per importar un item
+        async def import_bbc_item(item, confidence=100.0, is_low_conf=False):
+            nonlocal results
             try:
-                tmdb_id = item["tmdb_id"]
+                tmdb_id = item.get("tmdb_id")
                 bbc_url = item["bbc_url"]
                 bbc_title = item["bbc_title"]
+                programme_id = item["bbc_programme_id"]
 
-                if item["is_film"]:
-                    set_bbc_mapping_for_content(
-                        tmdb_id=tmdb_id,
-                        content_type="movie",
-                        bbc_series_id=item["bbc_programme_id"],
-                        title=bbc_title,
-                        episodes={1: item["bbc_programme_id"]}
-                    )
-                    results["imported_films"] += 1
+                # Guardar a bbc_content (per tenir registre de TOT)
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    # Usar INSERT amb ON CONFLICT per preservar added_date original
+                    cursor.execute("""
+                        INSERT INTO bbc_content
+                        (programme_id, title, synopsis, thumbnail, url, is_film, is_series, tmdb_id, tmdb_confidence, last_updated, added_date)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        ON CONFLICT(programme_id) DO UPDATE SET
+                            title = excluded.title,
+                            synopsis = excluded.synopsis,
+                            thumbnail = excluded.thumbnail,
+                            url = excluded.url,
+                            is_film = excluded.is_film,
+                            is_series = excluded.is_series,
+                            tmdb_id = excluded.tmdb_id,
+                            tmdb_confidence = excluded.tmdb_confidence,
+                            last_updated = CURRENT_TIMESTAMP
+                    """, (
+                        programme_id,
+                        bbc_title,
+                        item.get("synopsis") or item.get("overview"),
+                        item.get("thumbnail") or item.get("poster_path"),
+                        bbc_url,
+                        1 if item.get("is_film") else 0,
+                        1 if item.get("is_series") else 0,
+                        tmdb_id,
+                        confidence
+                    ))
+                    conn.commit()
+
+                # Si tenim TMDB match, importar al mapping tradicional
+                if tmdb_id:
+                    if item.get("is_film"):
+                        set_bbc_mapping_for_content(
+                            tmdb_id=tmdb_id,
+                            content_type="movie",
+                            bbc_series_id=programme_id,
+                            title=bbc_title,
+                            episodes={1: programme_id}
+                        )
+                        results["imported_films"] += 1
+                    else:
+                        episodes_url = bbc_url.replace("/episode/", "/episodes/") if "/episode/" in bbc_url else bbc_url
+
+                        try:
+                            episodes = await bbc_client.get_all_episodes_from_series(episodes_url)
+                            if episodes:
+                                count = import_bbc_episodes_with_metadata(
+                                    tmdb_id=tmdb_id,
+                                    content_type="tv",
+                                    episodes=episodes,
+                                    bbc_series_id=programme_id,
+                                    title=bbc_title
+                                )
+                                results["imported_series"] += 1
+                                results["imported_episodes"] += count
+
+                                # Guardar episodis a bbc_episodes
+                                await save_bbc_episodes_to_db(programme_id, episodes)
+
+                                # Actualitzar comptador d'episodis a bbc_content
+                                with get_db() as conn:
+                                    cursor = conn.cursor()
+                                    cursor.execute("""
+                                        UPDATE bbc_content SET episodes_count = ? WHERE programme_id = ?
+                                    """, (len(episodes), programme_id))
+                                    conn.commit()
+
+                                # Intentar obtenir subtítols del primer episodi
+                                if episodes and len(episodes) > 0:
+                                    await try_save_subtitles(episodes[0].get("programme_id") or episodes[0].get("id"))
+                            else:
+                                set_bbc_mapping_for_content(
+                                    tmdb_id=tmdb_id,
+                                    content_type="tv",
+                                    bbc_series_id=programme_id,
+                                    title=bbc_title
+                                )
+                                results["imported_series"] += 1
+                        except Exception as ep_err:
+                            logger.warning(f"Error episodis {bbc_title}: {ep_err}")
+                            results["errors"].append(f"{bbc_title}: {ep_err}")
+
+                    if is_low_conf:
+                        results["imported_low_confidence"] += 1
+                    else:
+                        results["imported_with_tmdb"] += 1
                 else:
-                    episodes_url = bbc_url.replace("/episode/", "/episodes/") if "/episode/" in bbc_url else bbc_url
+                    # Sense TMDB match - guardar episodis a bbc_episodes
+                    results["imported_bbc_only"] += 1
+                    if item.get("is_series"):
+                        try:
+                            episodes_url = bbc_url.replace("/episode/", "/episodes/") if "/episode/" in bbc_url else bbc_url
+                            episodes = await bbc_client.get_all_episodes_from_series(episodes_url)
+                            if episodes:
+                                await save_bbc_episodes_to_db(programme_id, episodes)
+                                results["imported_episodes"] += len(episodes)
 
-                    try:
-                        episodes = await bbc_client.get_all_episodes_from_series(episodes_url)
-                        if episodes:
-                            count = import_bbc_episodes_with_metadata(
-                                tmdb_id=tmdb_id,
-                                content_type="tv",
-                                episodes=episodes,
-                                bbc_series_id=item["bbc_programme_id"],
-                                title=bbc_title
-                            )
-                            results["imported_series"] += 1
-                            results["imported_episodes"] += count
-                        else:
-                            set_bbc_mapping_for_content(
-                                tmdb_id=tmdb_id,
-                                content_type="tv",
-                                bbc_series_id=item["bbc_programme_id"],
-                                title=bbc_title
-                            )
-                            results["imported_series"] += 1
-                    except Exception as ep_err:
-                        logger.debug(f"Error episodis {bbc_title}: {ep_err}")
+                                # Actualitzar comptador d'episodis
+                                with get_db() as conn:
+                                    cursor = conn.cursor()
+                                    cursor.execute("""
+                                        UPDATE bbc_content SET episodes_count = ? WHERE programme_id = ?
+                                    """, (len(episodes), programme_id))
+                                    conn.commit()
+                        except Exception as ep_err:
+                            logger.debug(f"Error episodis BBC-only {bbc_title}: {ep_err}")
 
-                await asyncio.sleep(0.2)  # Rate limiting
+                await asyncio.sleep(0.15)  # Rate limiting més ràpid
 
             except Exception as e:
-                results["errors"].append(str(e))
+                logger.warning(f"Error important {item.get('bbc_title', 'unknown')}: {e}")
+                results["errors"].append(str(e)[:100])
+
+        # Funció per guardar episodis a la BD
+        async def save_bbc_episodes_to_db(content_programme_id, episodes):
+            try:
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    # Obtenir ID del contingut
+                    cursor.execute("SELECT id FROM bbc_content WHERE programme_id = ?", (content_programme_id,))
+                    row = cursor.fetchone()
+                    content_id = row[0] if row else None
+
+                    for idx, ep in enumerate(episodes):
+                        ep_programme_id = ep.get("programme_id") or ep.get("id")
+                        if not ep_programme_id:
+                            continue
+
+                        # Usar INSERT amb ON CONFLICT per preservar added_date
+                        cursor.execute("""
+                            INSERT INTO bbc_episodes
+                            (bbc_content_id, programme_id, episode_number, season_number, title, synopsis, thumbnail, duration, url, added_date)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                            ON CONFLICT(programme_id) DO UPDATE SET
+                                bbc_content_id = excluded.bbc_content_id,
+                                episode_number = excluded.episode_number,
+                                season_number = excluded.season_number,
+                                title = excluded.title,
+                                synopsis = excluded.synopsis,
+                                thumbnail = excluded.thumbnail,
+                                duration = excluded.duration,
+                                url = excluded.url
+                        """, (
+                            content_id,
+                            ep_programme_id,
+                            ep.get("episode_number") or idx + 1,
+                            ep.get("season_number") or 1,
+                            ep.get("title"),
+                            ep.get("description") or ep.get("synopsis"),
+                            ep.get("thumbnail"),
+                            ep.get("duration"),
+                            ep.get("url") or f"https://www.bbc.co.uk/iplayer/episode/{ep_programme_id}"
+                        ))
+                    conn.commit()
+            except Exception as e:
+                logger.debug(f"Error guardant episodis a BD: {e}")
+
+        # Funció per obtenir i guardar subtítols
+        async def try_save_subtitles(programme_id):
+            if not programme_id:
+                return
+            try:
+                # Obtenir info del stream (inclou subtítols)
+                stream_info = await bbc_client.get_stream_info(programme_id, quality="best")
+                if stream_info and stream_info.subtitles:
+                    with get_db() as conn:
+                        cursor = conn.cursor()
+                        for lang, sub_url in stream_info.subtitles.items():
+                            if sub_url:
+                                # Usar INSERT amb ON CONFLICT per preservar added_date i subtitle_content
+                                cursor.execute("""
+                                    INSERT INTO bbc_subtitles
+                                    (programme_id, language, subtitle_url, downloaded, added_date)
+                                    VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP)
+                                    ON CONFLICT(programme_id, language) DO UPDATE SET
+                                        subtitle_url = excluded.subtitle_url
+                                """, (programme_id, lang, sub_url))
+                                results["subtitles_saved"] += 1
+                        conn.commit()
+            except Exception as e:
+                logger.debug(f"Error obtenint subtítols per {programme_id}: {e}")
+
+        # Importar tots els tipus de contingut
+        logger.info(f"sync_bbc_catalog_background: Important {len(matched)} amb alta confiança...")
+        for item in matched:
+            await import_bbc_item(item, confidence=item.get("confidence", 80))
+
+        logger.info(f"sync_bbc_catalog_background: Important {len(low_confidence)} amb baixa confiança...")
+        for item in low_confidence:
+            await import_bbc_item(item, confidence=item.get("confidence", 50), is_low_conf=True)
+
+        logger.info(f"sync_bbc_catalog_background: Important {len(unmatched)} sense TMDB...")
+        for item in unmatched:
+            await import_bbc_item(item, confidence=0)
 
         save_bbc_mapping()
-        logger.info(f"sync_bbc_catalog_background: Completat - {results['imported_films']} films, {results['imported_series']} series, {results['imported_episodes']} episodes")
+
+        logger.info(f"""sync_bbc_catalog_background: COMPLETAT
+        - Total escanejat: {results['total_scanned']}
+        - Amb TMDB (alta conf): {results['imported_with_tmdb']}
+        - Amb TMDB (baixa conf): {results['imported_low_confidence']}
+        - BBC-only: {results['imported_bbc_only']}
+        - Films: {results['imported_films']}
+        - Sèries: {results['imported_series']}
+        - Episodis: {results['imported_episodes']}
+        - Subtítols: {results['subtitles_saved']}
+        - Errors: {len(results['errors'])}
+        """)
 
     except Exception as e:
         logger.error(f"sync_bbc_catalog_background: Error - {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         results["status"] = "error"
         results["error"] = str(e)
 
@@ -10442,6 +10892,160 @@ async def run_sync_now(background_tasks: BackgroundTasks):
     """Executa la sincronització manualment (en segon pla)."""
     background_tasks.add_task(daily_sync_job)
     return {"status": "started", "message": "Sincronització iniciada en segon pla"}
+
+
+# =============================================================================
+# ENDPOINTS DE MONITORATGE I OPTIMITZACIÓ
+# =============================================================================
+
+@app.get("/api/admin/cache/stats")
+async def get_cache_stats(request: Request):
+    """Retorna estadístiques dels caches en memòria (només admin)."""
+    user = get_current_user(request)
+    if not user or not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Accés només per administradors")
+
+    return {
+        "tmdb_cache": tmdb_cache.stats,
+        "torrents_cache": torrents_cache.stats,
+        "stream_url_cache": stream_url_cache.stats,
+    }
+
+
+@app.post("/api/admin/cache/clear")
+async def clear_all_caches(request: Request):
+    """Neteja tots els caches en memòria (només admin)."""
+    user = get_current_user(request)
+    if not user or not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Accés només per administradors")
+
+    tmdb_cache.clear()
+    torrents_cache.clear()
+    stream_url_cache.clear()
+
+    return {"status": "success", "message": "Tots els caches netejats"}
+
+
+@app.post("/api/admin/db/optimize")
+async def optimize_database(request: Request, background_tasks: BackgroundTasks):
+    """
+    Optimitza la base de dades SQLite (només admin):
+    - VACUUM: Compacta l'arxiu i recupera espai
+    - ANALYZE: Actualitza estadístiques per l'optimitzador de consultes
+    - Reconstrueix índexs FTS
+    """
+    user = get_current_user(request)
+    if not user or not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Accés només per administradors")
+
+    def run_optimization():
+        try:
+            with get_db() as conn:
+                cursor = conn.cursor()
+
+                # ANALYZE per actualitzar estadístiques
+                cursor.execute("ANALYZE")
+                logger.info("ANALYZE completat")
+
+                # Reconstruir FTS
+                try:
+                    cursor.execute("INSERT INTO series_fts(series_fts) VALUES('rebuild')")
+                    logger.info("FTS rebuild completat")
+                except Exception as e:
+                    logger.debug(f"FTS rebuild: {e}")
+
+                conn.commit()
+
+            # VACUUM s'ha d'executar fora d'una transacció
+            conn2 = sqlite3.connect(settings.DATABASE_PATH)
+            conn2.execute("VACUUM")
+            conn2.close()
+            logger.info("VACUUM completat")
+
+        except Exception as e:
+            logger.error(f"Error optimitzant BD: {e}")
+
+    background_tasks.add_task(run_optimization)
+    return {"status": "started", "message": "Optimització de BD iniciada en segon pla"}
+
+
+@app.get("/api/admin/db/stats")
+async def get_database_stats(request: Request):
+    """Retorna estadístiques de la base de dades (només admin)."""
+    user = get_current_user(request)
+    if not user or not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Accés només per administradors")
+
+    import os
+    db_path = settings.DATABASE_PATH
+    db_size = os.path.getsize(db_path) if os.path.exists(db_path) else 0
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Comptar registres principals
+        cursor.execute("SELECT COUNT(*) FROM series")
+        series_count = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM media_files")
+        media_count = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM streaming_progress")
+        progress_count = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM watchlist")
+        watchlist_count = cursor.fetchone()[0]
+
+        # Comptar entrades FTS
+        fts_count = 0
+        try:
+            cursor.execute("SELECT COUNT(*) FROM series_fts")
+            fts_count = cursor.fetchone()[0]
+        except:
+            pass
+
+        # Comptar índexs
+        cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='index'")
+        index_count = cursor.fetchone()[0]
+
+    return {
+        "database_size_mb": round(db_size / (1024 * 1024), 2),
+        "series_count": series_count,
+        "media_files_count": media_count,
+        "streaming_progress_count": progress_count,
+        "watchlist_count": watchlist_count,
+        "fts_entries": fts_count,
+        "index_count": index_count,
+    }
+
+
+@app.post("/api/admin/fts/rebuild")
+async def rebuild_fts(request: Request):
+    """Reconstrueix l'índex FTS5 (només admin)."""
+    user = get_current_user(request)
+    if not user or not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Accés només per administradors")
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        try:
+            # Buidar i repoblar FTS
+            cursor.execute("DELETE FROM series_fts")
+            cursor.execute("""
+                INSERT INTO series_fts(rowid, name, title, title_english, title_romaji, title_native, original_title, overview)
+                SELECT id, name, title, title_english, title_romaji, title_native, original_title, overview
+                FROM series
+            """)
+            conn.commit()
+
+            cursor.execute("SELECT COUNT(*) FROM series_fts")
+            count = cursor.fetchone()[0]
+
+            return {"status": "success", "message": f"FTS reconstruït amb {count} entrades"}
+        except Exception as e:
+            logger.error(f"Error reconstruint FTS: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/sync/bbc")
@@ -12145,6 +12749,305 @@ async def delete_bbc_content_mapping(
             status_code=404,
             detail=f"No hi ha mappeig BBC per TMDB {tmdb_id}"
         )
+
+
+@app.get("/api/bbc/all-content")
+async def list_all_bbc_content(
+    request: Request,
+    page: int = 1,
+    limit: int = 50,
+    search: str = None,
+    only_bbc_only: bool = False,
+    has_tmdb: bool = None
+):
+    """
+    Llistar TOT el contingut BBC (incloent BBC-only sense TMDB).
+    Consulta la taula bbc_content que conté tot el catàleg escanejat.
+    """
+    require_auth(request)
+
+    # Validar paràmetres
+    if limit < 1:
+        limit = 50
+    if limit > 200:
+        limit = 200
+    if page < 1:
+        page = 1
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        where_conditions = []
+        params = []
+
+        if search:
+            where_conditions.append("title LIKE ?")
+            params.append(f"%{search}%")
+
+        if only_bbc_only:
+            where_conditions.append("tmdb_id IS NULL")
+        elif has_tmdb is not None:
+            if has_tmdb:
+                where_conditions.append("tmdb_id IS NOT NULL")
+            else:
+                where_conditions.append("tmdb_id IS NULL")
+
+        where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
+
+        # Count total
+        cursor.execute(f"SELECT COUNT(*) FROM bbc_content WHERE {where_clause}", params)
+        total = cursor.fetchone()[0]
+
+        # Get items
+        offset = (page - 1) * limit
+        cursor.execute(f"""
+            SELECT
+                id, programme_id, title, synopsis, thumbnail, url,
+                is_film, is_series, tmdb_id, tmdb_confidence, episodes_count,
+                last_updated, added_date
+            FROM bbc_content
+            WHERE {where_clause}
+            ORDER BY title
+            LIMIT ? OFFSET ?
+        """, params + [limit, offset])
+
+        items = []
+        for row in cursor.fetchall():
+            items.append({
+                "id": row[0],
+                "programme_id": row[1],
+                "title": row[2],
+                "synopsis": row[3],
+                "thumbnail": row[4],
+                "url": row[5],
+                "is_film": bool(row[6]),
+                "is_series": bool(row[7]),
+                "tmdb_id": row[8],
+                "tmdb_confidence": row[9],
+                "episodes_count": row[10],
+                "has_tmdb_match": row[8] is not None,
+                "last_updated": row[11],
+                "added_date": row[12]
+            })
+
+        return {
+            "status": "success",
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total + limit - 1) // limit,
+            "items": items
+        }
+
+
+@app.get("/api/bbc/content/{programme_id}/episodes")
+async def get_bbc_content_episodes(request: Request, programme_id: str):
+    """
+    Obtenir tots els episodis d'un contingut BBC.
+    """
+    require_auth(request)
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Obtenir info del contingut
+        cursor.execute("SELECT id, title, tmdb_id FROM bbc_content WHERE programme_id = ?", (programme_id,))
+        content_row = cursor.fetchone()
+
+        if not content_row:
+            raise HTTPException(status_code=404, detail="Contingut BBC no trobat")
+
+        content_id = content_row[0]
+
+        # Obtenir episodis
+        cursor.execute("""
+            SELECT programme_id, episode_number, season_number, title, synopsis, thumbnail, duration, url
+            FROM bbc_episodes
+            WHERE bbc_content_id = ?
+            ORDER BY season_number, episode_number
+        """, (content_id,))
+
+        episodes = []
+        for row in cursor.fetchall():
+            episodes.append({
+                "programme_id": row[0],
+                "episode_number": row[1],
+                "season_number": row[2],
+                "title": row[3],
+                "synopsis": row[4],
+                "thumbnail": row[5],
+                "duration": row[6],
+                "url": row[7]
+            })
+
+        return {
+            "status": "success",
+            "content_title": content_row[1],
+            "tmdb_id": content_row[2],
+            "episodes_count": len(episodes),
+            "episodes": episodes
+        }
+
+
+@app.get("/api/bbc/subtitles/{programme_id}")
+async def get_bbc_subtitles(request: Request, programme_id: str, download: bool = False):
+    """
+    Obtenir subtítols d'un episodi BBC.
+    Si download=True, descarrega el contingut dels subtítols.
+    """
+    require_auth(request)
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Buscar subtítols guardats
+        cursor.execute("""
+            SELECT language, subtitle_url, subtitle_content, downloaded
+            FROM bbc_subtitles
+            WHERE programme_id = ?
+        """, (programme_id,))
+
+        rows = cursor.fetchall()
+
+        if not rows:
+            # Intentar obtenir-los en temps real
+            from backend.debrid import BBCiPlayerClient
+            client = BBCiPlayerClient()
+
+            try:
+                stream_info = await client.get_stream_info(programme_id, quality="best")
+                if stream_info and stream_info.subtitles:
+                    # Guardar a la BD (preservant added_date i subtitle_content)
+                    for lang, sub_url in stream_info.subtitles.items():
+                        if sub_url:
+                            cursor.execute("""
+                                INSERT INTO bbc_subtitles
+                                (programme_id, language, subtitle_url, downloaded, added_date)
+                                VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP)
+                                ON CONFLICT(programme_id, language) DO UPDATE SET
+                                    subtitle_url = excluded.subtitle_url
+                            """, (programme_id, lang, sub_url))
+                    conn.commit()
+
+                    # Tornar a llegir
+                    cursor.execute("""
+                        SELECT language, subtitle_url, subtitle_content, downloaded
+                        FROM bbc_subtitles
+                        WHERE programme_id = ?
+                    """, (programme_id,))
+                    rows = cursor.fetchall()
+            except Exception as e:
+                logger.warning(f"Error obtenint subtítols per {programme_id}: {e}")
+
+        if not rows:
+            raise HTTPException(status_code=404, detail="No hi ha subtítols disponibles per aquest episodi")
+
+        subtitles = []
+        for row in rows:
+            sub_data = {
+                "language": row[0],
+                "url": row[1],
+                "has_content": bool(row[2]),
+                "downloaded": bool(row[3])
+            }
+
+            # Si demanen descarregar i no tenim el contingut, fer-ho ara
+            if download and not row[2] and row[1]:
+                try:
+                    import httpx
+                    async with httpx.AsyncClient(timeout=30.0) as http_client:
+                        response = await http_client.get(row[1])
+                        if response.status_code == 200:
+                            content = response.text
+                            cursor.execute("""
+                                UPDATE bbc_subtitles
+                                SET subtitle_content = ?, downloaded = 1
+                                WHERE programme_id = ? AND language = ?
+                            """, (content, programme_id, row[0]))
+                            conn.commit()
+                            sub_data["content"] = content
+                            sub_data["has_content"] = True
+                            sub_data["downloaded"] = True
+                except Exception as e:
+                    logger.warning(f"Error descarregant subtítols: {e}")
+
+            elif row[2]:
+                sub_data["content"] = row[2]
+
+            subtitles.append(sub_data)
+
+        return {
+            "status": "success",
+            "programme_id": programme_id,
+            "subtitles": subtitles
+        }
+
+
+@app.get("/api/bbc/stats")
+async def get_bbc_stats(request: Request):
+    """
+    Obtenir estadístiques del contingut BBC importat.
+    """
+    require_auth(request)
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Total contingut
+        cursor.execute("SELECT COUNT(*) FROM bbc_content")
+        total_content = cursor.fetchone()[0]
+
+        # Amb TMDB match
+        cursor.execute("SELECT COUNT(*) FROM bbc_content WHERE tmdb_id IS NOT NULL")
+        with_tmdb = cursor.fetchone()[0]
+
+        # Sense TMDB match (BBC-only)
+        cursor.execute("SELECT COUNT(*) FROM bbc_content WHERE tmdb_id IS NULL")
+        bbc_only = cursor.fetchone()[0]
+
+        # Films vs Series
+        cursor.execute("SELECT COUNT(*) FROM bbc_content WHERE is_film = 1")
+        films = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM bbc_content WHERE is_series = 1")
+        series = cursor.fetchone()[0]
+
+        # Total episodis
+        cursor.execute("SELECT COUNT(*) FROM bbc_episodes")
+        total_episodes = cursor.fetchone()[0]
+
+        # Subtítols
+        cursor.execute("SELECT COUNT(*) FROM bbc_subtitles")
+        total_subtitles = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM bbc_subtitles WHERE downloaded = 1")
+        downloaded_subtitles = cursor.fetchone()[0]
+
+        # Alta vs baixa confiança
+        cursor.execute("SELECT COUNT(*) FROM bbc_content WHERE tmdb_confidence >= 60")
+        high_confidence = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM bbc_content WHERE tmdb_confidence >= 45 AND tmdb_confidence < 60")
+        low_confidence = cursor.fetchone()[0]
+
+        return {
+            "status": "success",
+            "total_content": total_content,
+            "with_tmdb_match": with_tmdb,
+            "bbc_only": bbc_only,
+            "coverage_percent": round(with_tmdb / total_content * 100, 1) if total_content > 0 else 0,
+            "films": films,
+            "series": series,
+            "total_episodes": total_episodes,
+            "subtitles": {
+                "total": total_subtitles,
+                "downloaded": downloaded_subtitles
+            },
+            "confidence": {
+                "high": high_confidence,
+                "low": low_confidence
+            }
+        }
 
 
 @app.post("/api/bbc/discover")
