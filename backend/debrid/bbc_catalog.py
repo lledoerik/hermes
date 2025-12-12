@@ -12,7 +12,8 @@ import asyncio
 import logging
 import re
 import json
-from typing import Dict, List, Optional, Any
+import unicodedata
+from typing import Dict, List, Optional
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -408,7 +409,6 @@ class TMDBBBCScanner:
                         data = response.json()
                         results = data.get("results", [])
                         total_pages = min(data.get("total_pages", 1), 500)
-                        total_results = data.get("total_results", 0)
 
                         for item in results:
                             title_info = {
@@ -461,10 +461,15 @@ class TMDBBBCScanner:
 
         return titles
 
-    async def find_bbc_programme_id(self, tmdb_id: int, title: str, content_type: str) -> Optional[str]:
+    async def find_bbc_programme_id(self, tmdb_id: int, title: str, _content_type: str = "") -> Optional[str]:
         """
         Intenta trobar el BBC programme ID per un títol de TMDB.
         Prova múltiples mètodes de cerca.
+
+        Args:
+            tmdb_id: ID de TMDB del títol
+            title: Títol per cercar
+            _content_type: Reservat per ús futur (filtrar per movie/tv)
         """
         cookies = get_bbc_cookies_dict()
         headers = {
@@ -492,7 +497,6 @@ class TMDBBBCScanner:
 
     def _normalize_title(self, title: str) -> str:
         """Normalitza un títol per comparació més robusta"""
-        import unicodedata
         # Normalitzar Unicode
         normalized = unicodedata.normalize('NFKD', title)
         # Convertir a minúscules
