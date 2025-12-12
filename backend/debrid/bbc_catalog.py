@@ -1512,16 +1512,41 @@ class BBCTMDBMatcher:
     async def match_program(self, program: BBCProgram) -> Optional[Dict]:
         """
         Intenta trobar el match de TMDB per un programa de BBC.
+        Utilitza múltiples estratègies de cerca per maximitzar matches.
         """
         content_type = "movie" if program.is_film else "tv"
 
         # Netejar el títol (treure coses com "Series 1", "Season 2", etc.)
         clean_title = re.sub(r'\s*[-:]\s*Series\s*\d+.*$', '', program.title, flags=re.I)
         clean_title = re.sub(r'\s*[-:]\s*Season\s*\d+.*$', '', clean_title, flags=re.I)
+        clean_title = re.sub(r'\s*\([^)]+\)\s*$', '', clean_title)  # Treure (2024), (UK), etc.
         clean_title = clean_title.strip()
 
-        # Cercar a TMDB
+        # Estratègia 1: Cercar amb títol net
         result = await self.search_tmdb(clean_title, content_type)
+
+        # Estratègia 2: Si no trobem, provar amb el tipus oposat
+        if not result:
+            alt_type = "movie" if content_type == "tv" else "tv"
+            result = await self.search_tmdb(clean_title, alt_type)
+            if result:
+                content_type = alt_type
+
+        # Estratègia 3: Treure prefixos comuns de BBC
+        if not result:
+            prefixes_to_remove = ["BBC ", "The ", "A ", "An "]
+            for prefix in prefixes_to_remove:
+                if clean_title.lower().startswith(prefix.lower()):
+                    alt_title = clean_title[len(prefix):].strip()
+                    result = await self.search_tmdb(alt_title, content_type)
+                    if result:
+                        break
+
+        # Estratègia 4: Cercar només la primera part (abans de ":" o "-")
+        if not result and (":" in clean_title or " - " in clean_title):
+            first_part = re.split(r'\s*[:\-]\s*', clean_title)[0].strip()
+            if len(first_part) > 3:
+                result = await self.search_tmdb(first_part, content_type)
 
         if result:
             return {
@@ -1542,26 +1567,56 @@ class BBCTMDBMatcher:
     def _calculate_confidence(self, bbc_title: str, tmdb_result: Dict) -> float:
         """
         Calcula un score de confiança del match (0-100).
+        Utilitza múltiples mètriques per una avaluació més precisa.
         """
-        tmdb_title = (tmdb_result.get("title") or tmdb_result.get("name") or "").lower()
-        bbc_lower = bbc_title.lower()
+        import unicodedata
 
-        # Match exacte
-        if bbc_lower == tmdb_title:
+        def normalize(text: str) -> str:
+            """Normalitza text per comparació."""
+            text = unicodedata.normalize('NFD', text)
+            text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
+            text = re.sub(r'[^\w\s]', ' ', text.lower())
+            text = re.sub(r'\s+', ' ', text).strip()
+            return text
+
+        tmdb_title = tmdb_result.get("title") or tmdb_result.get("name") or ""
+        tmdb_original = tmdb_result.get("original_title") or tmdb_result.get("original_name") or ""
+
+        bbc_norm = normalize(bbc_title)
+        tmdb_norm = normalize(tmdb_title)
+        tmdb_orig_norm = normalize(tmdb_original)
+
+        # Match exacte amb qualsevol variant
+        if bbc_norm == tmdb_norm or bbc_norm == tmdb_orig_norm:
             return 100.0
 
-        # Match parcial
-        if bbc_lower in tmdb_title or tmdb_title in bbc_lower:
-            return 80.0
+        # Match parcial fort
+        if bbc_norm in tmdb_norm or tmdb_norm in bbc_norm:
+            return 85.0
+        if bbc_norm in tmdb_orig_norm or tmdb_orig_norm in bbc_norm:
+            return 85.0
 
-        # Calcular similaritat simple
-        words_bbc = set(bbc_lower.split())
-        words_tmdb = set(tmdb_title.split())
+        # Calcular similaritat per paraules (Jaccard index millorat)
+        words_bbc = set(bbc_norm.split())
+        words_tmdb = set(tmdb_norm.split())
+
+        # Eliminar paraules comunes que no aporten
+        stopwords = {'the', 'a', 'an', 'of', 'and', 'in', 'on', 'at', 'to', 'for', 'with', 'bbc'}
+        words_bbc -= stopwords
+        words_tmdb -= stopwords
+
+        if not words_bbc or not words_tmdb:
+            return 50.0
+
         common = len(words_bbc & words_tmdb)
         total = len(words_bbc | words_tmdb)
 
         if total > 0:
-            return (common / total) * 100
+            jaccard = (common / total) * 100
+            # Bonus si totes les paraules BBC estan a TMDB
+            if words_bbc <= words_tmdb:
+                jaccard = min(jaccard + 15, 95)
+            return jaccard
 
         return 50.0  # Score per defecte
 
