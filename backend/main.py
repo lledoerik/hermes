@@ -10657,17 +10657,13 @@ async def sync_bbc_catalog_background():
                                     ep_pid = ep.get("programme_id") or ep.get("id")
                                     if ep_pid:
                                         results["subtitles_saved"] += await save_subtitles_for_programme(ep_pid)
-                            else:
-                                set_bbc_mapping_for_content(
-                                    tmdb_id=tmdb_id,
-                                    content_type="tv",
-                                    bbc_series_id=bbc_programme_id,
-                                    title=title
-                                )
-                                results["imported_series"] += 1
 
                         except Exception as ep_err:
                             logger.debug(f"Error episodis {title}: {ep_err}")
+                            episodes = None  # Força fallback
+
+                        # Fallback: mapping sense episodis (si no n'hi ha o error)
+                        if not episodes:
                             set_bbc_mapping_for_content(
                                 tmdb_id=tmdb_id,
                                 content_type="tv",
