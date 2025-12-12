@@ -4,6 +4,8 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { LibraryProvider, useLibrary } from './context/LibraryContext';
 import { StreamCacheProvider, useStreamCache } from './context/StreamCacheContext';
 import { BBCProvider } from './context/BBCContext';
+import ErrorBoundary from './components/ErrorBoundary';
+import ToastProvider from './components/Toast';
 import Navbar from './components/Navbar';
 import LoadingScreen from './components/LoadingScreen';
 import Home from './pages/Home';
@@ -137,15 +139,19 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <LibraryProvider>
-        <StreamCacheProvider>
-          <BBCProvider>
-            <AppContent />
-          </BBCProvider>
-        </StreamCacheProvider>
-      </LibraryProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <ToastProvider>
+        <AuthProvider>
+          <LibraryProvider>
+            <StreamCacheProvider>
+              <BBCProvider>
+                <AppContent />
+              </BBCProvider>
+            </StreamCacheProvider>
+          </LibraryProvider>
+        </AuthProvider>
+      </ToastProvider>
+    </ErrorBoundary>
   );
 }
 

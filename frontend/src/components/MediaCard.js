@@ -6,145 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useBBC } from '../context/BBCContext';
 import { getPosterUrl } from '../config/api';
 import { TvIcon, MovieIcon, StarIcon, PlayIcon, InfoIcon } from './icons';
-
-const styles = {
-  card: {
-    position: 'relative',
-    borderRadius: '8px',
-    overflow: 'hidden',
-    cursor: 'pointer',
-    transition: 'all 0.3s ease',
-    backgroundColor: '#1e293b',
-    flexShrink: 0,
-  },
-  cardHover: {
-    transform: 'scale(1.05)',
-    zIndex: 10,
-    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)',
-  },
-  poster: {
-    width: '100%',
-    aspectRatio: '2/3',
-    backgroundColor: '#334155',
-    position: 'relative',
-  },
-  image: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-  },
-  placeholder: {
-    width: '100%',
-    height: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '48px',
-    background: 'linear-gradient(135deg, #1e3a8a 0%, #328492 100%)',
-  },
-  overlay: {
-    position: 'absolute',
-    inset: 0,
-    background: 'rgba(0, 0, 0, 0.5)',
-    opacity: 0,
-    transition: 'opacity 0.3s ease',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'flex-end',
-    padding: '15px',
-  },
-  overlayVisible: {
-    opacity: 1,
-  },
-  playButton: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: 'translate(-50%, -50%) scale(0.8)',
-    background: 'none',
-    border: 'none',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-    opacity: 0,
-    transition: 'all 0.3s ease',
-    color: 'white',
-  },
-  playButtonVisible: {
-    opacity: 1,
-    transform: 'translate(-50%, -50%) scale(1)',
-  },
-  info: {
-    padding: '12px',
-    textAlign: 'left',
-  },
-  titleRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    marginBottom: '4px',
-  },
-  title: {
-    fontSize: '14px',
-    fontWeight: '600',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    textAlign: 'left',
-    flex: 1,
-  },
-  meta: {
-    fontSize: '12px',
-    color: 'rgba(255, 255, 255, 0.6)',
-    textAlign: 'left',
-  },
-  badge: {
-    position: 'absolute',
-    top: '10px',
-    left: '10px',
-    padding: '4px 8px',
-    background: '#328492',
-    borderRadius: '4px',
-    fontSize: '11px',
-    fontWeight: '600',
-  },
-  bbcBadge: {
-    position: 'absolute',
-    top: '8px',
-    right: '8px',
-    padding: '4px 6px',
-    background: '#8B0000',  // Granate fosc com el logo BBC
-    borderRadius: '2px',
-    fontSize: '10px',
-    fontWeight: '800',
-    letterSpacing: '1px',
-    color: '#ffffff',
-    boxShadow: '0 2px 6px rgba(0, 0, 0, 0.4)',
-    zIndex: 5,
-    fontFamily: 'Arial, sans-serif',
-  },
-  progressBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: '3px',
-    background: 'rgba(255, 255, 255, 0.2)',
-  },
-  progress: {
-    height: '100%',
-    background: '#328492',
-    transition: 'width 0.3s ease',
-  },
-  rating: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '4px',
-    fontSize: '12px',
-    color: '#fbbf24',
-  },
-};
+import './MediaCard.css';
 
 function MediaCard({ item, type = 'series', width = 180, isTmdb = false }) {
   const [isHovered, setIsHovered] = useState(false);
@@ -166,17 +28,19 @@ function MediaCard({ item, type = 'series', width = 180, isTmdb = false }) {
   const hasBbcContent = tmdbId ? hasBbc(tmdbId, contentType) : false;
 
   const handleClick = () => {
-    // Sempre navegar a la pàgina de detalls (mai directament a stream)
+    // Sempre navegar a la pàgina de detalls
     navigate(`/${type}/${item.id}`);
   };
 
   const handlePlay = (e) => {
     e.stopPropagation();
+
     // Usuaris no premium sempre van a la pàgina de detalls
     if (!isPremium) {
       navigate(`/${type}/${item.id}`);
       return;
     }
+
     // Usuaris premium poden reproduir
     if (isStreamingOnly && item.tmdb_id) {
       if (type === 'movies') {
@@ -208,6 +72,7 @@ function MediaCard({ item, type = 'series', width = 180, isTmdb = false }) {
       }
       return parts.join(' · ') || '';
     }
+
     // Per sèries
     const parts = [];
     if (item.season_count) {
@@ -231,16 +96,13 @@ function MediaCard({ item, type = 'series', width = 180, isTmdb = false }) {
 
   return (
     <div
-      style={{
-        ...styles.card,
-        width: `${width}px`,
-        ...(isHovered ? styles.cardHover : {})
-      }}
+      className="media-card"
+      style={{ width: `${width}px` }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={handleClick}
     >
-      <div style={styles.poster}>
+      <div className="media-card__poster">
         {posterUrl && !imageError ? (
           <LazyImage
             src={posterUrl}
@@ -248,46 +110,43 @@ function MediaCard({ item, type = 'series', width = 180, isTmdb = false }) {
             onError={() => setImageError(true)}
           />
         ) : (
-          <div style={styles.placeholder}>
+          <div className="media-card__placeholder">
             {type === 'movies' ? <MovieIcon size={48} /> : <TvIcon size={48} />}
           </div>
         )}
 
-        <div style={{
-          ...styles.overlay,
-          ...(isHovered ? styles.overlayVisible : {})
-        }}>
-          <div style={styles.rating}>
+        <div className="media-card__overlay">
+          <div className="media-card__rating">
             <StarIcon size={12} /> {item.rating || '8.5'}
           </div>
         </div>
 
         <button
-          style={{
-            ...styles.playButton,
-            ...(isHovered ? styles.playButtonVisible : {})
-          }}
+          className="media-card__play-button"
           onClick={handlePlay}
           title={isPremium ? 'Reproduir' : 'Veure detalls'}
+          aria-label={`${isPremium ? 'Reproduir' : 'Veure detalls de'} ${item.name || item.title}`}
         >
           {isPremium ? <PlayIcon size={48} /> : <InfoIcon size={48} />}
         </button>
 
         {/* BBC Badge */}
         {hasBbcContent && (
-          <div style={styles.bbcBadge}>BBC</div>
+          <div className="media-card__bbc-badge" aria-label="Disponible a BBC iPlayer">
+            BBC
+          </div>
         )}
 
         {progress > 0 && (
-          <div style={styles.progressBar}>
-            <div style={{ ...styles.progress, width: `${progress}%` }} />
+          <div className="media-card__progress-bar" role="progressbar" aria-valuenow={progress} aria-valuemin="0" aria-valuemax="100">
+            <div className="media-card__progress-fill" style={{ width: `${progress}%` }} />
           </div>
         )}
       </div>
 
-      <div style={styles.info}>
-        <div style={styles.titleRow}>
-          <div style={styles.title}>{item.name || item.title}</div>
+      <div className="media-card__info">
+        <div className="media-card__title-row">
+          <div className="media-card__title">{item.name || item.title}</div>
           {isHovered && (
             <TitleAudioPlayer
               title={item.name || item.title}
@@ -296,7 +155,7 @@ function MediaCard({ item, type = 'series', width = 180, isTmdb = false }) {
             />
           )}
         </div>
-        <div style={styles.meta}>{getMeta()}</div>
+        <div className="media-card__meta">{getMeta()}</div>
       </div>
     </div>
   );

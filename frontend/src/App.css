@@ -38,10 +38,22 @@ button {
 ::-webkit-scrollbar-thumb {
   background: var(--color-primary);
   border-radius: var(--radius-xs);
+  transition: background var(--transition-fast);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-primary-dark);
+  background: var(--color-primary-light);
+}
+
+/* Selection styling */
+::selection {
+  background: rgba(var(--color-primary-rgb), 0.3);
+  color: var(--text-primary);
+}
+
+::-moz-selection {
+  background: rgba(var(--color-primary-rgb), 0.3);
+  color: var(--text-primary);
 }
 
 /* Main Content */
