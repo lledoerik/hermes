@@ -859,7 +859,9 @@ class BBCiPlayerClient:
 
                 if returncode != 0:
                     error_msg = stderr or "Error desconegut"
-                    logger.error(f"yt-dlp error: {error_msg}")
+                    # Molts errors són esperats (pàgines sense episodis, etc.)
+                    # Només loguem com a debug per no omplir el log
+                    logger.debug(f"yt-dlp error: {error_msg}")
 
                     # Errors comuns
                     if "not available in your country" in error_msg.lower():

@@ -12852,20 +12852,44 @@ async def run_bbc_bulk_import(tmdb_key: str, min_confidence: float):
         def normalize_title(t):
             import re
             t = t.lower().strip()
+            # Treure "Series X", "Season X", "Part X" del final
+            t = re.sub(r'\s*[-:]\s*(series|season|part)\s*\d+.*$', '', t, flags=re.I)
+            t = re.sub(r'\s*\(\d{4}\)$', '', t)  # Treure any entre parèntesis
             t = re.sub(r'[^\w\s]', '', t)  # Treure puntuació
-            t = re.sub(r'\s+', ' ', t)  # Normalitzar espais
+            t = re.sub(r'\s+', ' ', t).strip()  # Normalitzar espais
             return t
+
+        def normalize_title_variants(t):
+            """Genera variants del títol per millorar matching"""
+            variants = set()
+            norm = normalize_title(t)
+            variants.add(norm)
+
+            # Sense "the" al principi
+            if norm.startswith("the "):
+                variants.add(norm[4:])
+
+            # Sense "a " al principi
+            if norm.startswith("a "):
+                variants.add(norm[2:])
+
+            return variants
 
         tmdb_lookup = {}
         for t in tmdb_titles:
-            norm = normalize_title(t["title"])
-            tmdb_lookup[norm] = t
+            for variant in normalize_title_variants(t["title"]):
+                if variant not in tmdb_lookup:
+                    tmdb_lookup[variant] = t
             # També afegir títol original si és diferent
             if t.get("original_title") and t["original_title"] != t["title"]:
-                norm_orig = normalize_title(t["original_title"])
-                tmdb_lookup[norm_orig] = t
+                for variant in normalize_title_variants(t["original_title"]):
+                    if variant not in tmdb_lookup:
+                        tmdb_lookup[variant] = t
 
-        logger.info(f"BBC Bulk Import: Creat lookup amb {len(tmdb_lookup)} títols normalitzats")
+        logger.info(f"BBC Bulk Import: Creat lookup amb {len(tmdb_lookup)} variants de títols")
+
+        # Crear llista ordenada per fuzzy matching
+        tmdb_titles_normalized = [(normalize_title(t["title"]), t) for t in tmdb_titles]
 
         # Phase 2: Escanejar BBC catalog per obtenir BBC PIDs
         bbc_bulk_import_status["phase"] = "scanning_bbc"
@@ -12901,18 +12925,37 @@ async def run_bbc_bulk_import(tmdb_key: str, min_confidence: float):
         bbc_bulk_import_status["last_update"] = datetime.now().isoformat()
         logger.info("BBC Bulk Import: Fase 3 - Fent match entre BBC i TMDB per títol...")
 
+        def find_tmdb_match(bbc_title):
+            """Intenta trobar match amb múltiples estratègies"""
+            # 1. Match exacte amb variants
+            for variant in normalize_title_variants(bbc_title):
+                if variant in tmdb_lookup:
+                    return tmdb_lookup[variant], "exact"
+
+            # 2. Match per substring (BBC title conté TMDB title o viceversa)
+            norm_bbc = normalize_title(bbc_title)
+            if len(norm_bbc) >= 4:  # Mínim 4 chars per evitar falsos positius
+                for tmdb_norm, tmdb_data in tmdb_titles_normalized:
+                    if len(tmdb_norm) >= 4:
+                        # BBC conté TMDB
+                        if tmdb_norm in norm_bbc:
+                            return tmdb_data, "substring"
+                        # TMDB conté BBC
+                        if norm_bbc in tmdb_norm:
+                            return tmdb_data, "substring"
+
+            return None, None
+
         matched = []
         not_matched = []
+        match_types = {"exact": 0, "substring": 0}
 
         for idx, bbc_prog in enumerate(bbc_programs):
             if not bbc_bulk_import_status["running"]:
                 return
 
             bbc_title = bbc_prog.get("title", "")
-            norm_title = normalize_title(bbc_title)
-
-            # Buscar a TMDB lookup
-            tmdb_data = tmdb_lookup.get(norm_title)
+            tmdb_data, match_type = find_tmdb_match(bbc_title)
 
             if tmdb_data:
                 matched.append({
@@ -12925,8 +12968,9 @@ async def run_bbc_bulk_import(tmdb_key: str, min_confidence: float):
                     "year": tmdb_data.get("year"),
                     "overview": tmdb_data.get("overview"),
                 })
+                match_types[match_type] = match_types.get(match_type, 0) + 1
                 if len(matched) <= 10:
-                    logger.info(f"✓ Match: '{bbc_title}' -> TMDB {tmdb_data['tmdb_id']}")
+                    logger.info(f"✓ Match ({match_type}): '{bbc_title}' -> TMDB {tmdb_data['tmdb_id']}")
             else:
                 not_matched.append(bbc_title)
                 if len(not_matched) <= 10:
@@ -12942,7 +12986,8 @@ async def run_bbc_bulk_import(tmdb_key: str, min_confidence: float):
         bbc_bulk_import_status["matched_programs"] = len(matched)
         bbc_bulk_import_status["skipped_low_confidence"] = len(not_matched)
         bbc_bulk_import_status["progress_percent"] = 60
-        logger.info(f"BBC Bulk Import: {len(matched)} matched de {len(bbc_programs)} BBC programs ({len(tmdb_titles)} TMDB titles)")
+        logger.info(f"BBC Bulk Import: {len(matched)} matched de {len(bbc_programs)} BBC programs")
+        logger.info(f"BBC Bulk Import: Match types - exact: {match_types.get('exact', 0)}, substring: {match_types.get('substring', 0)}")
 
         # Phase 4: Importing to mapping
         bbc_bulk_import_status["phase"] = "importing"
