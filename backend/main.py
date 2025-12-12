@@ -10498,6 +10498,7 @@ async def sync_bbc_catalog_background():
         "imported_films": 0,
         "imported_series": 0,
         "imported_episodes": 0,
+        "subtitles_saved": 0,
         "missing_bbc_id": 0,
         "errors": []
     }
@@ -10538,6 +10539,30 @@ async def sync_bbc_catalog_background():
 
         # Pas 2: Per cada títol de TMDB, buscar programme_id de BBC i importar
         bbc_client = BBCiPlayerClient()
+
+        # Funció auxiliar per guardar subtítols d'un programme_id
+        async def save_subtitles_for_programme(programme_id: str) -> int:
+            """Guarda els subtítols d'un programa a la BD"""
+            saved = 0
+            try:
+                stream_info = await bbc_client.get_stream_info(programme_id, quality="best")
+                if stream_info and stream_info.subtitles:
+                    with get_db() as conn:
+                        cursor = conn.cursor()
+                        for lang, sub_url in stream_info.subtitles.items():
+                            if sub_url:
+                                cursor.execute("""
+                                    INSERT INTO bbc_subtitles
+                                    (programme_id, language, subtitle_url, downloaded, added_date)
+                                    VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP)
+                                    ON CONFLICT(programme_id, language) DO UPDATE SET
+                                        subtitle_url = excluded.subtitle_url
+                                """, (programme_id, lang, sub_url))
+                                saved += 1
+                        conn.commit()
+            except Exception as e:
+                logger.debug(f"Error guardant subtítols per {programme_id}: {e}")
+            return saved
 
         for idx, tmdb_item in enumerate(tmdb_titles):
             try:
@@ -10600,6 +10625,8 @@ async def sync_bbc_catalog_background():
                             episodes={1: bbc_programme_id}
                         )
                         results["imported_films"] += 1
+                        # Guardar subtítols del film
+                        results["subtitles_saved"] += await save_subtitles_for_programme(bbc_programme_id)
                     else:
                         # Per sèries, intentar obtenir episodis
                         try:
@@ -10624,6 +10651,12 @@ async def sync_bbc_catalog_background():
                                         UPDATE bbc_content SET episodes_count = ? WHERE programme_id = ?
                                     """, (len(episodes), programme_id))
                                     conn.commit()
+
+                                # Guardar subtítols dels primers 5 episodis (per no alentir massa)
+                                for ep in episodes[:5]:
+                                    ep_pid = ep.get("programme_id") or ep.get("id")
+                                    if ep_pid:
+                                        results["subtitles_saved"] += await save_subtitles_for_programme(ep_pid)
                             else:
                                 set_bbc_mapping_for_content(
                                     tmdb_id=tmdb_id,
@@ -10659,6 +10692,7 @@ async def sync_bbc_catalog_background():
         - Films importats: {results['imported_films']}
         - Sèries importades: {results['imported_series']}
         - Episodis: {results['imported_episodes']}
+        - Subtítols guardats: {results['subtitles_saved']}
         - Sense BBC ID (només TMDB): {results['missing_bbc_id']}
         - Errors: {len(results['errors'])}
         """)
