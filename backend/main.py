@@ -10581,12 +10581,21 @@ async def sync_bbc_catalog_background():
                 if (idx + 1) % 50 == 0:
                     logger.info(f"sync_bbc_catalog_background: Processats {idx + 1}/{len(tmdb_titles)} - trobats BBC ID: {results['found_bbc_id']}")
 
-                # Guardar a bbc_content (amb o sense BBC programme_id)
-                programme_id = bbc_programme_id or f"tmdb_{tmdb_id}"  # Fallback a TMDB ID
+                # Guardar a bbc_content - evitar duplicats per tmdb_id
+                programme_id = bbc_programme_id or f"tmdb_{tmdb_id}"
                 bbc_url = f"https://www.bbc.co.uk/iplayer/episode/{bbc_programme_id}" if bbc_programme_id else ""
 
                 with get_db() as conn:
                     cursor = conn.cursor()
+
+                    # Si tenim BBC ID real, eliminar qualsevol registre antic amb fallback tmdb_X
+                    # Això evita duplicats quan trobem el BBC ID en una execució posterior
+                    if bbc_programme_id:
+                        cursor.execute(
+                            "DELETE FROM bbc_content WHERE programme_id = ? AND tmdb_id = ?",
+                            (f"tmdb_{tmdb_id}", tmdb_id)
+                        )
+
                     cursor.execute("""
                         INSERT INTO bbc_content
                         (programme_id, title, synopsis, thumbnail, url, is_film, is_series, tmdb_id, tmdb_confidence, last_updated, added_date)
