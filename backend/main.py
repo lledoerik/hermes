@@ -169,16 +169,35 @@ def get_bbc_segment_semaphore() -> asyncio.Semaphore:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Gestiona l'inici i tancament de l'aplicació."""
-    global _http_client
+    global _http_client, _stream_semaphore, _bbc_segment_semaphore
 
-    # Startup - crear client HTTP global amb connection pooling
+    # === STARTUP ===
+    logger.info("Iniciant Hermes Media Server...")
+
+    # 1. Inicialitzar connection pool SQLite
+    from backend.services.database import get_db_pool, close_db_pool, init_all_tables
+    try:
+        get_db_pool()  # Inicialitza el pool de connexions
+        init_all_tables()  # Aplica migracions de BD
+        logger.info("✓ Connection pool SQLite i BD inicialitzats")
+    except Exception as e:
+        logger.error(f"✗ Error inicialitzant BD: {e}")
+        raise
+
+    # 2. Crear client HTTP global amb connection pooling
     _http_client = httpx.AsyncClient(
         timeout=httpx.Timeout(30.0, connect=10.0),
         limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
         follow_redirects=True,
     )
-    logger.info("HTTP client global iniciat amb connection pooling")
+    logger.info("✓ Client HTTP global iniciat amb connection pooling")
 
+    # 3. Inicialitzar semàfors (thread-safe, una sola vegada)
+    _stream_semaphore = asyncio.Semaphore(MAX_CONCURRENT_STREAMS)
+    _bbc_segment_semaphore = asyncio.Semaphore(MAX_CONCURRENT_BBC_SEGMENTS)
+    logger.info(f"✓ Semàfors inicialitzats (streams: {MAX_CONCURRENT_STREAMS}, BBC segments: {MAX_CONCURRENT_BBC_SEGMENTS})")
+
+    # 4. Iniciar scheduler per tasques programades
     scheduler.add_job(
         daily_sync_job,
         CronTrigger(hour=2, minute=30),
@@ -187,19 +206,33 @@ async def lifespan(app: FastAPI):
         replace_existing=True
     )
     scheduler.start()
-    logger.info("Scheduler iniciat - Sincronització diària programada a les 2:30 AM")
+    logger.info("✓ Scheduler iniciat - Sincronització diària a les 2:30 AM")
+
+    logger.info("🚀 Hermes Media Server iniciat correctament")
 
     yield  # L'aplicació s'executa aquí
 
-    # Shutdown
-    scheduler.shutdown()
-    logger.info("Scheduler aturat")
+    # === SHUTDOWN ===
+    logger.info("Aturant Hermes Media Server...")
 
-    # Tancar client HTTP
+    # 1. Aturar scheduler
+    scheduler.shutdown()
+    logger.info("✓ Scheduler aturat")
+
+    # 2. Tancar client HTTP
     if _http_client:
         await _http_client.aclose()
         _http_client = None
-        logger.info("HTTP client global tancat")
+        logger.info("✓ Client HTTP tancat")
+
+    # 3. Tancar connection pool SQLite
+    try:
+        close_db_pool()
+        logger.info("✓ Connection pool SQLite tancat")
+    except Exception as e:
+        logger.warning(f"Error tancant connection pool: {e}")
+
+    logger.info("👋 Hermes Media Server aturat correctament")
 
 
 # Crear app FastAPI

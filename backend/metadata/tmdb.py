@@ -41,13 +41,39 @@ def contains_non_latin_characters(text: str) -> bool:
     return False
 
 
+# Cache global per traduccions (evita re-traduir el mateix text)
+_translation_cache: Dict[str, str] = {}
+_translation_cache_lock = None  # Lazy init per evitar problemes d'import
+
+def _get_translation_cache_lock():
+    """Obté el lock per al cache de traduccions (lazy init)."""
+    global _translation_cache_lock
+    if _translation_cache_lock is None:
+        import threading
+        _translation_cache_lock = threading.Lock()
+    return _translation_cache_lock
+
+
 def translate_to_catalan(text: str, source_lang: str = "auto") -> str:
-    """Tradueix text al català utilitzant Google Translate (deep-translator)."""
+    """
+    Tradueix text al català utilitzant Google Translate (deep-translator).
+    Inclou cache per evitar traduccions duplicades.
+    """
     if not text or not text.strip():
         return text
 
+    # Generar clau de cache
+    cache_key = f"{source_lang}:{text[:100]}"  # Primeros 100 chars com a clau
+
+    # Comprovar cache
+    lock = _get_translation_cache_lock()
+    with lock:
+        if cache_key in _translation_cache:
+            return _translation_cache[cache_key]
+
     try:
         from deep_translator import GoogleTranslator
+
         # Detectar idioma font si és "auto"
         if source_lang == "auto" or source_lang.startswith("en"):
             source_lang = "en"
@@ -57,10 +83,19 @@ def translate_to_catalan(text: str, source_lang: str = "auto") -> str:
             source_lang = "auto"
 
         translator = GoogleTranslator(source=source_lang, target='ca')
+
         # deep-translator té un límit de 5000 caràcters
         if len(text) > 4500:
             text = text[:4500] + "..."
-        return translator.translate(text)
+
+        translated = translator.translate(text)
+
+        # Guardar al cache
+        with lock:
+            _translation_cache[cache_key] = translated
+
+        return translated
+
     except ImportError:
         # Si no està instal·lat deep-translator, retornar el text original
         print("Avís: deep-translator no instal·lat. Executa: pip install deep-translator")
@@ -73,21 +108,38 @@ def translate_to_catalan(text: str, source_lang: str = "auto") -> str:
 def translate_batch_to_catalan(texts: list, source_lang: str = "auto") -> list:
     """
     Tradueix múltiples textos al català d'un sol cop (MOLT més ràpid).
-    Utilitza un separador únic per combinar i després separar.
+    Utilitza cache per evitar traduccions duplicades i combina només textos nous.
     """
     if not texts:
         return texts
 
-    # Filtrar textos buits i guardar els índexs originals
-    valid_indices = []
-    valid_texts = []
-    for i, text in enumerate(texts):
-        if text and text.strip():
-            valid_indices.append(i)
-            valid_texts.append(text.strip())
+    # Preparar resultats i identificar textos que necessiten traducció
+    result = list(texts)  # Copiar original
+    texts_to_translate = []
+    translate_indices = []
 
-    if not valid_texts:
-        return texts
+    lock = _get_translation_cache_lock()
+
+    for i, text in enumerate(texts):
+        if not text or not text.strip():
+            continue
+
+        # Generar clau de cache
+        cache_key = f"{source_lang}:{text[:100]}"
+
+        # Comprovar cache
+        with lock:
+            if cache_key in _translation_cache:
+                result[i] = _translation_cache[cache_key]
+                continue
+
+        # Necessita traducció
+        texts_to_translate.append(text.strip())
+        translate_indices.append(i)
+
+    # Si tot està al cache, retornar
+    if not texts_to_translate:
+        return result
 
     try:
         from deep_translator import GoogleTranslator
@@ -105,22 +157,23 @@ def translate_batch_to_catalan(texts: list, source_lang: str = "auto") -> list:
         # Separador únic que no apareix en text normal
         SEPARATOR = " ||| "
 
-        # Combinar tots els textos
-        combined = SEPARATOR.join(valid_texts)
+        # Combinar textos que necessiten traducció
+        combined = SEPARATOR.join(texts_to_translate)
 
         # Si és massa llarg, dividir en chunks
         MAX_CHARS = 4500
+        translated_texts = []
+
         if len(combined) <= MAX_CHARS:
             # Traduir tot d'un sol cop
             translated_combined = translator.translate(combined)
             translated_texts = translated_combined.split(SEPARATOR)
         else:
             # Dividir en chunks i traduir per separat
-            translated_texts = []
             current_chunk = []
             current_length = 0
 
-            for text in valid_texts:
+            for text in texts_to_translate:
                 text_length = len(text) + len(SEPARATOR)
                 if current_length + text_length > MAX_CHARS and current_chunk:
                     # Traduir chunk actual
@@ -139,11 +192,17 @@ def translate_batch_to_catalan(texts: list, source_lang: str = "auto") -> list:
                 chunk_translated = translator.translate(chunk_combined)
                 translated_texts.extend(chunk_translated.split(SEPARATOR))
 
-        # Reconstruir la llista original amb els textos traduïts
-        result = list(texts)  # Copiar original
-        for i, idx in enumerate(valid_indices):
-            if i < len(translated_texts):
-                result[idx] = translated_texts[i].strip()
+        # Aplicar traduccions i guardar al cache
+        with lock:
+            for i, idx in enumerate(translate_indices):
+                if i < len(translated_texts):
+                    translated = translated_texts[i].strip()
+                    result[idx] = translated
+
+                    # Guardar al cache
+                    original_text = texts_to_translate[i]
+                    cache_key = f"{source_lang}:{original_text[:100]}"
+                    _translation_cache[cache_key] = translated
 
         return result
 

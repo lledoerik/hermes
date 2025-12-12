@@ -41,6 +41,58 @@ class HermesStreamer:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.active_streams = {}
 
+    def _detect_video_codec(self, file_path: str) -> Optional[str]:
+        """
+        Detecta el codec del vídeo amb ffprobe.
+        Retorna el nom del codec (ex: 'h264', 'hevc', 'vp9') o None si falla.
+        """
+        try:
+            cmd = [
+                'ffprobe', '-v', 'quiet',
+                '-select_streams', 'v:0',
+                '-show_entries', 'stream=codec_name',
+                '-of', 'default=noprint_wrappers=1:nokey=1',
+                file_path
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                codec = result.stdout.strip()
+                logger.debug(f"Codec detectat: {codec}")
+                return codec
+            return None
+        except Exception as e:
+            logger.warning(f"Error detectant codec: {e}")
+            return None
+
+    def _is_stream_complete(self, stream_dir: Path) -> bool:
+        """
+        Comprova si un stream HLS està complet i vàlid.
+        Verifica que existeix la playlist i almenys 3 segments.
+        """
+        playlist_path = stream_dir / "playlist.m3u8"
+
+        # Verificar que la playlist existeix i no està buida
+        if not playlist_path.exists() or playlist_path.stat().st_size == 0:
+            return False
+
+        # Verificar que hi ha segments generats
+        segments = list(stream_dir.glob("segment*.ts"))
+        if len(segments) < 3:
+            logger.debug(f"Stream incomplet: només {len(segments)} segments trobats")
+            return False
+
+        # Verificar que la playlist conté #EXT-X-ENDLIST (stream complet)
+        try:
+            playlist_content = playlist_path.read_text()
+            if "#EXT-X-ENDLIST" not in playlist_content:
+                logger.debug("Stream incomplet: falta #EXT-X-ENDLIST")
+                return False
+        except Exception as e:
+            logger.warning(f"Error llegint playlist: {e}")
+            return False
+
+        return True
+
     def start_stream(self, media_id: int, file_path: str,
                      audio_index: Optional[int] = None,
                      subtitle_index: Optional[int] = None,
@@ -70,9 +122,16 @@ class HermesStreamer:
         # Playlist path
         playlist_path = stream_dir / "playlist.m3u8"
 
-        # Si ja existeix i és vàlid, retornar
-        if playlist_path.exists() and playlist_path.stat().st_size > 0:
+        # Si ja existeix i és COMPLET i VÀLID, retornar
+        if self._is_stream_complete(stream_dir):
+            logger.info(f"Stream {stream_id} ja existeix i és vàlid (reutilitzant)")
             return f"/api/stream/hls/{stream_id}/playlist.m3u8"
+
+        # Si existeix però no és complet, netejar i regenerar
+        if playlist_path.exists():
+            logger.warning(f"Stream {stream_id} incomplet, regenerant...")
+            shutil.rmtree(stream_dir)
+            stream_dir.mkdir(exist_ok=True)
 
         # Configuració de qualitat
         quality_settings = {
@@ -99,6 +158,11 @@ class HermesStreamer:
         else:
             cmd.extend(['-map', '0:a:0?'])  # Primer àudio si existeix
 
+        # Detectar codec del vídeo
+        video_codec = self._detect_video_codec(file_path)
+        compatible_codecs = ['h264', 'avc', 'avc1']  # Codecs compatibles amb HLS
+        can_copy_video = video_codec in compatible_codecs
+
         # Subtítols - burning (incrustar al vídeo)
         if subtitle_index is not None:
             # Escapar el path per al filtre de FFmpeg (necessita escapar : i \)
@@ -112,10 +176,16 @@ class HermesStreamer:
             video_filter = subtitle_filter
             cmd.extend(['-vf', video_filter])
             cmd.extend(['-c:v', 'libx264', '-preset', 'fast', '-crf', '22'])
-            logger.info(f"Cremant subtítols amb índex {subtitle_index}")
+            logger.info(f"Cremant subtítols amb índex {subtitle_index} i transcodificant a H.264")
         else:
-            # Sense subtítols, copiar vídeo si és possible
-            cmd.extend(['-c:v', 'copy'])
+            # Sense subtítols, decidir si copiar o transcodificar
+            if can_copy_video:
+                cmd.extend(['-c:v', 'copy'])
+                logger.info(f"Copiant stream de vídeo ({video_codec}) sense transcodificació")
+            else:
+                # Codec no compatible (HEVC, VP9, etc.), transcodificar
+                cmd.extend(['-c:v', 'libx264', '-preset', 'fast', '-crf', '22'])
+                logger.info(f"Transcodificant vídeo de {video_codec} a H.264 per compatibilitat HLS")
 
         # Configuració d'àudio
         cmd.extend([

@@ -25,58 +25,57 @@ logger = logging.getLogger(__name__)
 # === CACHE PERSISTENT (SQLite) ===
 
 def _get_db_cache(cache_key: str) -> Optional[Dict]:
-    """Obté dades del cache persistent (SQLite)."""
-    from config import settings
+    """Obté dades del cache persistent (SQLite) amb connection pool."""
     try:
-        conn = sqlite3.connect(settings.DATABASE_PATH, check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+        from backend.services.database import get_db
 
-        cursor.execute("""
-            SELECT data, expires_date FROM metadata_cache
-            WHERE cache_key = ? AND (expires_date IS NULL OR expires_date > datetime('now'))
-        """, (cache_key,))
+        with get_db() as conn:
+            cursor = conn.cursor()
 
-        row = cursor.fetchone()
-        conn.close()
+            cursor.execute("""
+                SELECT data, expires_date FROM metadata_cache
+                WHERE cache_key = ? AND (expires_date IS NULL OR expires_date > datetime('now'))
+            """, (cache_key,))
 
-        if row:
-            return json.loads(row["data"])
-        return None
+            row = cursor.fetchone()
+
+            if row:
+                return json.loads(row["data"])
+            return None
     except Exception as e:
         logger.debug(f"Cache DB read error: {e}")
         return None
 
 
 def _set_db_cache(cache_key: str, data: Dict, source: str = None, ttl_hours: int = 168):
-    """Guarda dades al cache persistent (SQLite). TTL per defecte: 7 dies."""
-    from config import settings
+    """Guarda dades al cache persistent (SQLite) amb connection pool. TTL per defecte: 7 dies."""
     try:
-        conn = sqlite3.connect(settings.DATABASE_PATH, check_same_thread=False)
-        cursor = conn.cursor()
+        from backend.services.database import get_db
 
-        # Assegurar que la taula existeix
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS metadata_cache (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                cache_key TEXT UNIQUE NOT NULL,
-                data TEXT NOT NULL,
-                source TEXT,
-                language TEXT DEFAULT 'ca',
-                created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                expires_date TIMESTAMP
-            )
-        """)
+        with get_db() as conn:
+            cursor = conn.cursor()
 
-        expires = datetime.now() + timedelta(hours=ttl_hours)
+            # Assegurar que la taula existeix
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS metadata_cache (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    cache_key TEXT UNIQUE NOT NULL,
+                    data TEXT NOT NULL,
+                    source TEXT,
+                    language TEXT DEFAULT 'ca',
+                    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    expires_date TIMESTAMP
+                )
+            """)
 
-        cursor.execute("""
-            INSERT OR REPLACE INTO metadata_cache (cache_key, data, source, expires_date)
-            VALUES (?, ?, ?, ?)
-        """, (cache_key, json.dumps(data), source, expires.isoformat()))
+            expires = datetime.now() + timedelta(hours=ttl_hours)
 
-        conn.commit()
-        conn.close()
+            cursor.execute("""
+                INSERT OR REPLACE INTO metadata_cache (cache_key, data, source, expires_date)
+                VALUES (?, ?, ?, ?)
+            """, (cache_key, json.dumps(data), source, expires.isoformat()))
+
+            conn.commit()
     except Exception as e:
         logger.warning(f"Cache DB write error: {e}")
 

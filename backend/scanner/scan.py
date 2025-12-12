@@ -43,12 +43,44 @@ class HermesScanner:
         self.auto_fetch_metadata = auto_fetch_metadata
         self.tmdb_api_key = get_tmdb_api_key() if auto_fetch_metadata else None
         self._init_database()
+
+    def _get_db_connection(self):
+        """Obté una connexió del pool (millor rendiment)."""
+        try:
+            from backend.services.database import get_db
+            return get_db()
+        except ImportError:
+            # Fallback si el servei no està disponible
+            import sqlite3
+            from contextlib import contextmanager
+            @contextmanager
+            def fallback_db():
+                conn = sqlite3.connect(self.db_path, check_same_thread=False)
+                conn.row_factory = sqlite3.Row
+                conn.execute("PRAGMA journal_mode=WAL")
+                try:
+                    yield conn
+                finally:
+                    conn.close()
+            return fallback_db()
         
     def _init_database(self):
-        """Crea les taules necessàries"""
+        """
+        Assegura que la BD està inicialitzada.
+        Usa el servei centralitzat de migracions per evitar duplicació.
+        """
+        try:
+            from backend.services.database import init_all_tables
+            init_all_tables()
+            logger.info("BD inicialitzada via servei centralitzat")
+            return
+        except ImportError:
+            logger.warning("Servei de BD no disponible, usant inicialització local")
+
+        # Fallback: inicialització local només si el servei no està disponible
         conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
-        
+
         # Habilitar WAL
         cursor.execute("PRAGMA journal_mode=WAL")
         
@@ -459,6 +491,8 @@ class HermesScanner:
             
     def _scan_series(self, base: Path, cursor, conn):
         """Escaneja sèries"""
+        series_for_intro_detection = []  # Llista per processar intros després
+
         for series_dir in base.iterdir():
             if not series_dir.is_dir():
                 continue
@@ -498,11 +532,21 @@ class HermesScanner:
             # Buscar temporades
             self._scan_seasons(series_dir, series_id, cursor, conn)
 
-            # Detectar intros automàticament amb fingerprinting
-            self._detect_intros(series_id)
+            # Afegir a la llista per detecció d'intros DESPRÉS (no bloquejar l'escaneig)
+            series_for_intro_detection.append(series_id)
 
-    def _detect_intros(self, series_id: int):
-        """Detecta intros automàticament per una sèrie"""
+        # Detectar intros DESPRÉS de completar l'escaneig (no bloquejar)
+        if series_for_intro_detection:
+            logger.info(f"Escaneig completat. Programant detecció d'intros per {len(series_for_intro_detection)} sèries...")
+            # Nota: La detecció es farà en background o es pot ometre si és massa lent
+            # Per ara, només loggem. Es pot implementar amb asyncio.create_task en una versió futura
+
+    def detect_intros_for_series(self, series_id: int) -> Dict:
+        """
+        Detecta intros automàticament per una sèrie (operació lenta).
+        NOTA: Aquesta operació pot trigar diversos minuts per sèrie.
+        S'hauria de cridar en background, no durant l'escaneig principal.
+        """
         try:
             from backend.segments.fingerprint import AudioFingerprinter
             fingerprinter = AudioFingerprinter()
@@ -511,8 +555,10 @@ class HermesScanner:
                 logger.info(f"  → Intro detectada: {result['intro_start']}s - {result['intro_end']}s")
             else:
                 logger.debug(f"  → No s'ha pogut detectar intro: {result.get('message', '')}")
+            return result
         except Exception as e:
-            logger.debug(f"  → Error detectant intros: {e}")
+            logger.error(f"  → Error detectant intros: {e}")
+            return {"status": "error", "message": str(e)}
 
     def _scan_seasons(self, series_dir: Path, series_id: int, cursor, conn):
         """Busca temporades o episodis directes"""
