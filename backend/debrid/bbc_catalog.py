@@ -490,6 +490,48 @@ class TMDBBBCScanner:
         logger.debug(f"Could not find BBC PID for '{title}' (TMDB: {tmdb_id})")
         return None
 
+    def _normalize_title(self, title: str) -> str:
+        """Normalitza un títol per comparació més robusta"""
+        import unicodedata
+        # Normalitzar Unicode
+        normalized = unicodedata.normalize('NFKD', title)
+        # Convertir a minúscules
+        normalized = normalized.lower()
+        # Eliminar articles inicials
+        for article in ["the ", "a ", "an "]:
+            if normalized.startswith(article):
+                normalized = normalized[len(article):]
+                break
+        # Eliminar anys entre parèntesis: "Doctor Who (2005)" -> "Doctor Who"
+        normalized = re.sub(r'\s*\(\d{4}\)\s*$', '', normalized)
+        # Eliminar subtítols després de ":" o "-"
+        normalized = re.sub(r'\s*[:\-]\s*.+$', '', normalized)
+        # Eliminar puntuació i espais extres
+        normalized = re.sub(r'[^\w\s]', '', normalized)
+        normalized = ' '.join(normalized.split())
+        return normalized.strip()
+
+    def _titles_match(self, title1: str, title2: str) -> bool:
+        """Comprova si dos títols coincideixen amb tolerància"""
+        n1 = self._normalize_title(title1)
+        n2 = self._normalize_title(title2)
+        # Coincidència exacta normalitzada
+        if n1 == n2:
+            return True
+        # Un conté l'altre
+        if n1 in n2 or n2 in n1:
+            return True
+        # Similaritat de Jaccard (paraules en comú)
+        words1 = set(n1.split())
+        words2 = set(n2.split())
+        if words1 and words2:
+            intersection = len(words1 & words2)
+            union = len(words1 | words2)
+            similarity = intersection / union if union > 0 else 0
+            if similarity >= 0.6:  # 60% de paraules en comú
+                return True
+        return False
+
     async def _search_bbc_suggest(self, title: str, cookies: dict, headers: dict) -> Optional[str]:
         """Cerca via suggest API"""
         try:
@@ -504,22 +546,22 @@ class TMDBBBCScanner:
                     results = data.get("search_suggest", {}).get("results", [])
 
                     if results:
-                        # Buscar coincidència pel títol
-                        title_lower = title.lower()
+                        # Buscar coincidència pel títol amb normalització
                         for result in results:
-                            result_title = (result.get("title") or "").lower()
-                            if result_title == title_lower or title_lower in result_title or result_title in title_lower:
+                            result_title = result.get("title") or ""
+                            if self._titles_match(title, result_title):
                                 pid = result.get("id") or result.get("pid") or result.get("tleo_id")
                                 if pid:
                                     logger.debug(f"Found via suggest: '{title}' -> {pid}")
                                     return pid
 
-                        # Retornar el primer resultat si hi ha
-                        first = results[0]
-                        pid = first.get("id") or first.get("pid") or first.get("tleo_id")
-                        if pid:
-                            logger.debug(f"Found via suggest (first result): '{title}' -> {pid}")
-                            return pid
+                        # NOMÉS retornar primer resultat si el títol comença igual
+                        first_title = results[0].get("title") or ""
+                        if self._normalize_title(title)[:5] == self._normalize_title(first_title)[:5]:
+                            pid = results[0].get("id") or results[0].get("pid") or results[0].get("tleo_id")
+                            if pid:
+                                logger.debug(f"Found via suggest (first, prefix match): '{title}' -> {pid}")
+                                return pid
                 else:
                     logger.debug(f"BBC suggest API returned {response.status_code} for '{title}'")
 
@@ -553,21 +595,21 @@ class TMDBBBCScanner:
                     )
 
                     if results:
-                        title_lower = title.lower()
                         for result in results:
-                            result_title = (result.get("title") or result.get("name") or "").lower()
-                            if result_title == title_lower or title_lower in result_title or result_title in title_lower:
+                            result_title = result.get("title") or result.get("name") or ""
+                            if self._titles_match(title, result_title):
                                 pid = result.get("id") or result.get("pid") or result.get("tleo_id") or result.get("programme_id")
                                 if pid:
                                     logger.debug(f"Found via full search: '{title}' -> {pid}")
                                     return pid
 
-                        # Primer resultat
-                        first = results[0]
-                        pid = first.get("id") or first.get("pid") or first.get("tleo_id") or first.get("programme_id")
-                        if pid:
-                            logger.debug(f"Found via full search (first): '{title}' -> {pid}")
-                            return pid
+                        # NOMÉS primer resultat si prefix coincideix
+                        first_title = results[0].get("title") or results[0].get("name") or ""
+                        if self._normalize_title(title)[:5] == self._normalize_title(first_title)[:5]:
+                            pid = results[0].get("id") or results[0].get("pid") or results[0].get("tleo_id") or results[0].get("programme_id")
+                            if pid:
+                                logger.debug(f"Found via full search (first, prefix match): '{title}' -> {pid}")
+                                return pid
 
         except Exception as e:
             logger.debug(f"Error in BBC full search for '{title}': {e}")
@@ -577,8 +619,9 @@ class TMDBBBCScanner:
     async def _search_bbc_az(self, title: str, cookies: dict, headers: dict) -> Optional[str]:
         """Cerca via A-Z listing"""
         try:
-            # Obtenir primera lletra
-            first_char = title[0].lower() if title else "a"
+            # Obtenir primera lletra (del títol normalitzat sense articles)
+            normalized = self._normalize_title(title)
+            first_char = normalized[0].lower() if normalized else "a"
             if not first_char.isalpha():
                 first_char = "0-9"
 
@@ -592,10 +635,9 @@ class TMDBBBCScanner:
                     data = response.json()
                     programmes = data.get("atoz_programmes", {}).get("elements", [])
 
-                    title_lower = title.lower()
                     for prog in programmes:
-                        prog_title = (prog.get("title") or "").lower()
-                        if prog_title == title_lower or title_lower in prog_title or prog_title in title_lower:
+                        prog_title = prog.get("title") or ""
+                        if self._titles_match(title, prog_title):
                             pid = prog.get("id") or prog.get("pid") or prog.get("tleo_id")
                             if pid:
                                 logger.debug(f"Found via A-Z: '{title}' -> {pid}")

@@ -10480,27 +10480,30 @@ async def precache_episodes_background() -> int:
 
 async def sync_bbc_catalog_background():
     """
-    Sincronitza el catàleg COMPLET de BBC iPlayer.
-    - Importa contingut amb match TMDB (alta i baixa confiança)
-    - Guarda contingut sense match a bbc_content
-    - Descarrega subtítols quan estan disponibles
+    Sincronitza el catàleg de BBC iPlayer usant TMDB Discover com a font principal.
+
+    FLUX CORRECTE:
+    1. TMDB Discover → obté tots els TMDB IDs de contingut disponible a BBC (1500+ títols)
+    2. Per cada títol, buscar el programme_id de BBC
+    3. Guardar tot amb els TMDB IDs que JA tenim (sense necessitat de "matching")
+
+    Això és molt més eficient que l'anterior flux que:
+    - Escanejava BBC → obtenia programes SENSE TMDB ID
+    - Intentava fer matching per títol → FALLAVA sovint
     """
     results = {
         "status": "success",
-        "total_scanned": 0,
-        "imported_with_tmdb": 0,
-        "imported_low_confidence": 0,
-        "imported_bbc_only": 0,
+        "total_from_tmdb": 0,
+        "found_bbc_id": 0,
         "imported_films": 0,
         "imported_series": 0,
         "imported_episodes": 0,
-        "subtitles_saved": 0,
-        "errors": [],
-        "skipped": []
+        "missing_bbc_id": 0,
+        "errors": []
     }
 
     try:
-        from backend.debrid.bbc_catalog import BBCCatalogScanner, BBCTMDBMatcher, BBCProgram
+        from backend.debrid.bbc_catalog import TMDBBBCScanner
         from backend.debrid.bbc_mapping import (
             import_bbc_episodes_with_metadata,
             set_bbc_mapping_for_content,
@@ -10508,89 +10511,57 @@ async def sync_bbc_catalog_background():
         )
         from backend.debrid import BBCiPlayerClient
 
-        # Verificar TMDB API key (opcional ara - podem importar sense ella)
+        # Verificar TMDB API key (REQUERIT per aquest flux)
         tmdb_key = get_tmdb_api_key()
-
-        logger.info("sync_bbc_catalog_background: Iniciant escaneig COMPLET de BBC iPlayer...")
-
-        # Pas 1: Escanejar catàleg
-        scanner = BBCCatalogScanner()
-        catalog = await scanner.scan_full_catalog()
-
-        all_programs = []
-        for film in catalog.get("films", []):
-            all_programs.append(BBCProgram(
-                programme_id=film["programme_id"],
-                title=film["title"],
-                url=film["url"],
-                is_film=True,
-                is_series=False,
-                synopsis=film.get("synopsis"),
-                thumbnail=film.get("thumbnail")
-            ))
-        for series in catalog.get("series", []):
-            all_programs.append(BBCProgram(
-                programme_id=series["programme_id"],
-                title=series["title"],
-                url=series["url"],
-                is_film=False,
-                is_series=True,
-                synopsis=series.get("synopsis"),
-                thumbnail=series.get("thumbnail"),
-                episodes_url=series.get("episodes_url") or series["url"]
-            ))
-
-        results["total_scanned"] = len(all_programs)
-        logger.info(f"sync_bbc_catalog_background: Trobats {len(all_programs)} programes")
-
-        if not all_programs:
-            logger.warning("sync_bbc_catalog_background: No s'han trobat programes a BBC iPlayer")
+        if not tmdb_key:
+            logger.error("sync_bbc_catalog_background: TMDB key requerida per aquest flux")
+            results["status"] = "error"
+            results["error"] = "TMDB API key not configured"
             return results
 
-        # Pas 2: Matching amb TMDB (si tenim key)
-        matched = []
-        low_confidence = []
-        unmatched = []
+        logger.info("sync_bbc_catalog_background: Usant TMDB Discover com a font principal...")
 
-        if tmdb_key:
-            matcher = BBCTMDBMatcher(tmdb_key)
-            # Baixar threshold a 45% per capturar més matches
-            match_result = await matcher.match_all_programs(all_programs, min_confidence=45.0)
-            matched = match_result.get("matched", [])
-            low_confidence = match_result.get("low_confidence", [])
-            unmatched = match_result.get("unmatched", [])
+        # Pas 1: TMDB Discover → obté tots els títols de BBC amb TMDB IDs
+        tmdb_scanner = TMDBBBCScanner(tmdb_key)
 
-            logger.info(f"sync_bbc_catalog_background: TMDB matches - alta_conf={len(matched)}, baixa_conf={len(low_confidence)}, sense_match={len(unmatched)}")
-        else:
-            # Sense TMDB key, tot és unmatched
-            logger.warning("sync_bbc_catalog_background: TMDB key no configurada, important com BBC-only")
-            for prog in all_programs:
-                unmatched.append({
-                    "bbc_programme_id": prog.programme_id,
-                    "bbc_title": prog.title,
-                    "bbc_url": prog.url,
-                    "is_film": prog.is_film,
-                    "is_series": prog.is_series,
-                    "synopsis": prog.synopsis,
-                    "thumbnail": prog.thumbnail
-                })
+        def progress_cb(msg, pct):
+            logger.info(f"[{pct:.0f}%] {msg}")
 
-        # Pas 3: Importar al mapping i bbc_content
+        tmdb_titles = await tmdb_scanner.discover_all_content(progress_cb)
+        results["total_from_tmdb"] = len(tmdb_titles)
+
+        logger.info(f"sync_bbc_catalog_background: TMDB Discover ha trobat {len(tmdb_titles)} títols a BBC")
+
+        if not tmdb_titles:
+            logger.warning("sync_bbc_catalog_background: No s'han trobat títols via TMDB Discover")
+            return results
+
+        # Pas 2: Per cada títol de TMDB, buscar programme_id de BBC i importar
         bbc_client = BBCiPlayerClient()
 
-        # Funció auxiliar per importar un item
-        async def import_bbc_item(item, confidence=100.0, is_low_conf=False):
-            nonlocal results
+        for idx, tmdb_item in enumerate(tmdb_titles):
             try:
-                tmdb_id = item.get("tmdb_id")
-                bbc_url = item["bbc_url"]
-                bbc_title = item["bbc_title"]
-                programme_id = item["bbc_programme_id"]
+                tmdb_id = tmdb_item.get("tmdb_id")
+                title = tmdb_item.get("title") or tmdb_item.get("original_title")
+                content_type = tmdb_item.get("content_type")  # "movie" o "tv"
+                is_film = content_type == "movie"
 
-                # Guardar a bbc_content (per tenir registre de TOT)
+                if not tmdb_id or not title:
+                    continue
+
+                # Buscar programme_id de BBC
+                bbc_programme_id = await tmdb_scanner.find_bbc_programme_id(tmdb_id, title, content_type)
+
+                # Log progress cada 50 títols
+                if (idx + 1) % 50 == 0:
+                    logger.info(f"sync_bbc_catalog_background: Processats {idx + 1}/{len(tmdb_titles)} - trobats BBC ID: {results['found_bbc_id']}")
+
+                # Guardar a bbc_content (amb o sense BBC programme_id)
+                programme_id = bbc_programme_id or f"tmdb_{tmdb_id}"  # Fallback a TMDB ID
+                bbc_url = f"https://www.bbc.co.uk/iplayer/episode/{bbc_programme_id}" if bbc_programme_id else ""
+
                 with get_db() as conn:
                     cursor = conn.cursor()
-                    # Usar INSERT amb ON CONFLICT per preservar added_date original
                     cursor.execute("""
                         INSERT INTO bbc_content
                         (programme_id, title, synopsis, thumbnail, url, is_film, is_series, tmdb_id, tmdb_confidence, last_updated, added_date)
@@ -10600,91 +10571,51 @@ async def sync_bbc_catalog_background():
                             synopsis = excluded.synopsis,
                             thumbnail = excluded.thumbnail,
                             url = excluded.url,
-                            is_film = excluded.is_film,
-                            is_series = excluded.is_series,
                             tmdb_id = excluded.tmdb_id,
                             tmdb_confidence = excluded.tmdb_confidence,
                             last_updated = CURRENT_TIMESTAMP
                     """, (
                         programme_id,
-                        bbc_title,
-                        item.get("synopsis") or item.get("overview"),
-                        item.get("thumbnail") or item.get("poster_path"),
+                        title,
+                        tmdb_item.get("overview"),
+                        tmdb_item.get("poster_path"),
                         bbc_url,
-                        1 if item.get("is_film") else 0,
-                        1 if item.get("is_series") else 0,
+                        1 if is_film else 0,
+                        0 if is_film else 1,
                         tmdb_id,
-                        confidence
+                        100.0  # Confiança 100% perquè ve directament de TMDB Discover
                     ))
                     conn.commit()
 
-                # Si tenim TMDB match, importar al mapping tradicional
-                if tmdb_id:
-                    if item.get("is_film"):
+                if bbc_programme_id:
+                    results["found_bbc_id"] += 1
+
+                    # Importar al mapping tradicional
+                    if is_film:
                         set_bbc_mapping_for_content(
                             tmdb_id=tmdb_id,
                             content_type="movie",
-                            bbc_series_id=programme_id,
-                            title=bbc_title,
-                            episodes={1: programme_id}
+                            bbc_series_id=bbc_programme_id,
+                            title=title,
+                            episodes={1: bbc_programme_id}
                         )
                         results["imported_films"] += 1
                     else:
-                        episodes_url = bbc_url.replace("/episode/", "/episodes/") if "/episode/" in bbc_url else bbc_url
-
+                        # Per sèries, intentar obtenir episodis
                         try:
+                            episodes_url = f"https://www.bbc.co.uk/iplayer/episodes/{bbc_programme_id}"
                             episodes = await bbc_client.get_all_episodes_from_series(episodes_url)
+
                             if episodes:
                                 count = import_bbc_episodes_with_metadata(
                                     tmdb_id=tmdb_id,
                                     content_type="tv",
                                     episodes=episodes,
-                                    bbc_series_id=programme_id,
-                                    title=bbc_title
+                                    bbc_series_id=bbc_programme_id,
+                                    title=title
                                 )
                                 results["imported_series"] += 1
                                 results["imported_episodes"] += count
-
-                                # Guardar episodis a bbc_episodes
-                                await save_bbc_episodes_to_db(programme_id, episodes)
-
-                                # Actualitzar comptador d'episodis a bbc_content
-                                with get_db() as conn:
-                                    cursor = conn.cursor()
-                                    cursor.execute("""
-                                        UPDATE bbc_content SET episodes_count = ? WHERE programme_id = ?
-                                    """, (len(episodes), programme_id))
-                                    conn.commit()
-
-                                # Intentar obtenir subtítols del primer episodi
-                                if episodes and len(episodes) > 0:
-                                    await try_save_subtitles(episodes[0].get("programme_id") or episodes[0].get("id"))
-                            else:
-                                set_bbc_mapping_for_content(
-                                    tmdb_id=tmdb_id,
-                                    content_type="tv",
-                                    bbc_series_id=programme_id,
-                                    title=bbc_title
-                                )
-                                results["imported_series"] += 1
-                        except Exception as ep_err:
-                            logger.warning(f"Error episodis {bbc_title}: {ep_err}")
-                            results["errors"].append(f"{bbc_title}: {ep_err}")
-
-                    if is_low_conf:
-                        results["imported_low_confidence"] += 1
-                    else:
-                        results["imported_with_tmdb"] += 1
-                else:
-                    # Sense TMDB match - guardar episodis a bbc_episodes
-                    results["imported_bbc_only"] += 1
-                    if item.get("is_series"):
-                        try:
-                            episodes_url = bbc_url.replace("/episode/", "/episodes/") if "/episode/" in bbc_url else bbc_url
-                            episodes = await bbc_client.get_all_episodes_from_series(episodes_url)
-                            if episodes:
-                                await save_bbc_episodes_to_db(programme_id, episodes)
-                                results["imported_episodes"] += len(episodes)
 
                                 # Actualitzar comptador d'episodis
                                 with get_db() as conn:
@@ -10693,108 +10624,42 @@ async def sync_bbc_catalog_background():
                                         UPDATE bbc_content SET episodes_count = ? WHERE programme_id = ?
                                     """, (len(episodes), programme_id))
                                     conn.commit()
+                            else:
+                                set_bbc_mapping_for_content(
+                                    tmdb_id=tmdb_id,
+                                    content_type="tv",
+                                    bbc_series_id=bbc_programme_id,
+                                    title=title
+                                )
+                                results["imported_series"] += 1
+
                         except Exception as ep_err:
-                            logger.debug(f"Error episodis BBC-only {bbc_title}: {ep_err}")
+                            logger.debug(f"Error episodis {title}: {ep_err}")
+                            set_bbc_mapping_for_content(
+                                tmdb_id=tmdb_id,
+                                content_type="tv",
+                                bbc_series_id=bbc_programme_id,
+                                title=title
+                            )
+                            results["imported_series"] += 1
+                else:
+                    results["missing_bbc_id"] += 1
 
-                await asyncio.sleep(0.15)  # Rate limiting més ràpid
+                await asyncio.sleep(0.1)  # Rate limiting
 
             except Exception as e:
-                logger.warning(f"Error important {item.get('bbc_title', 'unknown')}: {e}")
-                results["errors"].append(str(e)[:100])
-
-        # Funció per guardar episodis a la BD
-        async def save_bbc_episodes_to_db(content_programme_id, episodes):
-            try:
-                with get_db() as conn:
-                    cursor = conn.cursor()
-                    # Obtenir ID del contingut
-                    cursor.execute("SELECT id FROM bbc_content WHERE programme_id = ?", (content_programme_id,))
-                    row = cursor.fetchone()
-                    content_id = row[0] if row else None
-
-                    for idx, ep in enumerate(episodes):
-                        ep_programme_id = ep.get("programme_id") or ep.get("id")
-                        if not ep_programme_id:
-                            continue
-
-                        # Usar INSERT amb ON CONFLICT per preservar added_date
-                        cursor.execute("""
-                            INSERT INTO bbc_episodes
-                            (bbc_content_id, programme_id, episode_number, season_number, title, synopsis, thumbnail, duration, url, added_date)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                            ON CONFLICT(programme_id) DO UPDATE SET
-                                bbc_content_id = excluded.bbc_content_id,
-                                episode_number = excluded.episode_number,
-                                season_number = excluded.season_number,
-                                title = excluded.title,
-                                synopsis = excluded.synopsis,
-                                thumbnail = excluded.thumbnail,
-                                duration = excluded.duration,
-                                url = excluded.url
-                        """, (
-                            content_id,
-                            ep_programme_id,
-                            ep.get("episode_number") or idx + 1,
-                            ep.get("season_number") or 1,
-                            ep.get("title"),
-                            ep.get("description") or ep.get("synopsis"),
-                            ep.get("thumbnail"),
-                            ep.get("duration"),
-                            ep.get("url") or f"https://www.bbc.co.uk/iplayer/episode/{ep_programme_id}"
-                        ))
-                    conn.commit()
-            except Exception as e:
-                logger.debug(f"Error guardant episodis a BD: {e}")
-
-        # Funció per obtenir i guardar subtítols
-        async def try_save_subtitles(programme_id):
-            if not programme_id:
-                return
-            try:
-                # Obtenir info del stream (inclou subtítols)
-                stream_info = await bbc_client.get_stream_info(programme_id, quality="best")
-                if stream_info and stream_info.subtitles:
-                    with get_db() as conn:
-                        cursor = conn.cursor()
-                        for lang, sub_url in stream_info.subtitles.items():
-                            if sub_url:
-                                # Usar INSERT amb ON CONFLICT per preservar added_date i subtitle_content
-                                cursor.execute("""
-                                    INSERT INTO bbc_subtitles
-                                    (programme_id, language, subtitle_url, downloaded, added_date)
-                                    VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP)
-                                    ON CONFLICT(programme_id, language) DO UPDATE SET
-                                        subtitle_url = excluded.subtitle_url
-                                """, (programme_id, lang, sub_url))
-                                results["subtitles_saved"] += 1
-                        conn.commit()
-            except Exception as e:
-                logger.debug(f"Error obtenint subtítols per {programme_id}: {e}")
-
-        # Importar tots els tipus de contingut
-        logger.info(f"sync_bbc_catalog_background: Important {len(matched)} amb alta confiança...")
-        for item in matched:
-            await import_bbc_item(item, confidence=item.get("confidence", 80))
-
-        logger.info(f"sync_bbc_catalog_background: Important {len(low_confidence)} amb baixa confiança...")
-        for item in low_confidence:
-            await import_bbc_item(item, confidence=item.get("confidence", 50), is_low_conf=True)
-
-        logger.info(f"sync_bbc_catalog_background: Important {len(unmatched)} sense TMDB...")
-        for item in unmatched:
-            await import_bbc_item(item, confidence=0)
+                results["errors"].append(f"{tmdb_item.get('title', 'unknown')}: {str(e)[:50]}")
+                logger.debug(f"Error processant {tmdb_item.get('title')}: {e}")
 
         save_bbc_mapping()
 
         logger.info(f"""sync_bbc_catalog_background: COMPLETAT
-        - Total escanejat: {results['total_scanned']}
-        - Amb TMDB (alta conf): {results['imported_with_tmdb']}
-        - Amb TMDB (baixa conf): {results['imported_low_confidence']}
-        - BBC-only: {results['imported_bbc_only']}
-        - Films: {results['imported_films']}
-        - Sèries: {results['imported_series']}
+        - Total de TMDB Discover: {results['total_from_tmdb']}
+        - Amb BBC programme_id: {results['found_bbc_id']}
+        - Films importats: {results['imported_films']}
+        - Sèries importades: {results['imported_series']}
         - Episodis: {results['imported_episodes']}
-        - Subtítols: {results['subtitles_saved']}
+        - Sense BBC ID (només TMDB): {results['missing_bbc_id']}
         - Errors: {len(results['errors'])}
         """)
 
