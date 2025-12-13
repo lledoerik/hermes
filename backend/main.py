@@ -14106,11 +14106,11 @@ THREECAT_ONEPIECE_PATH = os.environ.get("HERMES_3CAT_ONEPIECE_PATH") or os.envir
 # Log 3CAT path configuration on startup
 if THREECAT_ONEPIECE_PATH:
     if os.path.exists(THREECAT_ONEPIECE_PATH):
-        print(f"✓ 3CAT One Piece: {THREECAT_ONEPIECE_PATH}")
+        logger.info(f"3CAT One Piece: {THREECAT_ONEPIECE_PATH}")
     else:
-        print(f"⚠ 3CAT One Piece path configured but not found: {THREECAT_ONEPIECE_PATH}")
+        logger.warning(f"3CAT One Piece path configured but not found: {THREECAT_ONEPIECE_PATH}")
 else:
-    print(f"ℹ 3CAT One Piece: No configurat (afegeix HERMES_3CAT_ONEPIECE_PATH al .env)")
+    logger.info("3CAT One Piece: No configurat (afegeix HERMES_3CAT_ONEPIECE_PATH al .env)")
 
 def get_3cat_episode_path(episode: int) -> Optional[str]:
     """

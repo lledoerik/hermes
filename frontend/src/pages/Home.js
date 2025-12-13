@@ -19,136 +19,17 @@ import './Home.css';
 
 axios.defaults.baseURL = API_URL;
 
-// Component per mostrar thumbnail de "Continuar veient" amb càrrega dinàmica de TMDB
-const ContinueThumbnail = React.memo(({ item, imageUrl, type }) => {
-  const [dynamicUrl, setDynamicUrl] = useState(imageUrl);
-  const [hasError, setHasError] = useState(false);
-  const [isLoading, setIsLoading] = useState(!imageUrl && item.tmdb_id);
-
-  useEffect(() => {
-    if (imageUrl) {
-      setDynamicUrl(imageUrl);
-      setIsLoading(false);
-      return;
-    }
-
-    if (item.tmdb_id && !imageUrl) {
-      const fetchTmdbImage = async () => {
-        let foundImage = false;
-        let newStillPath = null;
-        let newBackdropPath = null;
-        let newPosterPath = null;
-        const mediaType = type === 'movie' ? 'movie' : 'tv';
-
-        if (type === 'series' && item.season_number && item.episode_number) {
-          try {
-            const seasonRes = await axios.get(`/api/tmdb/tv/${item.tmdb_id}/season/${item.season_number}`);
-            const episode = seasonRes.data?.episodes?.find(ep => ep.episode_number === item.episode_number);
-            if (episode?.still_path) {
-              setDynamicUrl(episode.still_path);
-              newStillPath = episode.still_path;
-              foundImage = true;
-            }
-          } catch (e) {
-            console.debug('Error fetching season data:', e.message);
-          }
-        }
-
-        if (!foundImage) {
-          try {
-            const res = await axios.get(`/api/tmdb/${mediaType}/${item.tmdb_id}`);
-            if (res.data?.backdrop_path) {
-              const backdropUrl = `https://image.tmdb.org/t/p/w780${res.data.backdrop_path}`;
-              setDynamicUrl(backdropUrl);
-              newBackdropPath = res.data.backdrop_path;
-              foundImage = true;
-            } else if (res.data?.poster_path) {
-              const posterUrl = `https://image.tmdb.org/t/p/w500${res.data.poster_path}`;
-              setDynamicUrl(posterUrl);
-              newPosterPath = res.data.poster_path;
-              foundImage = true;
-            }
-          } catch (e) {
-            console.debug('Error fetching media info:', e.message);
-          }
-        }
-
-        if (foundImage && item.tmdb_id) {
-          try {
-            await axios.post('/api/streaming/progress', {
-              tmdb_id: item.tmdb_id,
-              media_type: type === 'movie' ? 'movie' : 'series',
-              season_number: item.season_number || null,
-              episode_number: item.episode_number || null,
-              progress_percent: item.progress_percentage || 0,
-              completed: false,
-              title: item.series_name || item.title || '',
-              poster_path: newPosterPath || item.poster || null,
-              backdrop_path: newBackdropPath || item.backdrop || null,
-              still_path: newStillPath || null
-            });
-          } catch (e) {
-            console.debug('Could not save image to progress:', e.message);
-          }
-        }
-
-        setIsLoading(false);
-      };
-      fetchTmdbImage();
-    } else {
-      setIsLoading(false);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item.tmdb_id, item.season_number, item.episode_number, imageUrl, type]);
-
-  if (isLoading) {
-    return (
-      <div className="thumbnail-placeholder loading">
-        {type === 'series' ? <SeriesIcon /> : <MovieIcon />}
-      </div>
-    );
-  }
-
-  if (!dynamicUrl || hasError) {
-    return (
-      <div className="thumbnail-placeholder">
-        {type === 'series' ? <SeriesIcon /> : <MovieIcon />}
-      </div>
-    );
-  }
-
-  return (
-    <LazyImage
-      src={dynamicUrl}
-      alt={item.series_name || item.title}
-      onError={() => setHasError(true)}
-    />
-  );
-});
-
 function Home() {
   const { isAuthenticated, user, isPremium } = useAuth();
-  const [continueWatchingMovies, setContinueWatchingMovies] = useState([]);
-  const [continueWatchingSeries, setContinueWatchingSeries] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [watchlist, setWatchlist] = useState([]);
+  const [continueWatching, setContinueWatching] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
 
   const loadData = useCallback(async () => {
     try {
       if (isAuthenticated) {
-        // Continuar veient
-        try {
-          const continueRes = await axios.get('/api/user/continue-watching');
-          const data = continueRes.data || [];
-          const movies = data.filter(item => item.type === 'movie');
-          const series = data.filter(item => item.type === 'series' || item.type === 'episode');
-          setContinueWatchingMovies(movies);
-          setContinueWatchingSeries(series);
-        } catch (e) {
-          console.error('Error carregant continue watching:', e);
-        }
 
         // Carregar recomanacions basades en l'historial o populars de TMDB
         try {
@@ -263,6 +144,35 @@ function Home() {
         } catch (e) {
           console.debug('Watchlist no disponible');
         }
+
+        // Continue Watching - carrega pel·lícules i sèries en progrés
+        try {
+          const [moviesProgress, seriesProgress] = await Promise.all([
+            axios.get('/api/user/progress/movies?limit=10').catch(() => ({ data: [] })),
+            axios.get('/api/user/progress/series?limit=10').catch(() => ({ data: [] }))
+          ]);
+
+          const movies = (moviesProgress.data || []).map(item => ({
+            ...item,
+            type: 'movie',
+            progress: item.progress || 0
+          }));
+
+          const series = (seriesProgress.data || []).map(item => ({
+            ...item,
+            type: 'series',
+            progress: item.progress || 0
+          }));
+
+          // Barrejar i ordenar per última visualització (més recent primer)
+          const combined = [...movies, ...series]
+            .sort((a, b) => new Date(b.last_watched || 0) - new Date(a.last_watched || 0))
+            .slice(0, 10);
+
+          setContinueWatching(combined);
+        } catch (e) {
+          console.debug('Continue watching no disponible');
+        }
       }
     } catch (error) {
       console.error('Error carregant dades:', error);
@@ -279,12 +189,6 @@ function Home() {
       navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
     }
   };
-
-  // Combinar contingut "continuar veient"
-  const allContinueWatching = [
-    ...continueWatchingMovies.map(item => ({ ...item, mediaType: 'movie' })),
-    ...continueWatchingSeries.map(item => ({ ...item, mediaType: 'series' }))
-  ].sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0));
 
   // Render item per al carousel de recomanacions
   const renderRecommendationItem = useCallback((item, index, isCenter) => {
@@ -327,6 +231,77 @@ function Home() {
         </div>
         <span className="carousel-poster-card__title">{item.name || item.title}</span>
         {item.year && <span className="carousel-poster-card__year">{item.year}</span>}
+      </div>
+    );
+  }, [navigate, isPremium]);
+
+  // Render item per al carousel de "Continua veient"
+  const renderContinueItem = useCallback((item, index, isCenter) => {
+    const itemType = item.type || 'series';
+    const link = item.tmdb_id
+      ? `/${itemType === 'movie' ? 'movies' : 'series'}/tmdb-${item.tmdb_id}`
+      : `/${itemType === 'movie' ? 'movies' : 'series'}/${item.id}`;
+
+    // Imatge: backdrop per a thumbnails de "continua veient"
+    const image = item.backdrop_path
+      ? `https://image.tmdb.org/t/p/w500${item.backdrop_path}`
+      : item.poster_path
+        ? `https://image.tmdb.org/t/p/w300${item.poster_path}`
+        : item.poster
+          ? item.poster
+          : (item.id ? `${API_URL}/api/image/backdrop/${item.id}` : null);
+
+    const progress = item.progress || 0;
+    const episodeInfo = item.season_number && item.episode_number
+      ? `T${item.season_number} E${item.episode_number}`
+      : null;
+
+    return (
+      <div
+        className={`continue-card-hero ${isCenter ? 'is-center' : ''}`}
+        onClick={() => navigate(link)}
+      >
+        <div className="continue-card-hero__image">
+          {image ? (
+            <LazyImage src={image} alt={item.name || item.title} />
+          ) : (
+            <div className="continue-placeholder">
+              {itemType === 'series' ? <SeriesIcon size={32} /> : <MovieIcon size={32} />}
+            </div>
+          )}
+          <div className="continue-card-hero__gradient" />
+          <button
+            className="continue-card-hero__play"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (isPremium && item.tmdb_id) {
+                if (itemType === 'movie') {
+                  navigate(`/debrid/movie/${item.tmdb_id}`);
+                } else {
+                  const s = item.season_number || 1;
+                  const ep = item.episode_number || 1;
+                  navigate(`/debrid/tv/${item.tmdb_id}?s=${s}&e=${ep}`);
+                }
+              } else {
+                navigate(link);
+              }
+            }}
+          >
+            <PlayIcon size={isCenter ? 28 : 22} />
+          </button>
+          {progress > 0 && (
+            <div className="continue-card-hero__progress">
+              <div
+                className="continue-card-hero__progress-bar"
+                style={{ width: `${Math.min(progress, 100)}%` }}
+              />
+            </div>
+          )}
+        </div>
+        <div className="continue-card-hero__info">
+          <span className="continue-card-hero__title">{item.name || item.title}</span>
+          {episodeInfo && <span className="continue-card-hero__episode">{episodeInfo}</span>}
+        </div>
       </div>
     );
   }, [navigate, isPremium]);
@@ -375,62 +350,6 @@ function Home() {
     );
   }, [navigate, isPremium]);
 
-  // Render item per al carousel de continuar veient
-  const renderContinueItem = useCallback((item, index, isCenter) => {
-    const isMovie = item.mediaType === 'movie';
-    let imageUrl = null;
-
-    if (item.source === 'streaming') {
-      if (item.still_path) {
-        imageUrl = item.still_path.startsWith('http') ? item.still_path : `https://image.tmdb.org/t/p/w780${item.still_path}`;
-      } else if (item.backdrop) {
-        imageUrl = item.backdrop.startsWith('http') ? item.backdrop : `https://image.tmdb.org/t/p/w780${item.backdrop}`;
-      } else if (item.poster) {
-        imageUrl = item.poster.startsWith('http') ? item.poster : `https://image.tmdb.org/t/p/w500${item.poster}`;
-      }
-    } else {
-      if (item.backdrop || item.poster) {
-        imageUrl = `${API_URL}/api/image/${item.backdrop ? 'backdrop' : 'poster'}/${item.series_id || item.id}`;
-      }
-    }
-
-    return (
-      <div
-        className="carousel-landscape-card"
-        onClick={() => {
-          if (item.tmdb_id) {
-            if (isMovie) {
-              navigate(`/debrid/movie/${item.tmdb_id}`);
-            } else {
-              navigate(`/debrid/tv/${item.tmdb_id}?s=${item.season_number || 1}&e=${item.episode_number || 1}`);
-            }
-          } else {
-            navigate(isMovie ? `/movies/${item.id}` : `/series/${item.series_id}`);
-          }
-        }}
-      >
-        <div className="carousel-landscape-card__image">
-          <ContinueThumbnail item={item} imageUrl={imageUrl} type={item.mediaType} />
-          <div className="carousel-landscape-card__overlay">
-            <PlayIcon size={isCenter ? 48 : 36} />
-          </div>
-          <div className="carousel-landscape-card__progress">
-            <div
-              className="carousel-landscape-card__progress-fill"
-              style={{ width: `${item.progress_percentage}%` }}
-            />
-          </div>
-        </div>
-        <div className="carousel-landscape-card__info">
-          <span className="carousel-landscape-card__title">{item.series_name || item.title}</span>
-          {!isMovie && item.season_number && (
-            <span className="carousel-landscape-card__meta">T{item.season_number} E{item.episode_number}</span>
-          )}
-        </div>
-      </div>
-    );
-  }, [navigate]);
-
   // Vista per usuaris autenticats
   if (isAuthenticated) {
     return (
@@ -440,84 +359,36 @@ function Home() {
           <div className="home-hero-content">
             <div className="home-greeting">
               <h1>Hola, {user?.display_name || user?.username || 'amic'}!</h1>
-              <p>Què t'agradaria veure?</p>
             </div>
 
             <form className="home-search" onSubmit={handleSearch}>
               <div className="home-search-inner">
-                <svg className="home-search-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg className="home-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <circle cx="11" cy="11" r="8"></circle>
                   <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
                 <input
                   type="text"
-                  placeholder="Cerca pel·lícules, sèries..."
+                  placeholder="Què et ve de gust veure?"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
             </form>
 
-            {/* Continue Watching - RIGHT AFTER search bar */}
-            {allContinueWatching.length > 0 && (
-              <div className="home-continue">
-                <div className="home-continue-header">
-                  <h2>Continuar veient</h2>
-                </div>
-                <div className="home-continue-grid">
-                  {allContinueWatching.slice(0, 4).map((item, index) => {
-                    const isMovie = item.mediaType === 'movie';
-                    let imageUrl = null;
-
-                    if (item.source === 'streaming') {
-                      if (item.still_path) {
-                        imageUrl = item.still_path.startsWith('http') ? item.still_path : `https://image.tmdb.org/t/p/w500${item.still_path}`;
-                      } else if (item.backdrop) {
-                        imageUrl = item.backdrop.startsWith('http') ? item.backdrop : `https://image.tmdb.org/t/p/w780${item.backdrop}`;
-                      } else if (item.poster) {
-                        imageUrl = item.poster.startsWith('http') ? item.poster : `https://image.tmdb.org/t/p/w500${item.poster}`;
-                      }
-                    } else {
-                      if (item.backdrop || item.poster) {
-                        imageUrl = `${API_URL}/api/image/${item.backdrop ? 'backdrop' : 'poster'}/${item.series_id || item.id}`;
-                      }
-                    }
-
-                    return (
-                      <div
-                        key={`continue-${item.tmdb_id || item.id}-${index}`}
-                        className="home-continue-card"
-                        onClick={() => {
-                          if (item.tmdb_id) {
-                            if (isMovie) {
-                              navigate(`/debrid/movie/${item.tmdb_id}`);
-                            } else {
-                              navigate(`/debrid/tv/${item.tmdb_id}?s=${item.season_number || 1}&e=${item.episode_number || 1}`);
-                            }
-                          } else {
-                            navigate(isMovie ? `/movies/${item.id}` : `/series/${item.series_id}`);
-                          }
-                        }}
-                      >
-                        <div className="home-continue-thumb">
-                          <ContinueThumbnail item={item} imageUrl={imageUrl} type={item.mediaType} />
-                          <div className="home-continue-overlay">
-                            <PlayIcon size={36} />
-                          </div>
-                          <div className="home-continue-progress">
-                            <div className="home-continue-progress-fill" style={{ width: `${item.progress_percentage}%` }} />
-                          </div>
-                        </div>
-                        <div className="home-continue-info">
-                          <span className="home-continue-title">{item.series_name || item.title}</span>
-                          {!isMovie && item.season_number && (
-                            <span className="home-continue-ep">T{item.season_number} E{item.episode_number}</span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+            {/* Continue Watching Carousel - sota la barra de cerca */}
+            {continueWatching.length > 0 && (
+              <div className="home-continue-section">
+                <h3 className="home-continue-title">Continua veient</h3>
+                <CenterFocusCarousel
+                  items={continueWatching}
+                  renderItem={renderContinueItem}
+                  itemWidth={200}
+                  centerScale={1.15}
+                  gap={16}
+                  className="continue-hero-carousel"
+                  showFadeEdges={false}
+                />
               </div>
             )}
           </div>
@@ -562,10 +433,10 @@ function Home() {
           {/* Watchlist Carousel */}
           {watchlist.length > 0 && (
             <section className="carousel-section">
-              <h2 className="section-header">
-                La meva llista
+              <div className="section-header-styled">
+                <h2>La meva llista</h2>
                 <Link to="/watchlist" className="see-all-link">Veure tot</Link>
-              </h2>
+              </div>
               <CenterFocusCarousel
                 items={watchlist}
                 renderItem={renderWatchlistItem}
@@ -573,21 +444,6 @@ function Home() {
                 centerScale={1.18}
                 gap={18}
                 className="watchlist-carousel"
-              />
-            </section>
-          )}
-
-          {/* Continue Watching Carousel */}
-          {allContinueWatching.length > 0 && (
-            <section className="carousel-section">
-              <h2 className="section-header">Continuar veient</h2>
-              <CenterFocusCarousel
-                items={allContinueWatching}
-                renderItem={renderContinueItem}
-                itemWidth={280}
-                centerScale={1.12}
-                gap={24}
-                className="continue-carousel"
               />
             </section>
           )}
