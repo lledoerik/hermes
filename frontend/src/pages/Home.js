@@ -533,6 +533,22 @@ function Home() {
               </div>
             </div>
           )}
+
+          {/* Botó de scroll down */}
+          <button
+            className="home-scroll-btn"
+            onClick={() => {
+              const authContent = document.querySelector('.auth-content');
+              if (authContent) {
+                authContent.scrollIntoView({ behavior: 'smooth' });
+              }
+            }}
+            aria-label="Veure més contingut"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
         </section>
 
         {/* Contingut addicional - Sota el fold */}
