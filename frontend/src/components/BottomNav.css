@@ -26,11 +26,12 @@
 
 .bottom-nav__container {
   display: flex;
-  justify-content: space-around;
+  justify-content: space-between;
   align-items: center;
-  max-width: 600px;
+  max-width: 500px;
   margin: 0 auto;
-  padding: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-6);
+  gap: var(--space-2);
 }
 
 /* ============================================
@@ -42,14 +43,18 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-1);
-  padding: var(--space-2);
-  min-width: 56px;
+  gap: 2px;
+  padding: var(--space-2) var(--space-1);
+  min-width: 52px;
+  max-width: 64px;
   color: var(--text-tertiary);
   text-decoration: none;
   transition: all var(--transition-fast);
   border-radius: var(--radius-lg);
   position: relative;
+  background: transparent;
+  border: none;
+  cursor: pointer;
 }
 
 .bottom-nav__item:active {
