@@ -1023,11 +1023,21 @@ function Details() {
 
   // formatDuration is now imported from config/api.js
 
+  // Skeleton loading state - smooth transition without blocking screen
   if (loading) {
     return (
-      <div className="loading-screen">
-        <img src="/img/hermes.png" alt="Hermes" className="loading-logo" />
-        <div className="loading-text">Carregant...</div>
+      <div className="details-container">
+        <div className="details-hero">
+          <div className="hero-backdrop skeleton-bg" />
+          <div className="hero-gradient" />
+          <div className="hero-content">
+            <div className="details-info">
+              <div className="skeleton-title" style={{ width: '60%', height: '40px', background: 'var(--bg-elevated-2)', borderRadius: '8px', marginBottom: '16px' }} />
+              <div className="skeleton-meta" style={{ width: '40%', height: '20px', background: 'var(--bg-elevated-2)', borderRadius: '4px', marginBottom: '24px' }} />
+              <div className="skeleton-text" style={{ width: '100%', height: '80px', background: 'var(--bg-elevated-2)', borderRadius: '8px' }} />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

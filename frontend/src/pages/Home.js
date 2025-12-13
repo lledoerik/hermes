@@ -425,13 +425,8 @@ function Home() {
     );
   };
 
-  if (loading) {
-    return (
-      <div className="loading-screen">
-        <img src="/img/hermes.png" alt="Hermes" className="loading-logo" />
-      </div>
-    );
-  }
+  // No loading screen - render immediately with skeleton/empty state
+  // This provides a smoother experience between page transitions
 
   // Check if there's any "continue watching" content
   const hasContinueContent = continueWatchingMovies.length > 0 ||
@@ -440,360 +435,174 @@ function Home() {
     (user?.is_admin && continueReadingBooks.length > 0) ||
     (user?.is_admin && continueListeningAudiobooks.length > 0);
 
-  // Vista personalitzada per usuaris autenticats - DISSENY MINIMALISTA CENTRAT EN CERCA
+  // Combinar tot el contingut "continuar veient" en una sola llista
+  const allContinueWatching = [
+    ...continueWatchingMovies.map(item => ({ ...item, mediaType: 'movie' })),
+    ...continueWatchingSeries.map(item => ({ ...item, mediaType: 'series' }))
+  ].sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0));
+
+  // Vista personalitzada per usuaris autenticats - DISSENY HERO ELEGANT
   if (isAuthenticated) {
     return (
       <div className="home-container authenticated">
-        {/* Hero minimalista amb cerca al centre */}
-        <section className="auth-hero">
-          <div className="auth-hero-bg">
-            <div className="auth-hero-glow"></div>
-          </div>
+        {/* Hero Section - Salutació + Cerca */}
+        <section className="home-hero">
+          <div className="home-hero-content">
+            {/* Salutació */}
+            <div className="home-greeting">
+              <h1>Hola, {user?.display_name || user?.username || 'amic'}!</h1>
+              <p>Què t'agradaria veure?</p>
+            </div>
 
-          <div className="auth-hero-content">
-            {/* Salutació subtil */}
-            <p className="auth-greeting">
-              {user?.display_name ? `Hola, ${user.display_name}` : 'Benvingut'}
-            </p>
-
-            {/* Títol principal */}
-            <h1 className="auth-title">Què vols veure?</h1>
-
-            {/* Cerca prominent */}
-            <form className="auth-search" onSubmit={handleSearch}>
-              <div className="auth-search-inner">
-                <svg className="auth-search-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            {/* Barra de cerca elegant */}
+            <form className="home-search" onSubmit={handleSearch}>
+              <div className="home-search-inner">
+                <svg className="home-search-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <circle cx="11" cy="11" r="8"></circle>
                   <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
                 <input
                   type="text"
-                  placeholder="Cercar pel·lícules, sèries..."
+                  placeholder="Cerca pel·lícules, sèries..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
-                <button type="submit" className="auth-search-btn">
-                  Cercar
-                </button>
               </div>
             </form>
-
-            {/* Categories principals - Accés ràpid */}
-            <div className="auth-categories">
-              <Link to="/movies" className="auth-category">
-                <MovieIcon />
-                <span>Pel·lícules</span>
-              </Link>
-              <Link to="/series" className="auth-category">
-                <SeriesIcon />
-                <span>Sèries</span>
-              </Link>
-              <Link to="/search" className="auth-category">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <circle cx="11" cy="11" r="8"></circle>
-                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>
-                <span>Explorar</span>
-              </Link>
-              {user?.is_admin && (
-                <Link to="/tv" className="auth-category">
-                  <TvIcon />
-                  <span>TV</span>
-                </Link>
-              )}
-            </div>
           </div>
+
+          {/* Continue Watching - Dins del hero, sota la cerca */}
+          {allContinueWatching.length > 0 && (
+            <div className="home-continue">
+              <div className="home-continue-header">
+                <h2>Continuar veient</h2>
+              </div>
+              <div className="home-continue-grid">
+                {allContinueWatching.slice(0, 4).map((item, index) => {
+                  const isMovie = item.mediaType === 'movie';
+                  let imageUrl = null;
+
+                  if (item.source === 'streaming') {
+                    if (item.still_path) {
+                      imageUrl = item.still_path.startsWith('http') ? item.still_path : `https://image.tmdb.org/t/p/w500${item.still_path}`;
+                    } else if (item.backdrop) {
+                      imageUrl = item.backdrop.startsWith('http') ? item.backdrop : `https://image.tmdb.org/t/p/w780${item.backdrop}`;
+                    } else if (item.poster) {
+                      imageUrl = item.poster.startsWith('http') ? item.poster : `https://image.tmdb.org/t/p/w500${item.poster}`;
+                    }
+                  } else {
+                    if (item.backdrop || item.poster) {
+                      imageUrl = `${API_URL}/api/image/${item.backdrop ? 'backdrop' : 'poster'}/${item.series_id || item.id}`;
+                    }
+                  }
+
+                  return (
+                    <div
+                      key={`continue-${item.tmdb_id || item.id}-${index}`}
+                      className="home-continue-card"
+                      onClick={() => {
+                        if (item.tmdb_id) {
+                          if (isMovie) {
+                            navigate(`/debrid/movie/${item.tmdb_id}`);
+                          } else {
+                            navigate(`/debrid/tv/${item.tmdb_id}?s=${item.season_number || 1}&e=${item.episode_number || 1}`);
+                          }
+                        } else {
+                          navigate(isMovie ? `/movies/${item.id}` : `/series/${item.series_id}`);
+                        }
+                      }}
+                    >
+                      <div className="home-continue-thumb">
+                        <ContinueThumbnail item={item} imageUrl={imageUrl} type={item.mediaType} />
+                        <div className="home-continue-overlay">
+                          <PlayIcon size={36} />
+                        </div>
+                        <div className="home-continue-progress">
+                          <div className="home-continue-progress-fill" style={{ width: `${item.progress_percentage}%` }} />
+                        </div>
+                      </div>
+                      <div className="home-continue-info">
+                        <span className="home-continue-title">{item.series_name || item.title}</span>
+                        {!isMovie && item.season_number && (
+                          <span className="home-continue-ep">T{item.season_number} E{item.episode_number}</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </section>
 
-        {/* Contingut - Només si hi ha alguna cosa per continuar veient */}
-        {hasContinueContent && (
-          <div className="auth-content">
-            {/* Continue Watching - Pel·lícules */}
-            {continueWatchingMovies.length > 0 && (
-              <section className="continue-watching-section">
-                <h2 className="row-title">Continuar veient</h2>
-                <ScrollableContainer>
-                  {continueWatchingMovies.map((item, index) => {
-                    let imageUrl = null;
-                    if (item.source === 'streaming') {
-                      if (item.backdrop) {
-                        imageUrl = `https://image.tmdb.org/t/p/w780${item.backdrop}`;
-                      } else if (item.poster) {
-                        imageUrl = `https://image.tmdb.org/t/p/w500${item.poster}`;
-                      }
-                    } else {
-                      if (item.backdrop || item.poster) {
-                        imageUrl = `${API_URL}/api/image/${item.backdrop ? 'backdrop' : 'poster'}/${item.series_id || item.id}`;
-                      }
-                    }
+        {/* Contingut addicional - Sota el fold */}
+        <div className="auth-content">
+          {/* Més "continuar veient" si n'hi ha més de 4 */}
+          {allContinueWatching.length > 4 && (
+            <section className="continue-watching-section">
+              <h2 className="row-title">Més per continuar</h2>
+              <ScrollableContainer>
+                {allContinueWatching.slice(4).map((item, index) => {
+                  const isMovie = item.mediaType === 'movie';
+                  let imageUrl = null;
 
-                    return (
+                  if (item.source === 'streaming') {
+                    if (item.still_path) {
+                      imageUrl = item.still_path.startsWith('http') ? item.still_path : `https://image.tmdb.org/t/p/w500${item.still_path}`;
+                    } else if (item.backdrop) {
+                      imageUrl = item.backdrop.startsWith('http') ? item.backdrop : `https://image.tmdb.org/t/p/w780${item.backdrop}`;
+                    } else if (item.poster) {
+                      imageUrl = item.poster.startsWith('http') ? item.poster : `https://image.tmdb.org/t/p/w500${item.poster}`;
+                    }
+                  } else {
+                    if (item.backdrop || item.poster) {
+                      imageUrl = `${API_URL}/api/image/${item.backdrop ? 'backdrop' : 'poster'}/${item.series_id || item.id}`;
+                    }
+                  }
+
+                  return (
+                    <div
+                      key={`continue-extra-${item.tmdb_id || item.id}-${index}`}
+                      className="continue-card"
+                    >
                       <div
-                        key={item.source === 'streaming' ? `stream-${item.tmdb_id}` : `local-${item.id}-${index}`}
-                        className="continue-card"
-                      >
-                        <div
-                          className="continue-thumbnail"
-                          onClick={() => {
-                            if (item.tmdb_id) {
+                        className="continue-thumbnail"
+                        onClick={() => {
+                          if (item.tmdb_id) {
+                            if (isMovie) {
                               navigate(`/debrid/movie/${item.tmdb_id}`);
                             } else {
-                              navigate(`/movies/${item.series_id || item.id}`);
-                            }
-                          }}
-                        >
-                          <ContinueThumbnail
-                            item={item}
-                            imageUrl={imageUrl}
-                            type="movie"
-                          />
-                          <div className="continue-overlay">
-                            <button className="play-btn">
-                              <PlayIcon />
-                            </button>
-                          </div>
-                          <div className="progress-bar">
-                            <div
-                              className="progress-fill"
-                              style={{ width: `${item.progress_percentage}%` }}
-                            />
-                          </div>
-                        </div>
-                        <div
-                          className="continue-info"
-                          onClick={() => {
-                            if (item.tmdb_id) {
-                              navigate(`/movies/tmdb-${item.tmdb_id}`);
-                            } else {
-                              navigate(`/movies/${item.series_id || item.id}`);
-                            }
-                          }}
-                        >
-                          <h3 className="continue-title">{item.series_name || item.title}</h3>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </ScrollableContainer>
-              </section>
-            )}
-
-            {/* Continue Watching - Sèries */}
-            {continueWatchingSeries.length > 0 && (
-              <section className="continue-watching-section">
-                <h2 className="row-title">Sèries en curs</h2>
-                <ScrollableContainer>
-                  {continueWatchingSeries.map((item, index) => {
-                    let imageUrl = null;
-                    if (item.source === 'streaming') {
-                      if (item.still_path) {
-                        imageUrl = item.still_path.startsWith('http')
-                          ? item.still_path
-                          : `https://image.tmdb.org/t/p/w500${item.still_path}`;
-                      } else if (item.backdrop) {
-                        imageUrl = item.backdrop.startsWith('http')
-                          ? item.backdrop
-                          : `https://image.tmdb.org/t/p/w780${item.backdrop}`;
-                      } else if (item.poster) {
-                        imageUrl = item.poster.startsWith('http')
-                          ? item.poster
-                          : `https://image.tmdb.org/t/p/w500${item.poster}`;
-                      }
-                    } else {
-                      if (item.backdrop || item.poster) {
-                        imageUrl = `${API_URL}/api/image/${item.backdrop ? 'backdrop' : 'poster'}/${item.series_id}`;
-                      }
-                    }
-
-                    return (
-                      <div
-                        key={item.source === 'streaming' ? `stream-${item.tmdb_id}-${item.season_number}-${item.episode_number}` : `local-${item.id}-${index}`}
-                        className="continue-card"
-                      >
-                        <div
-                          className="continue-thumbnail"
-                          onClick={() => {
-                            if (item.tmdb_id) {
                               navigate(`/debrid/tv/${item.tmdb_id}?s=${item.season_number || 1}&e=${item.episode_number || 1}`);
-                            } else {
-                              navigate(`/series/${item.series_id}`);
                             }
-                          }}
-                        >
-                          <ContinueThumbnail
-                            item={item}
-                            imageUrl={imageUrl}
-                            type="series"
-                          />
-                          <div className="continue-overlay">
-                            <button className="play-btn">
-                              <PlayIcon />
-                            </button>
-                          </div>
-                          <div className="progress-bar">
-                            <div
-                              className="progress-fill"
-                              style={{ width: `${item.progress_percentage}%` }}
-                            />
-                          </div>
-                        </div>
-                        <div
-                          className="continue-info"
-                          onClick={() => {
-                            if (item.tmdb_id) {
-                              navigate(`/series/tmdb-${item.tmdb_id}?season=${item.season_number || 1}`);
-                            } else {
-                              navigate(`/series/${item.series_id}`);
-                            }
-                          }}
-                        >
-                          <div className="continue-info-row">
-                            <h3 className="continue-title">{item.series_name}</h3>
-                            <span className="continue-episode">T{item.season_number} E{item.episode_number}</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </ScrollableContainer>
-              </section>
-            )}
-
-            {/* Continue Watching - Programes */}
-            {continueWatchingPrograms.length > 0 && (
-              <section className="continue-watching-section">
-                <h2 className="row-title">Programes en curs</h2>
-                <ScrollableContainer>
-                  {continueWatchingPrograms.map((item) => (
-                    <div
-                      key={item.id}
-                      className="continue-card"
-                      onClick={() => navigate(`/play/program/${item.id}`)}
-                    >
-                      <div className="continue-thumbnail">
-                        {item.backdrop || item.poster ? (
-                          <LazyImage
-                            src={`${API_URL}/api/image/${item.backdrop ? 'backdrop' : 'poster'}/${item.series_id || item.id}`}
-                            alt={item.series_name || item.title}
-                          />
-                        ) : (
-                          <div className="thumbnail-placeholder">
-                            <ProgramsIcon />
-                          </div>
-                        )}
+                          } else {
+                            navigate(isMovie ? `/movies/${item.id}` : `/series/${item.series_id}`);
+                          }
+                        }}
+                      >
+                        <ContinueThumbnail item={item} imageUrl={imageUrl} type={item.mediaType} />
                         <div className="continue-overlay">
                           <button className="play-btn">
                             <PlayIcon />
                           </button>
                         </div>
                         <div className="progress-bar">
-                          <div
-                            className="progress-fill"
-                            style={{ width: `${item.progress_percentage}%` }}
-                          />
+                          <div className="progress-fill" style={{ width: `${item.progress_percentage}%` }} />
                         </div>
                       </div>
                       <div className="continue-info">
                         <h3 className="continue-title">{item.series_name || item.title}</h3>
-                      </div>
-                    </div>
-                  ))}
-                </ScrollableContainer>
-              </section>
-            )}
-
-            {/* Continua llegint - Llibres (només admin) */}
-            {user?.is_admin && continueReadingBooks.length > 0 && (
-              <section className="continue-watching-section">
-                <h2 className="row-title">Continua llegint</h2>
-                <ScrollableContainer>
-                  {continueReadingBooks.map((item) => (
-                    <div
-                      key={item.id}
-                      className="continue-card book-card"
-                      onClick={() => navigate(`/books/${item.id}/read`)}
-                    >
-                      <div className="continue-thumbnail book-thumbnail">
-                        {item.cover ? (
-                          <LazyImage
-                            src={`${API_URL}/api/books/${item.id}/cover`}
-                            alt={item.title}
-                          />
-                        ) : (
-                          <div className="thumbnail-placeholder">
-                            <BookIcon />
-                          </div>
+                        {!isMovie && item.season_number && (
+                          <span className="continue-episode">T{item.season_number} E{item.episode_number}</span>
                         )}
-                        <div className="continue-overlay">
-                          <button className="play-btn">
-                            <BookIcon />
-                          </button>
-                        </div>
-                        <div className="progress-bar">
-                          <div
-                            className="progress-fill"
-                            style={{ width: `${item.progress_percentage || 0}%` }}
-                          />
-                        </div>
-                      </div>
-                      <div className="continue-info">
-                        <h3 className="continue-title">{item.title}</h3>
-                        <span className="continue-time">
-                          {item.current_page && item.total_pages
-                            ? `Pàgina ${item.current_page} de ${item.total_pages}`
-                            : `${item.progress_percentage || 0}%`}
-                        </span>
                       </div>
                     </div>
-                  ))}
-                </ScrollableContainer>
-              </section>
-            )}
+                  );
+                })}
+              </ScrollableContainer>
+            </section>
+          )}
 
-            {/* Continua escoltant - Audiollibres (només admin) */}
-            {user?.is_admin && continueListeningAudiobooks.length > 0 && (
-              <section className="continue-watching-section">
-                <h2 className="row-title">Continua escoltant</h2>
-                <ScrollableContainer>
-                  {continueListeningAudiobooks.map((item) => (
-                    <div
-                      key={item.id}
-                      className="continue-card"
-                      onClick={() => navigate(`/audiobooks/${item.id}/listen`)}
-                    >
-                      <div className="continue-thumbnail">
-                        {item.cover ? (
-                          <LazyImage
-                            src={`${API_URL}/api/audiobooks/${item.id}/cover`}
-                            alt={item.title}
-                          />
-                        ) : (
-                          <div className="thumbnail-placeholder">
-                            <AudiobookIcon />
-                          </div>
-                        )}
-                        <div className="continue-overlay">
-                          <button className="play-btn">
-                            <PlayIcon />
-                          </button>
-                        </div>
-                        <div className="progress-bar">
-                          <div
-                            className="progress-fill"
-                            style={{ width: `${item.progress_percentage || 0}%` }}
-                          />
-                        </div>
-                      </div>
-                      <div className="continue-info">
-                        <h3 className="continue-title">{item.title}</h3>
-                      </div>
-                    </div>
-                  ))}
-                </ScrollableContainer>
-              </section>
-            )}
-          </div>
-        )}
+        </div>
 
         {/* La meva llista (Watchlist) - Fora del hasContinueContent */}
         {watchlist.length > 0 && (

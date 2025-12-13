@@ -6,7 +6,6 @@ import { API_URL } from '../config/api';
 import {
   BookmarkIcon,
   PlayIcon,
-  PauseIcon,
   TrashIcon,
   StarIcon,
   MovieIcon,
@@ -247,21 +246,13 @@ function Watchlist() {
     );
   }
 
-  if (loading) {
-    return (
-      <div className="watchlist-container">
-        <div className="loading-screen">
-          <div className="loading-spinner"></div>
-        </div>
-      </div>
-    );
-  }
-
+  // No loading screen - render immediately for smoother UX
   return (
     <div className="watchlist-container">
       <div className="watchlist-header">
         <h1>
           <BookmarkIcon />
+          {loading && <span style={{ marginLeft: '8px', opacity: 0.5, fontSize: '14px' }}>...</span>}
           La meva llista
         </h1>
         <p className="watchlist-subtitle">

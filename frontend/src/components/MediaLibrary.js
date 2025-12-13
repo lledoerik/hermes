@@ -325,15 +325,7 @@ function MediaLibrary({ type = 'series' }) {
 
   const Icon = config.icon;
 
-  if (loading) {
-    return (
-      <div className="loading-screen">
-        <img src="/img/hermes.png" alt="Hermes" className="loading-logo" />
-        <div className="loading-text">Carregant {config.emptyText}...</div>
-      </div>
-    );
-  }
-
+  // No loading screen - render immediately for smoother page transitions
   const isSearching = searchQuery.trim().length > 0;
   const hasResults = sortedItems.length > 0;
 
@@ -343,6 +335,7 @@ function MediaLibrary({ type = 'series' }) {
         <div className="library-title">
           <span className="icon"><Icon size={28} /></span>
           <h1>{config.title}</h1>
+          {loading && <span style={{ marginLeft: '8px', opacity: 0.5, fontSize: '12px' }}>...</span>}
         </div>
       </div>
 

@@ -113,30 +113,26 @@
 }
 
 /* ============================================
-   PLAY BUTTON - Luxury Icon
+   PLAY BUTTON - Clean Minimal Icon
    ============================================ */
 
 .media-card__play-button {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%) scale(0.9);
-  background: var(--white);
-  backdrop-filter: blur(12px);
+  transform: translate(-50%, -50%) scale(0.85);
+  background: transparent;
   border: none;
-  border-radius: var(--radius-xl);
-  width: 64px;
-  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   opacity: 0;
-  transition: all var(--transition-spring);
-  color: var(--gray-900);
+  transition: all var(--transition-smooth);
+  color: var(--white);
   padding: 0;
-  box-shadow: var(--shadow-lg);
   pointer-events: all;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
 }
 
 .media-card:hover .media-card__play-button {
@@ -145,9 +141,8 @@
 }
 
 .media-card__play-button:hover {
-  transform: translate(-50%, -50%) scale(1.05);
-  background: var(--gray-100);
-  box-shadow: var(--shadow-xl);
+  transform: translate(-50%, -50%) scale(1.15);
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.6));
 }
 
 .media-card__play-button:active {
@@ -155,9 +150,8 @@
 }
 
 .media-card__play-button svg {
-  width: 28px;
-  height: 28px;
-  margin-left: 3px; /* Visual centering */
+  width: 44px;
+  height: 44px;
 }
 
 /* ============================================
@@ -323,14 +317,9 @@
     font-size: var(--text-base);
   }
 
-  .media-card__play-button {
-    width: 80px;
-    height: 56px;
-  }
-
   .media-card__play-button svg {
-    width: 32px;
-    height: 32px;
+    width: 52px;
+    height: 52px;
   }
 }
 
@@ -362,14 +351,12 @@
   }
 
   .media-card__play-button {
-    width: 52px;
-    height: 40px;
-    opacity: 0.95; /* Always slightly visible on mobile */
+    opacity: 0.9; /* Slightly visible on mobile for discoverability */
   }
 
   .media-card__play-button svg {
-    width: 20px;
-    height: 20px;
+    width: 36px;
+    height: 36px;
   }
 
   /* Mobile: Simplified overlay */
@@ -394,14 +381,9 @@
     font-size: var(--text-sm);
   }
 
-  .media-card__play-button {
-    width: 60px;
-    height: 44px;
-  }
-
   .media-card__play-button svg {
-    width: 24px;
-    height: 24px;
+    width: 40px;
+    height: 40px;
   }
 }
 

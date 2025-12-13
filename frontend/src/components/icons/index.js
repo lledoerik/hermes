@@ -43,10 +43,11 @@ export const SeriesIcon = ({ size = 24, className = '' }) => (
     strokeLinecap="round"
     strokeLinejoin="round"
   >
-    <rect x="4" y="6" width="16" height="12" rx="2"/>
-    <path d="M2 8v8"/>
-    <path d="M22 8v8"/>
-    <polygon points="10 9 10 15 15 12 10 9" fill="currentColor" stroke="none"/>
+    <rect x="2" y="4" width="20" height="16" rx="3"/>
+    <path d="M7 8h4"/>
+    <path d="M7 12h6"/>
+    <path d="M7 16h3"/>
+    <rect x="15" y="8" width="4" height="4" rx="0.5" fill="currentColor" opacity="0.4" stroke="none"/>
   </svg>
 );
 
@@ -392,8 +393,12 @@ export const WatchlistIcon = ({ size = 18, className = '' }) => (
     fill="none"
     stroke="currentColor"
     strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
   >
-    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+    <circle cx="12" cy="12" r="10"/>
+    <line x1="12" y1="8" x2="12" y2="16"/>
+    <line x1="8" y1="12" x2="16" y2="12"/>
   </svg>
 );
 

@@ -108,35 +108,13 @@ function Navbar() {
             <Link to="/series" className={`nav-link ${isActive('/series') ? 'active' : ''}`}>
               Sèries
             </Link>
-            {user?.is_admin ? (
-              <>
-                <Link to="/programs" className={`nav-link ${isActive('/programs') ? 'active' : ''}`}>
-                  Programes
-                </Link>
-                <Link to="/books" className={`nav-link ${isActive('/books') ? 'active' : ''}`}>
-                  Llibres
-                </Link>
-                <Link to="/audiobooks" className={`nav-link ${isActive('/audiobooks') ? 'active' : ''}`}>
-                  Audiollibres
-                </Link>
-                <Link to="/tv" className={`nav-link ${isActive('/tv') ? 'active' : ''}`}>
-                  Televisió
-                </Link>
-              </>
-            ) : (
-              <>
-                <span className="nav-link disabled">Programes</span>
-                <span className="nav-link disabled">Llibres</span>
-                <span className="nav-link disabled">Audiollibres</span>
-                <span className="nav-link disabled">Televisió</span>
-              </>
-            )}
+            {/* Seccions futures - ocultes de moment */}
           </div>
         </div>
 
         <div className="navbar-right">
-          {/* Barra de cerca - visible excepte a l'inici sense sessió */}
-          {(location.pathname !== '/' || isAuthenticated) && (
+          {/* Barra de cerca - NO visible a l'inici (té la seva pròpia cerca central) */}
+          {location.pathname !== '/' && (
             <form className={`navbar-search-box ${searchExpanded ? 'expanded' : ''}`} onSubmit={handleSearch}>
               <SearchIcon size={18} />
               <input
