@@ -164,33 +164,6 @@ npm run build
 
 The build output will be in `frontend/build/`, ready to be served by any static file server.
 
-### Recommended Setup
-
-1. Use a reverse proxy (nginx, IIS, or Caddy)
-2. Serve the frontend build as static files
-3. Proxy API requests to the FastAPI backend
-4. Configure SSL/TLS for HTTPS
-
-### Example nginx Configuration
-
-```nginx
-server {
-    listen 443 ssl;
-    server_name hermes.example.com;
-
-    location / {
-        root /path/to/hermes/frontend/build;
-        try_files $uri $uri/ /index.html;
-    }
-
-    location /api {
-        proxy_pass http://localhost:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
-
 ## Development
 
 ### Running Tests
