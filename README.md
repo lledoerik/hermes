@@ -1,4 +1,4 @@
-# Hermes
+# HERMES
 
 A personal media library management system with intelligent metadata integration and a modern user interface.
 
