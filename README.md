@@ -60,31 +60,6 @@ Hermes is a self-hosted media server that helps you organize, browse, and manage
 
 ## Installation
 
-### Quick Start (Windows)
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-username/hermes.git
-   cd hermes
-   ```
-
-2. Run the installation script:
-   ```batch
-   install.bat
-   ```
-
-3. Configure your settings in `config/settings.py`:
-   - Set your media library paths
-   - Add your TMDB API key
-   - Configure database location
-
-4. Start the server:
-   ```batch
-   start-all.bat
-   ```
-
-### Manual Installation
-
 #### Backend Setup
 
 ```bash
