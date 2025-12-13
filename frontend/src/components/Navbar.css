@@ -1,6 +1,6 @@
 /* ============================================
-   NAVBAR - Luxury Minimalist Design
-   Ultra-clean • Floating • Luminous
+   NAVBAR - Premium Monochromatic Design
+   Apple-inspired • Clean • Minimal
    ============================================ */
 
 .navbar {
@@ -9,12 +9,11 @@
   left: 0;
   right: 0;
   height: 72px;
-  /* Warm dark gradient with hint of primary color */
   background: linear-gradient(
     to bottom,
-    rgba(13, 17, 23, 0.95) 0%,
-    rgba(13, 17, 23, 0.8) 60%,
-    rgba(13, 17, 23, 0) 100%
+    rgba(10, 10, 11, 0.95) 0%,
+    rgba(10, 10, 11, 0.8) 60%,
+    rgba(10, 10, 11, 0) 100%
   );
   z-index: var(--z-sticky);
   transition: all var(--transition-smooth);
@@ -22,17 +21,15 @@
 }
 
 .navbar.scrolled {
-  background: rgba(13, 17, 23, 0.98);
+  background: rgba(10, 10, 11, 0.98);
   backdrop-filter: blur(32px);
   -webkit-backdrop-filter: blur(32px);
-  border-bottom: 1px solid var(--border-medium);
+  border-bottom: 1px solid var(--border-subtle);
   padding: var(--space-3) 0;
-  box-shadow:
-    0 4px 24px rgba(0, 0, 0, 0.4),
-    0 0 40px rgba(0, 212, 184, 0.05);
+  box-shadow: var(--shadow-lg);
 }
 
-/* Subtle luminous line at bottom when scrolled */
+/* Subtle line at bottom when scrolled */
 .navbar.scrolled::after {
   content: '';
   position: absolute;
@@ -43,7 +40,7 @@
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(0, 212, 184, 0.3) 50%,
+    var(--border-medium) 50%,
     transparent 100%
   );
 }
@@ -83,7 +80,6 @@
 
 .navbar-logo img {
   height: 32px;
-  filter: drop-shadow(0 2px 12px rgba(0, 212, 184, 0.4));
 }
 
 .navbar-logo-text {
@@ -92,7 +88,6 @@
   font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-tight);
   color: var(--text-primary);
-  text-shadow: 0 0 20px rgba(0, 212, 184, 0.2);
 }
 
 /* ============================================
@@ -128,9 +123,8 @@
   transform: translateX(-50%) scaleX(0);
   width: 24px;
   height: 2px;
-  background: var(--color-primary);
+  background: var(--text-primary);
   transition: transform var(--transition-smooth);
-  box-shadow: 0 0 8px rgba(0, 212, 184, 0.5);
   border-radius: var(--radius-full);
 }
 
@@ -144,8 +138,8 @@
 }
 
 .nav-link.active {
-  color: var(--color-primary);
-  text-shadow: 0 0 16px rgba(0, 212, 184, 0.3);
+  color: var(--text-primary);
+  font-weight: var(--weight-medium);
 }
 
 .nav-link.disabled {
@@ -226,14 +220,14 @@
 
 .navbar-search-box input:focus {
   outline: none;
-  border-color: var(--color-primary);
+  border-color: var(--border-strong);
   box-shadow:
-    0 0 0 3px var(--color-primary-subtle),
-    0 4px 16px rgba(0, 212, 184, 0.15);
+    0 0 0 3px rgba(255, 255, 255, 0.06),
+    var(--shadow-md);
 }
 
 .navbar-search-box:focus-within > svg:first-child {
-  color: var(--color-primary);
+  color: var(--text-primary);
 }
 
 .navbar-search-box .clear-search {
@@ -280,8 +274,8 @@
 .navbar-avatar {
   width: 40px;
   height: 40px;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
-  color: var(--text-inverse);
+  background: linear-gradient(135deg, var(--gray-600) 0%, var(--gray-500) 100%);
+  color: var(--text-primary);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -293,12 +287,12 @@
   overflow: hidden;
   border: 2px solid var(--border-medium);
   transition: all var(--transition-fast);
-  box-shadow: 0 2px 12px rgba(0, 212, 184, 0.2);
+  box-shadow: var(--shadow-sm);
 }
 
 .profile-button:hover .navbar-avatar {
-  border-color: var(--color-primary);
-  box-shadow: 0 4px 20px rgba(0, 212, 184, 0.35);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
 }
 
 .navbar-avatar.has-image {
@@ -333,7 +327,7 @@
   overflow: hidden;
 }
 
-/* Luminous top border on dropdown */
+/* Subtle top border on dropdown */
 .profile-dropdown::before {
   content: '';
   position: absolute;
@@ -344,7 +338,7 @@
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(0, 212, 184, 0.4) 50%,
+    var(--border-medium) 50%,
     transparent 100%
   );
 }
@@ -444,10 +438,10 @@
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-6);
-  background: var(--color-primary);
+  background: var(--white);
   border: none;
   border-radius: var(--radius-full);
-  color: var(--text-inverse);
+  color: var(--gray-900);
   font-family: var(--font-text);
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
@@ -455,17 +449,13 @@
   cursor: pointer;
   transition: all var(--transition-smooth);
   text-decoration: none;
-  box-shadow:
-    0 4px 16px rgba(0, 212, 184, 0.25),
-    0 0 20px rgba(0, 212, 184, 0.15);
+  box-shadow: var(--shadow-md);
 }
 
 .login-button-nav:hover {
-  background: var(--color-primary-light);
+  background: var(--gray-100);
   transform: translateY(-2px);
-  box-shadow:
-    0 8px 24px rgba(0, 212, 184, 0.35),
-    0 0 30px rgba(0, 212, 184, 0.2);
+  box-shadow: var(--shadow-lg);
 }
 
 .login-button-nav:active {

@@ -25,9 +25,9 @@
   border-radius: var(--radius-xl);
   padding: 1px;
   background: linear-gradient(135deg,
-    rgba(0, 212, 184, 0.3) 0%,
+    rgba(255, 255, 255, 0.15) 0%,
     transparent 50%,
-    rgba(0, 212, 184, 0.15) 100%
+    rgba(255, 255, 255, 0.08) 100%
   );
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
@@ -43,10 +43,10 @@
 
 .media-card:hover {
   transform: translateY(-8px);
-  border-color: var(--color-primary);
+  border-color: var(--border-strong);
   box-shadow:
     0 16px 48px rgba(0, 0, 0, 0.3),
-    0 0 40px rgba(0, 212, 184, 0.12);
+    0 0 40px rgba(255, 255, 255, 0.05);
 }
 
 /* ============================================
@@ -121,23 +121,21 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%) scale(0.9);
-  background: rgba(0, 212, 184, 0.95);
+  background: var(--white);
   backdrop-filter: blur(12px);
   border: none;
-  border-radius: 50%;
+  border-radius: var(--radius-xl);
   width: 64px;
-  height: 64px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   opacity: 0;
   transition: all var(--transition-spring);
-  color: var(--text-inverse);
+  color: var(--gray-900);
   padding: 0;
-  box-shadow:
-    0 8px 24px rgba(0, 212, 184, 0.4),
-    0 0 20px rgba(0, 212, 184, 0.3);
+  box-shadow: var(--shadow-lg);
   pointer-events: all;
 }
 
@@ -147,11 +145,9 @@
 }
 
 .media-card__play-button:hover {
-  transform: translate(-50%, -50%) scale(1.1);
-  background: var(--color-primary-light);
-  box-shadow:
-    0 12px 32px rgba(0, 212, 184, 0.5),
-    0 0 30px rgba(0, 212, 184, 0.4);
+  transform: translate(-50%, -50%) scale(1.05);
+  background: var(--gray-100);
+  box-shadow: var(--shadow-xl);
 }
 
 .media-card__play-button:active {
@@ -245,13 +241,9 @@
 
 .media-card__progress-bar {
   height: 100%;
-  background: linear-gradient(
-    90deg,
-    var(--color-primary) 0%,
-    var(--color-primary-light) 100%
-  );
+  background: var(--white);
   transition: width var(--transition-normal);
-  box-shadow: 0 0 12px rgba(0, 212, 184, 0.7);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
 }
 
 /* ============================================
@@ -332,8 +324,8 @@
   }
 
   .media-card__play-button {
-    width: 72px;
-    height: 72px;
+    width: 80px;
+    height: 56px;
   }
 
   .media-card__play-button svg {
@@ -370,8 +362,8 @@
   }
 
   .media-card__play-button {
-    width: 48px;
-    height: 48px;
+    width: 52px;
+    height: 40px;
     opacity: 0.95; /* Always slightly visible on mobile */
   }
 
@@ -403,8 +395,8 @@
   }
 
   .media-card__play-button {
-    width: 56px;
-    height: 56px;
+    width: 60px;
+    height: 44px;
   }
 
   .media-card__play-button svg {

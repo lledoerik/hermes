@@ -34,7 +34,7 @@
   height: 800px;
   background: radial-gradient(
     circle,
-    rgba(0, 184, 169, 0.08) 0%,
+    rgba(255, 255, 255, 0.03) 0%,
     transparent 70%
   );
   animation: ambientPulse 4s ease-in-out infinite;
@@ -110,16 +110,16 @@
   width: 160px;
   height: 160px;
   object-fit: contain;
-  filter: drop-shadow(0 8px 32px rgba(0, 184, 169, 0.4));
+  filter: drop-shadow(0 8px 32px rgba(255, 255, 255, 0.15));
   animation: logoGlow 2s ease-in-out infinite;
 }
 
 @keyframes logoGlow {
   0%, 100% {
-    filter: drop-shadow(0 8px 32px rgba(0, 184, 169, 0.4));
+    filter: drop-shadow(0 8px 32px rgba(255, 255, 255, 0.15));
   }
   50% {
-    filter: drop-shadow(0 8px 48px rgba(0, 184, 169, 0.6));
+    filter: drop-shadow(0 8px 48px rgba(255, 255, 255, 0.25));
   }
 }
 
@@ -174,17 +174,10 @@
   top: 0;
   left: 0;
   height: 100%;
-  background: linear-gradient(
-    90deg,
-    var(--color-primary) 0%,
-    var(--color-primary-light) 50%,
-    var(--color-primary) 100%
-  );
-  background-size: 200% 100%;
+  background: var(--white);
   border-radius: var(--radius-full);
   transition: width 0.8s var(--ease-smooth);
-  box-shadow: 0 0 20px rgba(0, 184, 169, 0.5);
-  animation: progressShimmer 2s linear infinite;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.4);
 }
 
 @keyframes progressShimmer {
@@ -223,9 +216,9 @@
 .startup-dot {
   width: 10px;
   height: 10px;
-  background: var(--color-primary);
+  background: var(--white);
   border-radius: 50%;
-  box-shadow: 0 0 16px rgba(0, 184, 169, 0.4);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.3);
   animation: dotBounce 1.4s var(--ease-smooth) infinite;
 }
 
@@ -249,7 +242,7 @@
   40% {
     transform: translateY(-16px) scale(1.1);
     opacity: 1;
-    box-shadow: 0 0 24px rgba(0, 184, 169, 0.6);
+    box-shadow: 0 0 16px rgba(255, 255, 255, 0.5);
   }
 }
 
@@ -397,7 +390,7 @@
   }
 
   .startup-hermes-logo {
-    filter: drop-shadow(0 8px 32px rgba(0, 184, 169, 0.4));
+    filter: drop-shadow(0 8px 32px rgba(255, 255, 255, 0.15));
   }
 
   .startup-progress-fill {
@@ -436,11 +429,11 @@
 .startup-spinner {
   width: 64px;
   height: 64px;
-  border: 3px solid var(--border-subtle);
-  border-top-color: var(--color-primary);
+  border: 2px solid var(--border-light);
+  border-top-color: var(--white);
   border-radius: 50%;
-  animation: spinnerRotate 1s linear infinite;
-  box-shadow: 0 0 20px rgba(0, 184, 169, 0.3);
+  animation: hermesSpin 0.7s linear infinite;
+  box-shadow: none;
 }
 
 @keyframes spinnerRotate {

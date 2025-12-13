@@ -1,0 +1,232 @@
+/* ============================================
+   BOTTOM NAVIGATION - Mobile App Style
+   Apple-inspired • Minimal • Elegant
+   ============================================ */
+
+.bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--z-sticky);
+  background: var(--bg-elevated);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  border-top: 1px solid var(--border-subtle);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Show only on mobile/tablet */
+@media (max-width: 1023px) {
+  .bottom-nav {
+    display: block;
+  }
+}
+
+.bottom-nav__container {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: var(--space-2) var(--space-4);
+}
+
+/* ============================================
+   NAV ITEMS
+   ============================================ */
+
+.bottom-nav__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  min-width: 56px;
+  color: var(--text-tertiary);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+  border-radius: var(--radius-lg);
+  position: relative;
+}
+
+.bottom-nav__item:active {
+  transform: scale(0.95);
+}
+
+/* Icon */
+.bottom-nav__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  transition: all var(--transition-fast);
+}
+
+.bottom-nav__icon svg {
+  transition: all var(--transition-fast);
+}
+
+/* Label */
+.bottom-nav__label {
+  font-family: var(--font-text);
+  font-size: 10px;
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-wide);
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+/* ============================================
+   ACTIVE STATE
+   ============================================ */
+
+.bottom-nav__item.active {
+  color: var(--text-primary);
+}
+
+.bottom-nav__item.active .bottom-nav__icon svg {
+  stroke-width: 2;
+}
+
+.bottom-nav__item.active .bottom-nav__label {
+  font-weight: var(--weight-semibold);
+}
+
+/* Active indicator */
+.bottom-nav__item.active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 2px;
+  background: var(--white);
+  border-radius: var(--radius-full);
+}
+
+/* ============================================
+   CENTER ITEM (SEARCH) - Prominent
+   ============================================ */
+
+.bottom-nav__item--center {
+  position: relative;
+}
+
+.bottom-nav__item--center .bottom-nav__icon {
+  width: 44px;
+  height: 44px;
+  background: var(--white);
+  border-radius: var(--radius-full);
+  color: var(--gray-900);
+  box-shadow: var(--shadow-md);
+  margin-bottom: var(--space-1);
+}
+
+.bottom-nav__item--center .bottom-nav__icon svg {
+  color: var(--gray-900);
+  stroke: var(--gray-900);
+}
+
+.bottom-nav__item--center:active .bottom-nav__icon {
+  transform: scale(0.95);
+  box-shadow: var(--shadow-sm);
+}
+
+.bottom-nav__item--center.active .bottom-nav__icon {
+  background: var(--white);
+}
+
+.bottom-nav__item--center.active::before {
+  display: none;
+}
+
+/* ============================================
+   HOVER STATES (for tablets with hover)
+   ============================================ */
+
+@media (hover: hover) {
+  .bottom-nav__item:hover {
+    color: var(--text-secondary);
+    background: var(--bg-glass);
+  }
+
+  .bottom-nav__item.active:hover {
+    color: var(--text-primary);
+  }
+
+  .bottom-nav__item--center:hover .bottom-nav__icon {
+    background: var(--gray-100);
+    box-shadow: var(--shadow-lg);
+  }
+}
+
+/* ============================================
+   SAFE AREA & SIZING
+   ============================================ */
+
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .bottom-nav {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Smaller screens */
+@media (max-width: 374px) {
+  .bottom-nav__container {
+    padding: var(--space-1) var(--space-2);
+  }
+
+  .bottom-nav__item {
+    min-width: 48px;
+    padding: var(--space-1);
+  }
+
+  .bottom-nav__label {
+    font-size: 9px;
+  }
+
+  .bottom-nav__item--center .bottom-nav__icon {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* ============================================
+   ACCESSIBILITY
+   ============================================ */
+
+.bottom-nav__item:focus-visible {
+  outline: 2px solid var(--white);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bottom-nav__item,
+  .bottom-nav__icon,
+  .bottom-nav__icon svg,
+  .bottom-nav__label {
+    transition: none;
+  }
+}
+
+/* ============================================
+   CONTENT PADDING (for pages)
+   To prevent content from being hidden behind nav
+   ============================================ */
+
+@media (max-width: 1023px) {
+  .page-content,
+  .home-container,
+  .movies-page,
+  .series-page,
+  .watchlist-container,
+  .search-page,
+  .details-container {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  }
+}

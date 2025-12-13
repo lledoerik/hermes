@@ -182,19 +182,19 @@
    TOAST TYPES - Color Variations
    ============================================ */
 
-/* Success - Primary Turquoise */
+/* Success - Green */
 .toast--success {
-  color: var(--color-primary);
-  border-color: rgba(0, 184, 169, 0.3);
+  color: var(--color-success);
+  border-color: rgba(74, 222, 128, 0.3);
 }
 
 .toast--success .toast__icon {
-  color: var(--color-primary);
+  color: var(--color-success);
 }
 
 .toast--success:hover {
-  border-color: var(--color-primary);
-  box-shadow: 0 16px 64px rgba(0, 184, 169, 0.2);
+  border-color: var(--color-success);
+  box-shadow: 0 16px 64px rgba(74, 222, 128, 0.2);
 }
 
 /* Error - Elegant Red */
@@ -227,19 +227,19 @@
   box-shadow: 0 16px 64px rgba(251, 191, 36, 0.2);
 }
 
-/* Info - Primary Turquoise */
+/* Info - White */
 .toast--info {
-  color: var(--color-primary);
-  border-color: rgba(0, 184, 169, 0.3);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .toast--info .toast__icon {
-  color: var(--color-primary);
+  color: var(--text-primary);
 }
 
 .toast--info:hover {
-  border-color: var(--color-primary);
-  box-shadow: 0 16px 64px rgba(0, 184, 169, 0.2);
+  border-color: var(--text-primary);
+  box-shadow: 0 16px 64px rgba(255, 255, 255, 0.1);
 }
 
 /* ============================================

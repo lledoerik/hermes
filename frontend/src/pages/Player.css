@@ -178,7 +178,7 @@
 }
 
 .tap-ripple.center {
-  background: radial-gradient(circle, rgba(0, 184, 169, 0.5) 0%, rgba(0, 184, 169, 0) 70%);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 70%);
 }
 
 @keyframes rippleExpand {
@@ -304,13 +304,13 @@
   transition: all var(--transition-smooth);
   z-index: 100;
   animation: slideInRight 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 8px 24px rgba(0, 184, 169, 0.3);
+  box-shadow: var(--shadow-lg);
 }
 
 .next-episode-btn:hover {
-  background: var(--color-primary-light);
+  background: var(--gray-100);
   transform: translateY(-2px);
-  box-shadow: 0 12px 32px rgba(0, 184, 169, 0.4);
+  box-shadow: var(--shadow-xl);
 }
 
 .next-episode-btn svg {
@@ -446,8 +446,8 @@
 
 .play-pause-btn:hover {
   background: var(--bg-glass-hover);
-  border-color: var(--color-primary);
-  box-shadow: 0 12px 40px rgba(0, 184, 169, 0.3);
+  border-color: var(--white);
+  box-shadow: var(--shadow-xl);
 }
 
 /* ============================================
@@ -510,12 +510,9 @@
   left: 0;
   top: 0;
   height: 100%;
-  background: linear-gradient(90deg,
-    var(--color-primary) 0%,
-    var(--color-primary-light) 100%
-  );
+  background: var(--white);
   border-radius: var(--radius-full);
-  box-shadow: 0 0 12px rgba(0, 184, 169, 0.4);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
 }
 
 .progress-handle {
@@ -1016,13 +1013,13 @@
   letter-spacing: var(--tracking-wide);
   cursor: pointer;
   transition: all var(--transition-smooth);
-  box-shadow: 0 8px 24px rgba(0, 184, 169, 0.3);
+  box-shadow: 0 8px 24px rgba(255, 255, 255, 0.15);
 }
 
 .error-back-btn:hover {
   background: var(--color-primary-light);
   transform: translateY(-2px);
-  box-shadow: 0 12px 32px rgba(0, 184, 169, 0.4);
+  box-shadow: 0 12px 32px rgba(255, 255, 255, 0.2);
 }
 
 /* ============================================
@@ -1197,13 +1194,13 @@
   transition: all var(--transition-smooth);
   background: var(--color-primary);
   color: var(--text-inverse);
-  box-shadow: 0 4px 12px rgba(0, 184, 169, 0.2);
+  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
 }
 
 .intro-editor-actions button:hover:not(:disabled) {
   background: var(--color-primary-light);
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(0, 184, 169, 0.3);
+  box-shadow: 0 6px 16px rgba(255, 255, 255, 0.15);
 }
 
 .intro-editor-actions button:disabled {
@@ -1270,13 +1267,13 @@
   letter-spacing: var(--tracking-wide);
   cursor: pointer;
   transition: all var(--transition-smooth);
-  box-shadow: 0 4px 12px rgba(0, 184, 169, 0.2);
+  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
 }
 
 .propagate-btn:hover:not(:disabled),
 .apply-btn.apply-all:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(0, 184, 169, 0.3);
+  box-shadow: 0 8px 20px rgba(255, 255, 255, 0.15);
 }
 
 .propagate-btn:disabled,

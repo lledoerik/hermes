@@ -26,7 +26,7 @@
   height: 500px;
   background: radial-gradient(
     ellipse 80% 50% at 50% 0%,
-    rgba(0, 184, 169, 0.05) 0%,
+    rgba(255, 255, 255, 0.02) 0%,
     transparent 70%
   );
   pointer-events: none;
@@ -227,14 +227,14 @@
   align-items: center;
   justify-content: center;
   width: 64px;
-  height: 64px;
+  height: 48px;
   background: var(--white);
   border: none;
-  border-radius: 50%;
+  border-radius: var(--radius-xl);
   color: var(--black-pure);
   cursor: pointer;
   transition: all var(--transition-smooth);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-lg);
 }
 
 .card-overlay .play-btn svg {

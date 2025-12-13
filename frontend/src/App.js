@@ -7,6 +7,7 @@ import { BBCProvider } from './context/BBCContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import ToastProvider from './components/Toast';
 import Navbar from './components/Navbar';
+import BottomNav from './components/BottomNav';
 import LoadingScreen from './components/LoadingScreen';
 import Home from './pages/Home';
 import Movies from './pages/Movies';
@@ -128,6 +129,7 @@ function AppContent() {
                     <Route path="/watchlist" element={<Watchlist />} />
                   </Routes>
                 </main>
+                <BottomNav />
               </>
             }
           />

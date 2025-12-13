@@ -539,9 +539,9 @@
    ============================================ */
 
 .error-boundary__btn--copied {
-  background: rgba(0, 184, 169, 0.2);
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+  background: rgba(74, 222, 128, 0.2);
+  border-color: var(--color-success);
+  color: var(--color-success);
   pointer-events: none;
 }
 

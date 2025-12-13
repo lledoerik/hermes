@@ -29,7 +29,7 @@
   height: 800px;
   background: radial-gradient(
     circle,
-    rgba(0, 184, 169, 0.08) 0%,
+    rgba(255, 255, 255, 0.03) 0%,
     transparent 60%
   );
   pointer-events: none;
@@ -91,7 +91,7 @@
   height: 88px;
   border-radius: var(--radius-2xl);
   margin-bottom: var(--space-6);
-  box-shadow: 0 8px 32px rgba(0, 184, 169, 0.3);
+  box-shadow: var(--shadow-lg);
   transition: transform var(--transition-smooth);
 }
 
