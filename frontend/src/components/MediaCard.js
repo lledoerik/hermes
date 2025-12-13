@@ -5,7 +5,7 @@ import LazyImage from './LazyImage';
 import { useAuth } from '../context/AuthContext';
 import { useBBC } from '../context/BBCContext';
 import { getPosterUrl } from '../config/api';
-import { TvIcon, MovieIcon, StarIcon, PlayIcon, InfoIcon } from './icons';
+import { TvIcon, MovieIcon, PlayIcon, InfoIcon } from './icons';
 import './MediaCard.css';
 
 function MediaCard({ item, type = 'series', width = 180, isTmdb = false }) {
@@ -114,12 +114,6 @@ function MediaCard({ item, type = 'series', width = 180, isTmdb = false }) {
             {type === 'movies' ? <MovieIcon size={48} /> : <TvIcon size={48} />}
           </div>
         )}
-
-        <div className="media-card__overlay">
-          <div className="media-card__rating">
-            <StarIcon size={12} /> {item.rating || '8.5'}
-          </div>
-        </div>
 
         <button
           className="media-card__play-button"

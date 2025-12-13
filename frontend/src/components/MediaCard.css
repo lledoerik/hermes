@@ -87,32 +87,6 @@
 }
 
 /* ============================================
-   OVERLAY - Subtle & Elegant
-   ============================================ */
-
-.media-card__overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    to top,
-    rgba(0, 0, 0, 0.9) 0%,
-    rgba(0, 0, 0, 0.6) 40%,
-    transparent 100%
-  );
-  opacity: 0;
-  transition: opacity var(--transition-normal);
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding: var(--space-6);
-  pointer-events: none;
-}
-
-.media-card:hover .media-card__overlay {
-  opacity: 1;
-}
-
-/* ============================================
    PLAY BUTTON - Clean Minimal Icon
    ============================================ */
 
@@ -238,30 +212,6 @@
   background: var(--white);
   transition: width var(--transition-normal);
   box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
-}
-
-/* ============================================
-   RATING - Elegant Display
-   ============================================ */
-
-.media-card__rating {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-2);
-  background: var(--bg-glass);
-  backdrop-filter: blur(8px);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  color: var(--color-primary-light);
-  border: 1px solid var(--border-light);
-}
-
-.media-card__rating svg {
-  width: 12px;
-  height: 12px;
-  fill: var(--color-primary);
 }
 
 /* ============================================

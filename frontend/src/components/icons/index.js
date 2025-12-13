@@ -43,11 +43,10 @@ export const SeriesIcon = ({ size = 24, className = '' }) => (
     strokeLinecap="round"
     strokeLinejoin="round"
   >
-    <rect x="2" y="4" width="20" height="16" rx="3"/>
-    <path d="M7 8h4"/>
-    <path d="M7 12h6"/>
-    <path d="M7 16h3"/>
-    <rect x="15" y="8" width="4" height="4" rx="0.5" fill="currentColor" opacity="0.4" stroke="none"/>
+    {/* Stacked screens representing multiple episodes */}
+    <rect x="4" y="6" width="16" height="12" rx="2"/>
+    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+    <path d="M10 10l4 2-4 2v-4"/>
   </svg>
 );
 
