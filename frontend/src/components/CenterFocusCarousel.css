@@ -1,6 +1,6 @@
 /* ============================================
    CENTER FOCUS CAROUSEL
-   Scroll infinit amb element central destacat
+   Elegant Scroll • Center Highlight • Smooth Motion
    ============================================ */
 
 .center-carousel {
@@ -9,26 +9,36 @@
   overflow: hidden;
 }
 
-/* Fade edges */
+/* Elegant fade edges with gradient */
 .center-carousel.show-fade::before,
 .center-carousel.show-fade::after {
   content: '';
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 80px;
+  width: 100px;
   z-index: 10;
   pointer-events: none;
 }
 
 .center-carousel.show-fade::before {
   left: 0;
-  background: linear-gradient(to right, var(--bg-base) 0%, transparent 100%);
+  background: linear-gradient(
+    to right,
+    var(--bg-base) 0%,
+    rgba(10, 10, 12, 0.8) 40%,
+    transparent 100%
+  );
 }
 
 .center-carousel.show-fade::after {
   right: 0;
-  background: linear-gradient(to left, var(--bg-base) 0%, transparent 100%);
+  background: linear-gradient(
+    to left,
+    var(--bg-base) 0%,
+    rgba(10, 10, 12, 0.8) 40%,
+    transparent 100%
+  );
 }
 
 /* Track */
@@ -40,8 +50,9 @@
   -ms-overflow-style: none;
   cursor: grab;
   user-select: none;
-  padding: 40px 0;
+  padding: 48px 0;
   scroll-behavior: smooth;
+  gap: var(--space-4);
 }
 
 .center-carousel__track::-webkit-scrollbar {
@@ -57,16 +68,26 @@
 .center-carousel__item {
   flex: 0 0 auto;
   width: var(--item-width, 160px);
-  transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-              opacity 0.4s ease;
+  transition:
+    transform var(--duration-slow) var(--ease-smooth),
+    opacity var(--duration-slow) var(--ease-smooth),
+    filter var(--duration-slow) var(--ease-smooth);
   transform-origin: center center;
-  opacity: 0.7;
+  opacity: 0.6;
+  filter: brightness(0.85);
 }
 
 .center-carousel__item.is-center {
-  transform: scale(var(--center-scale, 1.15));
+  transform: scale(var(--center-scale, 1.12));
   opacity: 1;
+  filter: brightness(1);
   z-index: 5;
+}
+
+/* Items adjacent to center */
+.center-carousel__item.is-adjacent {
+  opacity: 0.8;
+  filter: brightness(0.92);
 }
 
 /* Prevent clicks during drag */
@@ -75,33 +96,36 @@
 }
 
 /* ============================================
-   ITEM CONTENT STYLES
+   POSTER CARD STYLE
    ============================================ */
 
-/* Poster card style */
 .carousel-poster-card {
   cursor: pointer;
-  transition: transform var(--transition-normal, 0.2s);
+  transition: transform var(--duration-normal) var(--ease-smooth);
 }
 
 .carousel-poster-card:hover {
-  transform: scale(1.02);
+  transform: scale(1.03);
 }
 
 .carousel-poster-card__image {
   position: relative;
   aspect-ratio: 2/3;
-  border-radius: var(--radius-lg, 12px);
+  border-radius: var(--radius-xl);
   overflow: hidden;
-  background: var(--bg-elevated-2, #1a1a1a);
-  border: 1px solid var(--border-medium, rgba(255,255,255,0.1));
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  box-shadow: var(--shadow-card);
+  transition:
+    box-shadow var(--duration-normal) var(--ease-smooth),
+    border-color var(--duration-normal) var(--ease-smooth);
 }
 
 .is-center .carousel-poster-card__image {
-  border-color: var(--border-strong, rgba(255,255,255,0.2));
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4),
-              0 0 0 1px rgba(255, 255, 255, 0.1);
+  border-color: var(--border-card-hover);
+  box-shadow:
+    var(--shadow-card-hover),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 .carousel-poster-card__image img,
@@ -109,6 +133,11 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform var(--duration-slower) var(--ease-smooth);
+}
+
+.carousel-poster-card:hover .carousel-poster-card__image img {
+  transform: scale(1.05);
 }
 
 .carousel-poster-card__overlay {
@@ -117,17 +146,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.4);
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity var(--duration-normal) var(--ease-smooth);
   border: none;
   cursor: pointer;
-  color: var(--white, #fff);
-}
-
-.carousel-poster-card:hover .carousel-poster-card__overlay,
-.is-center .carousel-poster-card__overlay {
-  opacity: 0;
+  color: var(--white);
 }
 
 .carousel-poster-card:hover .carousel-poster-card__overlay {
@@ -136,55 +160,62 @@
 
 .carousel-poster-card__title {
   display: block;
-  margin-top: var(--space-3, 12px);
-  font-family: var(--font-text, sans-serif);
-  font-size: var(--text-sm, 14px);
-  font-weight: var(--weight-medium, 500);
-  color: var(--text-primary, #fff);
+  margin-top: var(--space-4);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  opacity: 0.8;
-  transition: opacity 0.2s ease;
+  transition: color var(--duration-normal) var(--ease-smooth);
+  padding: 0 var(--space-2);
 }
 
 .is-center .carousel-poster-card__title {
-  opacity: 1;
+  color: var(--text-primary);
 }
 
 .carousel-poster-card__year {
   display: block;
-  font-size: var(--text-xs, 12px);
-  color: var(--text-tertiary, rgba(255,255,255,0.5));
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
   text-align: center;
-  margin-top: 2px;
+  margin-top: var(--space-1);
 }
 
-/* Landscape card style (for continue watching) */
+/* ============================================
+   LANDSCAPE CARD STYLE (Continue Watching)
+   ============================================ */
+
 .carousel-landscape-card {
   cursor: pointer;
-  transition: transform var(--transition-normal, 0.2s);
+  transition: transform var(--duration-normal) var(--ease-smooth);
 }
 
 .carousel-landscape-card:hover {
-  transform: scale(1.02);
+  transform: scale(1.03);
 }
 
 .carousel-landscape-card__image {
   position: relative;
   aspect-ratio: 16/9;
-  border-radius: var(--radius-xl, 16px);
+  border-radius: var(--radius-xl);
   overflow: hidden;
-  background: var(--bg-elevated-2, #1a1a1a);
-  border: 1px solid var(--border-medium, rgba(255,255,255,0.1));
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  box-shadow: var(--shadow-card);
+  transition:
+    box-shadow var(--duration-normal) var(--ease-smooth),
+    border-color var(--duration-normal) var(--ease-smooth);
 }
 
 .is-center .carousel-landscape-card__image {
-  border-color: var(--border-strong, rgba(255,255,255,0.2));
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4),
-              0 0 0 1px rgba(255, 255, 255, 0.1);
+  border-color: var(--border-card-hover);
+  box-shadow:
+    var(--shadow-card-hover),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 .carousel-landscape-card__image img,
@@ -192,6 +223,11 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform var(--duration-slower) var(--ease-smooth);
+}
+
+.carousel-landscape-card:hover .carousel-landscape-card__image img {
+  transform: scale(1.05);
 }
 
 .carousel-landscape-card__overlay {
@@ -200,59 +236,118 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.35);
   opacity: 0;
-  transition: opacity 0.2s ease;
-  color: var(--white, #fff);
+  transition: opacity var(--duration-normal) var(--ease-smooth);
+  color: var(--white);
 }
 
 .carousel-landscape-card:hover .carousel-landscape-card__overlay {
   opacity: 1;
 }
 
+/* Progress bar */
 .carousel-landscape-card__progress {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
   height: 4px;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+  overflow: hidden;
 }
 
 .carousel-landscape-card__progress-fill {
   height: 100%;
-  background: var(--white, #fff);
-  transition: width 0.3s ease;
-  box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+  background: linear-gradient(
+    90deg,
+    var(--color-accent) 0%,
+    var(--color-accent-light) 100%
+  );
+  transition: width var(--duration-slow) var(--ease-smooth);
+  box-shadow: 0 0 10px var(--color-accent);
 }
 
 .carousel-landscape-card__info {
-  padding: var(--space-3, 12px) var(--space-1, 4px);
+  padding: var(--space-4) var(--space-2);
   text-align: left;
 }
 
 .carousel-landscape-card__title {
   display: block;
-  font-family: var(--font-text, sans-serif);
-  font-size: var(--text-sm, 14px);
-  font-weight: var(--weight-medium, 500);
-  color: var(--text-primary, #fff);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  opacity: 0.8;
-  transition: opacity 0.2s ease;
+  transition: color var(--duration-normal) var(--ease-smooth);
 }
 
 .is-center .carousel-landscape-card__title {
-  opacity: 1;
+  color: var(--text-primary);
 }
 
 .carousel-landscape-card__meta {
   display: block;
-  font-size: var(--text-xs, 12px);
-  color: var(--text-tertiary, rgba(255,255,255,0.5));
-  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  margin-top: var(--space-1);
+}
+
+/* ============================================
+   NAVIGATION ARROWS (Optional)
+   ============================================ */
+
+.center-carousel__nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 48px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 20;
+  opacity: 0;
+  transition:
+    opacity var(--duration-normal) var(--ease-smooth),
+    background var(--duration-fast) var(--ease-smooth),
+    transform var(--duration-fast) var(--ease-smooth);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-md);
+}
+
+.center-carousel:hover .center-carousel__nav {
+  opacity: 1;
+}
+
+.center-carousel__nav:hover {
+  background: var(--bg-card-hover);
+  transform: translateY(-50%) scale(1.08);
+}
+
+.center-carousel__nav:active {
+  transform: translateY(-50%) scale(0.95);
+}
+
+.center-carousel__nav--prev {
+  left: var(--space-4);
+}
+
+.center-carousel__nav--next {
+  right: var(--space-4);
+}
+
+.center-carousel__nav svg {
+  width: 20px;
+  height: 20px;
 }
 
 /* ============================================
@@ -262,41 +357,76 @@
 @media (min-width: 1440px) {
   .center-carousel.show-fade::before,
   .center-carousel.show-fade::after {
-    width: 120px;
+    width: 140px;
   }
 
   .center-carousel__track {
-    padding: 50px 0;
+    padding: 56px 0;
+    gap: var(--space-5);
+  }
+
+  .carousel-poster-card__title {
+    font-size: var(--text-base);
   }
 }
 
 @media (max-width: 1023px) {
   .center-carousel.show-fade::before,
   .center-carousel.show-fade::after {
-    width: 60px;
+    width: 80px;
   }
 
   .center-carousel__track {
-    padding: 30px 0;
+    padding: 36px 0;
+    gap: var(--space-3);
+  }
+
+  .center-carousel__nav {
+    width: 40px;
+    height: 40px;
+  }
+
+  .center-carousel__nav svg {
+    width: 16px;
+    height: 16px;
   }
 }
 
 @media (max-width: 767px) {
   .center-carousel.show-fade::before,
   .center-carousel.show-fade::after {
-    width: 40px;
+    width: 48px;
   }
 
   .center-carousel__track {
-    padding: 24px 0;
+    padding: 28px 0;
+    gap: var(--space-2);
   }
 
   .carousel-poster-card__title {
-    font-size: var(--text-xs, 12px);
+    font-size: var(--text-xs);
+    margin-top: var(--space-3);
   }
 
   .carousel-landscape-card__title {
-    font-size: var(--text-xs, 12px);
+    font-size: var(--text-xs);
+  }
+
+  .carousel-landscape-card__info {
+    padding: var(--space-3) var(--space-1);
+  }
+
+  /* Hide navigation arrows on mobile */
+  .center-carousel__nav {
+    display: none;
+  }
+
+  .center-carousel__item {
+    opacity: 0.7;
+  }
+
+  .center-carousel__item.is-center {
+    opacity: 1;
   }
 }
 
@@ -312,9 +442,21 @@
   .center-carousel__track {
     scroll-behavior: auto;
   }
+
+  .carousel-poster-card,
+  .carousel-landscape-card,
+  .carousel-poster-card__image img,
+  .carousel-landscape-card__image img {
+    transition: none;
+  }
 }
 
 .center-carousel__item:focus-visible {
-  outline: 2px solid var(--color-primary, #fff);
+  outline: 2px solid var(--color-primary);
+  outline-offset: 4px;
+}
+
+.center-carousel__nav:focus-visible {
+  outline: 2px solid var(--color-primary);
   outline-offset: 4px;
 }

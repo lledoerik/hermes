@@ -25,7 +25,17 @@ function Home() {
   const [watchlist, setWatchlist] = useState([]);
   const [continueWatching, setContinueWatching] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [hasScrolled, setHasScrolled] = useState(false);
   const navigate = useNavigate();
+
+  // Detectar scroll per amagar el botó EXPLORA
+  useEffect(() => {
+    const handleScroll = () => {
+      setHasScrolled(window.scrollY > 100);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
@@ -404,9 +414,9 @@ function Home() {
             )}
           </div>
 
-          {/* Explore button */}
+          {/* Explore button - s'amaga amb scroll */}
           <button
-            className="home-explore-btn"
+            className={`home-explore-btn ${hasScrolled ? 'hidden' : ''}`}
             onClick={() => {
               const authContent = document.querySelector('.auth-content');
               if (authContent) {
@@ -416,9 +426,8 @@ function Home() {
             aria-label="Explora més contingut"
           >
             <span>Explora</span>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="7 10 12 15 17 10"/>
-              <polyline points="7 5 12 10 17 5"/>
+            <svg viewBox="0 0 48 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="14 4 24 12 34 4"/>
             </svg>
           </button>
         </section>

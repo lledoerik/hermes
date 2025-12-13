@@ -1,6 +1,6 @@
 /* ============================================
-   NAVBAR - Premium Monochromatic Design
-   Apple-inspired • Clean • Minimal
+   NAVBAR - Premium Cinematic Design v2.0
+   Elegant • Fluid Animations • Warm Contrast
    ============================================ */
 
 .navbar {
@@ -11,25 +11,27 @@
   height: 72px;
   background: linear-gradient(
     to bottom,
-    rgba(10, 10, 11, 0.95) 0%,
-    rgba(10, 10, 11, 0.8) 60%,
-    rgba(10, 10, 11, 0) 100%
+    rgba(10, 10, 12, 0.95) 0%,
+    rgba(10, 10, 12, 0.7) 70%,
+    transparent 100%
   );
   z-index: var(--z-sticky);
-  transition: all var(--transition-smooth);
+  transition: all 0.5s var(--ease-smooth);
   padding: var(--space-4) 0;
 }
 
 .navbar.scrolled {
-  background: rgba(10, 10, 11, 0.98);
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
-  border-bottom: 1px solid var(--border-subtle);
+  background: rgba(10, 10, 12, 0.97);
+  backdrop-filter: blur(40px) saturate(1.2);
+  -webkit-backdrop-filter: blur(40px) saturate(1.2);
+  border-bottom: 1px solid var(--border-card);
   padding: var(--space-3) 0;
-  box-shadow: var(--shadow-lg);
+  box-shadow:
+    0 4px 30px rgba(0, 0, 0, 0.4),
+    0 1px 0 rgba(255, 255, 255, 0.03) inset;
 }
 
-/* Subtle line at bottom when scrolled */
+/* Elegant gradient line at bottom when scrolled */
 .navbar.scrolled::after {
   content: '';
   position: absolute;
@@ -40,9 +42,11 @@
   background: linear-gradient(
     90deg,
     transparent 0%,
-    var(--border-medium) 50%,
+    var(--border-card-hover) 30%,
+    var(--border-card-hover) 70%,
     transparent 100%
   );
+  opacity: 0.6;
 }
 
 .navbar-container {
@@ -70,16 +74,22 @@
   align-items: center;
   gap: var(--space-3);
   cursor: pointer;
-  transition: opacity var(--transition-fast);
+  transition: all 0.4s var(--ease-smooth);
   text-decoration: none;
 }
 
 .navbar-logo:hover {
-  opacity: 0.8;
+  opacity: 0.85;
+  transform: scale(1.02);
 }
 
 .navbar-logo img {
   height: 32px;
+  transition: filter 0.3s var(--ease-smooth);
+}
+
+.navbar-logo:hover img {
+  filter: brightness(1.1);
 }
 
 .navbar-logo-text {
@@ -88,10 +98,11 @@
   font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-tight);
   color: var(--text-primary);
+  transition: color 0.3s var(--ease-smooth);
 }
 
 /* ============================================
-   NAVIGATION LINKS - Minimal & Spaced
+   NAVIGATION LINKS - Fluid Underline Effect
    ============================================ */
 
 .navbar-links {
@@ -108,33 +119,42 @@
   font-weight: var(--weight-regular);
   letter-spacing: var(--tracking-wide);
   text-decoration: none;
-  transition: color var(--transition-fast);
+  transition: color 0.35s var(--ease-smooth);
   cursor: pointer;
   background: none;
   border: none;
   padding: var(--space-2) 0;
 }
 
+/* Animated underline with glow */
 .nav-link::before {
   content: '';
   position: absolute;
-  bottom: 0;
+  bottom: -2px;
   left: 50%;
   transform: translateX(-50%) scaleX(0);
-  width: 24px;
+  width: 100%;
+  max-width: 32px;
   height: 2px;
-  background: var(--text-primary);
-  transition: transform var(--transition-smooth);
+  background: linear-gradient(90deg, var(--color-accent), var(--text-cream));
+  transition: transform 0.4s var(--ease-smooth), opacity 0.3s ease;
   border-radius: var(--radius-full);
+  opacity: 0;
 }
 
 .nav-link:hover {
   color: var(--text-primary);
 }
 
-.nav-link:hover::before,
+.nav-link:hover::before {
+  transform: translateX(-50%) scaleX(1);
+  opacity: 1;
+}
+
 .nav-link.active::before {
   transform: translateX(-50%) scaleX(1);
+  opacity: 1;
+  box-shadow: 0 0 8px var(--color-accent-glow);
 }
 
 .nav-link.active {
@@ -176,13 +196,13 @@
   color: var(--text-tertiary);
   pointer-events: none;
   z-index: 1;
-  transition: color var(--transition-fast);
+  transition: all 0.4s var(--ease-smooth);
 }
 
 .navbar-search-box input {
   width: 48px;
   height: 48px;
-  border: 1px solid var(--border-medium);
+  border: 1px solid var(--border-card);
   border-radius: var(--radius-full);
   padding: 0 var(--space-4);
   padding-left: 48px;
@@ -190,26 +210,26 @@
   font-size: var(--text-sm);
   font-weight: var(--weight-regular);
   letter-spacing: var(--tracking-wide);
-  background: var(--bg-elevated);
+  background: var(--bg-card);
   backdrop-filter: blur(16px);
   color: var(--text-primary);
-  transition: all var(--transition-smooth);
+  transition: all 0.5s var(--ease-smooth);
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-card);
 }
 
 .navbar-search-box input::placeholder {
   color: var(--text-tertiary);
   opacity: 0;
-  transition: opacity var(--transition-fast);
+  transition: opacity 0.3s var(--ease-smooth);
 }
 
 .navbar-search-box.expanded input,
 .navbar-search-box input:focus {
   width: 320px;
   padding-right: 48px;
-  border-color: var(--border-light);
-  background: var(--bg-glass-hover);
+  border-color: var(--border-card-hover);
+  background: rgba(22, 22, 24, 0.95);
   cursor: text;
 }
 
@@ -220,14 +240,15 @@
 
 .navbar-search-box input:focus {
   outline: none;
-  border-color: var(--border-strong);
+  border-color: var(--color-accent);
   box-shadow:
-    0 0 0 3px rgba(255, 255, 255, 0.06),
-    var(--shadow-md);
+    0 0 0 3px rgba(212, 175, 55, 0.1),
+    var(--shadow-card-hover);
 }
 
 .navbar-search-box:focus-within > svg:first-child {
-  color: var(--text-primary);
+  color: var(--color-accent);
+  transform: scale(1.1);
 }
 
 .navbar-search-box .clear-search {
@@ -242,12 +263,20 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  transition: all var(--transition-fast);
+  transition: all 0.3s var(--ease-smooth);
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.navbar-search-box.expanded .clear-search,
+.navbar-search-box:focus-within .clear-search {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .navbar-search-box .clear-search:hover {
   color: var(--text-primary);
-  background: var(--bg-glass);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 /* ============================================
@@ -264,17 +293,17 @@
   cursor: pointer;
   padding: 0;
   border-radius: 50%;
-  transition: transform var(--transition-fast);
+  transition: all 0.35s var(--ease-smooth);
 }
 
 .profile-button:hover {
-  transform: scale(1.05);
+  transform: scale(1.08);
 }
 
 .navbar-avatar {
   width: 40px;
   height: 40px;
-  background: linear-gradient(135deg, var(--gray-600) 0%, var(--gray-500) 100%);
+  background: linear-gradient(135deg, var(--bg-card) 0%, rgba(40, 40, 45, 1) 100%);
   color: var(--text-primary);
   border-radius: 50%;
   display: flex;
@@ -285,19 +314,19 @@
   font-size: var(--text-base);
   letter-spacing: var(--tracking-wide);
   overflow: hidden;
-  border: 2px solid var(--border-medium);
-  transition: all var(--transition-fast);
-  box-shadow: var(--shadow-sm);
+  border: 2px solid var(--border-card);
+  transition: all 0.35s var(--ease-smooth);
+  box-shadow: var(--shadow-card);
 }
 
 .profile-button:hover .navbar-avatar {
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-md);
+  border-color: var(--border-card-hover);
+  box-shadow: var(--shadow-card-hover);
 }
 
 .navbar-avatar.has-image {
-  background: var(--gray-800);
-  border: 2px solid var(--border-light);
+  background: var(--bg-card);
+  border: 2px solid var(--border-card-hover);
 }
 
 .navbar-avatar img {
@@ -307,27 +336,27 @@
 }
 
 /* ============================================
-   DROPDOWN - Glassmorphism Luxury
+   DROPDOWN - Glassmorphism Premium
    ============================================ */
 
 .profile-dropdown {
   position: absolute;
   top: calc(100% + var(--space-3));
   right: 0;
-  background: var(--bg-elevated);
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
-  border: 1px solid var(--border-medium);
+  background: rgba(22, 22, 24, 0.97);
+  backdrop-filter: blur(40px) saturate(1.3);
+  -webkit-backdrop-filter: blur(40px) saturate(1.3);
+  border: 1px solid var(--border-card);
   border-radius: var(--radius-xl);
   min-width: 280px;
   box-shadow:
-    var(--shadow-2xl),
-    0 0 40px rgba(0, 0, 0, 0.3);
-  animation: dropdownSlide var(--duration-fast) var(--ease-out);
+    0 20px 60px rgba(0, 0, 0, 0.5),
+    0 0 1px rgba(255, 255, 255, 0.1) inset;
+  animation: dropdownSlide 0.35s var(--ease-smooth);
   overflow: hidden;
 }
 
-/* Subtle top border on dropdown */
+/* Subtle gradient border effect */
 .profile-dropdown::before {
   content: '';
   position: absolute;
@@ -338,7 +367,7 @@
   background: linear-gradient(
     90deg,
     transparent 0%,
-    var(--border-medium) 50%,
+    var(--border-card-hover) 50%,
     transparent 100%
   );
 }
@@ -346,7 +375,7 @@
 @keyframes dropdownSlide {
   from {
     opacity: 0;
-    transform: translateY(-8px) scale(0.96);
+    transform: translateY(-12px) scale(0.95);
   }
   to {
     opacity: 1;
@@ -357,6 +386,7 @@
 .profile-info {
   padding: var(--space-6);
   border-bottom: 1px solid var(--border-subtle);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, transparent 100%);
 }
 
 .profile-name {
@@ -392,33 +422,36 @@
   font-weight: var(--weight-regular);
   letter-spacing: var(--tracking-wide);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all 0.3s var(--ease-smooth);
   display: flex;
   align-items: center;
   gap: var(--space-3);
 }
 
 .dropdown-item:hover {
-  background: var(--bg-glass-hover);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text-primary);
+  padding-left: var(--space-7);
 }
 
 .dropdown-item svg {
   width: 18px;
   height: 18px;
-  opacity: 0.7;
+  opacity: 0.6;
+  transition: all 0.3s var(--ease-smooth);
 }
 
 .dropdown-item:hover svg {
   opacity: 1;
+  transform: scale(1.1);
 }
 
 .dropdown-item.admin {
-  color: var(--color-primary);
+  color: var(--color-accent);
 }
 
 .dropdown-item.admin:hover {
-  background: var(--color-primary-subtle);
+  background: rgba(212, 175, 55, 0.08);
 }
 
 .dropdown-item.logout {
@@ -438,28 +471,31 @@
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-6);
-  background: var(--white);
+  background: linear-gradient(135deg, var(--text-cream) 0%, var(--color-accent) 100%);
   border: none;
   border-radius: var(--radius-full);
-  color: var(--gray-900);
+  color: var(--bg-base);
   font-family: var(--font-text);
   font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
+  font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-wide);
   cursor: pointer;
-  transition: all var(--transition-smooth);
+  transition: all 0.4s var(--ease-smooth);
   text-decoration: none;
-  box-shadow: var(--shadow-md);
+  box-shadow:
+    0 4px 15px rgba(212, 175, 55, 0.3),
+    0 1px 0 rgba(255, 255, 255, 0.2) inset;
 }
 
 .login-button-nav:hover {
-  background: var(--gray-100);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
+  transform: translateY(-3px) scale(1.02);
+  box-shadow:
+    0 8px 25px rgba(212, 175, 55, 0.4),
+    0 1px 0 rgba(255, 255, 255, 0.3) inset;
 }
 
 .login-button-nav:active {
-  transform: translateY(0);
+  transform: translateY(-1px) scale(1);
 }
 
 .login-button-nav svg {
@@ -473,8 +509,8 @@
 
 .mobile-menu-btn {
   display: none;
-  background: var(--bg-glass);
-  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
   border-radius: var(--radius-md);
   color: var(--text-primary);
   width: 40px;
@@ -482,17 +518,23 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all 0.35s var(--ease-smooth);
 }
 
 .mobile-menu-btn:hover {
-  background: var(--bg-glass-hover);
-  border-color: var(--border-light);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-card-hover);
+  transform: scale(1.05);
 }
 
 .mobile-menu-btn svg {
   width: 20px;
   height: 20px;
+  transition: transform 0.3s var(--ease-smooth);
+}
+
+.mobile-menu-btn:hover svg {
+  transform: scale(1.1);
 }
 
 /* ============================================
@@ -567,12 +609,12 @@
 
   .navbar-search-box.expanded input,
   .navbar-search-box input:focus {
-    width: 220px;
+    width: 200px;
   }
 
   .profile-dropdown {
     min-width: 260px;
-    right: -var(--space-4);
+    right: calc(-1 * var(--space-4));
   }
 
   .mobile-menu-btn {
@@ -611,7 +653,7 @@
 .profile-button:focus-visible,
 .login-button-nav:focus-visible,
 .mobile-menu-btn:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-accent);
   outline-offset: 4px;
 }
 
@@ -619,7 +661,9 @@
   .navbar,
   .nav-link,
   .profile-button,
-  .profile-dropdown {
+  .profile-dropdown,
+  .navbar-search-box input,
+  .dropdown-item {
     transition: none;
   }
 
