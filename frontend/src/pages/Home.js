@@ -145,31 +145,23 @@ function Home() {
           console.debug('Watchlist no disponible');
         }
 
-        // Continue Watching - carrega pel·lícules i sèries en progrés
+        // Continue Watching - carrega contingut en progrés (local i streaming)
         try {
-          const [moviesProgress, seriesProgress] = await Promise.all([
-            axios.get('/api/user/progress/movies?limit=10').catch(() => ({ data: [] })),
-            axios.get('/api/user/progress/series?limit=10').catch(() => ({ data: [] }))
-          ]);
-
-          const movies = (moviesProgress.data || []).map(item => ({
+          const continueRes = await axios.get('/api/user/continue-watching');
+          const items = (continueRes.data || []).map(item => ({
             ...item,
-            type: 'movie',
-            progress: item.progress || 0
+            // Normalitzar el tipus
+            type: item.type === 'episode' ? 'series' : item.type,
+            // Normalitzar el progrés
+            progress: item.progress_percentage || 0,
+            // Usar backdrop o still_path per a la imatge
+            backdrop_path: item.backdrop || item.still_path || null,
+            poster_path: item.poster || null,
+            // Nom per mostrar
+            name: item.series_name || item.title
           }));
 
-          const series = (seriesProgress.data || []).map(item => ({
-            ...item,
-            type: 'series',
-            progress: item.progress || 0
-          }));
-
-          // Barrejar i ordenar per última visualització (més recent primer)
-          const combined = [...movies, ...series]
-            .sort((a, b) => new Date(b.last_watched || 0) - new Date(a.last_watched || 0))
-            .slice(0, 10);
-
-          setContinueWatching(combined);
+          setContinueWatching(items.slice(0, 10));
         } catch (e) {
           console.debug('Continue watching no disponible');
         }
@@ -238,18 +230,47 @@ function Home() {
   // Render item per al carousel de "Continua veient"
   const renderContinueItem = useCallback((item, index, isCenter) => {
     const itemType = item.type || 'series';
-    const link = item.tmdb_id
-      ? `/${itemType === 'movie' ? 'movies' : 'series'}/tmdb-${item.tmdb_id}`
-      : `/${itemType === 'movie' ? 'movies' : 'series'}/${item.id}`;
+
+    // Per a sèries, anem a la pàgina de detalls amb la temporada/episodi
+    let link;
+    if (item.source === 'streaming' && item.tmdb_id) {
+      // Contingut streaming - anar directament al reproductor
+      if (itemType === 'movie') {
+        link = `/debrid/movie/${item.tmdb_id}`;
+      } else {
+        const s = item.season_number || 1;
+        const ep = item.episode_number || 1;
+        link = `/debrid/tv/${item.tmdb_id}?s=${s}&e=${ep}`;
+      }
+    } else if (item.series_id) {
+      // Episodi local
+      link = `/series/${item.series_id}`;
+    } else {
+      link = item.tmdb_id
+        ? `/${itemType === 'movie' ? 'movies' : 'series'}/tmdb-${item.tmdb_id}`
+        : `/${itemType === 'movie' ? 'movies' : 'series'}/${item.id}`;
+    }
 
     // Imatge: backdrop per a thumbnails de "continua veient"
-    const image = item.backdrop_path
-      ? `https://image.tmdb.org/t/p/w500${item.backdrop_path}`
-      : item.poster_path
-        ? `https://image.tmdb.org/t/p/w300${item.poster_path}`
-        : item.poster
-          ? item.poster
-          : (item.id ? `${API_URL}/api/image/backdrop/${item.id}` : null);
+    // L'API retorna URLs relatives TMDB o URLs completes per a local
+    let image = null;
+    if (item.backdrop_path) {
+      // Pot ser una URL relativa de TMDB o una URL completa
+      image = item.backdrop_path.startsWith('http')
+        ? item.backdrop_path
+        : `https://image.tmdb.org/t/p/w500${item.backdrop_path}`;
+    } else if (item.still_path) {
+      image = item.still_path.startsWith('http')
+        ? item.still_path
+        : `https://image.tmdb.org/t/p/w500${item.still_path}`;
+    } else if (item.poster_path) {
+      image = item.poster_path.startsWith('http')
+        ? item.poster_path
+        : `https://image.tmdb.org/t/p/w300${item.poster_path}`;
+    } else if (item.series_id) {
+      // Contingut local - usar la API d'imatges
+      image = `${API_URL}/api/image/backdrop/${item.series_id}`;
+    }
 
     const progress = item.progress || 0;
     const episodeInfo = item.season_number && item.episode_number
@@ -274,17 +295,7 @@ function Home() {
             className="continue-card-hero__play"
             onClick={(e) => {
               e.stopPropagation();
-              if (isPremium && item.tmdb_id) {
-                if (itemType === 'movie') {
-                  navigate(`/debrid/movie/${item.tmdb_id}`);
-                } else {
-                  const s = item.season_number || 1;
-                  const ep = item.episode_number || 1;
-                  navigate(`/debrid/tv/${item.tmdb_id}?s=${s}&e=${ep}`);
-                }
-              } else {
-                navigate(link);
-              }
+              navigate(link);
             }}
           >
             <PlayIcon size={isCenter ? 28 : 22} />

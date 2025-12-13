@@ -628,26 +628,38 @@
 
 .continue-card-hero__title {
   display: block;
+  position: relative;
   font-family: var(--font-text);
   font-size: var(--text-xs);
   font-weight: var(--weight-medium);
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
   transition: color 0.2s ease;
+  /* Degradat en lloc de text-overflow: ellipsis */
+  -webkit-mask-image: linear-gradient(to right, black 80%, transparent 100%);
+  mask-image: linear-gradient(to right, black 80%, transparent 100%);
 }
 
 .continue-card-hero.is-center .continue-card-hero__title {
   font-size: var(--text-sm);
+  /* Més espai abans del degradat per al títol central */
+  -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
+  mask-image: linear-gradient(to right, black 85%, transparent 100%);
 }
 
 .continue-card-hero__episode {
   display: block;
+  position: relative;
   font-size: 10px;
   color: var(--text-tertiary);
   margin-top: 2px;
   letter-spacing: 0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  /* Degradat suau */
+  -webkit-mask-image: linear-gradient(to right, black 75%, transparent 100%);
+  mask-image: linear-gradient(to right, black 75%, transparent 100%);
 }
 
 /* Continue Hero Carousel specific */
