@@ -78,11 +78,15 @@
 /* Label */
 .bottom-nav__label {
   font-family: var(--font-text);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: var(--weight-medium);
-  letter-spacing: var(--tracking-wide);
+  letter-spacing: 0;
   transition: all var(--transition-fast);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  text-align: center;
 }
 
 /* ============================================
@@ -234,4 +238,80 @@
   .details-container {
     padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
   }
+}
+
+/* ============================================
+   SEARCH OVERLAY
+   ============================================ */
+
+.bottom-nav-search-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-sticky) + 10);
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--space-20) var(--space-6);
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.bottom-nav-search-form {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 500px;
+  background: var(--bg-elevated-2);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-full);
+  padding: var(--space-3) var(--space-5);
+  box-shadow: var(--shadow-xl);
+}
+
+.bottom-nav-search-form svg {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+}
+
+.bottom-nav-search-form input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: var(--font-text);
+  font-size: var(--text-base);
+  color: var(--text-primary);
+  min-width: 0;
+}
+
+.bottom-nav-search-form input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.search-close-btn {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: var(--text-lg);
+  cursor: pointer;
+  padding: var(--space-2);
+  line-height: 1;
+  transition: color var(--transition-fast);
+}
+
+.search-close-btn:hover {
+  color: var(--text-primary);
 }

@@ -36,19 +36,16 @@ function BottomNav() {
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef(null);
 
-  // Hide on player pages
-  if (location.pathname.startsWith('/player') ||
-      location.pathname.startsWith('/watch') ||
-      location.pathname.startsWith('/book/')) {
-    return null;
-  }
-
   // Close search when navigating
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     setSearchOpen(false);
     setSearchQuery('');
   }, [location.pathname]);
+
+  // Check if should hide on player pages
+  const isPlayerPage = location.pathname.startsWith('/player') ||
+      location.pathname.startsWith('/watch') ||
+      location.pathname.startsWith('/book/');
 
   const handleSearchClick = (e) => {
     e.preventDefault();
@@ -84,6 +81,11 @@ function BottomNav() {
       label: isAuthenticated ? 'Llista' : 'Entrar'
     }
   ];
+
+  // Hide on player pages
+  if (isPlayerPage) {
+    return null;
+  }
 
   return (
     <>

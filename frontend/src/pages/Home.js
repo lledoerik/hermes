@@ -457,70 +457,70 @@ function Home() {
                 />
               </div>
             </form>
-          </div>
 
-          {/* Continue Watching in Hero - Grid of 4 */}
-          {allContinueWatching.length > 0 && (
-            <div className="home-continue">
-              <div className="home-continue-header">
-                <h2>Continuar veient</h2>
-              </div>
-              <div className="home-continue-grid">
-                {allContinueWatching.slice(0, 4).map((item, index) => {
-                  const isMovie = item.mediaType === 'movie';
-                  let imageUrl = null;
+            {/* Continue Watching - RIGHT AFTER search bar */}
+            {allContinueWatching.length > 0 && (
+              <div className="home-continue">
+                <div className="home-continue-header">
+                  <h2>Continuar veient</h2>
+                </div>
+                <div className="home-continue-grid">
+                  {allContinueWatching.slice(0, 4).map((item, index) => {
+                    const isMovie = item.mediaType === 'movie';
+                    let imageUrl = null;
 
-                  if (item.source === 'streaming') {
-                    if (item.still_path) {
-                      imageUrl = item.still_path.startsWith('http') ? item.still_path : `https://image.tmdb.org/t/p/w500${item.still_path}`;
-                    } else if (item.backdrop) {
-                      imageUrl = item.backdrop.startsWith('http') ? item.backdrop : `https://image.tmdb.org/t/p/w780${item.backdrop}`;
-                    } else if (item.poster) {
-                      imageUrl = item.poster.startsWith('http') ? item.poster : `https://image.tmdb.org/t/p/w500${item.poster}`;
+                    if (item.source === 'streaming') {
+                      if (item.still_path) {
+                        imageUrl = item.still_path.startsWith('http') ? item.still_path : `https://image.tmdb.org/t/p/w500${item.still_path}`;
+                      } else if (item.backdrop) {
+                        imageUrl = item.backdrop.startsWith('http') ? item.backdrop : `https://image.tmdb.org/t/p/w780${item.backdrop}`;
+                      } else if (item.poster) {
+                        imageUrl = item.poster.startsWith('http') ? item.poster : `https://image.tmdb.org/t/p/w500${item.poster}`;
+                      }
+                    } else {
+                      if (item.backdrop || item.poster) {
+                        imageUrl = `${API_URL}/api/image/${item.backdrop ? 'backdrop' : 'poster'}/${item.series_id || item.id}`;
+                      }
                     }
-                  } else {
-                    if (item.backdrop || item.poster) {
-                      imageUrl = `${API_URL}/api/image/${item.backdrop ? 'backdrop' : 'poster'}/${item.series_id || item.id}`;
-                    }
-                  }
 
-                  return (
-                    <div
-                      key={`continue-${item.tmdb_id || item.id}-${index}`}
-                      className="home-continue-card"
-                      onClick={() => {
-                        if (item.tmdb_id) {
-                          if (isMovie) {
-                            navigate(`/debrid/movie/${item.tmdb_id}`);
+                    return (
+                      <div
+                        key={`continue-${item.tmdb_id || item.id}-${index}`}
+                        className="home-continue-card"
+                        onClick={() => {
+                          if (item.tmdb_id) {
+                            if (isMovie) {
+                              navigate(`/debrid/movie/${item.tmdb_id}`);
+                            } else {
+                              navigate(`/debrid/tv/${item.tmdb_id}?s=${item.season_number || 1}&e=${item.episode_number || 1}`);
+                            }
                           } else {
-                            navigate(`/debrid/tv/${item.tmdb_id}?s=${item.season_number || 1}&e=${item.episode_number || 1}`);
+                            navigate(isMovie ? `/movies/${item.id}` : `/series/${item.series_id}`);
                           }
-                        } else {
-                          navigate(isMovie ? `/movies/${item.id}` : `/series/${item.series_id}`);
-                        }
-                      }}
-                    >
-                      <div className="home-continue-thumb">
-                        <ContinueThumbnail item={item} imageUrl={imageUrl} type={item.mediaType} />
-                        <div className="home-continue-overlay">
-                          <PlayIcon size={36} />
+                        }}
+                      >
+                        <div className="home-continue-thumb">
+                          <ContinueThumbnail item={item} imageUrl={imageUrl} type={item.mediaType} />
+                          <div className="home-continue-overlay">
+                            <PlayIcon size={36} />
+                          </div>
+                          <div className="home-continue-progress">
+                            <div className="home-continue-progress-fill" style={{ width: `${item.progress_percentage}%` }} />
+                          </div>
                         </div>
-                        <div className="home-continue-progress">
-                          <div className="home-continue-progress-fill" style={{ width: `${item.progress_percentage}%` }} />
+                        <div className="home-continue-info">
+                          <span className="home-continue-title">{item.series_name || item.title}</span>
+                          {!isMovie && item.season_number && (
+                            <span className="home-continue-ep">T{item.season_number} E{item.episode_number}</span>
+                          )}
                         </div>
                       </div>
-                      <div className="home-continue-info">
-                        <span className="home-continue-title">{item.series_name || item.title}</span>
-                        {!isMovie && item.season_number && (
-                          <span className="home-continue-ep">T{item.season_number} E{item.episode_number}</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Explore button */}
           <button
