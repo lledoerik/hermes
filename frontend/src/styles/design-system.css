@@ -39,32 +39,32 @@
 
   /* ========================================
      BACKGROUND SYSTEM - Layered Depth
-     Base és el més fosc, cards destaquen
+     Base és gris mitjà, cards destaquen
      ======================================== */
 
-  /* Base - Deep Cinematic (NOT pure black) */
-  --bg-base: #0a0a0c;
+  /* Base - Medium Dark Gray */
+  --bg-base: #1e1e22;
 
   /* Elevated Surfaces - Cards, modals (MÉS CLARES que base) */
-  --bg-elevated: #141416;
-  --bg-elevated-2: #1a1a1d;
-  --bg-elevated-3: #222225;
+  --bg-elevated: #26262a;
+  --bg-elevated-2: #2e2e33;
+  --bg-elevated-3: #38383e;
 
   /* Card Specific - MOLT MÉS CLAR per destacar */
-  --bg-card: #1e1e22;
-  --bg-card-hover: #262629;
-  --bg-card-active: #2e2e32;
+  --bg-card: #32323a;
+  --bg-card-hover: #3c3c44;
+  --bg-card-active: #46464f;
 
   /* Overlay & Glass */
-  --bg-overlay: rgba(8, 8, 10, 0.95);
-  --bg-glass: rgba(255, 255, 255, 0.04);
-  --bg-glass-hover: rgba(255, 255, 255, 0.07);
-  --bg-glass-active: rgba(255, 255, 255, 0.10);
+  --bg-overlay: rgba(24, 24, 28, 0.95);
+  --bg-glass: rgba(255, 255, 255, 0.06);
+  --bg-glass-hover: rgba(255, 255, 255, 0.10);
+  --bg-glass-active: rgba(255, 255, 255, 0.14);
 
   /* Surface Colors */
-  --surface-primary: #0c0c0e;
-  --surface-secondary: #121214;
-  --surface-accent: rgba(255, 248, 240, 0.025);
+  --surface-primary: #202024;
+  --surface-secondary: #242428;
+  --surface-accent: rgba(255, 248, 240, 0.04);
   --surface-card: var(--bg-card);
   --surface-card-hover: var(--bg-card-hover);
   --surface-elevated: var(--bg-elevated);

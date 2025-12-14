@@ -419,13 +419,14 @@
 
 /* Search Bar - Expandable with Premium Animation */
 .home-search {
-  width: 320px;
+  width: 100%;
+  max-width: 500px;
   margin: 0 auto;
-  transition: width 0.5s var(--ease-smooth);
+  transition: max-width 0.5s var(--ease-smooth);
 }
 
 .home-search:focus-within {
-  width: 420px;
+  max-width: 600px;
 }
 
 .home-search-inner {
@@ -516,8 +517,11 @@
 .home-continue-section {
   margin-top: var(--space-16);
   position: relative;
-  width: 100vw;
-  margin-left: calc(-50vw + 50%);
+  /* Alinear amb les carousel-section de sota (auth-content) */
+  width: calc(100vw - var(--space-6) * 2);
+  max-width: 1600px;
+  margin-left: 50%;
+  transform: translateX(-50%);
 }
 
 .home-continue-title {
@@ -714,8 +718,8 @@
   background: linear-gradient(to right,
     var(--bg-base) 0%,
     var(--bg-base) 30%,
-    rgba(10, 10, 12, 0.9) 50%,
-    rgba(10, 10, 12, 0.5) 75%,
+    rgba(20, 20, 24, 0.9) 50%,
+    rgba(20, 20, 24, 0.5) 75%,
     transparent 100%
   );
 }
@@ -725,8 +729,8 @@
   background: linear-gradient(to left,
     var(--bg-base) 0%,
     var(--bg-base) 30%,
-    rgba(10, 10, 12, 0.9) 50%,
-    rgba(10, 10, 12, 0.5) 75%,
+    rgba(20, 20, 24, 0.9) 50%,
+    rgba(20, 20, 24, 0.5) 75%,
     transparent 100%
   );
 }
@@ -1894,6 +1898,7 @@
   /* Mobile Continue Hero Carousel */
   .home-continue-section {
     margin-top: var(--space-8);
+    width: calc(100vw - var(--space-5) * 2);
   }
 
   .home-continue-title {

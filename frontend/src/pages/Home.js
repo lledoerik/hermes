@@ -401,7 +401,6 @@ function Home() {
             {/* Continue Watching Carousel - sota la barra de cerca */}
             {continueWatching.length > 0 && (
               <div className="home-continue-section">
-                <h3 className="home-continue-title">Continua veient</h3>
                 <ContinueWatchingCarousel
                   items={continueWatching}
                   renderItem={renderContinueItem}
