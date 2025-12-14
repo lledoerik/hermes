@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config/api';
 import LazyImage from '../components/LazyImage';
 import CenterFocusCarousel from '../components/CenterFocusCarousel';
+import ContinueWatchingCarousel from '../components/ContinueWatchingCarousel';
 import {
   MovieIcon,
   SeriesIcon,
@@ -401,35 +402,34 @@ function Home() {
             {continueWatching.length > 0 && (
               <div className="home-continue-section">
                 <h3 className="home-continue-title">Continua veient</h3>
-                <CenterFocusCarousel
+                <ContinueWatchingCarousel
                   items={continueWatching}
                   renderItem={renderContinueItem}
-                  itemWidth={200}
-                  centerScale={1.15}
-                  gap={16}
+                  itemWidth={320}
+                  centerScale={1.08}
+                  gap={40}
                   className="continue-hero-carousel"
-                  showFadeEdges={false}
                 />
               </div>
             )}
-          </div>
 
-          {/* Explore button - s'amaga amb scroll */}
-          <button
-            className={`home-explore-btn ${hasScrolled ? 'hidden' : ''}`}
-            onClick={() => {
-              const authContent = document.querySelector('.auth-content');
-              if (authContent) {
-                authContent.scrollIntoView({ behavior: 'smooth' });
-              }
-            }}
-            aria-label="Explora més contingut"
-          >
-            <span>Explora</span>
-            <svg viewBox="0 0 48 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="14 4 24 12 34 4"/>
-            </svg>
-          </button>
+            {/* Explore button - sempre visible sota el carousel */}
+            <button
+              className={`home-explore-btn ${hasScrolled ? 'hidden' : ''}`}
+              onClick={() => {
+                const authContent = document.querySelector('.auth-content');
+                if (authContent) {
+                  authContent.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+              aria-label="Explora més contingut"
+            >
+              <span>Explora</span>
+              <svg viewBox="0 0 48 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="14 4 24 12 34 4"/>
+              </svg>
+            </button>
+          </div>
         </section>
 
         {/* Below the fold content */}

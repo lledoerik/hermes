@@ -21,17 +21,19 @@ const PauseIcon = () => (
   </svg>
 );
 
-// Icona de retrocedir - fletxes dobles cap a l'esquerra
+// Icona de retrocedir 10s - cercle amb fletxa i número
 const SkipBackIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" fill="currentColor" stroke="none"/>
+    <text x="12" y="14" textAnchor="middle" fill="currentColor" fontSize="7" fontWeight="bold" fontFamily="sans-serif" stroke="none">10</text>
   </svg>
 );
 
-// Icona d'avançar - fletxes dobles cap a la dreta
+// Icona d'avançar 10s - cercle amb fletxa i número
 const SkipForwardIcon = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z" fill="currentColor" stroke="none"/>
+    <text x="12" y="14" textAnchor="middle" fill="currentColor" fontSize="7" fontWeight="bold" fontFamily="sans-serif" stroke="none">10</text>
   </svg>
 );
 
@@ -468,15 +470,43 @@ function Player() {
     showControlsTemporarily();
   };
 
-  const togglePlay = () => {
+  const togglePlay = useCallback(() => {
     if (!videoRef.current) return;
-    // Utilitzar videoRef.current.paused directament és més fiable que l'estat
-    if (videoRef.current.paused) {
-      videoRef.current.play();
+
+    const video = videoRef.current;
+
+    if (video.paused) {
+      // En mòbils, play() retorna una Promise que pot fallar
+      const playPromise = video.play();
+
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            // Reproducció iniciada correctament
+            setIsPlaying(true);
+          })
+          .catch((error) => {
+            console.warn('Autoplay blocat pel navegador:', error);
+            // Si l'autoplay falla, intentem amb muted primer (alguns navegadors ho permeten)
+            video.muted = true;
+            video.play()
+              .then(() => {
+                setIsPlaying(true);
+                // Després de 100ms, intentem unmute
+                setTimeout(() => {
+                  video.muted = false;
+                }, 100);
+              })
+              .catch((e) => {
+                console.error('No es pot reproduir el vídeo:', e);
+              });
+          });
+      }
     } else {
-      videoRef.current.pause();
+      video.pause();
+      setIsPlaying(false);
     }
-  };
+  }, []);
 
   const [hasAutoFullscreen, setHasAutoFullscreen] = useState(false);
 
@@ -512,17 +542,42 @@ function Player() {
     saveProgress();
   };
   const handleVideoWaiting = () => setVideoLoading(true);
+
+  // Track si ja hem intentat autoplay
+  const hasTriedAutoplay = useRef(false);
+
   const handleVideoCanPlay = () => {
     setVideoLoading(false);
     setVideoReady(true);
 
+    const video = videoRef.current;
+    if (!video) return;
+
     // Si hi ha progrés inicial, posicionar el vídeo
-    if (initialProgress && initialProgress.progress_seconds > 30 && videoRef.current) {
+    if (initialProgress && initialProgress.progress_seconds > 30) {
       // Només si no s'ha acabat (< 90%)
       if (initialProgress.progress_percentage < 90) {
-        videoRef.current.currentTime = initialProgress.progress_seconds;
+        video.currentTime = initialProgress.progress_seconds;
       }
       setInitialProgress(null); // Només una vegada
+    }
+
+    // Intentar autoplay si encara no ho hem fet
+    if (!hasTriedAutoplay.current && video.paused) {
+      hasTriedAutoplay.current = true;
+
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setIsPlaying(true);
+          })
+          .catch(() => {
+            // Autoplay bloquejat - mostrar controls perquè l'usuari pugui fer play manualment
+            setShowControls(true);
+            console.log('Autoplay bloquejat - esperant interacció de l\'usuari');
+          });
+      }
     }
   };
 
@@ -591,26 +646,21 @@ function Player() {
     setTimeout(() => setRipple(null), 600);
   };
 
-  // Touch handling per doble toc
+  // Touch handling per doble toc - només al fons del vídeo
   const handleTouchStart = (e) => {
     if (!videoReady) return;
 
-    // Ignorar si el toc és sobre els controls (botons, menús, etc.)
+    // Obtenir l'element tocat
     const target = e.target;
-    const isControlElement = target.closest('.player-controls') ||
-                            target.closest('.control-btn') ||
-                            target.closest('.control-menu') ||
-                            target.closest('.back-btn') ||
-                            target.closest('.skip-segment-btn') ||
-                            target.closest('.next-episode-btn') ||
-                            target.closest('.intro-editor');
 
-    if (isControlElement) {
-      // Si toquem un control, cancel·lar qualsevol timeout d'amagar
-      if (controlsTimeoutRef.current) {
-        clearTimeout(controlsTimeoutRef.current);
-      }
-      return;
+    // NOMÉS processar si es toca directament el vídeo o el wrapper
+    // Qualsevol altre element (botons, controls, etc.) es gestiona per si sol
+    const isVideoArea = target.classList.contains('video-player') ||
+                        target.classList.contains('player-wrapper') ||
+                        target.classList.contains('player-container');
+
+    if (!isVideoArea) {
+      return; // Deixar que l'element tocat gestioni el seu propi event
     }
 
     const now = Date.now();
@@ -1293,12 +1343,16 @@ function Player() {
           className="video-player"
           src={isUsingHls ? undefined : getVideoUrl()}
           autoPlay
+          playsInline
+          webkit-playsinline="true"
+          x5-playsinline="true"
           onPlay={handleVideoPlay}
           onPause={handleVideoPause}
           onWaiting={handleVideoWaiting}
           onCanPlay={handleVideoCanPlay}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
+          onClick={togglePlay}
         />
 
         {(videoLoading || hlsLoading) && (
@@ -1508,10 +1562,33 @@ function Player() {
             <div style={{ width: '100px' }}></div>
           </div>
 
-          {/* Center Controls - només play/pause */}
+          {/* Center Controls - Play/Pause + Skip buttons (mobile) */}
           <div className="player-center">
-            <button className="center-btn play-pause-btn" onClick={togglePlay}>
+            {/* Skip Back - visible on mobile */}
+            <button
+              className="center-btn skip-btn mobile-skip-back"
+              onClick={() => skip(-skipSeconds)}
+              aria-label="Retrocedir 10 segons"
+            >
+              <SkipBackIcon />
+            </button>
+
+            {/* Play/Pause - always visible */}
+            <button
+              className="center-btn play-pause-btn"
+              onClick={togglePlay}
+              aria-label={isPlaying ? 'Pausar' : 'Reproduir'}
+            >
               {isPlaying ? <PauseIcon /> : <PlayIcon />}
+            </button>
+
+            {/* Skip Forward - visible on mobile */}
+            <button
+              className="center-btn skip-btn mobile-skip-forward"
+              onClick={() => skip(skipSeconds)}
+              aria-label="Avançar 10 segons"
+            >
+              <SkipForwardIcon />
             </button>
           </div>
 
@@ -1767,6 +1844,48 @@ function Player() {
                 <button className="control-btn" onClick={toggleFullscreen}>
                   {isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
                 </button>
+              </div>
+
+              {/* Mobile Action Bar - Netflix style */}
+              <div className="mobile-action-bar">
+                {/* Episodes Button (només per sèries) */}
+                {type === 'episode' && seriesEpisodes.length > 0 && (
+                  <button
+                    className="mobile-action-btn"
+                    onClick={() => {
+                      const wasOpen = showEpisodesMenu;
+                      closeAllMenus();
+                      if (!wasOpen) setShowEpisodesMenu(true);
+                    }}
+                  >
+                    <EpisodesIcon />
+                    <span>Episodis</span>
+                  </button>
+                )}
+
+                {/* Audio & Subtitles */}
+                <button
+                  className="mobile-action-btn"
+                  onClick={() => {
+                    const wasOpen = showAudioMenu || showSubtitleMenu;
+                    closeAllMenus();
+                    if (!wasOpen) setShowAudioMenu(true);
+                  }}
+                >
+                  <SubtitlesIcon />
+                  <span>Audio i subtítols</span>
+                </button>
+
+                {/* Next Episode (només per sèries) */}
+                {nextEpisode && (
+                  <button
+                    className="mobile-action-btn"
+                    onClick={goToNextEpisode}
+                  >
+                    <SkipForwardIcon />
+                    <span>Següent episodi</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>

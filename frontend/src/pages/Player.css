@@ -33,6 +33,9 @@
   height: 100%;
   object-fit: contain;
   background: var(--black-pure);
+  /* Millor resposta en mòbils */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* ============================================
@@ -53,11 +56,21 @@
 
 .player-controls.visible {
   opacity: 1;
-  pointer-events: auto;
+  /* Mantenim pointer-events: none al contenidor perquè els tocs passin al vídeo */
+  /* Només els fills interactius tindran pointer-events: auto */
 }
 
 .player-controls.hidden {
   cursor: none;
+}
+
+/* Elements interactius dins dels controls - reben events de clic/touch */
+.player-controls .player-top-bar,
+.player-controls .player-bottom-bar,
+.player-controls .player-center,
+.player-controls button,
+.player-controls .control-menu {
+  pointer-events: auto;
 }
 
 /* ============================================
@@ -448,6 +461,24 @@
   background: var(--bg-glass-hover);
   border-color: var(--white);
   box-shadow: var(--shadow-xl);
+}
+
+/* Mobile-only elements (hidden by default on desktop) */
+.mobile-skip-back,
+.mobile-skip-forward {
+  display: none;
+}
+
+.mobile-action-bar {
+  display: none;
+}
+
+/* Touch targets for buttons - ensure they work on mobile */
+.center-btn,
+.mobile-action-btn {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
 }
 
 /* ============================================
@@ -1359,69 +1390,168 @@
 }
 
 /* ============================================
-   RESPONSIVE - Mobile Experience
+   RESPONSIVE - Mobile Experience (Netflix-style)
    ============================================ */
 
 @media (max-width: 768px) {
-  /* Skip Segment & Next Episode Buttons */
-  .skip-segment-btn,
-  .next-episode-btn {
-    bottom: 120px;
-    right: var(--space-4);
-    padding: var(--space-3) var(--space-5);
+  /* Hide desktop controls on mobile */
+  .player-top-bar .back-btn span,
+  .player-title span,
+  .bottom-controls .left-controls,
+  .volume-control {
+    display: none;
+  }
+
+  /* Top Bar - Simplified */
+  .player-top-bar {
+    padding: var(--space-3) var(--space-4);
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.85) 0%, transparent 100%);
+  }
+
+  .back-btn {
+    padding: var(--space-2);
+    background: transparent;
+    border: none;
+  }
+
+  .back-btn svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .player-title {
+    padding: 0;
+  }
+
+  .player-title h2 {
     font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
   }
 
-  .next-episode-btn {
-    left: var(--space-4);
-    max-width: none;
-  }
-
-  .next-title {
-    max-width: calc(100vw - 140px);
-  }
-
-  /* Top & Bottom Bars */
-  .player-top-bar,
-  .player-bottom-bar {
-    padding: var(--space-4);
-  }
-
-  /* Center Controls */
+  /* Center Controls - Netflix Style with Skip buttons */
   .player-center {
-    gap: var(--space-12);
+    gap: var(--space-10);
+    position: relative;
+  }
+
+  /* Show skip buttons in center on mobile */
+  .mobile-skip-back,
+  .mobile-skip-forward {
+    display: flex !important;
   }
 
   .play-pause-btn {
-    width: 72px;
-    height: 72px;
-    padding: var(--space-5);
+    width: 70px;
+    height: 70px;
+    padding: var(--space-4);
+    background: transparent;
+    border: none;
+    backdrop-filter: none;
+    box-shadow: none;
   }
 
-  .skip-btn {
-    width: 48px;
-    height: 48px;
+  .play-pause-btn svg {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
   }
 
-  /* Control Buttons */
-  .control-btn {
-    width: 40px;
-    height: 40px;
+  .play-pause-btn:hover {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+
+  /* Skip Buttons - Circular with number */
+  .center-btn.skip-btn {
+    width: 56px;
+    height: 56px;
+    position: relative;
+  }
+
+  .center-btn.skip-btn svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Bottom Bar - Simplified Progress */
+  .player-bottom-bar {
+    padding: 0 var(--space-4) var(--space-3);
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, transparent 100%);
+  }
+
+  .progress-container {
+    margin-bottom: var(--space-3);
+  }
+
+  .time-display {
+    font-size: 11px;
+    min-width: auto;
+    margin-left: var(--space-2);
+    gap: var(--space-1);
+  }
+
+  /* Bottom Controls - Mobile Action Bar */
+  .bottom-controls {
+    justify-content: center;
+    padding-top: var(--space-2);
+  }
+
+  .right-controls {
+    display: none;
+  }
+
+  /* Mobile Action Bar - Netflix style */
+  .mobile-action-bar {
+    display: flex !important;
+    justify-content: center;
+    align-items: center;
+    gap: var(--space-8);
+    width: 100%;
+  }
+
+  .mobile-action-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    background: transparent;
+    border: none;
+    color: var(--white);
+    cursor: pointer;
     padding: var(--space-2);
+    transition: all var(--transition-fast);
   }
 
-  .control-btn svg {
-    width: 20px;
-    height: 20px;
+  .mobile-action-btn svg {
+    width: 24px;
+    height: 24px;
   }
 
-  .skip-icon-wrapper svg {
-    width: 18px;
-    height: 18px;
+  .mobile-action-btn span {
+    font-family: var(--font-text);
+    font-size: 10px;
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-wide);
+    white-space: nowrap;
   }
 
-  .skip-icon-wrapper .skip-seconds {
-    font-size: 9px;
+  .mobile-action-btn:active {
+    opacity: 0.7;
+    transform: scale(0.95);
+  }
+
+  /* Skip Segment & Next Episode Buttons - Mobile */
+  .skip-segment-btn,
+  .next-episode-btn {
+    bottom: 100px;
+    right: var(--space-4);
+    padding: var(--space-2) var(--space-4);
+    font-size: var(--text-xs);
   }
 
   /* Control Menu - Full Bottom Sheet */
@@ -1436,41 +1566,70 @@
     overflow-y: auto;
   }
 
-  .right-controls {
-    gap: var(--space-1);
-  }
-
   /* Intro Editor */
   .intro-editor {
     width: 90%;
     max-width: none;
     min-width: 0;
+    max-height: 80vh;
+    overflow-y: auto;
   }
 
-  /* Volume Control - Hide on Mobile */
-  .volume-control:hover .volume-slider {
-    width: 70px;
+  /* Skip Indicators - Smaller on mobile */
+  .skip-indicator {
+    padding: var(--space-4) var(--space-6);
+  }
+
+  .skip-indicator svg {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* Mobile Skip Buttons with circle */
+@media (max-width: 768px) {
+  .center-btn.skip-btn {
+    background: transparent;
+    border: none;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
+  }
+
+  .center-btn.skip-btn svg {
+    width: 48px;
+    height: 48px;
+  }
+
+  .center-btn.skip-btn:active {
+    transform: scale(0.9);
+    opacity: 0.7;
   }
 }
 
 /* Extra Small Mobile */
 @media (max-width: 374px) {
-  .play-pause-btn {
-    width: 64px;
-    height: 64px;
-    padding: var(--space-4);
-  }
-
-  .skip-btn {
+  .center-btn.skip-btn svg {
     width: 40px;
     height: 40px;
   }
 
-  .control-btn {
-    width: 36px;
-    height: 36px;
+  .play-pause-btn {
+    width: 60px;
+    height: 60px;
+  }
+
+  .player-center {
+    gap: var(--space-6);
+  }
+
+  .mobile-action-bar {
+    gap: var(--space-4);
+  }
+
+  .mobile-action-btn span {
+    font-size: 9px;
   }
 }
+
 
 /* ============================================
    ACCESSIBILITY

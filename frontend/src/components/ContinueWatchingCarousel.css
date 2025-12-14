@@ -1,0 +1,106 @@
+/* ============================================
+   CONTINUE WATCHING CAROUSEL
+   Simple • 5 Items • Center Focus
+   ============================================ */
+
+.continue-carousel {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* Track */
+.continue-carousel__track {
+  display: flex;
+  justify-content: flex-start;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  cursor: grab;
+  user-select: none;
+  padding: var(--space-6) 0;
+  scroll-behavior: smooth;
+}
+
+.continue-carousel__track::-webkit-scrollbar {
+  display: none;
+}
+
+.continue-carousel__track.dragging {
+  cursor: grabbing;
+  scroll-behavior: auto;
+}
+
+/* Items */
+.continue-carousel__item {
+  flex: 0 0 auto;
+  width: var(--item-width, 200px);
+  transition:
+    transform 0.4s var(--ease-smooth),
+    opacity 0.4s var(--ease-smooth),
+    filter 0.4s var(--ease-smooth);
+  transform-origin: center center;
+  opacity: 0.5;
+  filter: brightness(0.7);
+}
+
+.continue-carousel__item.is-center {
+  transform: scale(var(--center-scale, 1.15));
+  opacity: 1;
+  filter: brightness(1);
+  z-index: 5;
+}
+
+.continue-carousel__item.is-adjacent {
+  opacity: 0.75;
+  filter: brightness(0.85);
+}
+
+/* Prevent clicks during drag */
+.continue-carousel__track.dragging .continue-carousel__item {
+  pointer-events: none;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
+@media (max-width: 1023px) {
+  .continue-carousel__track {
+    padding: var(--space-4) 0;
+  }
+}
+
+@media (max-width: 767px) {
+  .continue-carousel__track {
+    padding: var(--space-3) 0;
+  }
+
+  .continue-carousel__item {
+    opacity: 0.6;
+  }
+
+  .continue-carousel__item.is-center {
+    opacity: 1;
+  }
+}
+
+/* ============================================
+   ACCESSIBILITY
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .continue-carousel__item {
+    transition: none;
+  }
+
+  .continue-carousel__track {
+    scroll-behavior: auto;
+  }
+}
+
+.continue-carousel__item:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 4px;
+}
